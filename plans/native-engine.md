@@ -2069,6 +2069,26 @@ fallback until a source/output is proven byte-identical — risk 2):
 >   decodes the video frames, so a track drawn later than the app's frame could cross a clip boundary the
 >   document does not describe yet. It needs every clip of a track in the document (as the lighting clips
 >   already are) and the engine's own decode (HAP / MP4 are already in the engine, E1d / E3b); then JUCE.
+>   → **the composite's time done in E3i, below; the picture across a boundary still needs the engine's decode.**
+>
+> ✅ **E3i done 2026-11-24 — THE COMPOSITE AT THE ENGINE'S OWN CLOCK, and the engine CHOOSES each track's clip.**
+> The composite document now carries each track's clip SPANS (id, start, duration — every clip of the track in
+> `data.clips` order) and the described clip's id; eval.rs `active_clip` ports timeline.ts `activeClip` (half-open
+> spans, the later clip wins an overlap). runtime `evaluate_clock`:
+> - **Checks** at the app's playhead, as before (clip alpha and clip-local time), and now the CHOICE too: the clip
+>   under the playhead must be the one the document describes (`clock: differs — … clip`).
+> - **Draws** each track's alpha and clip time (which an effect or a shader on the track runs at) at the engine's
+>   own clock — while the clip under that clock is still the described one. Across a boundary the app has not
+>   reached yet (the document still holds the outgoing clip's picture and timing) the track is drawn at the app's
+>   playhead for that tick: never a clip the document does not describe.
+> - **Proof:** `test:clock-parity` — 10 documents over two loops, **0 differences** (choice included), tracks drawn at
+>   the engine's clock 1818 times, held 0 times (the clocks are ~2 ms apart); and a second run with the engine's clock
+>   pushed 100 ms AHEAD: 1767 drawn at its clock, **24 held** at a boundary, still 0 differences. test:timeline-wire,
+>   test:timeline-video-wire (HAP + MP4 tracks), test:transport-clock, test:automation-parity unchanged.
+> - `verify:invariants`: the boundary rule guards the drawn clock, `active_clip` is activeClip's port, the spans are
+>   in activeClip's order (mutation-tested: the rule removed).
+> - **Not yet:** the picture itself across a boundary (the next clip's source and, for video, its frame) — that is
+>   the engine owning the decode of every clip, not only the active one; then JUCE in the engine process.
 
 ## 9d. E4 started early — the 3D view in the engine (owner, 2026-11-24)
 

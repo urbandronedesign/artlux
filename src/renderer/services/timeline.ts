@@ -2185,7 +2185,7 @@ export const timeline = {
     if (external) return { gen: lanesGen, lanes: [] };
     return { gen: lanesGen, lanes: lanesRT.filter((l) => take(l.path)).map((l) => ({ path: l.path, kfs: l.kfs, log: l.log, eps: l.eps, clock: l.clock })) };
   },
-  nativeLayers(only: readonly string[] | null, single = false): { layerId: string; clip: VideoClip | null; alpha: number; time: number; opacity: number; blend: string; codec: { id: string; path: string; frame: unknown; gen: number | undefined } | null; element: boolean }[] {
+  nativeLayers(only: readonly string[] | null, single = false): { layerId: string; clip: VideoClip | null; spans: { id: string; start: number; duration: number }[]; alpha: number; time: number; opacity: number; blend: string; codec: { id: string; path: string; frame: unknown; gen: number | undefined } | null; element: boolean }[] {
     if (external) return [];
     const layers = single ? data.layers.filter((l) => only?.includes(l.id)) : contributingLayers(only ? new Set(only) : null);
     return layers.map((l) => {
@@ -2197,6 +2197,8 @@ export const timeline = {
         ? { id: lv.codec.codecId, path: lv.codec.path, frame: lv.codec.canvas, gen: videoCodecRegistry.get(lv.codec.codecId)?.layerGeneration?.(l.id) }
         : null;
       return {
+        // E3i: every clip of the track in activeClip's order (data.clips), for the engine to choose from.
+        spans: data.clips.filter((x) => x.layerId === l.id).map((x) => ({ id: x.id, start: x.start, duration: x.duration })),
         layerId: l.id, clip: c, alpha: layerAlpha(l.id), time: c ? playhead - c.start + c.inPoint : 0,
         opacity: single ? 1 : Math.max(0, Math.min(1, l.opacity ?? 1)), blend: single ? 'normal' : (l.blendMode ?? 'normal'),
         codec, element: !!(c && lv && lv.clipId === c.id && lv.mode === 'video'),

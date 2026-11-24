@@ -31,7 +31,7 @@ use std::sync::Arc;
 /// which is its track's picture itself), and its tracks back-most first: (hidden source key, opacity, blend,
 /// E3c: the clip's timing — the engine evaluates its alpha and clip-local time from the playhead).
 #[derive(PartialEq, Clone)]
-struct CompSpec { w: u32, h: u32, single: bool, layers: Vec<(String, f32, String, Option<crate::eval::ClipTime>)> }
+struct CompSpec { w: u32, h: u32, single: bool, layers: Vec<(String, f32, String, Option<crate::eval::ClipTime>, crate::eval::Track)> }
 
 #[derive(PartialEq)]
 enum Source { Image(String), Effect(Params), Hap(String), Spout(String), Ndi(String), Mp4(String, i64), Camera(CamSpec), Shader(crate::shader::Spec), Raster, Blobs(u32, u32), Comp(CompSpec), None }
@@ -137,6 +137,8 @@ pub struct Runtime {
     draw_stats: (u64, u64, u64),
     /// The largest single byte the engine's clock moved from the app's frame (a sanity bound on the drift).
     draw_max_step: u8,
+    /// E3i: composite tracks drawn at the engine's own clock / held at the app's playhead across a clip boundary.
+    comp_draw: (u64, u64),
     clock_rev: u64,
     /// E3d: the automation lanes the engine evaluates, this tick's effect overrides (surface → speed,
     /// intensity), and the check's counters.
@@ -176,7 +178,7 @@ impl Runtime {
             #[cfg(feature = "ndi")] ndis: HashMap::new(),
             #[cfg(windows)] mp4s: HashMap::new(), conv: None,
             #[cfg(windows)] cams: HashMap::new(), resolved: HashMap::new(), pending_cams: HashMap::new(), last_doc: None, redo: false,
-            view: None, view_scene_ver: 0, view_published: HashMap::new(), view_colors_gen: 0, view_last_summary: String::new(), clock_diffs: 0, transport: Default::default(), draw_at: None, draw_stats: (0, 0, 0), draw_max_step: 0, clock_rev: 0, lanes: Vec::new(), auto_fx: HashMap::new(), auto_diffs: 0, auto_ticks: 0, show: Default::default(), light_diffs: 0, light_ticks: 0, rig: None, light_fix: HashMap::new(), byte_diffs: 0, byte_ticks: 0, light_solved: HashMap::new(), light_beams: HashMap::new() }
+            view: None, view_scene_ver: 0, view_published: HashMap::new(), view_colors_gen: 0, view_last_summary: String::new(), clock_diffs: 0, transport: Default::default(), draw_at: None, draw_stats: (0, 0, 0), draw_max_step: 0, comp_draw: (0, 0), clock_rev: 0, lanes: Vec::new(), auto_fx: HashMap::new(), auto_diffs: 0, auto_ticks: 0, show: Default::default(), light_diffs: 0, light_ticks: 0, rig: None, light_fix: HashMap::new(), byte_diffs: 0, byte_ticks: 0, light_solved: HashMap::new(), light_beams: HashMap::new() }
     }
 
     /// E4a: the 3D view's shared state and its open flag (serve.rs makes them; the windows thread shares them).
@@ -194,7 +196,7 @@ impl Runtime {
         // Each track's picture as a texture: a GPU picture copied from its visible rect, a CPU one uploaded
         // once per generation.
         let mut texs: Vec<(wgpu::Texture, f32, f32, String, u32, u32)> = Vec::new();
-        for (key, opacity, blend, _) in &spec.layers {
+        for (key, opacity, blend, _, _) in &spec.layers {
             let Some(p) = self.pictures.get(key) else { continue };   // not ready this frame: skipped, as the app does
             let alpha = v["comp"][sid][key].as_f64().unwrap_or(1.0) as f32;
             let gen = self.gens.get(key).copied().unwrap_or(0);
@@ -442,7 +444,7 @@ impl Runtime {
                 "raster" => Source::Raster,
                 "comp" => Source::Comp(CompSpec {
                     w: src["w"].as_u64().unwrap_or(0) as u32, h: src["h"].as_u64().unwrap_or(0) as u32, single: src["single"].as_bool().unwrap_or(false),
-                    layers: src["layers"].as_array().into_iter().flatten().map(|l| (l["key"].as_str().unwrap_or_default().to_string(), l["opacity"].as_f64().unwrap_or(1.0) as f32, l["blend"].as_str().unwrap_or("normal").to_string(), crate::eval::ClipTime::from_json(&l["clip"]))).collect(),
+                    layers: src["layers"].as_array().into_iter().flatten().map(|l| (l["key"].as_str().unwrap_or_default().to_string(), l["opacity"].as_f64().unwrap_or(1.0) as f32, l["blend"].as_str().unwrap_or("normal").to_string(), crate::eval::ClipTime::from_json(&l["clip"]), crate::eval::Track::from_json(l))).collect(),
                 }),
                 "blobs" => Source::Blobs(src["w"].as_u64().unwrap_or(1920).clamp(2, 4096) as u32, src["h"].as_u64().unwrap_or(1024).clamp(2, 4096) as u32),
                 "none" => Source::None,
@@ -862,7 +864,7 @@ impl Runtime {
         let mut n = 0usize;
         for (sid, src) in &doc.sources {
             let Source::Comp(spec) = src else { continue };
-            for (key, _, _, clip) in &spec.layers {
+            for (key, _, _, clip, track) in &spec.layers {
                 let Some(c) = clip else { continue };
                 let (a, t) = (crate::eval::clip_alpha(c, ph), crate::eval::clip_time(c, ph));
                 for (what, app, ours) in [("alpha", v["comp"][sid][key].as_f64(), a), ("time", v["times"][key].as_f64(), t)] {
@@ -873,6 +875,25 @@ impl Runtime {
                         }
                     }
                 }
+                // E3i: the engine CHOOSES the clip too (activeClip): at the app's playhead it must be the one the
+                // document describes.
+                let ours_id = crate::eval::active_clip(&track.spans, ph);
+                if v["rev"].as_u64() == Some(doc.rev) && track.id.is_some() && !track.spans.is_empty() && ours_id != track.id.as_deref() {
+                    self.clock_diffs += 1;
+                    if self.clock_diffs <= 20 { eprintln!("artlux-engine: clock: differs — {key} clip at playhead {ph}: app {:?}, engine {ours_id:?}", track.id); }
+                }
+                // E3i: DRAWN at the engine's own clock while the clip under it is still the one the document
+                // describes; across a boundary the app has not reached yet (the document holds the outgoing clip's
+                // picture and timing) the track is drawn at the app's playhead, for that tick.
+                let (a, t) = match self.draw_at {
+                    Some((dph, _)) if dph != ph => {
+                        if track.id.is_some() && crate::eval::active_clip(&track.spans, dph) == track.id.as_deref() {
+                            self.comp_draw.0 += 1;
+                            (crate::eval::clip_alpha(c, dph), crate::eval::clip_time(c, dph))
+                        } else { self.comp_draw.1 += 1; (a, t) }
+                    }
+                    _ => (a, t),
+                };
                 w["comp"][sid][key] = a.into();
                 w["times"][key] = t.into();
                 n += 1;
@@ -880,7 +901,7 @@ impl Runtime {
         }
         if n > 0 && self.clock_rev != doc.rev {
             self.clock_rev = doc.rev;
-            eprintln!("artlux-engine: clock: {n} track(s) evaluated from the playhead (document {}; {} difference(s) from the app so far)", doc.rev, self.clock_diffs);
+            eprintln!("artlux-engine: clock: {n} track(s) evaluated from the playhead (document {}; {} difference(s) from the app so far; drawn at the engine's own clock {} time(s), held at the app's playhead across a clip boundary {} time(s))", doc.rev, self.clock_diffs, self.comp_draw.0, self.comp_draw.1);
         }
         Some(w)
     }

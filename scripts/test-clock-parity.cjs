@@ -59,8 +59,11 @@ fs.writeFileSync(project, JSON.stringify({
   controllers: [], groups: [], scenes: [], cueBanks: [],
 }, null, 2));
 
-async function run(native) {
-  fs.rmSync(PROFILE, { recursive: true, force: true }); fs.mkdirSync(PROFILE, { recursive: true });
+async function run(native, skewMs = 0) {
+  for (let i = 0; ; i++) {   // the last run's (killed) processes may still hold the profile for a moment
+    try { fs.rmSync(PROFILE, { recursive: true, force: true }); break; } catch (e) { if (i >= 20) throw e; await sleep(500); }
+  }
+  fs.mkdirSync(PROFILE, { recursive: true });
   fs.writeFileSync(path.join(PROFILE, 'artlux-prefs.json'), JSON.stringify({ appSettings: { outputEnabled: true, artNetIp: '127.0.0.1', artNetPort: PORT, broadcast: false, protocol: 'artnet' } }));
   const sock = dgram.createSocket({ type: 'udp4', reuseAddr: true });
   const last = new Map(); const all = new Map(); const ports = new Map();
@@ -72,9 +75,10 @@ async function run(native) {
     if (!all.has(uni)) all.set(uni, []); all.get(uni).push(data);
   });
   await new Promise((r) => sock.bind(PORT, '127.0.0.1', r));
-  const logf = path.join(WORK, `run-${native ? 'engine' : 'app'}.log`);
+  const logf = path.join(WORK, `run-${native ? 'engine' : 'app'}${skewMs ? '-skew' : ''}.log`);
   const log = fs.openSync(logf, 'w');
   const env = { ...process.env }; delete env.ELECTRON_RUN_AS_NODE;
+  if (skewMs) env.ARTLUX_TRANSPORT_SKEW_MS = String(skewMs);
   const child = spawn(EXE, [`--user-data-dir=${PROFILE}`, '--headless', `--project=${project}`, ...(native ? ['--native-engine'] : [])], { env, stdio: ['ignore', log, log] });
   try {
     await sleep(10000);
@@ -98,6 +102,11 @@ async function run(native) {
   console.log(`${evals.length} documents evaluated from the playhead; ${diffs.length} difference line(s); running total ${lastN}`);
   if (evals.length < 6) { console.log('FAIL: the playhead did not cross enough clip boundaries (expected a new document at each, over 2+ loops)'); failed++; }
   if (diffs.length || lastN !== 0) { console.log('FAIL: the engine\'s clock disagrees with the app\'s:\n' + diffs.slice(0, 8).join('\n')); failed++; }
+  // E3i: the engine CHOOSES each track's clip (checked above with the rest) and DRAWS the track at its own clock,
+  // holding it at the app's playhead only across a clip boundary the app has not reached yet.
+  const drawn = evals.length ? evals[evals.length - 1].match(/drawn at the engine's own clock (\d+) time\(s\), held at the app's playhead across a clip boundary (\d+)/) : null;
+  if (drawn) console.log(`tracks drawn at the engine's own clock ${drawn[1]} time(s), held across a boundary ${drawn[2]}`);
+  if (!drawn || +drawn[1] < 200 || +drawn[2] > +drawn[1] / 10) { console.log('FAIL: the composite is not drawn at the engine\'s own clock'); failed++; }
   // The fades must actually MOVE the wire: each strip's brightness over the playing tail.
   for (const [uni, name] of [[0, 'program strip'], [1, 'still-track strip']]) {
     const sums = (B.all.get(uni) ?? []).map((d) => d.reduce((a, b) => a + b, 0));
@@ -105,6 +114,15 @@ async function run(native) {
     console.log(`universe ${uni} ${name}: ${sums.length} frames, brightness ${lo}..${hi}`);
     if (sums.length < 200 || hi - lo < 20000 || hi === 0) { console.log(`FAIL universe ${uni}: the fades did not play on the wire`); failed++; }
   }
+  // E3i, the boundary rule: the engine's clock pushed 100 ms AHEAD of the app's (ARTLUX_TRANSPORT_SKEW_MS) reaches
+  // every clip boundary before the document does — each such tick must hold the track at the app's playhead, and
+  // the composite checks (at the app's instant) must stay clean.
+  const S = await run(true, 100);
+  const sl = S.log.split(/\r?\n/);
+  const sev = sl.filter((l) => /clock: \d+ track\(s\) evaluated/.test(l));
+  const sd = sev.length ? sev[sev.length - 1].match(/; (\d+) difference\(s\)[^;]*; drawn at the engine's own clock (\d+) time\(s\), held at the app's playhead across a clip boundary (\d+)/) : null;
+  console.log(sd ? `engine clock 100 ms ahead: ${sd[2]} drawn at its clock, ${sd[3]} held across a boundary, ${sd[1]} composite difference(s)` : 'engine clock 100 ms ahead: no summary');
+  if (!sd || +sd[3] < 3 || +sd[1] !== 0 || sl.some((l) => /clock: differs/.test(l))) { console.log('FAIL: a clip boundary reached early by the engine\'s clock was not held'); failed++; }
   console.log(failed ? `\nclock parity: ${failed} FAILED` : '\nclock parity OK');
   process.exit(failed ? 1 : 0);
 })();

@@ -172,6 +172,32 @@ pub fn sample_lane(keys: &[Key], t: f64, log: bool) -> f64 {
     if log { libm::exp(libm::log(a.v) + (libm::log(b.v) - libm::log(a.v)) * e) } else { a.v + (b.v - a.v) * e }
 }
 
+/// E3i: a track's clips as the engine needs them to choose one — (clip id, start, duration), in the document's
+/// clip order (timeline.ts `data.clips`, filtered to the track).
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct Track { pub id: Option<String>, pub spans: Vec<(String, f64, f64)> }
+
+impl Track {
+    /// `l` is one composite layer of the document: the clip it describes (`clip.id`) and its track's spans.
+    pub fn from_json(l: &serde_json::Value) -> Self {
+        Track {
+            id: l["clip"]["id"].as_str().map(str::to_string),
+            spans: l["spans"].as_array().into_iter().flatten()
+                .filter_map(|s| Some((s["id"].as_str()?.to_string(), s["start"].as_f64()?, s["duration"].as_f64()?))).collect(),
+        }
+    }
+}
+
+/// timeline.ts activeClip — the clip under time `t` on a track: the LAST in document order whose half-open span
+/// `[start, start + duration)` holds it (an overlap is won by the later clip).
+pub fn active_clip(spans: &[(String, f64, f64)], t: f64) -> Option<&str> {
+    let mut found = None;
+    for (id, start, duration) in spans {
+        if t >= *start && t < start + duration { found = Some(id.as_str()); }
+    }
+    found
+}
+
 /// What the engine needs of a timeline clip to evaluate it in time.
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct ClipTime { pub start: f64, pub in_point: f64, pub duration: f64, pub fade_in: f64, pub fade_out: f64, pub opacity: f64 }
@@ -226,6 +252,19 @@ pub fn run_cases(cases: &serde_json::Value) -> serde_json::Value {
         }
     }).collect();
     serde_json::Value::Array(out)
+}
+
+#[cfg(test)]
+mod track_tests {
+    use super::*;
+    #[test]
+    fn the_later_clip_wins_an_overlap_and_the_end_is_open() {
+        let s = vec![("a".to_string(), 0.0, 3.0), ("b".to_string(), 2.0, 2.0)];
+        assert_eq!(active_clip(&s, 1.0), Some("a"));
+        assert_eq!(active_clip(&s, 2.5), Some("b"));
+        assert_eq!(active_clip(&s, 4.0), None);
+        assert_eq!(active_clip(&s, 3.0), Some("b"));
+    }
 }
 
 #[cfg(test)]

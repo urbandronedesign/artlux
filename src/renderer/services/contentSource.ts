@@ -748,7 +748,7 @@ export type NativeSource = { kind: 'image' | 'hap'; path: string } | { kind: 'mp
   | { kind: 'blobs'; w: number; h: number }
   // E3a: a timeline surface (LAYER / stack / PROGRAM) composited by the engine — surfaceMedia.compositeNativeSource.
   // `sources` are the tracks' clips as hidden sources (`layer:<id>`), with the clip content they are drawn from.
-  | { kind: 'comp'; w: number; h: number; single: boolean; layers: { key: string; opacity: number; blend: string; clip?: { start: number; inPoint: number; duration: number; fadeIn?: number; fadeOut?: number; opacity?: number } }[]; sources: Record<string, { src: NativeSource; content: unknown }> };
+  | { kind: 'comp'; w: number; h: number; single: boolean; layers: { key: string; opacity: number; blend: string; clip?: { id?: string; start: number; inPoint: number; duration: number; fadeIn?: number; fadeOut?: number; opacity?: number }; spans?: { id: string; start: number; duration: number }[] }[]; sources: Record<string, { src: NativeSource; content: unknown }> };
 
 // Item 2d step 5 (plans/native-engine.md): a CAMERA surface. The app keeps its camera (owner's decision); the
 // engine reads the same device SHARED and draws it as this app does (engine cam.rs — proven by

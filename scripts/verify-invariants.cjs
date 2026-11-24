@@ -4404,7 +4404,11 @@ check(
     if (!/self\.transport\.own\(\)/.test(body('draw_clock'))) problems.push("draw_clock no longer reads the engine's own clock");
     if (!/at_app = crate::eval::sample_lane\(&l\.keys, if l\.show \{ st \} else \{ ph \}/.test(body('evaluate_lanes'))) problems.push("the lane check is no longer at the app's instant");
     if (!/self\.show\.roles\(dph\)/.test(body('evaluate_lighting')) || !/self\.show\.roles\(ph\)/.test(body('evaluate_lighting'))) problems.push("the light show is no longer checked at the app's instant and drawn at the engine's clock");
-    if (/draw_at/.test(body('evaluate_clock'))) problems.push("the composite is evaluated at the engine's clock, but the document only describes the clip active at the app's playhead");
+    // E3i: a track is drawn at the engine's clock ONLY while the clip under it is the one the document describes.
+    if (!/active_clip\(&track\.spans, dph\) == track\.id\.as_deref\(\)/.test(body('evaluate_clock'))) problems.push("the composite is drawn at the engine's clock without the clip-boundary rule (the document only describes the clip active at the app's playhead)");
+    const ev = exists('engine/artlux-engine/src/eval.rs') ? read('engine/artlux-engine/src/eval.rs') : '';
+    if (!/if \(c\.layerId === layerId && t >= c\.start && t < c\.start \+ c\.duration\) found = c;/.test(t) || !/if t >= \*start && t < start \+ duration \{ found = Some\(id\.as_str\(\)\); \}/.test(ev)) problems.push('activeClip changed — re-port it to eval.rs active_clip');
+    if (!/spans: data\.clips\.filter\(\(x\) => x\.layerId === l\.id\)/.test(t)) problems.push("the composite document no longer carries each track's clip spans in activeClip's order");
     return problems.length ? problems.join('; ') : null;
   },
 );
