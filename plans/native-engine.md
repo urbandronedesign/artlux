@@ -1964,7 +1964,44 @@ fallback until a source/output is proven byte-identical — risk 2):
 > - **Still the app's:** the light BYTES — the packer solves roles and colours into DMX per profile and mode,
 >   under the precedence stack (profile default < authored < lighting clip < pose cue < automation < live). That
 >   solve (colorEngine `realiseColor` / `solveEmitters`, frameEngine `packLight`) is the next port, checked
->   byte-for-byte against the `lights` the tick already carries.
+>   byte-for-byte against the `lights` the tick already carries. → **done in E3f, below.**
+>
+> ✅ **E3f done 2026-11-24 — EVERY LIGHT'S DMX SOLVED BY THE ENGINE, and the engine's bytes on the wire.**
+> `lightpack.rs` ports profilePack (`modeOf` — a repeated mode key resolves to the first; `modePlan` — a slot per
+> offset, a 16/24-bit channel split over the bytes THIS MODE emits, an undefined channel still occupying its slot,
+> a repeated channel key resolving to the LAST channel as `new Map` does; `channelValue`; `packProfiled`),
+> colorEngine (`colorCapability`, the bounded least-squares `fit`, `solveEmitters`, `flagsForColor`,
+> `solveTemperature`, `temperatureOf`, `nearestSlot`, `realiseColor`), fixtureSignal (`EMITTERS`, `colorModel`)
+> and frameEngine's precedence stack (live fader > lane-owned channel > colour lane > pose cue > lighting clip >
+> RGB→CMY bridge on a subtractive head > authored > profile default). JavaScript semantics kept: Math.round half
+> up, Math.max / min with NaN, `>>` on Int32 with the count mod 32, NaN → 0 on the wire.
+> - **Found on the way — the wire depended on HISTORY.** `solveCached` keyed its memo on the colour quantised to
+>   1/255 but solved the colour that FIRST reached the bucket, so a colour lane fading through a bucket wrote the
+>   bytes of whichever frame opened it, and the same playhead could put different bytes on the wire depending on
+>   what had played before. No evaluator from the playhead can follow that. The app now solves the bucket's own
+>   (quantised) colour — the precision the key always promised — and the engine does the same.
+> - **Offline:** `test:light-pack-parity` — the app's packProfiled / realiseColor / colorModel bundled from source
+>   against `--pack-cases`, on EVERY MODE of the shipped library (1683 modes of 519 profiles): 4 packs per mode
+>   with random authored values (and junk), clip roles in physical units, cues, colours, owned channels and live
+>   faders, plus 9 colour realisations per mode — 21879 cases, 53079 bytes, **all identical**, realised roles
+>   exactly equal. Mutation: the fit's stop loosened 1e-7 → 1e-6 → 11765 cases fail.
+> - **On the show:** the document carries the lights' profiles (`profiles`: channels + the modes the rig can
+>   resolve to); the tick carries what are events, not time — the fired pose cue (`lcue`, lightingCue snapshot),
+>   the faders under a hand (`llive`, recorded by frameEngine as the live layer is read) and the lane-owned light
+>   channels (`lown`). The engine packs every light from the document's fixture and ITS OWN light-show
+>   evaluation (the app's `lroles` / `lcolors` when it does not evaluate the show), checks against `lights`
+>   (`light bytes: differs`), and **places its own bytes**; the app's stand in for a tick it did not solve (no
+>   document yet, an older host). `test:light-bytes`: the light-show-parity show plus a CMY spot (ayrton diablo-s,
+>   driven through the RGB→CMY bridge), a tuneable-white key (aputure ls-600x-pro, a colour lane solved as a
+>   temperature) and an automation lane on a wash's dimmer — 8 lights, 120 bytes a tick, 841 ticks, **0
+>   differing**. Mutations: lane ownership ignored → wash 1's dimmer caught at 0.01 s; the CMY bridge inverted →
+>   the spot's cyan caught at 0.06 s. Wire proof: the engine's first byte of every light forced to 77 → 77 on the
+>   wire on 1936 of 1938 ArtDmx frames (the other two precede the document).
+> - `verify:invariants`: the emitter table, the RGB→CMY bridge, the fit's 6000-pass cap and 1e-7 stop and the
+>   quantised solve match the app's (mutation-tested).
+> - **Still the app's:** the pose cue, live faders and automation on light channels (events; sent per tick), the
+>   3D beams' resolved state (fixtureSignal.resolveFixture). Next in E3: the playhead from the audio clock, and a
+>   scene-fade-over-lane wire test.
 
 ## 9d. E4 started early — the 3D view in the engine (owner, 2026-11-24)
 

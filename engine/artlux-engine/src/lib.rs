@@ -40,6 +40,7 @@ pub mod blobs;
 pub mod comp;
 pub mod eval;
 pub mod light;
+pub mod lightpack;
 #[cfg(feature = "ndi")]
 pub mod ndi;
 pub mod windows;

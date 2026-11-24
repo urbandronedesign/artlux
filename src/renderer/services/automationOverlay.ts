@@ -37,6 +37,12 @@ export function clear(): void {
 /** Does a lane currently own this path? transitions.ts asks, so a fade can LAND on a curve, not fight it. */
 export function owns(path: string): boolean { return values.has(path); }
 export function isActive(): boolean { return values.size > 0; }
+/** E3f: the rest of every owned path under `prefix` (`fixtures.<id>.dmx.` → that light's lane-owned channel keys). */
+export function ownedUnder(prefix: string): string[] {
+  const out: string[] = [];
+  for (const p of values.keys()) if (p.startsWith(prefix)) out.push(p.slice(prefix.length));
+  return out;
+}
 
 /** True if a geometry / non-geometry leaf moved since the last frame was consumed (the GPU mapper needs to know). */
 export function geometryAnimating(): boolean { return geomDirty; }

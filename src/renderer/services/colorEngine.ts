@@ -529,7 +529,12 @@ export function solveCached(profile: FixtureProfile, mode: ProfileMode, target: 
   const key = `${q(target[0])},${q(target[1])},${q(target[2])}`;
   const hit = byColor.get(key);
   if (hit) return hit;
-  const res = solveEmitters(colorCapability(profile, mode), target);
+  // THE BUCKET'S OWN COLOUR IS SOLVED, not whichever colour happened to land in it first. Solving the first
+  // arrival made the wire depend on HISTORY: a colour lane fading through a bucket wrote the bytes of the frame
+  // that opened it, so the same playhead could put different bytes on the wire depending on what had played
+  // before — and the native engine (E3f, engine lightpack.rs), which solves from the playhead alone, could never
+  // agree with it. Quantised to 1/255 of linear colour, which is what the key already promised.
+  const res = solveEmitters(colorCapability(profile, mode), [q(target[0]) / 255, q(target[1]) / 255, q(target[2]) / 255]);
   // A rig is a few dozen modes and an operator authors a bounded number of colours; the cap is only
   // here so a generated effect sweeping hue at 60 fps cannot grow this without bound.
   if (byColor.size > 512) byColor.clear();

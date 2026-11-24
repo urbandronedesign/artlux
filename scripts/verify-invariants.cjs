@@ -4386,7 +4386,7 @@ check(
     else for (const leaf of m[1].split('|')) if (!read(R).includes(`Some(&"${leaf}"), 4) => AutoLeaf::`)) problems.push(`runtime.rs does not apply the ${leaf} lane the app hands it`);
     const f = read(F);
     if (!/if \(fade\) lanesView = null;/.test(f)) problems.push('frameEngine no longer withholds the lanes while a scene fade runs');
-    if (!/nativeLink\.frame\([^)]*lanesView\)/.test(f)) problems.push('frameEngine no longer passes lanesView to nativeLink');
+    if (!/nativeLink\.frame\([^)]*lanesView[,)]/.test(f)) problems.push('frameEngine no longer passes lanesView to nativeLink');
     return problems.length ? problems.join('; ') : null;
   },
 );
@@ -4413,6 +4413,40 @@ check(
     const cold = (lt.match(/const COLD: Rgb = \[([\d., ]+)\]/) ?? [])[1]?.replace(/\s/g, '').replace(/\.0(?=,|$)/g, '');
     if (!em('warmWhite') || em('warmWhite') !== warm) problems.push(`warm white differs — app ${em('warmWhite')}, engine ${warm}`);
     if (!em('coldWhite') || em('coldWhite') !== cold) problems.push(`cold white differs — app ${em('coldWhite')}, engine ${cold}`);
+    return problems.length ? problems.join('; ') : null;
+  },
+);
+
+check(
+  'the native engine solves a light\'s bytes with the app\'s own tables',
+  'E3f: the engine packs every light through its profile (engine lightpack.rs, a port of profilePack / ' +
+  'colorEngine / frameEngine\'s precedence stack) and checks the bytes against the app\'s every frame. What is ' +
+  'COPIED, not computed: the emitter table the colour fit solves against (fixtureSignal EMITTERS — one changed ' +
+  'number moves every solved colour), the RGB→CMY bridge (frameEngine CMY_FROM_RGB), the fit\'s 6000-pass cap and ' +
+  '1e-7 stop (a looser stop leaves 11765 of 21879 library cases a byte off — measured), and the rule that the ' +
+  'solve takes the colour QUANTISED to 1/255 (colorEngine solveCached: solving the first colour to reach a cache ' +
+  'bucket made the wire depend on what had played before, which no evaluator from the playhead can follow). ' +
+  'test:light-pack-parity holds the numbers on the whole fixture library; this holds the tables.',
+  () => {
+    const problems = [];
+    const S = 'src/renderer/services/fixtureSignal.ts', C = 'src/renderer/services/colorEngine.ts', F = 'src/renderer/engine/frameEngine.ts', P = 'engine/artlux-engine/src/lightpack.rs';
+    if (![S, C, F, P].every(exists)) return 'fixtureSignal.ts / colorEngine.ts / frameEngine.ts / lightpack.rs is gone';
+    const norm = (x) => x.replace(/\s/g, '').split(',').map(Number).join(',');
+    const app = {};
+    for (const m of (read(S).match(/export const EMITTERS[^=]*=\s*\{([\s\S]*?)\};/) ?? [])[1]?.matchAll(/(\w+):\s*\[([^\]]*)\]/g) ?? []) app[m[1]] = norm(m[2]);
+    const eng = {};
+    for (const m of read(P).matchAll(/"(\w+)" => \[([^\]]*)\]/g)) eng[m[1]] = norm(m[2]);
+    const a = JSON.stringify(Object.keys(app).sort().map((k) => [k, app[k]])), e = JSON.stringify(Object.keys(eng).sort().map((k) => [k, eng[k]]));
+    if (Object.keys(app).length < 10 || a !== e) problems.push(`emitter tables differ — app ${a}, engine ${e}`);
+    const bridge = (read(F).match(/CMY_FROM_RGB[^=]*=\s*\{([^}]*)\}/) ?? [])[1]?.replace(/[\s']/g, '');
+    const engBridge = (read(P).match(/fn cmy_from_rgb[\s\S]*?match role \{([^}]*)\}/) ?? [])[1];
+    const eb = [...(engBridge ?? '').matchAll(/"(\w+)" => Some\("(\w+)"\)/g)].map((m) => `${m[1]}:${m[2]}`).join(',');
+    if (!bridge || bridge.replace(/,$/, '') !== eb) problems.push(`the RGB→CMY bridge differs — app ${bridge}, engine ${eb}`);
+    const c = read(C), p = read(P);
+    if (!/iter < 6000;/.test(c) || !/for _ in 0\.\.6000 \{/.test(p)) problems.push('the fit\'s pass cap is not 6000 on both sides');
+    if (!/if \(moved < 1e-7\) break;/.test(c) || !/if moved < 1e-7 \{ break; \}/.test(p)) problems.push('the fit\'s stop is not 1e-7 on both sides');
+    if (!/solveEmitters\(colorCapability\(profile, mode\), \[q\(target\[0\]\) \/ 255, q\(target\[1\]\) \/ 255, q\(target\[2\]\) \/ 255\]\)/.test(c)) problems.push('colorEngine.solveCached no longer solves the quantised colour (the wire would depend on history)');
+    if (!/jround\(v \* 255\.0\) \/ 255\.0/.test(p)) problems.push('lightpack.rs no longer solves the quantised colour');
     return problems.length ? problems.join('; ') : null;
   },
 );

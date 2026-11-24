@@ -139,6 +139,14 @@ pub struct Runtime {
     show: crate::light::Show,
     light_diffs: u64,
     light_ticks: u64,
+    /// E3f: the lights' profiles (None: an older host sent none) and each light fixture as the document has it
+    /// (profileId, profileMode, dmx — automation already folded in); the byte check's counters.
+    rig: Option<crate::lightpack::Rig>,
+    light_fix: HashMap<String, Value>,
+    byte_diffs: u64,
+    byte_ticks: u64,
+    /// E3f: this tick's bytes for each light as the ENGINE solved them — the ones placed on the wire.
+    light_solved: HashMap<String, Vec<u8>>,
 }
 
 #[derive(Clone, Copy, PartialEq)]
@@ -156,7 +164,7 @@ impl Runtime {
             #[cfg(feature = "ndi")] ndis: HashMap::new(),
             #[cfg(windows)] mp4s: HashMap::new(), conv: None,
             #[cfg(windows)] cams: HashMap::new(), resolved: HashMap::new(), pending_cams: HashMap::new(), last_doc: None, redo: false,
-            view: None, view_scene_ver: 0, view_published: HashMap::new(), view_colors_gen: 0, view_last_summary: String::new(), clock_diffs: 0, clock_rev: 0, lanes: Vec::new(), auto_fx: HashMap::new(), auto_diffs: 0, auto_ticks: 0, show: Default::default(), light_diffs: 0, light_ticks: 0 }
+            view: None, view_scene_ver: 0, view_published: HashMap::new(), view_colors_gen: 0, view_last_summary: String::new(), clock_diffs: 0, clock_rev: 0, lanes: Vec::new(), auto_fx: HashMap::new(), auto_diffs: 0, auto_ticks: 0, show: Default::default(), light_diffs: 0, light_ticks: 0, rig: None, light_fix: HashMap::new(), byte_diffs: 0, byte_ticks: 0, light_solved: HashMap::new() }
     }
 
     /// E4a: the 3D view's shared state and its open flag (serve.rs makes them; the windows thread shares them).
@@ -456,6 +464,11 @@ impl Runtime {
         let light_ids: Vec<&str> = d["lights"].as_array().into_iter().flatten().filter_map(|v| v.as_str()).collect();
         doc.lights = doc.pfix.iter().enumerate().filter(|(_, f)| light_ids.contains(&f.id.as_str())).map(|(i, _)| i).collect();
         for &i in &doc.lights { doc.pfix[i].light = true; }
+        // E3f: the lights' profiles, and the light fixtures themselves, for the byte solve.
+        let had_rig = self.rig.is_some();
+        self.rig = d.get("profiles").filter(|p| p.is_object()).map(crate::lightpack::Rig::from_json);
+        if self.rig.is_some() && !had_rig && !light_ids.is_empty() { eprintln!("artlux-engine: light bytes: every light's DMX is solved by the engine and checked against the app's"); }
+        self.light_fix = d["fixtures"].as_array().into_iter().flatten().filter(|f| f["id"].as_str().is_some_and(|id| light_ids.contains(&id))).map(|f| (f["id"].as_str().unwrap_or_default().to_string(), f.clone())).collect();
         // A surface whose SOURCE changed (another file, another kind) starts from nothing: its picture and
         // generation belong to the old source.
         if let Some(old) = &self.doc {
@@ -600,6 +613,7 @@ impl Runtime {
     pub fn tick(&mut self, v: &Value) -> Result<(), String> {
         let Some(mut doc) = self.doc.take() else { return Ok(()) };
         self.evaluate_lanes(&mut doc, v);
+        self.light_solved.clear();
         if v["rev"].as_u64() == Some(doc.rev) { self.evaluate_lighting(v); }   // the app's overlays are THIS document's
         let ev = self.evaluate_clock(&doc, v);
         let r = self.tick_with(&mut doc, ev.as_ref().unwrap_or(v));
@@ -671,14 +685,20 @@ impl Runtime {
     /// bytes on the wire are still the app's (its packer solves roles and colours into DMX); this is the parity
     /// harness on the show before that moves.
     fn evaluate_lighting(&mut self, v: &Value) {
-        if !self.show.on || self.show.is_empty() { return; }
-        let Some(ph) = v["ph"].as_f64() else { return };
-        let (roles, colors) = (self.show.roles(ph), self.show.colors(ph));
+        let ours = match (self.show.on && !self.show.is_empty(), v["ph"].as_f64()) {
+            (true, Some(ph)) => { let (r, c) = (self.show.roles(ph), self.show.colors(ph)); self.check_show(ph, &r, &c, v); Some((r, c)) }
+            _ => None,
+        };
+        self.check_bytes(v, ours.as_ref());
+    }
+
+    /// E3e: the engine's light show against the app's players' (`lroles`, `lcolors`).
+    fn check_show(&mut self, ph: f64, roles: &crate::light::Roles, colors: &crate::light::Colors, v: &Value) {
         let n = |x: &Value| x.as_f64().unwrap_or(f64::NAN);   // the app's NaN arrives as null
         let close = |a: f64, b: f64| (a - b).abs() <= 1e-9 || (a.is_nan() && b.is_nan());
         let mut why: Vec<String> = Vec::new();
         let app_roles = v["lroles"].as_object().cloned().unwrap_or_default();
-        for (f, m) in &roles {
+        for (f, m) in roles {
             for (r, x) in m {
                 let a = &app_roles.get(f).map(|o| o[r].clone()).unwrap_or(Value::Null);
                 if a.is_null() && !x.is_nan() { why.push(format!("{f}.{r}: app none, engine {x}")); } else if !close(n(a), *x) { why.push(format!("{f}.{r}: app {a}, engine {x}")); }
@@ -690,7 +710,7 @@ impl Runtime {
             }
         }
         let app_colors = v["lcolors"].as_object().cloned().unwrap_or_default();
-        for (f, c) in &colors {
+        for (f, c) in colors {
             let ok = match (app_colors.get(f), c) {
                 (Some(a), crate::light::Color::Rgb(x)) => a["kind"] == "rgb" && (0..3).all(|i| close(n(&a["rgb"][i]), x[i])),
                 (Some(a), crate::light::Color::Cct(t)) => a["kind"] == "cct" && close(n(&a["t"]), *t),
@@ -707,6 +727,59 @@ impl Runtime {
         if self.light_ticks % 120 == 1 {
             let nr: usize = roles.values().map(|m| m.len()).sum();
             eprintln!("artlux-engine: lighting: {} tick(s) evaluated ({} role value(s), {} colour(s) this tick), {} tick(s) differing from the app so far", self.light_ticks, nr, colors.len(), self.light_diffs);
+        }
+    }
+
+    /// E3f — THE ENGINE SOLVES EVERY LIGHT'S DMX (plans/native-engine.md §4): through the fixture's profile
+    /// (lightpack.rs, the port of profilePack / colorEngine and frameEngine's precedence stack), from the
+    /// document's fixture (its authored values, automation folded in) and this frame's layers over it — the
+    /// light show's roles and colours as the ENGINE evaluated them (the app's `lroles` / `lcolors` when the
+    /// engine does not evaluate the show), and the inputs that are events rather than time: the fired pose cue
+    /// (`lcue`), the faders under a hand (`llive`), the channels an automation lane owns (`lown`). CHECKED byte
+    /// for byte against what the app packed (`lights`): `light bytes: differs`. The ENGINE's bytes are the ones
+    /// placed on the wire (`light_solved`); the app's stand in for a light the engine was not given.
+    fn check_bytes(&mut self, v: &Value, ours: Option<&(crate::light::Roles, crate::light::Colors)>) {
+        let (Some(rig), Some(app)) = (self.rig.as_mut(), v["lights"].as_object()) else { return };
+        if app.is_empty() { return; }
+        let map = |x: &Value| -> HashMap<String, f64> { x.as_object().into_iter().flatten().map(|(k, y)| (k.clone(), y.as_f64().unwrap_or(f64::NAN))).collect() };
+        let maps = |x: &Value| -> HashMap<String, HashMap<String, f64>> { x.as_object().into_iter().flatten().map(|(k, y)| (k.clone(), map(y))).collect() };
+        let (app_roles, app_colors);
+        let (roles, colors) = match ours {
+            Some((r, c)) => (r, c),
+            None => {
+                app_roles = maps(&v["lroles"]);
+                app_colors = v["lcolors"].as_object().into_iter().flatten().filter_map(|(k, c)| Some((k.clone(), crate::light::Color::from_json(c)?))).collect::<crate::light::Colors>();
+                (&app_roles, &app_colors)
+            }
+        };
+        let (cue, live) = (maps(&v["lcue"]), maps(&v["llive"]));
+        let owned: HashMap<String, std::collections::HashSet<String>> = v["lown"].as_object().into_iter().flatten().map(|(k, a)| (k.clone(), a.as_array().into_iter().flatten().filter_map(|x| x.as_str().map(str::to_string)).collect())).collect();
+        let mut why: Vec<String> = Vec::new();
+        let mut nbytes = 0usize;
+        for (id, bytes) in app {
+            let want: Vec<u64> = bytes.as_array().into_iter().flatten().map(|b| b.as_u64().unwrap_or(0)).collect();
+            let got: Vec<u8> = match self.light_fix.get(id) {
+                Some(f) => match rig.head(f) {
+                    Some(head) => head.pack(&f["dmx"], &crate::lightpack::Over { owned: owned.get(id), color: colors.get(id), cue: cue.get(id), roles: roles.get(id), live: live.get(id) }),
+                    None => Vec::new(),
+                },
+                None => { why.push(format!("{id}: not a light in the document")); continue; }
+            };
+            nbytes += got.len();
+            let differs = got.len() != want.len() || got.iter().zip(&want).any(|(a, b)| *a as u64 != *b);
+            self.light_solved.insert(id.clone(), got.clone());
+            if differs {
+                let at = got.iter().zip(&want).position(|(a, b)| *a as u64 != *b).unwrap_or(got.len().min(want.len()));
+                why.push(format!("{id} (channel {}): app {:?}, engine {:?}", at + 1, want, got));
+            }
+        }
+        self.byte_ticks += 1;
+        if !why.is_empty() {
+            self.byte_diffs += 1;
+            if self.byte_diffs <= 20 { eprintln!("artlux-engine: light bytes: differs at playhead {} — {}", v["ph"], why.iter().take(3).cloned().collect::<Vec<_>>().join("; ")); }
+        }
+        if self.byte_ticks % 120 == 1 {
+            eprintln!("artlux-engine: light bytes: {} tick(s) solved ({} light(s), {} byte(s) this tick), {} tick(s) differing from the app so far", self.byte_ticks, app.len(), nbytes, self.byte_diffs);
         }
     }
 
@@ -959,10 +1032,13 @@ impl Runtime {
         }
         self.publish_projectors(doc, v);
         if !doc.owns && !viewing { return Ok(()); }
-        // E1f-2: each light's channels as THIS frame's precedence stack wrote them on the host (none sent = a
-        // light the host could not describe, which writes nothing — exactly as packUniverses does).
+        // E3f: each light's channels as the ENGINE solved them this tick (lightpack.rs, checked against the
+        // app's). E1f-2's fallback: the host's, as ITS precedence stack wrote them — for a tick the engine did not
+        // solve (a document it does not have yet, an older host with no profiles). None at all = a light nobody
+        // could describe, which writes nothing, exactly as packUniverses does.
         for &i in &doc.lights {
             let id = doc.pfix[i].id.clone();
+            if let Some(b) = self.light_solved.get(&id) { doc.pfix[i].light_channels = b.clone(); continue; }
             doc.pfix[i].light_channels = v["lights"][&id].as_array()
                 .map(|a| a.iter().map(|x| x.as_u64().unwrap_or(0).min(255) as u8).collect()).unwrap_or_default();
         }

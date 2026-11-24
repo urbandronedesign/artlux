@@ -184,10 +184,19 @@ thirty-second look — and is required anyway, since a phase-delayed fixture is 
 **With the native engine** (`--native-engine`), the engine evaluates the same show itself — every lighting
 clip's roles (takes, generated effects, pose sequences, the spread, scale, offset and mirror, HTP against LTP
 across clips) and every colour lane — from the playhead, with a port of these players
-([engine light.rs](../engine/artlux-engine/src/light.rs)). For now it **checks** its answer against the
-players' on every frame and logs `lighting: differs` if the two ever disagree; the bytes on the wire are still
-solved by the app's packer from the players' values. `test:light-eval-parity` (the evaluators, offline, on the
-app's own code) and `test:light-show-parity` (a playing show) hold the two together.
+([engine light.rs](../engine/artlux-engine/src/light.rs)) — and then **solves every light's DMX itself**:
+through the fixture's profile and mode, with the same colour solve (an RGB(W…) mix, a CMY head's flags, a
+tuneable-white head's temperature, a colour wheel's nearest slot) and the same precedence stack as below
+([engine lightpack.rs](../engine/artlux-engine/src/lightpack.rs)). Those are the bytes it puts on the wire. A
+fired pose cue, a fader under your hand and an automation lane on a light's channel still come from the app
+(they are events, not time), and they land in the same place in the stack. Every frame, the engine **checks**
+its answer against the app's and the machine log says `lighting: differs` or `light bytes: differs` if the two
+ever disagree. `test:light-eval-parity` and `test:light-pack-parity` hold them together offline, on the app's
+own code and every mode of the fixture library; `test:light-show-parity` and `test:light-bytes` do it on a
+playing show.
+
+A mixed colour is solved at 1/255 steps of linear colour, with or without the engine. That is fine enough to be
+invisible, and it means the same playhead always puts the same bytes on the wire, whatever played before.
 
 ## Pose cues — firing a look with no timeline involved
 

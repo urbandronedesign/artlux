@@ -55,6 +55,13 @@ export function get(fixtureId: string, role: ChannelRole): number | undefined {
   return current.get(fixtureId)?.get(role);
 }
 
+/** E3f: every fixture's cued role values this frame, for the native engine's byte solve. */
+export function snapshot(): Record<string, Record<string, number>> {
+  const out: Record<string, Record<string, number>> = {};
+  for (const [id, roles] of current) if (roles.size) out[id] = Object.fromEntries(roles);
+  return out;
+}
+
 /** Drop everything (project load, transport stop, an explicit release). */
 export function clear(): void {
   legs = [];

@@ -151,6 +151,8 @@ class FrameEngine {
   private gammaLut = buildGammaLut(1);
   /** E1f-2: the light fixtures' channel values from the LAST pack (fixture id → values, as written). */
   private lightBytes: Record<string, number[]> = {};
+  /** E3f: what the live layer said per light channel this frame (fixture id → channel key → value), for the engine. */
+  private lightLive: Record<string, Record<string, number>> = {};
   /** Controller lookup, so the per-frame packing loop does an O(1) get() instead of an O(n) find(). */
   private controllerMap = new Map<string, Controller>();
   /** Change detection that used to be three useMemo signature strings + two effects. */
@@ -630,7 +632,7 @@ class FrameEngine {
       }
       // E1f: the native engine (when on) gets this frame's EFFECTIVE document and a tick — AFTER packing,
       // so the tick carries the light fixtures' channels THIS frame's precedence stack resolved (E1f-2).
-      nativeLink.frame(this.inputs, effSurfaces, effFixtures, effBrightness, this.lightBytes, lanesView);
+      nativeLink.frame(this.inputs, effSurfaces, effFixtures, effBrightness, this.lightBytes, lanesView, this.lightLive);
     }
 
     perfMonitor.endFrame();
@@ -717,6 +719,8 @@ class FrameEngine {
     // E1f-2: each light's channel values as written this frame, for the native engine (nativeLink).
     const lightBytes: Record<string, number[]> = {};
     this.lightBytes = lightBytes;
+    const lightLive: Record<string, Record<string, number>> = {};
+    this.lightLive = lightLive;
 
     // THE PRECEDENCE STACK, ENFORCED IN ONE PLACE:
     //   profile default < authored dmx < LIGHTING CLIP < POSE CUE < automation lane < live override
@@ -809,7 +813,12 @@ class FrameEngine {
     // clip. Skipped entirely (no closure, no lookup) whenever nothing is being dragged, which is
     // every frame of a show. See services/livePreview for why this exists at all.
     const liveOverride: profilePack.ChannelOverride | undefined = livePreview.liveChannels > 0
-      ? (fx, channel) => livePreview.readFixtureChannel(fx.id, channel.key, fx.dmx?.[channel.key])
+      ? (fx, channel) => {
+          const v = livePreview.readFixtureChannel(fx.id, channel.key, fx.dmx?.[channel.key]);
+          // E3f: recorded as it is read — readFixtureChannel retires a settled entry, so it is asked once, here.
+          if (v !== undefined) (lightLive[fx.id] ??= {})[channel.key] = v;
+          return v;
+        }
       : undefined;
 
     // THE PACKING ITSELF lives in engine/packUniverses.ts (E1b): a pure function the native engine's Rust

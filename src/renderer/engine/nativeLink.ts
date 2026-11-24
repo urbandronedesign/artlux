@@ -1,4 +1,4 @@
-import type { Fixture, Surface, Controller, OutputProtocol, SurfaceContent } from '../types';
+import type { Fixture, FixtureProfile, Surface, Controller, OutputProtocol, SurfaceContent } from '../types';
 import { WINDOWED_DISPLAY, type ProjectorOutput } from '../../../shared/protocol';
 import * as surfaceMedia from '../services/surfaceMedia';
 import { isLight } from '../services/fixtureKind';
@@ -9,6 +9,7 @@ import * as lightingPlayback from '../services/lightingPlayback';
 import * as colorPlayback from '../services/colorPlayback';
 import * as lightingOverlay from '../services/lightingOverlay';
 import * as colorOverlay from '../services/colorOverlay';
+import * as lightingCue from '../services/lightingCue';
 
 /**
  * E3e — THE LIGHT SHOW AS THE ENGINE EVALUATES IT (engine light.rs): the active timeline's lighting clips with
@@ -62,6 +63,28 @@ export interface LinkInputs {
   gamma: number;
   artNetPort: number;
   outputEnabled: boolean;
+  fixtureProfiles: ReadonlyMap<string, FixtureProfile>;
+}
+
+/**
+ * E3f — THE LIGHTS' PROFILES, for the engine's byte solve (lightpack.rs): each light's profile with its channels
+ * and the modes its fixtures can resolve to — the ones they name and the first (modeOf's fallback), in the
+ * profile's order, so a repeated mode key still resolves to the first of them.
+ */
+function lightProfiles(fixtures: Fixture[], profiles: ReadonlyMap<string, FixtureProfile>): Record<string, unknown> {
+  const named = new Map<string, Set<string>>();
+  for (const f of fixtures.filter((x) => isLight(x))) {
+    const pid = `${f.profileId}`;   // a light always names one (fixtureKind); an unresolved one finds no profile below
+    let s = named.get(pid);
+    if (!s) named.set(pid, (s = new Set()));
+    if (f.profileMode) s.add(f.profileMode);
+  }
+  const out: Record<string, unknown> = {};
+  for (const [id, keys] of named) {
+    const p = profiles.get(id);
+    if (p) out[id] = { channels: p.channels, modes: p.modes.filter((m, i) => i === 0 || keys.has(m.key)) };
+  }
+  return out;
 }
 
 let enabled = false;
@@ -178,7 +201,7 @@ function projectorEntry(o: ProjectorOutput, surfaces: Surface[], sources: Record
 }
 
 /** One frame. Cheap when nothing changed: a reference compare, one small string, one IPC send. */
-export function frame(inputs: LinkInputs, surfaces: Surface[], fixtures: Fixture[], brightness: number, lightBytes: Record<string, number[]> = {}, lanesView: Surface[] | null = null): void {
+export function frame(inputs: LinkInputs, surfaces: Surface[], fixtures: Fixture[], brightness: number, lightBytes: Record<string, number[]> = {}, lanesView: Surface[] | null = null, lightLive: Record<string, Record<string, number>> = {}): void {
   if (!enabled) return;
   // E3d: `lanesView` — the surfaces WITHOUT the values of the lanes the engine evaluates (frameEngine; null
   // while a scene fade runs over them, or nothing is automated). The document carries the authored values and
@@ -214,7 +237,7 @@ export function frame(inputs: LinkInputs, surfaces: Surface[], fixtures: Fixture
   shipRasters(surfaces, sources);   // E2: before the document that names them
   for (const [key, content] of layerContent) if (sources[key]?.kind === 'raster') shipRaster(key, contentSource.nativeRaster(key, content));
   const sourcesKey = JSON.stringify(sources);
-  const refs = [surfaces, fixtures, inputs.controllers, inputs.protocol, inputs.targetIp, inputs.broadcast, inputs.gamma, inputs.artNetPort, inputs.outputEnabled, projOutputs, bakedSeq, ...lightingRefs()];
+  const refs = [surfaces, fixtures, inputs.fixtureProfiles, inputs.controllers, inputs.protocol, inputs.targetIp, inputs.broadcast, inputs.gamma, inputs.artNetPort, inputs.outputEnabled, projOutputs, bakedSeq, ...lightingRefs()];
   if (sourcesKey !== lastSources || lanesKey !== lastLanes || refs.length !== lastRefs.length || refs.some((r, i) => r !== lastRefs[i])) {
     lastRefs = refs; lastSources = sourcesKey; lastLanes = lanesKey; rev++;
     const ln = lanesView ? timeline.nativeLanes(engineLane) : { gen: 0, lanes: [] };
@@ -224,6 +247,7 @@ export function frame(inputs: LinkInputs, surfaces: Surface[], fixtures: Fixture
       defaults: { protocol: inputs.protocol, ip: inputs.targetIp, broadcast: inputs.broadcast },
       gamma: inputs.gamma, port: inputs.artNetPort, outputEnabled: inputs.outputEnabled, sources, lanes: ln, lighting: lightingDoc(),
       lights: fixtures.filter((f) => isLight(f)).map((f) => f.id),
+      profiles: lightProfiles(fixtures, inputs.fixtureProfiles),
       // E1f-3: main adds each output's display as PHYSICAL bounds (engineHost.ts) — it owns the screen.
       projectors: projOutputs.filter((o) => o.enabled).map((o) => projectorEntry(o, surfaces, sources)),
     };
@@ -307,5 +331,10 @@ export function frame(inputs: LinkInputs, surfaces: Surface[], fixtures: Fixture
   // E3e: the role values and colours the app's players published this frame, for the engine to CHECK.
   const lroles = lightingOverlay.isActive() ? lightingOverlay.snapshot() : {};
   const lcolors = colorOverlay.isActive() ? colorOverlay.snapshot() : {};
-  window.artlux?.nativeEngineTick?.(JSON.stringify({ rev, t: timeline.getShowTime(), ph: timeline.getPlayhead(), auto, lroles, lcolors, brightness, hap, mp4, ndi, camfp, shader, blobs, comp, times, lights, proj: { brightness: projBrightness, booting: projBooting } }));
+  // E3f: the layers that are EVENTS, not time — the engine cannot evaluate them from the playhead, so the app
+  // sends them for the byte solve: the fired pose cue, the faders under a hand, the lane-owned light channels.
+  const lcue = lightingCue.isActive() ? lightingCue.snapshot() : {};
+  const lown: Record<string, string[]> = {};
+  if (automationOverlay.isActive()) for (const id in lightBytes) { const k = automationOverlay.ownedUnder(`fixtures.${id}.dmx.`); if (k.length) lown[id] = k; }
+  window.artlux?.nativeEngineTick?.(JSON.stringify({ rev, t: timeline.getShowTime(), ph: timeline.getPlayhead(), auto, lroles, lcolors, lcue, llive: lightLive, lown, brightness, hap, mp4, ndi, camfp, shader, blobs, comp, times, lights, proj: { brightness: projBrightness, booting: projBooting } }));
 }
