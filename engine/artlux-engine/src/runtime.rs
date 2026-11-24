@@ -28,7 +28,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 #[derive(PartialEq)]
-enum Source { Image(String), Effect(Params), Hap(String), Spout(String), Ndi(String), Mp4(String, i64), Camera(CamSpec), Shader(crate::shader::Spec), Raster, None }
+enum Source { Image(String), Effect(Params), Hap(String), Spout(String), Ndi(String), Mp4(String, i64), Camera(CamSpec), Shader(crate::shader::Spec), Raster, Blobs(u32, u32), None }
 
 /// Item 2d step 5: a camera surface as the host describes it — the app's track label (which camera), the
 /// colour space of the app's own VideoFrames (what the engine's picture is held to — cam::picture), and
@@ -71,6 +71,8 @@ pub struct Runtime {
     /// E2: the pictures the APP draws and ships on change (`raster` sources — text first): surface id (or
     /// `<id>@proj`, the copy at a projector display's size) → (the host's sequence, the picture).
     rasters: HashMap<String, (u64, Arc<Picture>)>,
+    /// E2: the tracking-blob renderer (blobs.rs), made on first use.
+    blobs: Option<crate::blobs::Blobs>,
     rng: Rng,
     cache: TexCache,
     gen: u64,
@@ -118,7 +120,7 @@ pub struct Runtime {
 impl Runtime {
     pub fn new(gpu: Arc<Gpu>) -> Self {
         Runtime { gpu, out: None, broadcast: false, out_cfg: (44.0, true, false), doc: None, pictures: HashMap::new(), gens: HashMap::new(),
-            images: HashMap::new(), effects: HashMap::new(), shaders: HashMap::new(), sources_summary: String::new(), proj_pictures: HashMap::new(), rasters: HashMap::new(), rng: Rng::new(0x5eed), cache: TexCache::default(), gen: 0, path_gens: HashMap::new(), frames: 0,
+            images: HashMap::new(), effects: HashMap::new(), shaders: HashMap::new(), sources_summary: String::new(), proj_pictures: HashMap::new(), rasters: HashMap::new(), blobs: None, rng: Rng::new(0x5eed), cache: TexCache::default(), gen: 0, path_gens: HashMap::new(), frames: 0,
             outputs: None, projectors: Vec::new(), proj_published: HashMap::new(), proj_opts: HashMap::new(), opts_ver: 0,
             #[cfg(windows)] spouts: HashMap::new(),
             #[cfg(feature = "ndi")] ndis: HashMap::new(),
@@ -340,6 +342,7 @@ impl Runtime {
                 }),
                 "shader" => Source::Shader(crate::shader::Spec::from_json(src)),
                 "raster" => Source::Raster,
+                "blobs" => Source::Blobs(src["w"].as_u64().unwrap_or(1920).clamp(2, 4096) as u32, src["h"].as_u64().unwrap_or(1024).clamp(2, 4096) as u32),
                 "none" => Source::None,
                 _ => Source::None,
             };
@@ -398,7 +401,7 @@ impl Runtime {
         for sid in &sampled {
             let src = &d["sources"][sid];
             match src["kind"].as_str() {
-                Some("image") | Some("effect") | Some("hap") | Some("spout") | Some("none") | Some("raster") => {}
+                Some("image") | Some("effect") | Some("hap") | Some("spout") | Some("none") | Some("raster") | Some("blobs") => {}
                 // E2: compiled HERE, so a text naga cannot take leaves the show to the app, with naga's log.
                 Some("shader") => {
                     let Some(Source::Shader(spec)) = doc.sources.get(sid) else { unreachable!() };
@@ -637,6 +640,15 @@ impl Runtime {
                         Some((_, pic)) => { self.proj_pictures.insert(sid.clone(), Picture { w: pic.w, h: pic.h, rgba: pic.rgba.clone(), mips: pic.mips, crop: pic.crop, tex: pic.tex.clone() }); }
                         None => { self.proj_pictures.remove(sid); }
                     }
+                }
+                // E2: tracking blobs, drawn from what the app drew this frame (blobs.rs). No instances this
+                // tick (the app has not drawn the surface yet): transparent, as the app's canvas starts.
+                Source::Blobs(w, h) => {
+                    if self.blobs.is_none() { self.blobs = Some(crate::blobs::Blobs::new(&self.gpu)); }
+                    let f = |k: &str| -> Vec<f32> { v["blobs"][sid][k].as_array().into_iter().flatten().map(|x| x.as_f64().unwrap_or(0.0) as f32).collect() };
+                    let tex = self.blobs.as_ref().unwrap().render(&self.gpu, *w, *h, &f("b"), &f("t"));
+                    self.pictures.insert(sid.clone(), Picture::gpu_frame(*w, *h, tex, [0, 0, *w, *h]));
+                    self.gen += 1; self.gens.insert(sid.clone(), self.gen << 2 | 2);
                 }
                 Source::None => { self.pictures.remove(sid); }
             }

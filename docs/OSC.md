@@ -98,6 +98,14 @@ streamed to the projector under the locally-rendered blobs.
 
 ---
 
+**With the native engine** (`--native-engine`), the engine draws the blobs, trails and direction arrows
+itself — on the fixtures, its projector outputs and its 3D view — from exactly the positions ArtLux worked
+out this frame, so they look the same as in the editor. Two settings keep a tracking surface in the editor
+instead (the engine then leaves the outputs to it, as for any source it does not draw yet): **Calibration**
+or **Show ids** switched on (setup aids, drawn as a 2D overlay), and a **background** timeline layer under
+the blobs. The same goes for Augmenta and camera-pose (MediaPipe) surfaces, whose markers are drawn the
+same way (for MediaPipe, the **skeleton** overlay counts as well).
+
 ### 5. OSC Monitor (sniffer) — test the LiDAR feed
 
 **View ▸ OSC Monitor…** (`Ctrl+Shift+M`) opens a live sniffer of the raw incoming OSC stream — the

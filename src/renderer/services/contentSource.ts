@@ -743,7 +743,9 @@ export type NativeSource = { kind: 'image' | 'hap'; path: string } | { kind: 'mp
   // header inputs with their GLSL types, and the raster the main window draws it at.
   | { kind: 'shader'; source: string; inputs: { name: string; glsl: string }[]; lastFrame: boolean; w: number; h: number; hold?: boolean }
   // E2: a picture THIS app draws and ships when it changes (text first — nativeLink, engineHost.noteRaster).
-  | { kind: 'raster' };
+  | { kind: 'raster' }
+  // E2: tracking blobs (lidar-tracking / Augmenta) — the engine draws blobPass from each tick's instances.
+  | { kind: 'blobs'; w: number; h: number };
 
 // Item 2d step 5 (plans/native-engine.md): a CAMERA surface. The app keeps its camera (owner's decision); the
 // engine reads the same device SHARED and draws it as this app does (engine cam.rs — proven by

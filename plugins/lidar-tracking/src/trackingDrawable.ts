@@ -60,6 +60,7 @@ export function get(surface: Surface): HTMLCanvasElement | null {
 export function release(key: string): void {
   glSurfaces.delete(key);
   cpuSurfaces.delete(key);
+  lastFrame.delete(key);
 }
 
 function renderGL(g: GLSurf, surface: Surface, w: number, h: number, now: number): HTMLCanvasElement {
@@ -74,11 +75,11 @@ function renderGL(g: GLSurf, surface: Surface, w: number, h: number, now: number
     const bg = timeline.getLayerDrawable(c.bgLayerId);
     if (bg && blobPass.uploadTexture(gl, g.bgTex, bg as TexImageSource)) blobPass.drawTex(gl, g.bgTex, 1, false, false);
   }
-  if (c.trail !== false) {
-    const trail = trackingRenderer.trails(surface, now, c.trailSeconds ?? 1.2);
-    if (trail.length) blobPass.drawSolid(gl, trail, false);
-  }
-  blobPass.drawBlobs(gl, w, h, trackingRenderer.instances(surface, now), false);
+  const trail = c.trail !== false ? trackingRenderer.trails(surface, now, c.trailSeconds ?? 1.2) : new Float32Array(0);
+  if (trail.length) blobPass.drawSolid(gl, trail, false);
+  const blobs = trackingRenderer.instances(surface, now);
+  blobPass.drawBlobs(gl, w, h, blobs, false);
+  lastFrame.set(surface.id, { blobs, trail });   // E2: what the engine is handed (nativeTickFor)
   const ov = trackingRenderer.overlayCanvas(surface, w, h);
   if (ov && blobPass.uploadTexture(gl, g.overlayTex, ov)) blobPass.drawTex(gl, g.overlayTex, 1, true, false);
   return g.el;
@@ -104,4 +105,30 @@ function renderCPU(surface: Surface, w: number, h: number, now: number): HTMLCan
   const ov = trackingRenderer.overlayCanvas(surface, w, h);
   if (ov) ctx.drawImage(ov, 0, 0);
   return cv.el;
+}
+
+
+// ── E2: BLOBS IN THE NATIVE ENGINE (plans/native-engine.md §2 "data H, drawing E") ────────────────────
+// The engine draws what THIS draw drew: the instances and trail ribbons renderGL computed this frame are
+// kept, and nativeTick hands them over as they are (no second evaluation at another `now`, which would
+// move the trails' fade). The engine ports blobPass (engine blobs.rs). What it does not draw stays the
+// app's, with the reason: a background timeline layer, and the calibration / id-label overlay (a 2D
+// canvas — a setup aid, not show content).
+const lastFrame = new Map<string, { blobs: blobPass.BlobInst[]; trail: Float32Array }>();
+
+export function nativeSourceFor(key: string, content: SurfaceContent): { kind: string; [k: string]: unknown } {
+  if (!content.trackingSource) return { kind: 'none' };
+  if (content.bgLayerId) return { kind: 'unsupported', why: 'a tracking surface drawn over a timeline layer (composed in the browser)' };
+  if (content.calibration || content.showIds) return { kind: 'unsupported', why: 'a tracking surface showing its calibration grid or id labels' };
+  const { w, h } = trackingRenderer.sourceSize(content.trackingSource);
+  return { kind: 'blobs', w, h };
+}
+
+/** This frame's blobs ([x, y, r, R, G, B, a, heading, dir] each) and trail ([x, y, r, g, b, a] per vertex). */
+export function nativeTickFor(key: string): { b: number[]; t: number[] } | undefined {
+  const f = lastFrame.get(key);
+  if (!f) return undefined;
+  const b: number[] = [];
+  for (const i of f.blobs) b.push(i.x, i.y, i.r, i.rgb[0], i.rgb[1], i.rgb[2], i.a, i.heading, i.dir);
+  return { b, t: Array.from(f.trail) };
 }

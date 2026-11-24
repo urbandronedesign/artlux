@@ -134,7 +134,7 @@ ordinary window: drag it to any screen, resize it, maximise it — moving it cos
 - Close it with its own close button or the same header button.
 
 This first version does not draw beams, the Rendered look, labels or the gizmo, and content the engine
-does not draw yet (a timeline layer, tracking…) stays dark there — those stay in the editor's 3D
+does not draw yet (a timeline layer, a tracking surface with its calibration overlay…) stays dark there — those stay in the editor's 3D
 view for now.
 
 **Without the native engine**, the 3D view stays in the editor window: put the **editor window** on the

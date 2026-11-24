@@ -206,9 +206,16 @@ export function frame(inputs: LinkInputs, surfaces: Surface[], fixtures: Fixture
     const u = contentSource.nativeTick(s.id, s.content, showT);
     if (u) shader[s.id] = u;
   }
+  // E2: each TRACKING / AUGMENTA surface's blobs and trail ribbons, as the app drew them this frame.
+  const blobs: Record<string, unknown> = {};
+  for (const s of surfaces) {
+    if (sources[s.id].kind !== 'blobs') continue;
+    const u = contentSource.nativeTick(s.id, s.content, showT);
+    if (u) blobs[s.id] = u;
+  }
   // A light's values as the wire will carry them: the frame codec stores each into a Uint8Array, i.e.
   // JavaScript's ToUint8 (truncate, then modulo 256; NaN → 0). Done HERE so the engine gets bytes.
   const lights: Record<string, number[]> = {};
   for (const id in lightBytes) lights[id] = lightBytes[id].map((v) => { const t = Math.trunc(Number(v)); return Number.isFinite(t) ? ((t % 256) + 256) % 256 : 0; });
-  window.artlux?.nativeEngineTick?.(JSON.stringify({ rev, t: timeline.getShowTime(), brightness, hap, mp4, ndi, camfp, shader, lights, proj: { brightness: projBrightness, booting: projBooting } }));
+  window.artlux?.nativeEngineTick?.(JSON.stringify({ rev, t: timeline.getShowTime(), brightness, hap, mp4, ndi, camfp, shader, blobs, lights, proj: { brightness: projBrightness, booting: projBooting } }));
 }

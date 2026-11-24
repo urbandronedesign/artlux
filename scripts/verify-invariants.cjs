@@ -4298,6 +4298,30 @@ check(
 );
 
 check(
+  'the native engine draws tracking markers exactly as the app\'s three copies do',
+  'E2 tracking: the engine draws LiDAR, Augmenta and MediaPipe markers with ONE port (engine blobs.rs) of the ' +
+  'marker shader the three plugins each carry (blobPass.ts ×2, posePass.ts). A tweak to the arrowhead, its ' +
+  'edge softness or the disc edge in one plugin would make the engine\'s wall disagree with that plugin\'s ' +
+  'preview — so every copy must carry the same numbers.',
+  () => {
+    const files = ['plugins/lidar-tracking/src/blobPass.ts', 'plugins/augmenta/src/blobPass.ts', 'plugins/mediapipe/src/posePass.ts', 'engine/artlux-engine/src/blobs.rs'];
+    const missing = files.filter((f) => !exists(f));
+    if (missing.length) return `${missing.join(', ')} is gone`;
+    const problems = [];
+    for (const f of files) {
+      const t = raw(f).replace(/\s+/g, '');
+      for (const [what, re] of [
+        ['the disc edge smoothstep(0.9, 1.0)', /smoothstep\(0\.9,1\.0,d\)/],
+        ['the arrowhead corners (0.62,0) (-0.32,±0.42)', /0\.62,0\.0\)[^;]*;?[\s\S]{0,80}-0\.32,0\.42\)[\s\S]{0,80}-0\.32,-0\.42\)/],
+        ['the edge softness 0.05', /=0\.05;/],
+        ['premultiplied output rgb * a', /rgb\*a,a\)/],
+      ]) if (!re.test(t)) problems.push(`${f}: ${what}`);
+    }
+    return problems.length ? problems.join('; ') : null;
+  },
+);
+
+check(
   'a 3-channel fixture keeps full RGB, in the app and in the engine',
   'The RGBW mode defaults to SUBTRACT (W = min(r,g,b), taken out of r, g and b) and the inspector shows the ' +
   'White control on 4-channel fixtures only. So an RGB strip whose mode was never set had the neutral part ' +
@@ -9025,7 +9049,7 @@ check(
     if (!/if \(vf\.format !== 'NV12'\)/.test(c) || !/cs\?\.matrix === 'bt709' && cs\?\.fullRange === false && cs\?\.primaries === 'bt709'/.test(c)) problems.push('contentSource no longer limits the engine to the proven MP4 frames (8-bit NV12, BT.709 limited)');
     if (!/durUs: info\.durationSec \* 1e6/.test(c)) problems.push('the MP4 source no longer carries the file duration the engine folds the loop with');
     const n = raw('src/renderer/engine/nativeLink.ts');
-    if (!/mp4\[s\.id\] = g;/.test(n) || !/hap, mp4, ndi, (camfp, )?(shader, )?lights/.test(n)) problems.push('the tick no longer carries each MP4 surface frame timestamp');
+    if (!/mp4\[s\.id\] = g;/.test(n) || !/hap, mp4, ndi, (camfp, )?(shader, )?(blobs, )?lights/.test(n)) problems.push('the tick no longer carries each MP4 surface frame timestamp');
     if (/an MP4 on a projector/.test(n)) problems.push('an MP4 on a projector is refused again (the engine draws it: one device, outputs.rs content_texture_from)');
     const r = raw('engine/artlux-engine/src/runtime.rs');
     if (!/let local = if \*dur_us > 0 \{ abs - abs\.div_euclid\(\*dur_us\) \* dur_us \} else \{ abs \};/.test(r)) problems.push('runtime.rs no longer folds a looping surface timestamp back into the file');

@@ -41,6 +41,9 @@ export const plugin: RendererPlugin = {
       type: 'AUGMENTA', // SourceType.AUGMENTA — kept as a core enum value; only behavior lives here
       getDrawable: (key, content) => augmentaDrawable.getFor(key, content as SurfaceContent),
       release: (key) => augmentaDrawable.release(key),
+      // E2: the native engine draws the objects itself (engine blobs.rs) from this frame's instances.
+      nativeSource: (key, content) => augmentaDrawable.nativeSourceFor(key, content as SurfaceContent),
+      nativeTick: (key) => augmentaDrawable.nativeTickFor(key),
       // Its editor fragment is the UI half's (ui.ts), activated by the host in every window.
     });
 

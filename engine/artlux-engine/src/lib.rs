@@ -36,6 +36,7 @@ pub mod runtime;
 pub mod outputs;
 pub mod view3d;
 pub mod shader;
+pub mod blobs;
 #[cfg(feature = "ndi")]
 pub mod ndi;
 pub mod windows;

@@ -48,6 +48,7 @@ export function get(surface: Surface): HTMLCanvasElement | null {
 export function release(key: string): void {
   glSurfaces.delete(key);
   cpuSurfaces.delete(key);
+  lastFrame.delete(key);
 }
 
 function renderGL(g: GLSurf, surface: Surface, w: number, h: number, now: number): HTMLCanvasElement {
@@ -62,11 +63,11 @@ function renderGL(g: GLSurf, surface: Surface, w: number, h: number, now: number
     const bg = timeline.getLayerDrawable(c.bgLayerId);
     if (bg && posePass.uploadTexture(gl, g.bgTex, bg as TexImageSource)) posePass.drawTex(gl, g.bgTex, 1, false, false);
   }
-  if (c.trail !== false) {
-    const trail = poseRenderer.trails(surface, now, c.trailSeconds ?? 1.2);
-    if (trail.length) posePass.drawSolid(gl, trail, false);
-  }
-  posePass.drawMarkers(gl, w, h, poseRenderer.instances(surface, now), false);
+  const trail = c.trail !== false ? poseRenderer.trails(surface, now, c.trailSeconds ?? 1.2) : new Float32Array(0);
+  if (trail.length) posePass.drawSolid(gl, trail, false);
+  const marks = poseRenderer.instances(surface, now);
+  posePass.drawMarkers(gl, w, h, marks, false);
+  lastFrame.set(surface.id, { marks, trail });   // E2: what the engine is handed (nativeTickFor)
   const ov = poseRenderer.overlayCanvas(surface, w, h);
   if (ov && posePass.uploadTexture(gl, g.overlayTex, ov)) posePass.drawTex(gl, g.overlayTex, 1, true, false);
   return g.el;
@@ -92,4 +93,28 @@ function renderCPU(surface: Surface, w: number, h: number, now: number): HTMLCan
   const ov = poseRenderer.overlayCanvas(surface, w, h);
   if (ov) ctx.drawImage(ov, 0, 0);
   return cv.el;
+}
+
+
+// ── E2: MARKERS IN THE NATIVE ENGINE (plans/native-engine.md §2) ──────────────────────────────────────
+// posePass's markers ARE blobPass's (same shader, same geometry), so the engine draws them with the same
+// port (engine blobs.rs) from what THIS draw drew this frame. A background timeline layer and the
+// skeleton / id overlay stay the app's, with the reason.
+const lastFrame = new Map<string, { marks: posePass.PoseInst[]; trail: Float32Array }>();
+
+export function nativeSourceFor(_key: string, content: SurfaceContent): { kind: string; [k: string]: unknown } {
+  if (content.bgLayerId) return { kind: 'unsupported', why: 'a MediaPipe surface drawn over a timeline layer (composed in the browser)' };
+  // poseRenderer.overlayCanvas draws for exactly these two (its 2D canvas: the skeleton and the #id labels).
+  if (content.showIds || content.poseSkeleton) return { kind: 'unsupported', why: 'a MediaPipe surface showing its skeleton or id labels' };
+  const { w, h } = poseRenderer.sourceSize();
+  return { kind: 'blobs', w, h };
+}
+
+/** This frame's markers ([x, y, r, R, G, B, a, heading, dir] each) and trail ([x, y, r, g, b, a] per vertex). */
+export function nativeTickFor(key: string): { b: number[]; t: number[] } | undefined {
+  const f = lastFrame.get(key);
+  if (!f) return undefined;
+  const b: number[] = [];
+  for (const i of f.marks) b.push(i.x, i.y, i.r, i.rgb[0], i.rgb[1], i.rgb[2], i.a, i.heading, i.dir);
+  return { b, t: Array.from(f.trail) };
 }

@@ -92,6 +92,9 @@ export const plugin: RendererPlugin = {
       type: 'MEDIAPIPE', // SourceType.MEDIAPIPE — kept as a core enum value; only behavior lives here
       acquire: (key) => poseEngine.acquire(key),
       getDrawable: (key, content) => poseDrawable.getFor(key, content as SurfaceContent),
+      // E2: the native engine draws the markers itself (engine blobs.rs) from this frame's instances.
+      nativeSource: (key, content) => poseDrawable.nativeSourceFor(key, content as SurfaceContent),
+      nativeTick: (key) => poseDrawable.nativeTickFor(key),
       release: (key) => { poseEngine.release(key); poseDrawable.release(key); },
       // Its editor fragment is the UI half's (ui.ts), activated by the host in every window.
     });

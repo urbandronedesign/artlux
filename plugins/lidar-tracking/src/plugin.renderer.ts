@@ -70,6 +70,9 @@ export const plugin: RendererPlugin = {
       type: 'TRACKING', // SourceType.TRACKING — kept as a core enum value; only behavior lives here
       getDrawable: (key, content) => trackingDrawable.getFor(key, content as SurfaceContent),
       release: (key) => trackingDrawable.release(key),
+      // E2: the native engine draws the blobs itself (engine blobs.rs) from this frame's instances.
+      nativeSource: (key, content) => trackingDrawable.nativeSourceFor(key, content as SurfaceContent),
+      nativeTick: (key) => trackingDrawable.nativeTickFor(key),
     });
 
     // The 'tracking' timeline lane kind: takes are .lblob blob recordings, not video — so the engine

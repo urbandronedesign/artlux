@@ -1826,6 +1826,24 @@ fallback until a source/output is proven byte-identical — risk 2):
 >   ~3.7 MB per frame at 720p. Fine for a caption, wasteful for a constantly animated title; `glyphon` in the
 >   engine is the later answer (§2).
 
+> ✅ **E2 tracking done 2026-11-24 — TRACKING, AUGMENTA and MEDIAPIPE markers drawn by the engine** (§2 "data H,
+> drawing E"). `engine/artlux-engine/src/blobs.rs` ports blobPass (posePass's markers are the same shader and
+> geometry): the trail ribbons then the markers, ONE / ONE_MINUS_SRC_ALPHA, premultiplied, 4× MSAA as the
+> app's `antialias: true` canvas, geometry built on the CPU exactly as `drawBlobs` / `drawSolid`. The app
+> keeps the MATHS — motion filter, prediction, calibration transform, colours, trails — and each drawable now
+> keeps what its own draw drew this frame; `nativeTick` hands that over as it is (no second evaluation at
+> another `now`). The app keeps a surface with a background timeline layer or its 2D overlay (calibration /
+> id labels; MediaPipe's skeleton / id labels), with the reason.
+> - **Proof:** `test:tracking-wire` — the repo's LiDAR emitter through both runs, a SOL surface with trails on a
+>   strip and a full-floor serpentine matrix: the engine owns the wire, the picture moves (46 / 121 distinct
+>   payloads), the LEDs are lit, and each engine payload is as close to some app payload as the app's own
+>   consecutive frames are to each other (strip median 0.00, matrix 0.15 vs the app's step 0.32 / 0.48).
+>   `verify:invariants`: the four copies of the marker shader carry the same numbers (mutation-tested).
+> - **Not covered:** Augmenta and MediaPipe were not driven live (no Augmenta sender or camera pose in the
+>   harness) — they share the drawing code and the hook shape with the tested LiDAR path; a tracking surface
+>   on an engine projector output was not measured on screen (moving content: the projector windows run
+>   their own clock — a screen comparison needs a frozen take).
+
 ## 9d. E4 started early — the 3D view in the engine (owner, 2026-11-24)
 
 > **Owner, 2026-11-24: "start E4's 3D now"** — for the detachable 3D view (plans/3d-workbench.md §5/Phase 4),
@@ -1877,7 +1895,7 @@ fallback until a source/output is proven byte-identical — risk 2):
 >   example: named screen; projected from a frozen view; a panel between projector and screen — engine,
 >   editor WebGPU and editor WebGL (forced) all identical. Guarded in verify:invariants.
 > - **Not yet (E4b…):** beams and the Rendered look, labels, selection / picking (the GPU id buffer, body
->   before LEDs) and the gizmo, sources the engine does not draw (layers, tracking…) on screens
+>   before LEDs) and the gizmo, sources the engine does not draw (layers, a tracking overlay…) on screens
 >   and venue meshes, the four-view layout, saving the window's place, macOS / Linux.
 
 ## 10. Open questions
