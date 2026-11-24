@@ -128,6 +128,8 @@ pub struct Runtime {
     view_last_summary: String,
     /// E3c: values the engine evaluated that differed from the app's (logged), and the document last announced.
     clock_diffs: u64,
+    /// E3: the engine's own transport clock, run from the app's anchors and checked every frame (transport.rs).
+    transport: crate::transport::Transport,
     clock_rev: u64,
     /// E3d: the automation lanes the engine evaluates, this tick's effect overrides (surface → speed,
     /// intensity), and the check's counters.
@@ -167,7 +169,7 @@ impl Runtime {
             #[cfg(feature = "ndi")] ndis: HashMap::new(),
             #[cfg(windows)] mp4s: HashMap::new(), conv: None,
             #[cfg(windows)] cams: HashMap::new(), resolved: HashMap::new(), pending_cams: HashMap::new(), last_doc: None, redo: false,
-            view: None, view_scene_ver: 0, view_published: HashMap::new(), view_colors_gen: 0, view_last_summary: String::new(), clock_diffs: 0, clock_rev: 0, lanes: Vec::new(), auto_fx: HashMap::new(), auto_diffs: 0, auto_ticks: 0, show: Default::default(), light_diffs: 0, light_ticks: 0, rig: None, light_fix: HashMap::new(), byte_diffs: 0, byte_ticks: 0, light_solved: HashMap::new(), light_beams: HashMap::new() }
+            view: None, view_scene_ver: 0, view_published: HashMap::new(), view_colors_gen: 0, view_last_summary: String::new(), clock_diffs: 0, transport: Default::default(), clock_rev: 0, lanes: Vec::new(), auto_fx: HashMap::new(), auto_diffs: 0, auto_ticks: 0, show: Default::default(), light_diffs: 0, light_ticks: 0, rig: None, light_fix: HashMap::new(), byte_diffs: 0, byte_ticks: 0, light_solved: HashMap::new(), light_beams: HashMap::new() }
     }
 
     /// E4a: the 3D view's shared state and its open flag (serve.rs makes them; the windows thread shares them).
@@ -617,6 +619,7 @@ impl Runtime {
 
     /// One frame at show time `t`. Nothing is sent unless the engine owns the wire for document `rev`.
     pub fn tick(&mut self, v: &Value) -> Result<(), String> {
+        self.transport.tick(v);   // E3: the engine's own clock, before anything needs a document
         let Some(mut doc) = self.doc.take() else { return Ok(()) };
         self.evaluate_lanes(&mut doc, v);
         self.light_solved.clear();

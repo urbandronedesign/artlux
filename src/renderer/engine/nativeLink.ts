@@ -98,6 +98,10 @@ export const isEnabled = (): boolean => enabled;
  */
 export const engineLane = (path: string): boolean => /^surfaces\.[^.]+\.content\.(opacity|speed|intensity)$/.test(path);
 let lanePaths: string[] = [];
+// E3 (§4, the clock): the transport anchor last put on a tick — re-sent when it changes, and once a second
+// so an engine that started (or restarted) mid-show picks the transport up without waiting for an event.
+let tpSent = 0;
+let tpTicks = 0;
 let lastLanes = '';
 
 try {
@@ -336,5 +340,10 @@ export function frame(inputs: LinkInputs, surfaces: Surface[], fixtures: Fixture
   const lcue = lightingCue.isActive() ? lightingCue.snapshot() : {};
   const lown: Record<string, string[]> = {};
   if (automationOverlay.isActive()) for (const id in lightBytes) { const k = automationOverlay.ownedUnder(`fixtures.${id}.dmx.`); if (k.length) lown[id] = k; }
-  window.artlux?.nativeEngineTick?.(JSON.stringify({ rev, t: timeline.getShowTime(), ph: timeline.getPlayhead(), auto, lroles, lcolors, lcue, llive: lightLive, lown, brightness, hap, mp4, ndi, camfp, shader, blobs, comp, times, lights, proj: { brightness: projBrightness, booting: projBooting } }));
+  // E3: `fm` — the renderClock time this frame's playhead and show time were computed for; `tp` — the
+  // transport anchor (timeline.ts TransportAnchor) the engine runs its OWN clock from and checks at `fm`.
+  const tpa = timeline.transportAnchor();
+  const tp = tpa && (tpa.rev !== tpSent || ++tpTicks >= 60) ? tpa : undefined;
+  if (tp) { tpSent = tp.rev; tpTicks = 0; }
+  window.artlux?.nativeEngineTick?.(JSON.stringify({ rev, t: timeline.getShowTime(), ph: timeline.getPlayhead(), fm: timeline.getFrameTimeMs(), tp, auto, lroles, lcolors, lcue, llive: lightLive, lown, brightness, hap, mp4, ndi, camfp, shader, blobs, comp, times, lights, proj: { brightness: projBrightness, booting: projBooting } }));
 }

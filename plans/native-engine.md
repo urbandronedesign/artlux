@@ -2020,6 +2020,34 @@ fallback until a source/output is proven byte-identical — risk 2):
 >   fades, never `automation: differs`.
 > - The repo's scene / state-machine CDP tests (test-scene-timelines, test-zone-fsm, test-hold-at-end, …) still
 >   launch on the owner's profile and were NOT run; they need moving to a scratch `--user-data-dir` first.
+>
+> ✅ **E3g done 2026-11-24 — THE ENGINE RUNS ITS OWN TRANSPORT CLOCK (stage 1 of §4's audio clock).** Until now
+> the engine was TOLD the playhead every frame (`ph`). The app's two clocks (runFrame) are `(now − origin) / 1000`
+> clamped to the in-point, wrapped over `[a, b)` when looping, parked one frame short of `b` when not — rules that
+> re-anchor the origin only to values the same rules reproduce, so they are a function of (now, origin, region).
+> What cannot be derived are the EVENTS, and those are now recorded:
+> - **App:** `timeline.ts markAnchor()` records a `TransportAnchor` (both origins, positions, regions, loop flags,
+>   frame lengths, the renderClock time it became true, `performance.timeOrigin`) at every event and nowhere else:
+>   `mainSeek`, `showSeekInternal`, `setPlaying` (play AND pause), `setData`, `swap`, `setGlobalDoc`, `start`, the
+>   two underrun clamps (at the frame time) and the render-clock flip. The tick carries `fm` (the frame time the
+>   playhead was computed for) and `tp` (the anchor, when it changes and once a second).
+> - **Engine:** `transport.rs` runs runFrame's rules (`step_one` — the same IEEE operations, re-anchoring where the
+>   app does) from the latest anchor, and CHECKS both clocks against the app's at `fm` — the same instant, so they
+>   must agree to 1 µs; a frame computed before its anchor (`fm < at`: an event landed between two frames) is not
+>   checked. It also reads its OWN wall clock when the tick arrives (SystemTime − the anchor's `w0`) — how far the
+>   app's frame trails the engine's clock. A bake (`off`) is not checked: the render owns time.
+> - **Proof:** `test:transport-clock` — a looping show plays itself and is then driven over OSC: pause, play, a seek
+>   while playing, a seek just short of the wrap, pause, a seek while paused, play, loop OFF (it runs out, parks on
+>   5.9667 s and pauses), play from the parked end (the restart), stop, play: 900 frames run by the engine's clock,
+>   **0 differing**, every event an anchor in the engine's log; the engine's own clock leads the app's frames by
+>   0.57 ms on average (21 ms at worst — a frame's trip through main). Mutation: the engine's clock skewed by 1 ms
+>   (`ARTLUX_TRANSPORT_SKEW_MS`) → caught on the first frame. test:clock-parity and test:automation-parity unchanged.
+> - `verify:invariants`: every event function records an anchor, the two underrun clamps do, the number of origin
+>   assignments in timeline.ts is pinned (a new one must be classified: an event → markAnchor, a rule → ported),
+>   the wrap and the park are the same formula on both sides (mutation-tested: setPlaying without its anchor).
+> - **Next (stage 2):** the evaluators driven from the engine's own clock (read at its tick, not at `fm`) — the
+>   engine then needs `ph` only as the check — and then JUCE in the engine process, so that clock IS the audio
+>   clock and picture, sound and DMX share it.
 
 ## 9d. E4 started early — the 3D view in the engine (owner, 2026-11-24)
 

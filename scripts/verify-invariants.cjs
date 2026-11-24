@@ -4371,6 +4371,37 @@ check(
 );
 
 check(
+  'every transport EVENT records an anchor for the native engine\'s clock, and the engine runs the app\'s wrap and park',
+  'E3 (§4, the clock): the engine runs the playhead and the show clock ITSELF from the latest transport anchor ' +
+  '(timeline.ts markAnchor → nativeLink `tp` → transport.rs), applying runFrame\'s underrun / loop-wrap / end-park ' +
+  'rules on its own. An event that moves a clock\'s origin without recording an anchor (a new seek path, a new ' +
+  'resume) leaves the engine on the old one — the playhead it will draw from is then wrong by the whole jump. ' +
+  'test:transport-clock catches it on the show; this catches it in the source: every function that re-anchors on ' +
+  'an event calls markAnchor, and the number of origin assignments is pinned so a NEW one has to be classified ' +
+  '(an event → markAnchor; a rule → port it to transport.rs step_one).',
+  () => {
+    const problems = [];
+    const T = 'src/renderer/services/timeline.ts', R = 'engine/artlux-engine/src/transport.rs', N = 'src/renderer/engine/nativeLink.ts';
+    if (![T, R, N].every(exists)) return 'timeline.ts / transport.rs / nativeLink.ts is gone';
+    const t = read(T), r = read(R), n = read(N);
+    for (const f of ['mainSeek', 'showSeekInternal']) if (!/markAnchor\(\)/.test(fnBody(t, f) ?? '')) problems.push(`${f} does not record an anchor`);
+    for (const m of ['setPlaying(p: boolean): void', 'setData(t: Timeline): void', 'setGlobalDoc(t: Timeline): void', 'start(): void', "showClock?: 'preserve' | 'reset'; holdMs?: number }): void"]) {
+      const b = braceBody(t, m);
+      if (!b) problems.push(`timeline.${m.includes('holdMs') ? 'swap' : m.split('(')[0]} not found`);
+      else if (!/markAnchor\(/.test(b)) problems.push(`timeline.${m.includes('holdMs') ? 'swap' : m.split('(')[0]} does not record an anchor`);
+    }
+    if (!/renderClock\.subscribe\(\(\) => \{[\s\S]{0,200}markAnchor\(n\)/.test(t)) problems.push('the render-clock flip does not record an anchor');
+    if ((t.match(/markAnchor\(now\)/g) ?? []).length !== 2) problems.push('the two underrun clamps (scene and show) must each record an anchor at the frame time');
+    const sites = (t.match(/^\s*.*\b(show)?[oO]riginMs (=|-=) (?!0;)/gm) ?? []).length;
+    if (sites !== 19) problems.push(`timeline.ts has ${sites} clock-origin assignments (expected 19) — classify the new one: an event calls markAnchor, a rule is ported to transport.rs step_one; then update this count`);
+    if (!/t = a \+ \(\(t - a\) % \(b - a\)\);/.test(t) || !/t = a \+ \(\(t - a\) % \(b - a\)\);/.test(r)) problems.push('the loop wrap is no longer the same formula in timeline.ts and transport.rs');
+    if (!/t = Math\.max\(a, b - eps\);/.test(t) || !/t = js_max\(a, b - f\);/.test(r)) problems.push('the end park is no longer the same in timeline.ts and transport.rs');
+    if (!/fm: timeline\.getFrameTimeMs\(\), tp,/.test(n)) problems.push('the tick no longer carries the frame time and the anchor');
+    return problems.length ? problems.join('; ') : null;
+  },
+);
+
+check(
   'the automation lanes the native engine evaluates are exactly the ones it applies, and never under a scene fade',
   'E3d: nativeLink.engineLane names the lanes the engine samples itself (a surface\'s content opacity, an effect\'s ' +
   'speed and intensity); the document then carries the surfaces WITHOUT those values (overlay applyExcept). A path ' +

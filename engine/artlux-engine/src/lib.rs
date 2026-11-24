@@ -45,6 +45,7 @@ pub mod shader;
 pub mod blobs;
 pub mod comp;
 pub mod eval;
+pub mod transport;
 pub mod light;
 pub mod lightpack;
 #[cfg(feature = "ndi")]

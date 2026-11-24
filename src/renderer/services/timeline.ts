@@ -757,6 +757,35 @@ function frameSec(t: Timeline): number {
   return 1 / (typeof fps === 'number' && Number.isFinite(fps) && fps >= 1 ? fps : 30);
 }
 
+// ── THE TRANSPORT ANCHOR — what the native engine keeps its OWN clock from (E3, plans/native-engine.md §4) ──
+// Both clocks are `(now - origin) / 1000`, wrapped or parked by runFrame's rules. Those rules are pure
+// functions of (now, origin, region) — the loop wrap and the end park re-anchor, but only to a value the
+// same rule reproduces — so a reader that knows the ORIGINS and the REGIONS can run the transport itself,
+// and is told nothing per frame. What it cannot derive are the EVENTS: play / pause, a seek, a recall's
+// swap, a region edit, the underrun clamp, the render-clock flip. Each of those records an anchor here, and
+// nothing else does. The engine (engine/artlux-engine/src/transport.rs) runs runFrame's rules on its own
+// from the latest anchor and CHECKS its playhead and show time against the app's every frame
+// (`transport: differs`), so an event site missing from this list is a logged difference, not a guess.
+//
+// `at` is the renderClock time the anchor became true: a frame computed BEFORE it (fm < at) still carries
+// the previous anchor's numbers (a seek from an event handler lands between two frames), so it is not
+// checked. Origins are in the renderClock domain, `w0` (performance.timeOrigin) maps them to the wall.
+export interface TransportAnchor {
+  rev: number; at: number; off: boolean; playing: boolean; w0: number;
+  o: number; p: number; a: number; b: number; loop: boolean; f: number;
+  so: number; s: number; ga: number; gb: number; gloop: boolean; gf: number;
+}
+let anchor: TransportAnchor | null = null;
+let anchorRev = 0;
+function markAnchor(at: number = renderClock.now()): void {
+  if (external) return; // a mirror is told its clock; it does not own one
+  anchor = {
+    rev: ++anchorRev, at, off: renderClock.isOffline(), playing, w0: performance.timeOrigin,
+    o: originMs, p: playhead, a: timelineStart(data), b: timelineEnd(data), loop: !!data.loop, f: frameSec(data),
+    so: showOriginMs, s: showTime, ga: timelineStart(globalDoc), gb: timelineEnd(globalDoc), gloop: !!globalDoc.loop, gf: frameSec(globalDoc),
+  };
+}
+
 // Main-window seek (mirror-window phase-lock lives in the seek() method). Re-anchors the monotonic
 // clock and suppresses FSM crossings across the jump — the clean first-frame start on every trigger.
 function mainSeek(sec: number): void {
@@ -766,6 +795,7 @@ function mainSeek(sec: number): void {
   prevPlayhead = clamped;
   endLatched = false; // a deliberate jump re-arms the end
   warmHorizon = -Infinity; // the warm window was built around the OLD playhead — re-base next frame
+  markAnchor();
 }
 
 // The show clock's mainSeek — the ONLY thing that moves showTime from outside the frame loop.
@@ -780,6 +810,7 @@ function showSeekInternal(sec: number): void {
   const clamped = Math.max(0, sec);
   showTime = clamped;
   showOriginMs = renderClock.now() - clamped * 1000;
+  markAnchor();
 }
 
 // Is the SHOW clock parked at the global end (global loop off)? The twin of atEndBound(), asked of the
@@ -1058,6 +1089,7 @@ function runFrame(now: number): void {
           t = a;
           originMs = now - t * 1000;
           prevPlayhead = t;
+          playhead = t; markAnchor(now); // a jump, not a rule: the engine is told (anchor note above mainSeek)
         }
         if (t >= b) {
           if (data.loop) {
@@ -1155,6 +1187,7 @@ function runFrame(now: number): void {
         if (s < ga) {                                   // underrun: below the GLOBAL in-point
           s = ga;
           showOriginMs = now - s * 1000;
+          showTime = s; markAnchor(now);                // a jump: the engine is told
         }
         if (s >= gb) {
           if (globalDoc.loop) {                         // THE SHOW LOOPS — and the bed restarts with it.
@@ -1597,6 +1630,7 @@ export const timeline = {
     warmMedia(t, activeKey); // this document IS the active pool's — retain under its key
     pruneStaleLayers(layerVideos, t);
     compileAutomation();
+    markAnchor(); // the region (in / out, Length, loop, fps) the engine's clock wraps and parks on may have moved
   },
   // Pre-warm a scene's timeline into a standby pool WITHOUT going live (WARM tier): shared media by
   // path + a paused, first-frame-seeked <video> per layer, so a later swap() is hitless. Idempotent.
@@ -1687,6 +1721,7 @@ export const timeline = {
     }
     if (opts?.showClock === 'reset') showSeekInternal(timelineStart(globalDoc));
     compileAutomation(); // AFTER the seek, so the first post-recall sample is taken at the new playhead
+    markAnchor(); // a new bound document: a new region for the engine's clock
   },
   // The GLOBAL timeline's lanes, which run as a BASE under every scene (the global audio bed is global,
   // so its curves must outlive a scene swap). Pushed by App whenever the global timeline changes.
@@ -1791,6 +1826,7 @@ export const timeline = {
       originMs = renderClock.now() - playhead * 1000;     // re-anchor the monotonic clock on resume
       showOriginMs = renderClock.now() - showTime * 1000; // …and the show clock's, identically
     }
+    markAnchor(); // play AND pause: the engine's clock starts and stops on this event, not on a frame
   },
   setExternal(e: boolean): void { external = e; },
   setHapLocal(v: boolean): void { hapLocal = v; },
@@ -1951,6 +1987,7 @@ export const timeline = {
           : Math.max(ga, gb - frameSec(globalDoc)), // not looping: park one frame before the end
       );
     }
+    markAnchor(); // the show clock's region may have moved
   },
   // THE SHOW CLOCK, in seconds. In a MIRROR window this is the number the bridge last told us (plus the
   // frame-loop's interpolation), not a number this window derived — see setExternalShowTime.
@@ -2181,8 +2218,11 @@ export const timeline = {
       originMs = renderClock.now() - playhead * 1000;
       showOriginMs = renderClock.now() - showTime * 1000;
       raf = requestAnimationFrame(frame);
+      markAnchor();
     }
   },
+  /** The latest transport anchor (see TransportAnchor) — the events the native engine's clock runs from. */
+  transportAnchor(): TransportAnchor | null { return anchor; },
   /**
    * ADVANCE THE TRANSPORT BY ONE FRAME, OFF THE WALL — the offline render's driver.
    *
@@ -2274,6 +2314,7 @@ renderClock.subscribe(() => {
   const n = renderClock.now();
   originMs = n - playhead * 1000;
   showOriginMs = n - showTime * 1000;
+  markAnchor(n); // a new epoch (and `off` flips): the engine re-anchors with it
 });
 
 timeline.start();
