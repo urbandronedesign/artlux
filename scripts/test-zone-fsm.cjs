@@ -23,7 +23,10 @@ const path = require('node:path');
 // operator's layout changed after every run (found 2026-11-20: a drawer a previous harness opened in
 // Venue & Rig covered the rows the next harness clicked). Back the WHOLE file up before launch and put
 // it back once the app is dead, as test-engine-output and test-lighting-take already do.
-const PREFS_FILE = path.join(process.env.APPDATA || require('node:os').homedir(), 'ArtLux', 'artlux-prefs.json');
+// A SCRATCH PROFILE (scripts/lib/dev-profile.cjs): the app writes only there, never to the owner's
+// %APPDATA%\ArtLux — so the guard below restores a file nobody else reads.
+const PROFILE = require('./lib/dev-profile.cjs')('zone-fsm');
+const PREFS_FILE = PROFILE.prefsFile;
 const PREFS_BACKUP = (() => { try { return require('node:fs').readFileSync(PREFS_FILE); } catch { return null; } })();
 function restorePrefs() {
     if (!PREFS_BACKUP) return;
@@ -268,11 +271,11 @@ async function main() {
     const proj = buildProject();
     console.log(`[test] project: ${proj}`);
 
-    const env = { ...process.env, ARTLUX_CDP_PORT: CDP_PORT };
+    const env = PROFILE.env({ ...process.env, ARTLUX_CDP_PORT: CDP_PORT });
     delete env.ELECTRON_RUN_AS_NODE;
     const bin = path.join(ROOT, 'node_modules', '.bin', process.platform === 'win32' ? 'electron-vite.cmd' : 'electron-vite');
     console.log(`[test] launching dev (CDP :${CDP_PORT}) …`);
-    const child = spawn(bin, ['dev'], { cwd: ROOT, env, stdio: ['ignore', 'pipe', 'pipe'], shell: process.platform === 'win32', detached: process.platform !== 'win32' });
+    const child = spawn(bin, ['dev', ...PROFILE.cliArgs], { cwd: ROOT, env, stdio: ['ignore', 'pipe', 'pipe'], shell: process.platform === 'win32', detached: process.platform !== 'win32' });
     child.stdout.on('data', (d) => { const s = d.toString(); if (/error|fail/i.test(s)) process.stdout.write(`[dev] ${s}`); });
     child.stderr.on('data', (d) => process.stderr.write(`[dev:err] ${d}`));
 
@@ -366,8 +369,11 @@ async function main() {
         // Five scene recalls have happened by now. Before the fix, the FIRST one wiped every zone —
         // and later, the same class of bug reverted the SENSOR settings (merge, radius, venue dwell)
         // on every one of them. Both are project scope now; see SCENE3D_NOT_A_LOOK in App.tsx.
-        await clickByText(page, 'Track', { exact: true, wait: 800 });
-        await clickByText(page, 'Trigger Zones', { wait: 900, optional: true });
+        // View ▸ Trigger Zones (MenuBar 'zone-editor'). This used to click a 'Track' rail context, which no
+        // longer exists — the click landed on whatever else said "Track", the panel never opened, and the
+        // check read an empty page as "every zone wiped".
+        await clickByText(page, 'View', { exact: true, wait: 500 });
+        await clickByText(page, 'Trigger Zones', { exact: true, wait: 1200 });
         const names = await readZoneNames(page);
         await shoot(page, '03-zones-after-go.png');
         check('a GO does not wipe the room’s zones', names.length === 3, `zones present = ${JSON.stringify(names)}`);

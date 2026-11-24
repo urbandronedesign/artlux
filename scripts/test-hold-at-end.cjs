@@ -30,7 +30,10 @@ const path = require('node:path');
 // operator's layout changed after every run (found 2026-11-20: a drawer a previous harness opened in
 // Venue & Rig covered the rows the next harness clicked). Back the WHOLE file up before launch and put
 // it back once the app is dead, as test-engine-output and test-lighting-take already do.
-const PREFS_FILE = path.join(process.env.APPDATA || require('node:os').homedir(), 'ArtLux', 'artlux-prefs.json');
+// A SCRATCH PROFILE (scripts/lib/dev-profile.cjs): the app writes only there, never to the owner's
+// %APPDATA%\ArtLux — so the guard below restores a file nobody else reads.
+const PROFILE = require('./lib/dev-profile.cjs')('hold-at-end');
+const PREFS_FILE = PROFILE.prefsFile;
 const PREFS_BACKUP = (() => { try { return require('node:fs').readFileSync(PREFS_FILE); } catch { return null; } })();
 function restorePrefs() {
     if (!PREFS_BACKUP) return;
@@ -237,11 +240,11 @@ async function main() {
     console.log(`[test] project: ${proj}`);
     console.log(`[test] screenshots: ${SHOTS}`);
 
-    const env = { ...process.env, ARTLUX_CDP_PORT: CDP_PORT };
+    const env = PROFILE.env({ ...process.env, ARTLUX_CDP_PORT: CDP_PORT });
     delete env.ELECTRON_RUN_AS_NODE;
     const bin = path.join(ROOT, 'node_modules', '.bin', process.platform === 'win32' ? 'electron-vite.cmd' : 'electron-vite');
     console.log(`[test] launching dev (CDP :${CDP_PORT}) …`);
-    const child = spawn(bin, ['dev'], { cwd: ROOT, env, stdio: ['ignore', 'pipe', 'pipe'], shell: process.platform === 'win32', detached: process.platform !== 'win32' });
+    const child = spawn(bin, ['dev', ...PROFILE.cliArgs], { cwd: ROOT, env, stdio: ['ignore', 'pipe', 'pipe'], shell: process.platform === 'win32', detached: process.platform !== 'win32' });
     child.stdout.on('data', (d) => { const s = d.toString(); if (/error|fail/i.test(s)) process.stdout.write(`[dev] ${s}`); });
     child.stderr.on('data', (d) => process.stderr.write(`[dev:err] ${d}`));
 

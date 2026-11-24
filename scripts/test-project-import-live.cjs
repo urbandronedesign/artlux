@@ -24,7 +24,10 @@ const path = require('node:path');
 // harness used to leave it that way: after a run, ArtLux reopened the TEST project instead of the operator's
 // last show (found 2026-11-20). Back the whole file up now; restore it on EVERY exit path (process.exit is
 // called from several places below), by which point the app has been killed.
-const PREFS_FILE = path.join(process.env.APPDATA || require('node:os').homedir(), 'ArtLux', 'artlux-prefs.json');
+// A SCRATCH PROFILE (scripts/lib/dev-profile.cjs): the app writes only there, never to the owner's
+// %APPDATA%\ArtLux — so the guard below restores a file nobody else reads.
+const PROFILE = require('./lib/dev-profile.cjs')('project-import-live');
+const PREFS_FILE = PROFILE.prefsFile;
 const PREFS_BACKUP = (() => { try { return require('node:fs').readFileSync(PREFS_FILE); } catch { return null; } })();
 process.on('exit', () => {
   if (!PREFS_BACKUP) return;
@@ -104,11 +107,11 @@ function buildProjects() {
 }
 
 function launch(project) {
-  const env = { ...process.env };
-  delete env.ELECTRON_RUN_AS_NODE;   // inheriting it boots Electron as plain Node (DEVELOPMENT.md)
+  const env = PROFILE.env(process.env);   // also drops ELECTRON_RUN_AS_NODE
   env.ARTLUX_CDP_PORT = CDP_PORT;
+  // `-- --…` reaches Electron as ELECTRON_CLI_ARGS and REPLACES the profile's, so the profile is named here too.
   const child = spawn(process.platform === 'win32' ? 'npm.cmd' : 'npm',
-    ['run', 'dev', '--', '--', `--project=${project}`],
+    ['run', 'dev', '--', '--', `--user-data-dir=${PROFILE.dir}`, `--project=${project}`],
     { cwd: ROOT, env, stdio: ['ignore', 'pipe', 'pipe'], shell: process.platform === 'win32' });
   child.stdout.on('data', () => {}); child.stderr.on('data', () => {});
   return child;

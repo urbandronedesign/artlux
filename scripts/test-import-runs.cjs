@@ -40,7 +40,9 @@ const BOOT_MS = 120000;            // a cold `npm run dev` builds before Electro
 // machine, not the show (it was removed from ProjectData in P6), so a project cannot ask for its own
 // output to be enabled and this test has to say so on the machine's behalf. The operator's real prefs
 // are backed up first and restored in `finally`, including after a crash.
-const PREFS = path.join(process.env.APPDATA || os.homedir(), 'ArtLux', 'artlux-prefs.json');
+// A SCRATCH PROFILE (scripts/lib/dev-profile.cjs), so these prefs are the test's own, never the operator's.
+const TEST_PROFILE = require('./lib/dev-profile.cjs')('import-runs');
+const PREFS = TEST_PROFILE.prefsFile;
 const PREFS_BAK = path.join(WORK, 'prefs.backup.json');
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -215,7 +217,7 @@ function launch(projectFile) {
   const env = { ...process.env };
   delete env.ELECTRON_RUN_AS_NODE;   // inheriting it boots Electron as plain Node (DEVELOPMENT.md)
   const child = spawn(process.platform === 'win32' ? 'npm.cmd' : 'npm',
-    ['run', 'dev', '--', '--', '--headless', `--project=${projectFile}`],
+    ['run', 'dev', '--', '--', `--user-data-dir=${TEST_PROFILE.dir}`, '--headless', `--project=${projectFile}`],
     { cwd: ROOT, env, stdio: ['ignore', 'pipe', 'pipe'], shell: process.platform === 'win32' });
   child.stdout.on('data', () => {}); child.stderr.on('data', () => {});
   return child;
