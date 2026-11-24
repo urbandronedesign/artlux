@@ -1986,8 +1986,9 @@ export interface ArtluxApi {
   nativeEngineView3d?(open: boolean, camera: { position: number[]; target: number[]; fov: number } | null): void;
   /** E4a: the operator closed the engine's 3D view window from its title bar. */
   onNativeEngineView3dClosed?(cb: () => void): () => void;
-  /** E4b: a click in the engine's 3D view window picked a fixture (null: empty space); `add` = Shift / Ctrl. */
-  onNativeEngineView3dPick?(cb: (id: string | null, add: boolean) => void): () => void;
+  /** E4b: a click in the engine's 3D view window picked a fixture, or (`model`) a venue model / screen; both null:
+   *  empty space. `add` = Shift / Ctrl. */
+  onNativeEngineView3dPick?(cb: (id: string | null, add: boolean, model: string | null) => void): () => void;
   /** E4b: a drag on the engine window's gizmo — the gesture so far. */
   onNativeEngineView3dGizmo?(cb: (phase: 'start' | 'move' | 'end', gesture: EngineGizmoGesture) => void): () => void;
   /**

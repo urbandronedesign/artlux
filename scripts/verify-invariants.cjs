@@ -9360,6 +9360,8 @@ check(
     if (!/m\.type === 'view3dPick'[\s\S]{0,400}IPC\.NATIVE_ENGINE_VIEW3D_PICK/.test(h)) problems.push('main no longer relays view3dPick to the renderer');
     if (!p.includes('IPC.NATIVE_ENGINE_VIEW3D_PICK')) problems.push('the preload no longer exposes the pick');
     if (!s.includes('onNativeEngineView3dPick')) problems.push('Simulator3D no longer applies the pick');
+    if (!s.includes('if (!id && model) { p.onSelectModel?.(model); return; }')) problems.push('a picked venue model no longer reaches the editor model selection');
+    if (!o.includes('crate::view3d::pick_any(')) problems.push('the engine no longer picks venue models');
     return problems.length ? problems.join('; ') : null;
   },
 );

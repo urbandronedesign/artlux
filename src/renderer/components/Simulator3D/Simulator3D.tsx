@@ -391,8 +391,11 @@ const Simulator3D: React.FC<Props> = ({
   }), []);
   const pickRef = useRef({ selectedFixtureIds, onSelectFixture, onSelectFixtures, onSelectModel });
   pickRef.current = { selectedFixtureIds, onSelectFixture, onSelectFixtures, onSelectModel };
-  useEffect(() => window.artlux?.onNativeEngineView3dPick?.((id, add) => {
+  useEffect(() => window.artlux?.onNativeEngineView3dPick?.((id, add, model) => {
     const p = pickRef.current;
+    // A venue model or screen: the editor's model selection (which clears the fixtures, as a click on a model
+    // in this view does — ModelObject / PlaneObject onSelect).
+    if (!id && model) { p.onSelectModel?.(model); return; }
     if (!id) { if (!add) { p.onSelectFixture(''); p.onSelectModel?.(null); } return; }
     if (add && p.onSelectFixtures) {
       const cur = p.selectedFixtureIds;
@@ -1025,6 +1028,7 @@ const Simulator3D: React.FC<Props> = ({
           grid: scene3D.gridVisible !== false,
           gridLabels: scene3D.gridLabels !== false,
           gizmo: { fixtures: gizmoFixtures, mode, space: gizmoSpace, activeId: selectedFixtureId, snap },
+          selectedModel: selectedModelId ?? null,
         }} />}
         {/* Press-and-drag the selection itself, with object snaps — after the guard, whose window
             listener must decide "gizmo handle?" first. Not while picking calibration anchors or looking

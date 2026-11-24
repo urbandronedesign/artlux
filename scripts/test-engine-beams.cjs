@@ -22,6 +22,8 @@
 //     project), and nothing else; the editor's Undo puts them back; then the SCALE tool spreads the two along X
 //     about their centre, and the ROTATE tool turns one head 45° about Y on its ring — each read back from the
 //     saved project and undone;
+//   - a click on the screen behind the rig selects that MODEL in the editor (its row in the 3D objects list) and
+//     clears the fixtures; a fixture in front of a screen still wins (unit-tested in view3d.rs);
 //   - the Rendered look: solid shafts, no diagram.
 // Own processes only; nothing of the owner's is read or written.
 'use strict';
@@ -68,7 +70,8 @@ function buildProject() {
     version: '1.2', timestamp: '2026-01-01T00:00:00.000Z', surfaces: [], fixtures,
     controllers: [{ id: 'ctl_dmx', name: 'Lighting interface', protocol: 'artnet', ip: '127.0.0.1', broadcast: false, startUniverse: 0, drives: 'light' }],
     globalBrightness: 1, groups: [], scenes: [], cueBanks: [],
-    scene3D: { models: [], lightIntensity: 1, environment: true, exposure: 1, gridVisible: true, reflectiveFloor: false, trackingViz: false, augmentaViz: false, trackingSmoothing: 0.6, trackingPredictMs: 50, hazeDensity: 0.6 },
+    // A dark screen behind the rig (E4b: a click on it selects the MODEL).
+    scene3D: { models: [{ id: 'scr', name: 'Back screen', kind: 'plane', path: '', position: { x: 0, y: 3, z: -7 }, rotation: { x: 0, y: 0, z: 0 }, scale: 4, visible: true }], lightIntensity: 1, environment: true, exposure: 1, gridVisible: true, reflectiveFloor: false, trackingViz: false, augmentaViz: false, trackingSmoothing: 0.6, trackingPredictMs: 50, hazeDensity: 0.6 },
     timeline: { layers: [], clips: [], duration: 60, fps: 30, markers: [], inPoint: null, outPoint: null, loop: false, trackingTakes: [], lightingTakes: [], lightingSequences: [] },
     schedule: [], assets: [], projectorOutputs: [], projectorFpsCap: 0, projectorBrightness: 1,
   }, null, 2));
@@ -422,6 +425,15 @@ const segmentsNow = (logf) => { const l = beamLines(logf); const m = /(\d+) diag
     note(Math.abs(r3b.yaw ?? 0) < 0.01, 'and Undo turns it back', JSON.stringify(r3b));
     void back;
     await tool('Move');
+
+    // A VENUE MODEL: the empty part of the screen behind the rig, low and to the left.
+    clickEngineWindow([[...at([-2.6, 1.8, -7]), false]]);
+    await sleep(1500);
+    note(/3D view pick: model scr$/m.test(fs.readFileSync(logf, 'utf8')), 'a click on the screen picks the model');
+    const modelRow = await page.evaluate(() => [...document.querySelectorAll('div[role="button"]')].filter((d) => /bg-accent/.test(d.className)).map((d) => (d.textContent || '').trim()));
+    note(modelRow.some((t) => t.includes('Back screen')) && !modelRow.some((t) => /^(Mover|Wash) \d$/.test(t)), 'the editor selects the screen, not a fixture', JSON.stringify(modelRow));
+    await sleep(800);
+    captureEngineWindow(path.join(WORK, 'engine-model.png'));
     captureEngineWindow(path.join(WORK, 'engine-pick.png'));
 
     // THE RENDERED LOOK follows the editor's display mode: the button flips it, the scene (≤ 4 Hz) carries it, the

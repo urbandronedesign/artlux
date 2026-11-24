@@ -307,7 +307,7 @@ function spawnEngine(): void {
       const line = buf.slice(0, i).trim();
       buf = buf.slice(i + 1);
       if (!line) continue;
-      let m: { type?: string; adapter?: string; version?: string; backend?: string; pid?: number; n?: number; u?: number; d?: number; pps?: number; fps?: number; rev?: number; owns?: boolean; why?: string; id?: string | null; add?: boolean; place?: EngineView3dPlace; phase?: string; delta?: number[]; rot?: number[]; scale?: number[] };
+      let m: { type?: string; adapter?: string; version?: string; backend?: string; pid?: number; n?: number; u?: number; d?: number; pps?: number; fps?: number; rev?: number; owns?: boolean; why?: string; id?: string | null; add?: boolean; place?: EngineView3dPlace; phase?: string; delta?: number[]; rot?: number[]; scale?: number[]; model?: string | null };
       try { m = JSON.parse(line); } catch { console.log(`[engine] ${line}`); continue; }
       if (m.type === 'hello') {
         if (helloTimer) { clearTimeout(helloTimer); helloTimer = null; }
@@ -361,7 +361,8 @@ function spawnEngine(): void {
         // E4b: a click in the engine's 3D view. The EDITOR owns the selection, so it is only relayed: every
         // window gets it, and the one whose 3D view opened the engine's window applies it.
         const id = typeof m.id === 'string' ? m.id : null;
-        for (const w of BrowserWindow.getAllWindows()) if (!w.isDestroyed()) w.webContents.send(IPC.NATIVE_ENGINE_VIEW3D_PICK, id, !!m.add);
+        const model = typeof m.model === 'string' ? m.model : null;
+        for (const w of BrowserWindow.getAllWindows()) if (!w.isDestroyed()) w.webContents.send(IPC.NATIVE_ENGINE_VIEW3D_PICK, id, !!m.add, model);
       } else if (m.type === 'pong') {
         lastPong = Date.now();
       } else if (m.type === 'sent') {

@@ -130,6 +130,9 @@ machine, not the project. If that screen is no longer connected, it opens at its
   as if you had clicked it in the editor's own view. **Shift‑ or Ctrl‑click** adds a fixture to the
   selection or takes it out; a click on empty space clears it. A light is picked by its housing, an LED
   strip anywhere along its length. Selected fixtures show in the accent colour in both windows.
+  **A venue model or screen is selected the same way** — click it, and the editor selects it (its card
+  opens there); the engine window outlines it. A fixture mounted on a screen still wins over the screen
+  behind it, as in the editor.
 - **Move, turn and scale the selection there.** The handles of the tool chosen in the editor appear in
   the engine window too: with **Move**, drag the red, green or blue arrow to slide the selection along X, Y
   or Z; with **Rotate**, drag a ring to turn it about that axis; with **Scale**, drag a handle to stretch a

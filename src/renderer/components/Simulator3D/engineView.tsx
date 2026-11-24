@@ -148,7 +148,8 @@ function buildScene(scene: THREE.Scene, fixtures: Fixture[], beams: EngineBeams)
   const snap = gz?.snap?.on ? (tool === 'rotate' ? gz.snap.rotate : tool === 'scale' ? gz.snap.scale : gz.snap.move) : null;
   return JSON.stringify({ models, leds, lights, lines, beams: { haze: r4(beams.haze), cones: beams.cones, rendered: beams.rendered, selected: beams.selected },
     grid: { visible: beams.grid, labels: beams.gridLabels },
-    gizmo: g ? { mode: tool, at: [r4(g.at.x), r4(g.at.y), r4(g.at.z)], q: handleQ.map((x) => Math.round(x * 1e6) / 1e6), snap } : null });
+    gizmo: g ? { mode: tool, at: [r4(g.at.x), r4(g.at.y), r4(g.at.z)], q: handleQ.map((x) => Math.round(x * 1e6) / 1e6), snap } : null,
+    selectedModel: beams.selectedModel ?? null });
 }
 
 /**
@@ -217,6 +218,8 @@ export function applyEngineGizmo(
 export interface EngineBeams { profiles: ReadonlyMap<string, FixtureProfile>; haze: number; cones: boolean; rendered: boolean; selected: readonly string[];
   /** The editor's fixture gizmo: the selection it drives, its tool and axes, the snap — the engine draws Move. */
   gizmo?: { fixtures: readonly Fixture[]; mode: string; space: 'world' | 'local'; activeId: string | null | undefined; snap?: SnapSettings };
+  /** The venue model / screen selected in the editor — outlined in the engine window. */
+  selectedModel?: string | null;
   /** The editor's floor grid and its numbers (scene3D.gridVisible / gridLabels) — the engine view follows them. */
   grid: boolean; gridLabels: boolean }
 

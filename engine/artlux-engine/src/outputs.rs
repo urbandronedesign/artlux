@@ -278,12 +278,17 @@ impl ApplicationHandler<Cmd> for App {
                         let picked = s.scene.as_ref().and_then(|(_, sc)| {
                             let (o, d) = s.cam.ray(x as f32, y as f32, size.width as f32, size.height as f32);
                             let px = 2.0 * (s.cam.fov.to_radians() / 2.0).tan() / (size.height as f32).max(1.0);
-                            crate::view3d::pick(sc, o, d, px)
+                            crate::view3d::pick_any(sc, &s.meshes, o, d, px)
                         });
                         drop(s);
-                        eprintln!("artlux-engine: 3D view pick: {}{}", picked.as_deref().unwrap_or("(nothing)"), if v.additive { " (add)" } else { "" });
-                        let id = picked.map_or("null".to_string(), |p| serde_json::to_string(&p).unwrap_or_else(|_| "null".into()));
-                        (self.view_event)(format!(r#"{{"type":"view3dPick","id":{id},"add":{}}}"#, v.additive));
+                        let js = |x: &str| serde_json::to_string(x).unwrap_or_else(|_| "null".into());
+                        let (id, model, what) = match &picked {
+                            Some(crate::view3d::Picked::Fixture(f)) => (js(f), "null".to_string(), f.clone()),
+                            Some(crate::view3d::Picked::Model(m)) => ("null".to_string(), js(m), format!("model {m}")),
+                            None => ("null".to_string(), "null".to_string(), "(nothing)".to_string()),
+                        };
+                        eprintln!("artlux-engine: 3D view pick: {what}{}", if v.additive { " (add)" } else { "" });
+                        (self.view_event)(format!(r#"{{"type":"view3dPick","id":{id},"model":{model},"add":{}}}"#, v.additive));
                     }
                 }
             }

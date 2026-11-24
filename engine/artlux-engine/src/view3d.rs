@@ -42,7 +42,9 @@ pub struct Model { pub id: String, pub kind: ModelKind, pub matrix: [f32; 16], p
 pub struct LedFix { pub id: String, pub pos: Vec<f32> }
 pub struct Scene { pub models: Vec<Model>, pub leds: Vec<LedFix>, pub lights: Vec<LightFix>, pub lines: Vec<f32>, pub look: BeamLook, pub grid: GridLook,
     /// E4b: the editor's move gizmo, when it shows one (a selection, the Move tool) — gizmo.rs.
-    pub gizmo: Option<crate::gizmo::Gizmo> }
+    pub gizmo: Option<crate::gizmo::Gizmo>,
+    /// E4b: the venue model / screen selected in the editor (its bounds are outlined here).
+    pub selected_model: Option<String> }
 /// The editor's grid toggles (scene3D.gridVisible / gridLabels): the floor grid with its axes, and its numbers.
 #[derive(Clone, Copy)]
 pub struct GridLook { pub visible: bool, pub labels: bool }
@@ -134,7 +136,8 @@ impl Scene {
         let g = &v["grid"];
         let grid = GridLook { visible: g["visible"].as_bool().unwrap_or(true), labels: g["labels"].as_bool().unwrap_or(true) };
         let gizmo = crate::gizmo::Gizmo::from_json(&v["gizmo"]);
-        Scene { models, leds, lights, lines, look, grid, gizmo }
+        let selected_model = v["selectedModel"].as_str().map(str::to_string);
+        Scene { models, leds, lights, lines, look, grid, gizmo, selected_model }
     }
 }
 
@@ -264,6 +267,82 @@ fn ray_segment(o: [f32; 3], d: [f32; 3], a: [f32; 3], b: [f32; 3]) -> (f32, f32)
     (s, len(sub(p, q)))
 }
 
+/// One primitive of a venue file, for picking: its node matrix and triangles (positions, indices).
+pub struct PickPrim { pub local: [f32; 16], pub pos: Vec<[f32; 3]>, pub idx: Vec<u32> }
+
+/// What a click landed on.
+#[derive(Debug, PartialEq)]
+pub enum Picked { Fixture(String), Model(String) }
+
+fn xform(m: &[f32; 16], p: [f32; 3]) -> [f32; 3] {
+    [m[0] * p[0] + m[4] * p[1] + m[8] * p[2] + m[12], m[1] * p[0] + m[5] * p[1] + m[9] * p[2] + m[13], m[2] * p[0] + m[6] * p[1] + m[10] * p[2] + m[14]]
+}
+/// Möller–Trumbore: distance along the ray to the triangle, either face.
+fn ray_tri(o: [f32; 3], d: [f32; 3], a: [f32; 3], b: [f32; 3], c: [f32; 3]) -> Option<f32> {
+    let (e1, e2) = (sub(b, a), sub(c, a));
+    let p = cross(d, e2);
+    let det = dot(e1, p);
+    if det.abs() < 1e-12 { return None; }
+    let inv = 1.0 / det;
+    let s = sub(o, a);
+    let u = dot(s, p) * inv;
+    if !(0.0..=1.0).contains(&u) { return None; }
+    let q = cross(s, e1);
+    let v = dot(d, q) * inv;
+    if v < 0.0 || u + v > 1.0 { return None; }
+    let t = dot(e2, q) * inv;
+    (t > 1e-4).then_some(t)
+}
+/// The world corners of a screen quad (w × h in its local XY).
+fn plane_corners(m: &[f32; 16], w: f32, h: f32) -> [[f32; 3]; 4] {
+    [[-0.5, -0.5], [0.5, -0.5], [0.5, 0.5], [-0.5, 0.5]].map(|[x, y]| xform(m, [x * w, y * h, 0.0]))
+}
+
+/// What the click landed on: a FIXTURE wherever its body is in the ray (the editor's pick priority — a screen is
+/// big and nearly always in front of the LEDs mounted on it, so a model YIELDS to any fixture under the cursor:
+/// pickPriority.ts), otherwise the NEAREST venue model or screen triangle.
+pub fn pick_any(sc: &Scene, meshes: &HashMap<String, Arc<Vec<PickPrim>>>, o: [f32; 3], d: [f32; 3], px: f32) -> Option<Picked> {
+    if let Some(f) = pick(sc, o, d, px) { return Some(Picked::Fixture(f)); }
+    let consider = |t: f32, id: &str, best: &mut Option<(f32, String)>| { if best.as_ref().is_none_or(|b| t < b.0) { *best = Some((t, id.to_string())); } };
+    let mut found: Option<(f32, String)> = None;
+    for m in &sc.models {
+        match &m.kind {
+            ModelKind::Plane { w, h, .. } => {
+                let c = plane_corners(&m.matrix, *w, *h);
+                for t in [ray_tri(o, d, c[0], c[1], c[2]), ray_tri(o, d, c[0], c[2], c[3])].into_iter().flatten() { consider(t, &m.id, &mut found); }
+            }
+            ModelKind::Glb(path) => if let Some(prims) = meshes.get(path) {
+                for p in prims.iter() {
+                    let world = mul(&m.matrix, &p.local);
+                    let wp: Vec<[f32; 3]> = p.pos.iter().map(|v| xform(&world, *v)).collect();
+                    for tri in p.idx.chunks_exact(3) {
+                        let (a, b, c) = (wp[tri[0] as usize], wp[tri[1] as usize], wp[tri[2] as usize]);
+                        if let Some(t) = ray_tri(o, d, a, b, c) { consider(t, &m.id, &mut found); }
+                    }
+                }
+            },
+        }
+    }
+    found.map(|(_, id)| Picked::Model(id))
+}
+
+/// A model's world bounds (min, max) — its outline when selected.
+pub fn model_bounds(m: &Model, meshes: &HashMap<String, Arc<Vec<PickPrim>>>) -> Option<([f32; 3], [f32; 3])> {
+    let mut lo = [f32::INFINITY; 3];
+    let mut hi = [f32::NEG_INFINITY; 3];
+    let mut add_pt = |p: [f32; 3]| for i in 0..3 { lo[i] = lo[i].min(p[i]); hi[i] = hi[i].max(p[i]); };
+    match &m.kind {
+        ModelKind::Plane { w, h, .. } => for c in plane_corners(&m.matrix, *w, *h) { add_pt(c); },
+        ModelKind::Glb(path) => {
+            for p in meshes.get(path)?.iter() {
+                let world = mul(&m.matrix, &p.local);
+                for v in &p.pos { add_pt(xform(&world, *v)); }
+            }
+        }
+    }
+    lo[0].is_finite().then_some((lo, hi))
+}
+
 /// The fixture under the cursor: the NEAREST body the ray meets. `px` is world units per pixel at 1 m (the
 /// presenter's own figure), so a strip stays pickable — HALF_PX pixels either side — however far away it is.
 pub fn pick(sc: &Scene, o: [f32; 3], d: [f32; 3], px: f32) -> Option<String> {
@@ -306,6 +385,9 @@ pub struct Shared {
     pub place: Option<Place>,
     /// E4b: the gizmo handle under the cursor (drawn hot), and the drag in progress (its offset drawn here).
     pub hover_axis: Option<usize>,
+    /// E4b: every loaded venue file's triangles (CPU), for picking a model with a click — published by the
+    /// presenter when it loads a file, keyed by its path.
+    pub meshes: HashMap<String, Arc<Vec<PickPrim>>>,
     pub drag: Option<crate::gizmo::Drag>,
 }
 
@@ -827,6 +909,9 @@ pub fn present(gpu: Arc<Gpu>, window: Arc<Window>, surface: wgpu::Surface<'stati
     let mut label_buf: Option<wgpu::Buffer> = None;
     let mut labels_logged = false;
     let mut handle_buf: Option<wgpu::Buffer> = None;
+    // E4b: the selected model's outline (its world bounds), rebuilt when the selection, the scene or a file changes.
+    let mut model_outline: Option<(wgpu::Buffer, u32)> = None;
+    let mut model_outline_key = String::new();
     // E4b: the drawing of a drag in progress — the selection's LEDs, housings and beams moved by the offset.
     let mut drag_drawn: Option<crate::gizmo::Gesture> = None;
 
@@ -950,6 +1035,10 @@ pub fn present(gpu: Arc<Gpu>, window: Arc<Window>, surface: wgpu::Surface<'stati
         while let Ok((path, r)) = load_rx.try_recv() {
             match r {
                 Ok(cpu) => {
+                    // E4b: the triangles, kept for picking (positions only; the vertex stride is 8 floats).
+                    let picks: Vec<PickPrim> = cpu.prims.iter().map(|p| PickPrim { local: p.local, pos: p.verts.chunks_exact(8).map(|v| [v[0], v[1], v[2]]).collect(), idx: p.idx.clone() }).collect();
+                    shared.lock().unwrap().meshes.insert(path.clone(), Arc::new(picks));
+                    model_outline_key = String::new();   // a file that loads may be the selected one
                     let texs: Vec<wgpu::TextureView> = cpu.images.iter().map(|(w, h, px)| tex_rgba(&gpu, *w, *h, px).create_view(&Default::default())).collect();
                     let prims = cpu.prims.into_iter().map(|p| {
                         let vb = buf_init(&gpu, "glb vb", &bytes(&p.verts), wgpu::BufferUsages::VERTEX);
@@ -993,6 +1082,24 @@ pub fn present(gpu: Arc<Gpu>, window: Arc<Window>, surface: wgpu::Surface<'stati
         cu.extend_from_slice(&vp); cu.extend_from_slice(&[eye[0], eye[1], eye[2], 1.0]); cu.extend_from_slice(&[px, look.haze, look.rendered as u32 as f32, 0.0]);
 
         // The beams, from this tick's resolved states.
+        // The selected model's outline: the twelve edges of its world bounds, in the accent.
+        let want_key = scene.as_ref().and_then(|s| s.selected_model.clone().map(|m| format!("{m}@{scene_ver}"))).unwrap_or_default();
+        if want_key != model_outline_key {
+            model_outline_key = want_key;
+            model_outline = scene.as_ref().and_then(|s| {
+                let id = s.selected_model.as_ref()?;
+                let m = s.models.iter().find(|m| &m.id == id)?;
+                let meshes = shared.lock().unwrap().meshes.clone();
+                let (lo, hi) = model_bounds(m, &meshes)?;
+                let c = |i: u32| [if i & 1 == 0 { lo[0] } else { hi[0] }, if i & 2 == 0 { lo[1] } else { hi[1] }, if i & 4 == 0 { lo[2] } else { hi[2] }];
+                let mut v: Vec<f32> = Vec::new();
+                for (a, b) in [(0, 1), (2, 3), (4, 5), (6, 7), (0, 2), (1, 3), (4, 6), (5, 7), (0, 4), (1, 5), (2, 6), (3, 7)] {
+                    for p in [c(a), c(b)] { v.extend_from_slice(&[p[0], p[1], p[2], ACCENT[0], ACCENT[1], ACCENT[2], 1.0]); }
+                }
+                Some((buf_init(&gpu, "model outline", &bytes(&v), wgpu::BufferUsages::VERTEX), (v.len() / 7) as u32))
+            });
+        }
+
         // A drag in progress transforms the selection's drawing (gizmo.rs Drag::apply): the beams leave from the
         // moved lenses, turned with their heads.
         let moved_lights: Option<Vec<LightFix>> = match (&drag, &scene) {
@@ -1265,6 +1372,11 @@ pub fn present(gpu: Arc<Gpu>, window: Arc<Window>, surface: wgpu::Surface<'stati
                 pass.set_vertex_buffer(0, ob.slice(..));
                 pass.draw(0..*n, 0..1);
             }
+            if let Some((ob, n)) = &model_outline {
+                pass.set_pipeline(&flat_line_pipe);
+                pass.set_vertex_buffer(0, ob.slice(..));
+                pass.draw(0..*n, 0..1);
+            }
             if let (Some(hb), true) = (&handle_buf, n_handle_verts > 0) {
                 pass.set_pipeline(&handle_pipe);
                 pass.set_vertex_buffer(0, hb.slice(..));
@@ -1303,7 +1415,7 @@ mod pick_tests {
             // A strip along X at y = 2, z = 0, and a light housing in front of it (nearer the camera at +Z).
             leds: vec![LedFix { id: "strip".into(), pos: (0..10).flat_map(|i| [i as f32 * 0.1 - 0.5, 2.0, 0.0]).collect() }],
             lights: vec![LightFix { id: "head".into(), pos: [0.2, 2.0, 2.0], beam: None }],
-            lines: Vec::new(), look: BeamLook::default(), grid: GridLook::default(), gizmo: None,
+            lines: Vec::new(), look: BeamLook::default(), grid: GridLook::default(), gizmo: None, selected_model: None,
         }
     }
     #[test]
@@ -1347,5 +1459,32 @@ mod place_tests {
         let back = Place::from_json(&serde_json::from_str(&on_second.to_json()).unwrap()).unwrap();
         assert_eq!(back, on_second);
         assert!(Place::from_json(&serde_json::json!({"x": 0, "y": 0, "w": 10, "h": 10})).is_none(), "a degenerate size is refused");
+    }
+}
+
+#[cfg(test)]
+mod model_pick_tests {
+    use super::*;
+    #[test]
+    fn a_fixture_on_a_screen_wins_and_the_screen_alone_is_picked() {
+        // A 4 × 2 m screen facing +Z at z = 0, an LED strip mounted 2 cm in front of it.
+        let screen = Model { id: "scr".into(), kind: ModelKind::Plane { surface: None, w: 4.0, h: 2.0 }, matrix: [1., 0., 0., 0., 0., 1., 0., 0., 0., 0., 1., 0., 0., 1., 0., 1.], content: None };
+        let sc = Scene {
+            models: vec![screen],
+            leds: vec![LedFix { id: "strip".into(), pos: (0..10).flat_map(|i| [i as f32 * 0.2 - 1.0, 1.0, 0.02]).collect() }],
+            lights: Vec::new(), lines: Vec::new(), look: BeamLook::default(), grid: GridLook::default(), gizmo: None, selected_model: None,
+        };
+        let meshes = HashMap::new();
+        let px = 0.001;
+        let eye = [0.0, 1.0, 8.0];
+        let toward = |p: [f32; 3]| norm(sub(p, eye));
+        // Through the strip: the fixture, though the screen is hit too.
+        assert_eq!(pick_any(&sc, &meshes, eye, toward([0.3, 1.0, 0.0]), px), Some(Picked::Fixture("strip".into())));
+        // The screen above the strip: the model.
+        assert_eq!(pick_any(&sc, &meshes, eye, toward([0.3, 1.7, 0.0]), px), Some(Picked::Model("scr".into())));
+        // Past its edge: nothing.
+        assert_eq!(pick_any(&sc, &meshes, eye, toward([2.5, 1.7, 0.0]), px), None);
+        let (lo, hi) = model_bounds(&sc.models[0], &meshes).unwrap();
+        assert_eq!((lo, hi), ([-2.0, 0.0, 0.0], [2.0, 2.0, 0.0]));
     }
 }

@@ -2152,8 +2152,15 @@ fallback until a source/output is proven byte-identical — risk 2):
 >   anchor); `test:engine-beams` now also SCALES the two heads apart along X (×2.99 → saved at ∓2.99, undone) and
 >   TURNS one head on its Y ring (46.15° in the engine → saved yaw −46.15°, position unchanged, undone). It found the
 >   editor's own rule that a plain click on a group member keeps the group — the engine window follows it.
-> - **Not yet (E4b…):** the rest of the Rendered look (the lit room), the adaptive grid, picking venue models and
->   screens, sources the engine does not draw (timeline video clips, a tracking overlay…) on screens
+> - ✅ **E4b-7 2026-11-24 — picking venue models and screens.** The presenter keeps each loaded file's triangles
+>   (positions + indices, `Shared::meshes`); a click that meets no fixture takes the NEAREST model triangle
+>   (Möller–Trumbore in world space; a screen is its quad) — fixtures first wherever they are in the ray, the editor's
+>   pickPriority rule. `view3dPick` carries `model`; the editor applies it as its own model click (onSelectModel, which
+>   clears the fixtures). The selected model's world bounds are outlined in the accent. A brute-force ray: per click
+>   only, microseconds for a venue of tens of thousands of triangles. **Proof:** a unit test (a strip on a screen wins;
+>   the screen above it is the model; past its edge nothing; its bounds); `test:engine-beams` clicks the screen
+>   behind the rig → `pick: model scr` and the editor's objects list shows Back screen selected, no fixture.
+> - **Not yet (E4b…):** the rest of the Rendered look (the lit room), the adaptive grid, a model's own gizmo, sources the engine does not draw (timeline video clips, a tracking overlay…) on screens
 >   and venue meshes, the four-view layout, saving the window's place, macOS / Linux.
 
 ## 10. Open questions
