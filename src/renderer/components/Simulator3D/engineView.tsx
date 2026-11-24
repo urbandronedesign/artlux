@@ -4,6 +4,9 @@ import { useThree } from '@react-three/fiber';
 import type { Fixture } from '../../types';
 import { computeLedPositions, effectivePos } from '../../services/led3dLayout';
 import { isLight } from '../../services/fixtureKind';
+import type { SceneModel } from '../../../../shared/protocol';
+import { findScreens } from './modelScreens';
+import { usesProjectedUv, usesProjectedOcclusion, DEFAULT_BIAS_M } from './projectedMapping';
 
 // E4a — THE ENGINE'S 3D VIEW, editor half (engine half: engine/artlux-engine/src/view3d.rs; plans/
 // native-engine.md E4, plans/3d-workbench.md Phase 4).
@@ -18,12 +21,60 @@ import { isLight } from '../../services/fixtureKind';
 //     `userData.enginePath`), each screen's quad and the surface it shows (PlaneObject `enginePlane`);
 //   - leds: every pixel fixture's LED world positions (led3dLayout.computeLedPositions — the editor's
 //     InstancedLeds positions), in the order of their texels in the engine's composed buffer;
-//   - lights: each light fixture's position (a housing; beams come later).
+//   - lights: each light fixture's position (a housing; beams come later);
+//   - content: what every mesh of a venue file WEARS — a named screen's surface, the whole model's
+//     surface through its UVs or PROJECTED from a projector (engineContent below);
+//   - lines: the projector frustums (anything tagged `userData.engineLine`), in world space.
 // Sent only while the view is open, at most four times a second, and only when it changed (one string
 // compare). Pointer-rate work stays out of React: this is a timer, not state.
 
 const PERIOD_MS = 250;
 const r4 = (v: number) => Math.round(v * 1e4) / 1e4;
+
+/** One content source as the engine draws it: a surface's live picture (null = a binding the engine cannot
+ *  draw, e.g. a timeline layer — dark, as the editor shows a binding with no frame), optionally projected. */
+interface EngineSrc {
+  surface: string | null;
+  proj?: { view: number[]; eye: number[]; soft: number; cull: boolean; occlude: boolean; bias: number };
+}
+
+/**
+ * What each mesh of a venue file wears, with the precedence modelScreens.assignContentMaterials applies
+ * (a BOUND named screen wears its own; every other mesh the model's; neither → the file's material).
+ * `mesh[i]` is the i-th Mesh of `root` in three's traversal order — the order the engine's loader walks
+ * the file's (node, triangle primitive) pairs in — an index into `src`, or −1 for the file's own material.
+ */
+export function engineContent(root: THREE.Object3D, model: SceneModel): { src: EngineSrc[]; mesh: number[] } | null {
+  const src: EngineSrc[] = [];
+  let whole = -1;
+  if (model.layerId || model.surfaceId) {
+    whole = src.length;
+    src.push({
+      surface: model.layerId ? null : model.surfaceId!,
+      proj: usesProjectedUv(model) ? {
+        view: model.uvProjView!.map(r4), eye: (model.uvProjEye ?? [0, 0, 0]).map(r4),
+        soft: model.uvProjSoft ?? 0, cull: !!model.uvProjCull,
+        occlude: usesProjectedOcclusion(model), bias: model.uvProjBias ?? DEFAULT_BIAS_M,
+      } : undefined,
+    });
+  }
+  const screenSrc = new Map<string, number>();
+  for (const [name, b] of Object.entries(model.screens ?? {})) {
+    if (!b.layerId && !b.surfaceId) continue;
+    screenSrc.set(name, src.length);
+    src.push({ surface: b.layerId ? null : b.surfaceId! });
+  }
+  if (src.length === 0) return null;
+  const screenOf = new Map<string, string>();
+  for (const [name, meshes] of findScreens(root)) for (const m of meshes) screenOf.set(m.uuid, name);
+  const mesh: number[] = [];
+  root.traverse((o) => {
+    if (!(o as THREE.Mesh).isMesh) return;
+    const s = screenOf.get(o.uuid);
+    mesh.push((s !== undefined ? screenSrc.get(s) : undefined) ?? whole);
+  });
+  return { src, mesh };
+}
 
 function buildScene(scene: THREE.Scene, fixtures: Fixture[]): string {
   const models: unknown[] = [];
@@ -40,13 +91,32 @@ function buildScene(scene: THREE.Scene, fixtures: Fixture[]): string {
     }
     o.traverse((c) => {
       if (typeof c.userData?.enginePath === 'string' && c.userData.enginePath) {
-        models.push({ id: o.userData.modelId, kind: 'glb', path: c.userData.enginePath, matrix: c.matrixWorld.elements.map(r4) });
+        const m = c.userData.engineModel as SceneModel | undefined;
+        models.push({ id: o.userData.modelId, kind: 'glb', path: c.userData.enginePath, matrix: c.matrixWorld.elements.map(r4),
+          content: m ? engineContent(c, m) : null });
       }
     });
   });
+  // Projector frustums (ProjectorFrustum, the file-projector markers): world-space segments, colour
+  // LINEAR (three keeps material colours in its linear working space; the engine's target is sRGB).
+  const lines: number[] = [];
+  const v = new THREE.Vector3();
+  scene.traverseVisible((o) => {
+    if (!o.userData?.engineLine || !(o as THREE.LineSegments).isLineSegments) return;
+    const seg = o as THREE.LineSegments;
+    const pos = seg.geometry.getAttribute('position');
+    const col = ((Array.isArray(seg.material) ? seg.material[0] : seg.material) as THREE.LineBasicMaterial).color ?? new THREE.Color(1, 1, 1);
+    if (!pos) return;
+    for (let i = 0; i + 1 < pos.count; i += 2) {
+      for (const k of [i, i + 1]) {
+        v.fromBufferAttribute(pos, k).applyMatrix4(seg.matrixWorld);
+        lines.push(r4(v.x), r4(v.y), r4(v.z), r4(col.r), r4(col.g), r4(col.b));
+      }
+    }
+  });
   const leds = fixtures.filter((f) => !isLight(f) && (f.ledCount | 0) > 0).map((f) => ({ id: f.id, pos: Array.from(computeLedPositions(f), r4) }));
   const lights = fixtures.filter((f) => isLight(f)).map((f) => { const p = effectivePos(f); return [r4(p.x), r4(p.y), r4(p.z)]; });
-  return JSON.stringify({ models, leds, lights });
+  return JSON.stringify({ models, leds, lights, lines });
 }
 
 /** Mounted inside the Canvas while the engine's 3D view is open: keeps the engine's scene current. */

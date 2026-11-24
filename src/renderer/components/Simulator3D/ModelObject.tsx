@@ -60,6 +60,9 @@ export const ModelObject: React.FC<Props> = ({ model, url, selected, mode, onSel
   // E4a: the engine's 3D view loads the SAME file and places its root by this object's world matrix
   // (Simulator3D/engineView.ts), so the recentre and every transform match by construction.
   useEffect(() => { cloned.userData.enginePath = model.path; }, [cloned, model.path]);
+  // …and what each of its meshes WEARS (a surface through its UVs, projected, a named screen's own) — the
+  // record as drawn here, live projection already resolved (engineView.engineContent reads it).
+  cloned.userData.engineModel = model;
 
   // Optional timeline-layer texturing: when model.layerId is set, override every mesh's material
   // with one shared MeshBasicMaterial fed by the layer's live frame (UV-mapped via the GLB's own
@@ -236,6 +239,7 @@ export const ModelObject: React.FC<Props> = ({ model, url, selected, mode, onSel
       const line = new THREE.LineSegments(new THREE.BufferGeometry().setFromPoints(frustumPoints(cam, 1)), mat);
       line.raycast = () => {};
       line.matrixAutoUpdate = false;
+      line.userData.engineLine = true;   // the engine's 3D view draws it too (engineView.tsx)
       group.add(line);
       return { cam, line };
     });

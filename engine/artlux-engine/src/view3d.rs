@@ -36,10 +36,23 @@ pub enum ModelKind {
     /// A screen: a w × h quad in its local XY plane, facing +Z, showing `surface`'s picture.
     Plane { surface: Option<String>, w: f32, h: f32 },
 }
-pub struct Model { pub id: String, pub kind: ModelKind, pub matrix: [f32; 16] }
+pub struct Model { pub id: String, pub kind: ModelKind, pub matrix: [f32; 16], pub content: Option<Content> }
 /// One pixel fixture: its LED world positions, in the same order as its texels in the composed buffer.
 pub struct LedFix { pub id: String, pub pos: Vec<f32> }
-pub struct Scene { pub models: Vec<Model>, pub leds: Vec<LedFix>, pub lights: Vec<[f32; 3]> }
+pub struct Scene { pub models: Vec<Model>, pub leds: Vec<LedFix>, pub lights: Vec<[f32; 3]>, pub lines: Vec<f32> }
+
+/// E4a+: WHAT A VENUE GLB WEARS, as the editor decided it (engineView.tsx `engineContent`, which reads
+/// the same precedence modelScreens.assignContentMaterials applies): a list of content sources, and for
+/// every MESH of the file — in three.js's traversal order, which is the glTF (node, triangle primitive)
+/// order `load_glb` walks — the source it shows, or -1 for the file's own material. Mesh ORDER rather
+/// than names: three sanitises and de-duplicates node names on load, so a name match would silently miss
+/// exactly the `Screen.001`-style names Blender produces; the order is the one thing both loaders share.
+pub struct Content { pub src: Vec<Src>, pub mesh: Vec<i32> }
+/// A content source: a surface's live picture (None = one the engine cannot draw, e.g. a timeline layer —
+/// shown dark, as the editor shows a binding with no frame), through the mesh's own UVs or PROJECTED from
+/// a projector's view-projection (three / GL clip space, z in −1…1).
+pub struct Src { pub surface: Option<String>, pub proj: Option<Proj> }
+pub struct Proj { pub view: [f32; 16], pub eye: [f32; 3], pub soft: f32, pub cull: bool, pub occlude: bool, pub bias: f32 }
 
 impl Scene {
     pub fn parse(v: &serde_json::Value) -> Scene {
@@ -57,8 +70,24 @@ impl Scene {
                 },
                 _ => return None,
             };
-            Some(Model { id: m["id"].as_str().unwrap_or("").to_string(), kind, matrix: m16(&m["matrix"]) })
+            let content = m["content"].as_object().map(|c| Content {
+                src: c.get("src").and_then(|s| s.as_array()).into_iter().flatten().map(|s| Src {
+                    surface: s["surface"].as_str().map(str::to_string),
+                    proj: s["proj"].as_object().map(|p| Proj {
+                        view: m16(&p["view"]),
+                        eye: { let a = p.get("eye").and_then(|e| e.as_array()); let g = |i: usize| a.and_then(|a| a.get(i)).and_then(|x| x.as_f64()).unwrap_or(0.0) as f32; [g(0), g(1), g(2)] },
+                        soft: p.get("soft").and_then(|x| x.as_f64()).unwrap_or(0.0) as f32,
+                        cull: p.get("cull").and_then(|x| x.as_bool()).unwrap_or(false),
+                        occlude: p.get("occlude").and_then(|x| x.as_bool()).unwrap_or(true),
+                        bias: p.get("bias").and_then(|x| x.as_f64()).unwrap_or(0.02) as f32,
+                    }),
+                }).collect(),
+                mesh: c.get("mesh").and_then(|s| s.as_array()).into_iter().flatten().map(|x| x.as_i64().unwrap_or(-1) as i32).collect(),
+            });
+            Some(Model { id: m["id"].as_str().unwrap_or("").to_string(), kind, matrix: m16(&m["matrix"]), content })
         }).collect();
+        // Overlay lines (the projector frustums): x y z r g b per vertex, pairs, colours LINEAR.
+        let lines = v["lines"].as_array().into_iter().flatten().map(|x| x.as_f64().unwrap_or(0.0) as f32).collect();
         let leds = v["leds"].as_array().into_iter().flatten().map(|f| LedFix {
             id: f["id"].as_str().unwrap_or("").to_string(),
             pos: f["pos"].as_array().into_iter().flatten().map(|x| x.as_f64().unwrap_or(0.0) as f32).collect(),
@@ -66,7 +95,7 @@ impl Scene {
         let lights = v["lights"].as_array().into_iter().flatten().filter_map(|p| {
             let a = p.as_array()?; Some([a.first()?.as_f64()? as f32, a.get(1)?.as_f64()? as f32, a.get(2)?.as_f64()? as f32])
         }).collect();
-        Scene { models, leds, lights }
+        Scene { models, leds, lights, lines }
     }
 }
 
@@ -170,7 +199,8 @@ fn bytes(v: &[f32]) -> Vec<u8> { v.iter().flat_map(|x| x.to_le_bytes()).collect(
 
 // ── glTF, loaded off the presenter thread ───────────────────────────────────────────────────────────
 
-struct CpuPrim { local: [f32; 16], verts: Vec<f32>, idx: Vec<u32>, color: [f32; 4], image: Option<usize>, unlit: bool }
+/// `slot`: this primitive's index among the file's three.js MESHES (see `Content`).
+struct CpuPrim { local: [f32; 16], verts: Vec<f32>, idx: Vec<u32>, color: [f32; 4], image: Option<usize>, unlit: bool, slot: usize }
 struct CpuGlb { prims: Vec<CpuPrim>, images: Vec<(u32, u32, Vec<u8>)> }
 
 fn node_matrix(n: &gltf::Node) -> [f32; 16] {
@@ -184,15 +214,29 @@ fn load_glb(path: &str) -> Result<CpuGlb, String> {
     let (doc, buffers, images) = gltf::import(path).map_err(|e| format!("{path}: {e}"))?;
     let mut prims = Vec::new();
     let scene = doc.default_scene().or_else(|| doc.scenes().next()).ok_or("no scene")?;
-    fn walk(n: gltf::Node, parent: [f32; 16], buffers: &[gltf::buffer::Data], out: &mut Vec<CpuPrim>) {
+    // Three.js's GLTFLoader turns every TRIANGLES / STRIP / FAN primitive into one Mesh (points and lines
+    // become Points / Line objects, which are not meshes), node by node, a node's own primitives before
+    // its children — which is what three's pre-order traverse then visits. `slots` counts exactly those,
+    // so `CpuPrim::slot` is the index the host's `Content::mesh` is written against.
+    fn walk(n: gltf::Node, parent: [f32; 16], buffers: &[gltf::buffer::Data], out: &mut Vec<CpuPrim>, slots: &mut usize) {
+        use gltf::mesh::Mode;
         let world = mul(&parent, &node_matrix(&n));
         if let Some(mesh) = n.mesh() {
             for p in mesh.primitives() {
-                if p.mode() != gltf::mesh::Mode::Triangles { continue; }
+                let mode = p.mode();
+                if !matches!(mode, Mode::Triangles | Mode::TriangleStrip | Mode::TriangleFan) { continue; }
+                let slot = *slots;
+                *slots += 1;
                 let r = p.reader(|b| Some(&buffers[b.index()]));
                 let Some(pos) = r.read_positions() else { continue };
                 let pos: Vec<[f32; 3]> = pos.collect();
-                let idx: Vec<u32> = match r.read_indices() { Some(i) => i.into_u32().collect(), None => (0..pos.len() as u32).collect() };
+                let raw: Vec<u32> = match r.read_indices() { Some(i) => i.into_u32().collect(), None => (0..pos.len() as u32).collect() };
+                // Strips and fans, as plain triangles (winding is irrelevant: nothing here culls).
+                let idx: Vec<u32> = match mode {
+                    Mode::TriangleStrip => raw.windows(3).flat_map(|w| [w[0], w[1], w[2]]).collect(),
+                    Mode::TriangleFan => (1..raw.len().saturating_sub(1)).flat_map(|i| [raw[0], raw[i], raw[i + 1]]).collect(),
+                    _ => raw,
+                };
                 let nrm: Vec<[f32; 3]> = match r.read_normals() {
                     Some(n) => n.collect(),
                     None => {
@@ -219,13 +263,14 @@ fn load_glb(path: &str) -> Result<CpuGlb, String> {
                 out.push(CpuPrim {
                     local: world, verts, idx, color: pbr.base_color_factor(),
                     image: pbr.base_color_texture().map(|t| t.texture().source().index()),
-                    unlit: mat.unlit(),
+                    unlit: mat.unlit(), slot,
                 });
             }
         }
-        for c in n.children() { walk(c, world, buffers, out); }
+        for c in n.children() { walk(c, world, buffers, out, slots); }
     }
-    for n in scene.nodes() { walk(n, IDENT, &buffers, &mut prims); }
+    let mut slots = 0usize;
+    for n in scene.nodes() { walk(n, IDENT, &buffers, &mut prims, &mut slots); }
     let images = images.into_iter().map(|im| {
         let px = im.width as usize * im.height as usize;
         let rgba = match im.format {
@@ -246,10 +291,15 @@ const SHADER: &str = r#"
 struct Cam { vp: mat4x4<f32>, eye: vec4<f32>, px: vec4<f32> };   // px.x = world units per pixel at 1 m
 @group(0) @binding(0) var<uniform> cam: Cam;
 
-struct Obj { model: mat4x4<f32>, nrm: mat4x4<f32>, color: vec4<f32>, flags: vec4<f32> };   // flags: textured, unlit, srgb-texture
+// flags: textured, unlit, srgb-texture. PROJECTED content (projectedMapping.ts, the same maths):
+// proj = the projector's view-projection (GL clip), pe = its eye + edge softness, pf = projected, cull,
+// occlusion (a depth map in group 2), self-shadow bias in metres.
+struct Obj { model: mat4x4<f32>, nrm: mat4x4<f32>, color: vec4<f32>, flags: vec4<f32>, proj: mat4x4<f32>, pe: vec4<f32>, pf: vec4<f32> };
 @group(1) @binding(0) var<uniform> obj: Obj;
 @group(1) @binding(1) var tex: texture_2d<f32>;
 @group(1) @binding(2) var samp: sampler;
+// The projector's view of the venue: distance along its view axis (clip w, metres) per texel.
+@group(2) @binding(0) var pdepth: texture_2d<f32>;
 
 struct VOut { @builtin(position) pos: vec4<f32>, @location(0) n: vec3<f32>, @location(1) uv: vec2<f32>, @location(2) w: vec3<f32> };
 
@@ -265,11 +315,36 @@ struct VOut { @builtin(position) pos: vec4<f32>, @location(0) n: vec3<f32>, @loc
 fn to_linear(c: vec3<f32>) -> vec3<f32> { return pow(max(c, vec3<f32>(0.0)), vec3<f32>(2.2)); }
 @fragment fn fs_mesh(i: VOut, @builtin(front_facing) front: bool) -> @location(0) vec4<f32> {
   var base = obj.color;
+  var uv = i.uv;
+  var vis = 1.0;
+  if (obj.pf.x > 0.5) {
+    // PROJECTED UVs — projectedMapping.ts BODY_FRAG, line for line: nothing behind the projector, the
+    // picture upright as a fullscreen image from its viewpoint (v = 0 at the top: the picture's row 0
+    // is its top here, so no bitmap flip compensation is needed), an edge ramp, the optional back-face
+    // test, and the depth test that stops a nearer surface's content spraying onto what is behind it.
+    let pc = obj.proj * vec4<f32>(i.w, 1.0);
+    if (pc.w <= 0.0) { vis = 0.0; }
+    let ndc = pc.xyz / max(pc.w, 1e-6);
+    uv = vec2<f32>(ndc.x * 0.5 + 0.5, 0.5 - ndc.y * 0.5);
+    let e = max(obj.pe.w, 1e-4);
+    vis = vis * (1.0 - smoothstep(1.0 - e, 1.0, abs(ndc.x))) * (1.0 - smoothstep(1.0 - e, 1.0, abs(ndc.y))) * step(abs(ndc.z), 1.0);
+    let ndl = dot(normalize(i.n), normalize(obj.pe.xyz - i.w));
+    vis = vis * mix(1.0, step(0.0, ndl), obj.pf.y);
+    if (obj.pf.z > 0.5 && vis > 0.0) {
+      let dim = vec2<f32>(textureDimensions(pdepth));
+      // The depth map was rendered by THIS API: texel row 0 is the top of the projector's frame.
+      let px = clamp(vec2<i32>(vec2<f32>(ndc.x * 0.5 + 0.5, 0.5 - ndc.y * 0.5) * dim), vec2<i32>(0), vec2<i32>(dim) - 1);
+      let seen = textureLoad(pdepth, px, 0).r;
+      let bias = obj.pf.w * (1.0 + 4.0 * (1.0 - abs(ndl)));
+      if (pc.w > seen + bias) { vis = 0.0; }
+    }
+  }
   if (obj.flags.x > 0.5) {
-    var t = textureSample(tex, samp, i.uv);
+    var t = textureSample(tex, samp, uv);
     if (obj.flags.z > 0.5) { t = vec4<f32>(to_linear(t.rgb), t.a); }
     base = base * t;
   }
+  base = vec4<f32>(base.rgb * vis, base.a);
   if (obj.flags.y > 0.5) { return vec4<f32>(base.rgb, 1.0); }
   var n = normalize(i.n);
   if (!front) { n = -n; }
@@ -314,11 +389,33 @@ struct GOut { @builtin(position) pos: vec4<f32>, @location(0) c: vec4<f32>, @loc
   let fade = 1.0 - smoothstep(12.0, 40.0, d);
   return vec4<f32>(i.c.rgb, i.c.a * fade);
 }
+// Overlay lines (projector frustums) keep their colour at any distance — they reach across the venue.
+@fragment fn fs_line_flat(i: GOut) -> @location(0) vec4<f32> { return i.c; }
+
+// A projector's depth map: the venue seen from the projector, distance along its view axis per texel.
+struct DOut { @builtin(position) pos: vec4<f32>, @location(0) d: f32 };
+@vertex fn vs_depth(@location(0) p: vec3<f32>) -> DOut {
+  var o: DOut;
+  o.pos = cam.vp * (obj.model * vec4<f32>(p, 1.0));
+  o.d = o.pos.w;
+  return o;
+}
+@fragment fn fs_depth(i: DOut) -> @location(0) vec4<f32> { return vec4<f32>(i.d, 0.0, 0.0, 1.0); }
 "#;
 
-struct GpuPrim { vb: wgpu::Buffer, ib: wgpu::Buffer, n: u32, ub: wgpu::Buffer, bind: wgpu::BindGroup, local: [f32; 16], color: [f32; 4], textured: bool, unlit: bool }
-struct GpuGlb { prims: Vec<GpuPrim> }
+/// A file's geometry, shared by every placement of it.
+struct GpuPrim { vb: wgpu::Buffer, ib: wgpu::Buffer, n: u32, local: [f32; 16], color: [f32; 4], image: Option<usize>, unlit: bool, slot: usize }
+struct GpuGlb { prims: Vec<GpuPrim>, texs: Vec<wgpu::TextureView> }
+/// One PLACEMENT's per-primitive state: its own uniforms (its matrix, its content) and the bind group for
+/// the texture it currently wears. Per model, not per file — two placements of one file used to share a
+/// uniform buffer, so both drew wherever the last one was written.
+struct PrimInst { ub: wgpu::Buffer, bind: wgpu::BindGroup, key: (i32, u64) }
 struct PlaneGpu { ub: wgpu::Buffer, bind: wgpu::BindGroup, pic_gen: u64 }
+/// A projected source's depth map (one per model that projects with occlusion on).
+struct DepthMap { view: wgpu::TextureView, bind: wgpu::BindGroup, _cam: wgpu::Buffer, cam_bind: wgpu::BindGroup, depth: wgpu::TextureView, key: String }
+const DEPTH_SIZE: u32 = 1024;   // as the editor's (projectorDepth.ts)
+/// GL clip (z −1…1, what three's matrices produce) → WebGPU clip (z 0…1): z' = (z + w) / 2.
+const GL_TO_WGPU: [f32; 16] = [1., 0., 0., 0., 0., 1., 0., 0., 0., 0., 0.5, 0., 0., 0., 0.5, 1.];
 
 const SAMPLES: u32 = 4;
 const DEPTH: wgpu::TextureFormat = wgpu::TextureFormat::Depth32Float;
@@ -338,7 +435,13 @@ pub fn present(gpu: Arc<Gpu>, window: Arc<Window>, surface: wgpu::Surface<'stati
         wgpu::BindGroupLayoutEntry { binding: 1, visibility: wgpu::ShaderStages::FRAGMENT, ty: wgpu::BindingType::Texture { sample_type: wgpu::TextureSampleType::Float { filterable: true }, view_dimension: wgpu::TextureViewDimension::D2, multisampled: false }, count: None },
         wgpu::BindGroupLayoutEntry { binding: 2, visibility: wgpu::ShaderStages::FRAGMENT, ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering), count: None },
     ] });
-    let mesh_pl = d.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor { label: None, bind_group_layouts: &[Some(&cam_layout), Some(&obj_layout)], immediate_size: 0 });
+    let depth_layout = d.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor { label: Some("pdepth"), entries: &[
+        wgpu::BindGroupLayoutEntry { binding: 0, visibility: wgpu::ShaderStages::FRAGMENT, ty: wgpu::BindingType::Texture { sample_type: wgpu::TextureSampleType::Float { filterable: false }, view_dimension: wgpu::TextureViewDimension::D2, multisampled: false }, count: None },
+    ] });
+    // Group 2 is its own group (not a binding in the object's): the depth pass draws with the object
+    // groups while writing the map, and a bind group naming the map would be a usage conflict there.
+    let mesh_pl = d.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor { label: None, bind_group_layouts: &[Some(&cam_layout), Some(&obj_layout), Some(&depth_layout)], immediate_size: 0 });
+    let depth_pl = d.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor { label: None, bind_group_layouts: &[Some(&cam_layout), Some(&obj_layout)], immediate_size: 0 });
     let cam_pl = d.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor { label: None, bind_group_layouts: &[Some(&cam_layout)], immediate_size: 0 });
     let ds = |write: bool| Some(wgpu::DepthStencilState { format: DEPTH, depth_write_enabled: Some(write), depth_compare: Some(wgpu::CompareFunction::LessEqual), stencil: Default::default(), bias: Default::default() });
     let ms = wgpu::MultisampleState { count: SAMPLES, mask: !0, alpha_to_coverage_enabled: false };
@@ -369,6 +472,23 @@ pub fn present(gpu: Arc<Gpu>, window: Arc<Window>, surface: wgpu::Surface<'stati
         primitive: wgpu::PrimitiveState { topology: wgpu::PrimitiveTopology::LineList, ..Default::default() },
         depth_stencil: ds(false), multisample: ms, multiview_mask: None, cache: None,
     });
+    let flat_line_pipe = d.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+        label: Some("overlay lines"), layout: Some(&cam_pl),
+        vertex: wgpu::VertexState { module: &module, entry_point: Some("vs_line"), compilation_options: Default::default(), buffers: &[Some(wgpu::VertexBufferLayout {
+            array_stride: 28, step_mode: wgpu::VertexStepMode::Vertex, attributes: &wgpu::vertex_attr_array![0 => Float32x3, 1 => Float32x4] })] },
+        fragment: Some(wgpu::FragmentState { module: &module, entry_point: Some("fs_line_flat"), targets: &[Some(wgpu::ColorTargetState {
+            format, blend: Some(wgpu::BlendState::ALPHA_BLENDING), write_mask: wgpu::ColorWrites::ALL })], compilation_options: Default::default() }),
+        primitive: wgpu::PrimitiveState { topology: wgpu::PrimitiveTopology::LineList, ..Default::default() },
+        depth_stencil: ds(false), multisample: ms, multiview_mask: None, cache: None,
+    });
+    let depth_pipe = d.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+        label: Some("projector depth"), layout: Some(&depth_pl),
+        vertex: wgpu::VertexState { module: &module, entry_point: Some("vs_depth"), compilation_options: Default::default(), buffers: &[Some(wgpu::VertexBufferLayout {
+            array_stride: 32, step_mode: wgpu::VertexStepMode::Vertex, attributes: &wgpu::vertex_attr_array![0 => Float32x3] })] },
+        fragment: Some(wgpu::FragmentState { module: &module, entry_point: Some("fs_depth"), targets: &[Some(wgpu::TextureFormat::R32Float.into())], compilation_options: Default::default() }),
+        primitive: wgpu::PrimitiveState { cull_mode: None, ..Default::default() },
+        depth_stencil: ds(true), multisample: Default::default(), multiview_mask: None, cache: None,
+    });
 
     let cam_buf = d.create_buffer(&wgpu::BufferDescriptor { label: Some("cam"), size: 96, usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST, mapped_at_creation: false });
     let cam_bind = d.create_bind_group(&wgpu::BindGroupDescriptor { label: None, layout: &cam_layout, entries: &[wgpu::BindGroupEntry { binding: 0, resource: cam_buf.as_entire_binding() }] });
@@ -382,12 +502,27 @@ pub fn present(gpu: Arc<Gpu>, window: Arc<Window>, surface: wgpu::Surface<'stati
         wgpu::BindGroupEntry { binding: 1, resource: wgpu::BindingResource::TextureView(view) },
         wgpu::BindGroupEntry { binding: 2, resource: wgpu::BindingResource::Sampler(&sampler) },
     ] });
-    let obj_ub = || d.create_buffer(&wgpu::BufferDescriptor { label: Some("obj"), size: 160, usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST, mapped_at_creation: false });
-    let write_obj = |ub: &wgpu::Buffer, m: &[f32; 16], color: [f32; 4], flags: [f32; 4]| {
-        let mut v = Vec::with_capacity(40);
+    let obj_ub = || d.create_buffer(&wgpu::BufferDescriptor { label: Some("obj"), size: 256, usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST, mapped_at_creation: false });
+    let write_obj_p = |ub: &wgpu::Buffer, m: &[f32; 16], color: [f32; 4], flags: [f32; 4], proj: Option<(&Proj, bool)>| {
+        let mut v = Vec::with_capacity(64);
         v.extend_from_slice(m); v.extend_from_slice(&normal_matrix(m)); v.extend_from_slice(&color); v.extend_from_slice(&flags);
+        match proj {
+            Some((p, has_depth)) => {
+                v.extend_from_slice(&p.view);
+                v.extend_from_slice(&[p.eye[0], p.eye[1], p.eye[2], p.soft]);
+                v.extend_from_slice(&[1.0, p.cull as u32 as f32, has_depth as u32 as f32, p.bias]);
+            }
+            None => v.extend_from_slice(&[0.0; 24]),
+        }
         gpu.queue.write_buffer(ub, 0, &bytes(&v));
     };
+    let write_obj = |ub: &wgpu::Buffer, m: &[f32; 16], color: [f32; 4], flags: [f32; 4]| write_obj_p(ub, m, color, flags, None);
+    // Every mesh draw binds a depth map; the ones that do not project bind this 1 × 1 stand-in.
+    let mk_depth_bind = |view: &wgpu::TextureView| d.create_bind_group(&wgpu::BindGroupDescriptor { label: None, layout: &depth_layout, entries: &[
+        wgpu::BindGroupEntry { binding: 0, resource: wgpu::BindingResource::TextureView(view) }] });
+    let no_depth = d.create_texture(&wgpu::TextureDescriptor { label: Some("no depth"), size: wgpu::Extent3d { width: 1, height: 1, depth_or_array_layers: 1 }, mip_level_count: 1, sample_count: 1,
+        dimension: wgpu::TextureDimension::D2, format: wgpu::TextureFormat::R32Float, usage: wgpu::TextureUsages::TEXTURE_BINDING, view_formats: &[] });
+    let no_depth_bind = mk_depth_bind(&no_depth.create_view(&Default::default()));
 
     // The grid (100 m, a line a metre, brighter every 5) and the world axes.
     let grid = {
@@ -434,13 +569,28 @@ pub fn present(gpu: Arc<Gpu>, window: Arc<Window>, surface: wgpu::Surface<'stati
     // glTF: loaded on a helper thread, uploaded here.
     let (load_tx, load_rx) = std::sync::mpsc::channel::<(String, Result<CpuGlb, String>)>();
     let mut glbs: HashMap<String, Option<GpuGlb>> = HashMap::new();   // None = loading (or failed)
+    let mut insts: HashMap<String, Vec<PrimInst>> = HashMap::new();    // model id → its placement's prims
     let mut planes: HashMap<String, PlaneGpu> = HashMap::new();
     let mut plane_tex: HashMap<String, (u64, wgpu::Texture)> = HashMap::new();
+    let mut depths: HashMap<String, DepthMap> = HashMap::new();         // model id → its projector's depth map
+    let mut depth_dirty = true;
     let mut lights: Vec<(wgpu::Buffer, wgpu::BindGroup)> = Vec::new();
     let mut led_bufs: Option<(wgpu::Buffer, wgpu::Buffer, u32)> = None;
+    let mut overlay: Option<(wgpu::Buffer, u32)> = None;
     let mut scene_ver = 0u64;
     let mut colors_gen = u64::MAX;
     let mut scene: Option<Arc<Scene>> = None;
+
+    // A surface's live picture as a texture, re-uploaded only when its generation moves. Shared by the
+    // flat screens and the venue meshes that wear content, so one surface is one upload.
+    fn ensure_pic(gpu: &Gpu, cache: &mut HashMap<String, (u64, wgpu::Texture)>, pics: &HashMap<String, (u64, Arc<Picture>)>, sid: &str) -> Option<u64> {
+        let (g, p) = pics.get(sid)?;
+        if cache.get(sid).map(|t| t.0) != Some(*g) {
+            let t = match &p.tex { Some(t) => crate::projector::content_texture_from(gpu, t, p.crop.unwrap_or([0, 0, p.w, p.h])), None => crate::projector::content_texture(gpu, p.w, p.h, &p.rgba) };
+            cache.insert(sid.to_string(), (*g, t));
+        }
+        Some(*g)
+    }
 
     let mut configured: Option<PhysicalSize<u32>> = None;
     let mut targets: Option<(wgpu::TextureView, wgpu::TextureView)> = None;   // (msaa colour, depth)
@@ -496,8 +646,14 @@ pub fn present(gpu: Arc<Gpu>, window: Arc<Window>, surface: wgpu::Surface<'stati
                     gpu.queue.write_buffer(&cb, 0, &vec![20u8; n as usize * 4]);
                     Some((pb, cb, n))
                 };
+                // Overlay lines (projector frustums): x y z r g b → the line pipeline's x y z r g b a.
+                let ov: Vec<f32> = sc.lines.chunks_exact(6).flat_map(|v| [v[0], v[1], v[2], v[3], v[4], v[5], 1.0]).collect();
+                overlay = if ov.is_empty() { None } else { Some((buf_init(&gpu, "overlay", &bytes(&ov), wgpu::BufferUsages::VERTEX), (ov.len() / 7) as u32)) };
                 colors_gen = u64::MAX;
                 planes.retain(|id, _| sc.models.iter().any(|m| &m.id == id));
+                insts.retain(|id, _| sc.models.iter().any(|m| &m.id == id && matches!(m.kind, ModelKind::Glb(_))));
+                depths.retain(|id, _| sc.models.iter().any(|m| &m.id == id));
+                depth_dirty = true;   // anything moved, anything re-projected
                 scene = Some(sc.clone());
             }
         }
@@ -509,13 +665,13 @@ pub fn present(gpu: Arc<Gpu>, window: Arc<Window>, surface: wgpu::Surface<'stati
                     let prims = cpu.prims.into_iter().map(|p| {
                         let vb = buf_init(&gpu, "glb vb", &bytes(&p.verts), wgpu::BufferUsages::VERTEX);
                         let ib = buf_init(&gpu, "glb ib", &p.idx.iter().flat_map(|x| x.to_le_bytes()).collect::<Vec<u8>>(), wgpu::BufferUsages::INDEX);
-                        let ub = obj_ub();
-                        let view = p.image.and_then(|i| texs.get(i)).unwrap_or(&white_view);
-                        let bind = obj_bind(&ub, view);
-                        GpuPrim { vb, ib, n: p.idx.len() as u32, ub, bind, local: p.local, color: p.color, textured: p.image.is_some(), unlit: p.unlit }
-                    }).collect();
-                    eprintln!("artlux-engine: 3D view loaded {path}");
-                    glbs.insert(path, Some(GpuGlb { prims }));
+                        GpuPrim { vb, ib, n: p.idx.len() as u32, local: p.local, color: p.color, image: p.image, unlit: p.unlit, slot: p.slot }
+                    }).collect::<Vec<_>>();
+                    eprintln!("artlux-engine: 3D view loaded {path} ({} meshes)", prims.iter().map(|p: &GpuPrim| p.slot + 1).max().unwrap_or(0));
+                    // Placements of this file built before it loaded (none) or against an older load: rebuild.
+                    if let Some(sc) = &scene { for m in &sc.models { if matches!(&m.kind, ModelKind::Glb(p) if *p == path) { insts.remove(&m.id); } } }
+                    glbs.insert(path, Some(GpuGlb { prims, texs }));
+                    depth_dirty = true;
                 }
                 Err(e) => eprintln!("artlux-engine: 3D view: {e}"),
             }
@@ -547,35 +703,88 @@ pub fn present(gpu: Arc<Gpu>, window: Arc<Window>, surface: wgpu::Surface<'stati
         cu.extend_from_slice(&vp); cu.extend_from_slice(&[eye[0], eye[1], eye[2], 1.0]); cu.extend_from_slice(&[px, 0.0, 0.0, 0.0]);
         gpu.queue.write_buffer(&cam_buf, 0, &bytes(&cu));
 
+        // Depth maps: one per model projecting with occlusion on, keyed by its projector matrix (a
+        // re-solve or a different projector makes a new one; a moved mesh re-renders via depth_dirty).
+        if let Some(sc) = &scene {
+            for m in &sc.models {
+                let want = m.content.as_ref().and_then(|c| c.src.iter().find_map(|s| s.proj.as_ref().filter(|p| p.occlude)));
+                match want {
+                    None => { depths.remove(&m.id); }
+                    Some(p) => {
+                        let key = format!("{:?}", p.view);
+                        if depths.get(&m.id).map(|x| x.key.as_str()) != Some(key.as_str()) {
+                            let ext = wgpu::Extent3d { width: DEPTH_SIZE, height: DEPTH_SIZE, depth_or_array_layers: 1 };
+                            let color = d.create_texture(&wgpu::TextureDescriptor { label: Some("projector depth"), size: ext, mip_level_count: 1, sample_count: 1, dimension: wgpu::TextureDimension::D2,
+                                format: wgpu::TextureFormat::R32Float, usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::TEXTURE_BINDING, view_formats: &[] });
+                            let zbuf = d.create_texture(&wgpu::TextureDescriptor { label: Some("projector z"), size: ext, mip_level_count: 1, sample_count: 1, dimension: wgpu::TextureDimension::D2,
+                                format: DEPTH, usage: wgpu::TextureUsages::RENDER_ATTACHMENT, view_formats: &[] });
+                            let view = color.create_view(&Default::default());
+                            let cam = d.create_buffer(&wgpu::BufferDescriptor { label: Some("projector cam"), size: 96, usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST, mapped_at_creation: false });
+                            let mut cv = mul(&GL_TO_WGPU, &p.view).to_vec();
+                            cv.extend_from_slice(&[p.eye[0], p.eye[1], p.eye[2], 1.0, 0.0, 0.0, 0.0, 0.0]);
+                            gpu.queue.write_buffer(&cam, 0, &bytes(&cv));
+                            let cam_bind = d.create_bind_group(&wgpu::BindGroupDescriptor { label: None, layout: &cam_layout, entries: &[wgpu::BindGroupEntry { binding: 0, resource: cam.as_entire_binding() }] });
+                            let bind = mk_depth_bind(&view);
+                            depths.insert(m.id.clone(), DepthMap { view, bind, _cam: cam, cam_bind, depth: zbuf.create_view(&Default::default()), key });
+                            insts.remove(&m.id);   // its prims must bind the new map
+                            depth_dirty = true;
+                        }
+                    }
+                }
+            }
+        }
+
         // Placements (cheap: a uniform write per primitive; scenes are tens to hundreds of them).
         if let Some(sc) = &scene {
             for m in &sc.models {
                 match &m.kind {
                     ModelKind::Glb(path) => if let Some(Some(g)) = glbs.get(path) {
-                        for p in &g.prims { write_obj(&p.ub, &mul(&m.matrix, &p.local), p.color, [p.textured as u32 as f32, p.unlit as u32 as f32, 1.0, 0.0]); }
+                        let list = insts.entry(m.id.clone()).or_insert_with(|| g.prims.iter().map(|_| { let ub = obj_ub(); let bind = obj_bind(&ub, &white_view); PrimInst { ub, bind, key: (i32::MIN, 0) } }).collect());
+                        for (p, inst) in g.prims.iter().zip(list.iter_mut()) {
+                            let world = mul(&m.matrix, &p.local);
+                            // Which source this mesh shows (the editor's choice), or its own material.
+                            let src = m.content.as_ref().and_then(|c| {
+                                let k = *c.mesh.get(p.slot)?;
+                                if k < 0 { None } else { c.src.get(k as usize).map(|s| (k, s)) }
+                            });
+                            match src {
+                                None => {
+                                    if inst.key != (-1, 0) {
+                                        inst.key = (-1, 0);
+                                        inst.bind = obj_bind(&inst.ub, p.image.and_then(|i| g.texs.get(i)).unwrap_or(&white_view));
+                                    }
+                                    write_obj(&inst.ub, &world, p.color, [p.image.is_some() as u32 as f32, p.unlit as u32 as f32, 1.0, 0.0]);
+                                }
+                                Some((k, s)) => {
+                                    let gen = s.surface.as_deref().and_then(|sid| ensure_pic(&gpu, &mut plane_tex, &pics, sid));
+                                    let key = (k, gen.unwrap_or(u64::MAX));
+                                    if inst.key != key {
+                                        inst.key = key;
+                                        let view = match (gen, &s.surface) { (Some(_), Some(sid)) => plane_tex[sid].1.create_view(&Default::default()), _ => white.create_view(&Default::default()) };
+                                        inst.bind = obj_bind(&inst.ub, &view);
+                                    }
+                                    let has = gen.is_some();
+                                    // Unlit, as the editor's content material: the picture at the colour it is sent;
+                                    // no picture → the editor's #161616 stand-in (linear 0.008).
+                                    let color = if has { [1.0; 4] } else { [0.008, 0.008, 0.008, 1.0] };
+                                    let proj = s.proj.as_ref().map(|pj| (pj, pj.occlude && depths.contains_key(&m.id)));
+                                    write_obj_p(&inst.ub, &world, color, [has as u32 as f32, 1.0, 1.0, 0.0], proj);
+                                }
+                            }
+                        }
                     },
                     ModelKind::Plane { surface, w, h } => {
-                        let pic = surface.as_ref().and_then(|s| pics.get(s).cloned());
-                        let gen = pic.as_ref().map_or(0, |p| p.0);
+                        let gen = surface.as_deref().and_then(|sid| ensure_pic(&gpu, &mut plane_tex, &pics, sid));
                         let entry = planes.entry(m.id.clone()).or_insert_with(|| { let ub = obj_ub(); let bind = obj_bind(&ub, &white_view); PlaneGpu { ub, bind, pic_gen: u64::MAX } });
-                        if entry.pic_gen != gen {
-                            entry.pic_gen = gen;
-                            let view = match (&pic, surface) {
-                                (Some((g, p)), Some(sid)) => {
-                                    let have = plane_tex.get(sid).map(|t| t.0);
-                                    if have != Some(*g) {
-                                        let t = match &p.tex { Some(t) => crate::projector::content_texture_from(&gpu, t, p.crop.unwrap_or([0, 0, p.w, p.h])), None => crate::projector::content_texture(&gpu, p.w, p.h, &p.rgba) };
-                                        plane_tex.insert(sid.clone(), (*g, t));
-                                    }
-                                    plane_tex[sid].1.create_view(&Default::default())
-                                }
-                                _ => white.create_view(&Default::default()),
-                            };
+                        let g0 = gen.unwrap_or(0);
+                        if entry.pic_gen != g0 {
+                            entry.pic_gen = g0;
+                            let view = match (gen, surface) { (Some(_), Some(sid)) => plane_tex[sid].1.create_view(&Default::default()), _ => white.create_view(&Default::default()) };
                             entry.bind = obj_bind(&entry.ub, &view);
                         }
                         let sm = mul(&m.matrix, &[*w, 0., 0., 0., 0., *h, 0., 0., 0., 0., 1., 0., 0., 0., 0., 1.]);
                         // Unlit, like the editor's MeshBasicMaterial: content shows at the colour it is sent.
-                        let has = pic.is_some();
+                        let has = gen.is_some();
                         // No picture: the editor's #161616, in LINEAR (the target is sRGB — 0.086 came out mid-grey).
                         write_obj(&entry.ub, &sm, if has { [1.0; 4] } else { [0.008, 0.008, 0.008, 1.0] }, [has as u32 as f32, 1.0, 1.0, 0.0]);
                     }
@@ -591,6 +800,43 @@ pub fn present(gpu: Arc<Gpu>, window: Arc<Window>, surface: wgpu::Surface<'stati
         let view = frame.texture.create_view(&Default::default());
         let (msaa, depth) = targets.as_ref().unwrap();
         let mut enc = d.create_command_encoder(&Default::default());
+
+        // The projectors' depth maps, before the view: every caster (venue files and screens, as the
+        // editor's projectorDepth.ts registers them) seen from each projector. Only when something moved.
+        if depth_dirty && !depths.is_empty() {
+            if let Some(sc) = &scene {
+                for dm in depths.values() {
+                    let mut pass = enc.begin_render_pass(&wgpu::RenderPassDescriptor {
+                        label: Some("projector depth"),
+                        color_attachments: &[Some(wgpu::RenderPassColorAttachment { view: &dm.view, depth_slice: None, resolve_target: None,
+                            ops: wgpu::Operations { load: wgpu::LoadOp::Clear(wgpu::Color { r: 1e9, g: 0.0, b: 0.0, a: 1.0 }), store: wgpu::StoreOp::Store } })],
+                        depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment { view: &dm.depth, depth_ops: Some(wgpu::Operations { load: wgpu::LoadOp::Clear(1.0), store: wgpu::StoreOp::Discard }), stencil_ops: None }),
+                        ..Default::default()
+                    });
+                    pass.set_pipeline(&depth_pipe);
+                    pass.set_bind_group(0, &dm.cam_bind, &[]);
+                    for m in &sc.models {
+                        match &m.kind {
+                            ModelKind::Glb(path) => if let (Some(Some(g)), Some(list)) = (glbs.get(path), insts.get(&m.id)) {
+                                for (p, inst) in g.prims.iter().zip(list) {
+                                    pass.set_bind_group(1, &inst.bind, &[]);
+                                    pass.set_vertex_buffer(0, p.vb.slice(..));
+                                    pass.set_index_buffer(p.ib.slice(..), wgpu::IndexFormat::Uint32);
+                                    pass.draw_indexed(0..p.n, 0, 0..1);
+                                }
+                            },
+                            ModelKind::Plane { .. } => if let Some(pg) = planes.get(&m.id) {
+                                pass.set_bind_group(1, &pg.bind, &[]);
+                                pass.set_vertex_buffer(0, quad.0.slice(..));
+                                pass.set_index_buffer(quad.1.slice(..), wgpu::IndexFormat::Uint32);
+                                pass.draw_indexed(0..6, 0, 0..1);
+                            },
+                        }
+                    }
+                }
+            }
+            depth_dirty = false;
+        }
         {
             let bg = 0.008;   // #0d0d0d-ish in linear, the editor's background
             let mut pass = enc.begin_render_pass(&wgpu::RenderPassDescriptor {
@@ -602,16 +848,19 @@ pub fn present(gpu: Arc<Gpu>, window: Arc<Window>, surface: wgpu::Surface<'stati
             });
             pass.set_bind_group(0, &cam_bind, &[]);
             pass.set_pipeline(&mesh_pipe);
+            pass.set_bind_group(2, &no_depth_bind, &[]);
             if let Some(sc) = &scene {
                 for m in &sc.models {
                     match &m.kind {
-                        ModelKind::Glb(path) => if let Some(Some(g)) = glbs.get(path) {
-                            for p in &g.prims {
-                                pass.set_bind_group(1, &p.bind, &[]);
+                        ModelKind::Glb(path) => if let (Some(Some(g)), Some(list)) = (glbs.get(path), insts.get(&m.id)) {
+                            pass.set_bind_group(2, depths.get(&m.id).map_or(&no_depth_bind, |dm| &dm.bind), &[]);
+                            for (p, inst) in g.prims.iter().zip(list) {
+                                pass.set_bind_group(1, &inst.bind, &[]);
                                 pass.set_vertex_buffer(0, p.vb.slice(..));
                                 pass.set_index_buffer(p.ib.slice(..), wgpu::IndexFormat::Uint32);
                                 pass.draw_indexed(0..p.n, 0, 0..1);
                             }
+                            pass.set_bind_group(2, &no_depth_bind, &[]);
                         },
                         ModelKind::Plane { .. } => if let Some(pg) = planes.get(&m.id) {
                             pass.set_bind_group(1, &pg.bind, &[]);
@@ -637,6 +886,11 @@ pub fn present(gpu: Arc<Gpu>, window: Arc<Window>, surface: wgpu::Surface<'stati
             pass.set_pipeline(&line_pipe);
             pass.set_vertex_buffer(0, grid.0.slice(..));
             pass.draw(0..grid.1, 0..1);
+            if let Some((ob, n)) = &overlay {
+                pass.set_pipeline(&flat_line_pipe);
+                pass.set_vertex_buffer(0, ob.slice(..));
+                pass.draw(0..*n, 0..1);
+            }
         }
         gpu.queue.submit([enc.finish()]);
         window.pre_present_notify();

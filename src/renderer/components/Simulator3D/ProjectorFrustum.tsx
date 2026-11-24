@@ -54,7 +54,8 @@ export const ProjectorFrustum: React.FC<{
     <group>
       {/* `key` on the geometry: a BufferAttribute is not re-uploaded just because its array changed
           identity, so without it a re-solved calibration would keep drawing the old frustum. */}
-      <lineSegments raycast={() => null}>
+      {/* engineLine: the engine's 3D view window draws these lines too (engineView.tsx). */}
+      <lineSegments raycast={() => null} userData={{ engineLine: true }}>
         <bufferGeometry key={positions.length + ':' + positions[0]}>
           <bufferAttribute attach="attributes-position" args={[positions, 3]} />
         </bufferGeometry>

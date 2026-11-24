@@ -126,12 +126,16 @@ ordinary window: drag it to any screen, resize it, maximise it — moving it cos
 - It shows the **venue models**, the **screens with their live pictures**, **every LED in its live
   colour**, the **light fixtures** (as housings) and the floor grid, and follows every change you make in
   the editor within a quarter of a second.
+- **The projection preview comes with it.** Content on a venue model shows the way the editor shows it:
+  a **screen named inside a Blender model** shows the picture you bound to it, a whole model shows its
+  surface through its **Mesh UVs** or **projected** (from view or from a calibrated projector, with the
+  same edge fade, back-face option and shadowing), and every **projector frustum** is drawn — the
+  calibrated ones and the projectors placed in the model file.
 - Close it with its own close button or the same header button.
 
-This first version does not draw beams, the Rendered look, labels or the gizmo, and a screen whose content
-the engine does not draw yet (a timeline layer, a shader, tracking…) stays dark there — those stay in the
-editor's 3D view for now. A screen named inside a Blender model shows the model's own material, not the
-surface's picture.
+This first version does not draw beams, the Rendered look, labels or the gizmo, and content the engine
+does not draw yet (a timeline layer, a shader, tracking…) stays dark there — those stay in the editor's 3D
+view for now.
 
 **Without the native engine**, the 3D view stays in the editor window: put the **editor window** on the
 screen where you want the 3D view, open the **3D** workbench so the view fills it, and send the panels you
@@ -382,6 +386,12 @@ selector chooses which:
   > **Projects made before October 2026:** ArtLux used to read a standard glTF unwrap upside down. A
   > mesh bound with **Mesh UVs** whose content was turned over to look right will now be upside down
   > — turn the content back (or the unwrap in Blender).
+
+  > **Projected content, before 24 November 2026:** from October until then, both **projected** modes
+  > painted the picture **upside down** on the mesh in the 3D view, and shadowed the wrong places when
+  > something stood between the projector and the venue. Both are fixed — the top of the picture lands at
+  > the top of the projector's frame, as it always did in a baked calibration file. If you turned
+  > content over to make a projected mesh look right in the 3D view, turn it back.
 - **Projected from view** — projects the mesh from a **frozen** 3D viewpoint: orbit the camera until
   the mesh is framed the way the content should land, then press **From view**. From that viewpoint
   the content reads as a fullscreen image. The viewpoint does not follow the camera afterwards; press

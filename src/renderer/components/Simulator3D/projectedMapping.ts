@@ -66,13 +66,21 @@ const BODY_FRAG = /* glsl */`
   // precisely the defect the per-vertex bake this replaced was documented as having.
   if (vProjPos.w <= 0.0) artluxVis = 0.0;
   vec3 artluxNdc = vProjPos.xyz / max(vProjPos.w, 1e-6);
-  // V IS INVERTED FROM NDC, and the anchor is empirical, not a derivation: the same texture on the
-  // same mesh reads upright through authored UVs and upside down through this projection unless the
-  // flip is here. Whatever the glTF exporter's V convention was, the one the rest of the app samples
-  // with is the one this has to match — a projected frame that disagrees with an authored one is
-  // wrong by definition, since the promise of this mode is "it looks like a fullscreen image from
-  // that viewpoint". THIS IS THE ONLY PLACE THIS CONVENTION IS WRITTEN DOWN.
-  vec2 artluxUv = vec2(artluxNdc.x * 0.5 + 0.5, 0.5 - artluxNdc.y * 0.5);
+  // V FOLLOWS NDC: the top of the projector's frame (ndc.y = +1) samples v = 1, which is the TOP of an
+  // ArtLux content texture (three's convention — v = 0 at the bottom, see modelScreens.flippedUv). That
+  // is the promise of this mode: "it looks like a fullscreen image from that viewpoint", upright.
+  //
+  // ⚠ THIS WAS (0.5 - ndc.y * 0.5) FROM 2026-08-02 TO 2026-11-24, and that was right only for its day.
+  // It was anchored empirically on "a projected frame must agree with an authored one" — while the
+  // authored path read every standard glTF unwrap UPSIDE DOWN. a156d09 (2026-10-24) turned the authored
+  // path upright with the flipped-UV twin and left this line alone, so from then on a "Projected from
+  // view" bake and a live calibrated projector painted the picture upside down on the venue. Found by
+  // the engine's 3D view (view3d.rs), which computes this UV from first principles and drew the test
+  // card the right way up beside an editor drawing it inverted. The calibration-file bake
+  // (projectorBake.ts, clip.xy / clip.w * 0.5 + 0.5) always had it this way, so files baked from a
+  // projected mesh were right all along — only the live preview was turned over. THIS IS THE ONLY PLACE THIS CONVENTION
+  // IS WRITTEN DOWN (the WebGPU twin below and view3d.rs follow it).
+  vec2 artluxUv = vec2(artluxNdc.x * 0.5 + 0.5, artluxNdc.y * 0.5 + 0.5);
   // THE FLIP TRAP. three applies a texture's repeat/offset in the VERTEX stage, into vMapUv — so a
   // UV computed HERE bypasses it completely. matchBitmapOrientation compensates for ImageBitmap's
   // ignored flipY by writing exactly those fields, which means skipping this line puts content upside
@@ -102,9 +110,9 @@ const BODY_FRAG = /* glsl */`
   // self-shadows in stripes, too large and content creeps past a silhouette onto what is behind it.
   // artluxNdl is the same dot product the back-face test just used, so the grazing term is free.
   if (uHasDepth > 0.5 && artluxVis > 0.0) {
-    // NOT artluxUv: that one is V-flipped for the content bitmap and carries the texture's
-    // repeat/offset. The depth map is rendered by GL into a render target, so it is plain NDC→UV —
-    // reusing artluxUv here would sample the map upside down and shadow the wrong half of the venue.
+    // NOT artluxUv: that one carries the content texture's repeat/offset (the bitmap flip
+    // compensation). The depth map is rendered by GL into a render target, so it is plain NDC→UV —
+    // reusing artluxUv here would sample the map upside down wherever that compensation is live.
     vec2 artluxDepthUv = artluxNdc.xy * 0.5 + 0.5;
     float artluxSeen = artluxUnpackDepth(texture2D(uProjDepth, artluxDepthUv)) * uDepthFar;
     float artluxBias = uProjBias * (1.0 + 4.0 * (1.0 - abs(artluxNdl)));
@@ -278,14 +286,21 @@ function makeProjectedNodeMaterial(): ProjectedMaterial {
   const projPos = uProjViewProj.mul(vec4(world, float(1)));
   const ndc = projPos.xyz.div(max(projPos.w, float(1e-6)));
 
-  // Content UV: V inverted from NDC, then the texture's repeat/offset applied by hand because this UV
+  // Content UV: V follows NDC (see BODY_FRAG — it was inverted until 2026-11-24), then the texture's repeat/offset applied by hand because this UV
   // is computed in the fragment stage and never passes through three's vertex texture matrix.
-  const uv = vec2(ndc.x.mul(0.5).add(0.5), float(0.5).sub(ndc.y.mul(0.5))).mul(uMapRepeat).add(uMapOffset);
+  const uv = vec2(ndc.x.mul(0.5).add(0.5), ndc.y.mul(0.5).add(0.5)).mul(uMapRepeat).add(uMapOffset);
 
   // A texture node whose `.value` is swapped in syncMapTransform — the same call the GLSL path already
   // uses to mirror repeat/offset, which is exactly when the texture identity changes.
   const mapNode = texture(farDepthTexture(), uv);
-  const depthNode = texture(farDepthTexture(), vec2(ndc.x.mul(0.5).add(0.5), ndc.y.mul(0.5).add(0.5)));
+  // THE DEPTH MAP'S V IS TURNED OVER HERE, and only here. The map is a render target the NODE renderer
+  // drew, and WebGPU's framebuffer origin is the top-left, so its row 0 is the TOP of the projector's
+  // frame — the opposite of the GL map the GLSL twin reads with plain NDC→UV. (three only auto-flips a
+  // render-target texture node built WITH one; this node is built on the 1×1 stand-in and swapped.)
+  // Measured 2026-11-24 with a panel between a projector and a screen: the shadow landed mirrored about
+  // the projector's horizon, and a curved screen shadowed its own lower band; the engine's 3D view
+  // (view3d.rs, its own depth map) drew both correctly beside it.
+  const depthNode = texture(farDepthTexture(), vec2(ndc.x.mul(0.5).add(0.5), float(0.5).sub(ndc.y.mul(0.5))));
 
   // Inside the cone: soft edge ramp on x and y, hard clip on z, nothing behind the projector.
   const e = max(uProjSoft, float(1e-4));

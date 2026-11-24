@@ -1792,10 +1792,25 @@ fallback until a source/output is proven byte-identical — risk 2):
 >   **NVIDIA overlay's "Alt+Z" toast** drawn over the engine's fullscreen window during the capture (the
 >   same with the committed engine and with the pre-E4 build): this PC's environment, not a regression.
 >   Turn the NVIDIA app's in-game overlay notifications off on a test box.
+> - ✅ **E4a+ 2026-11-24 — the projection preview** (owner: "the preview of the projectors is missing in
+>   the detached 3D view"). A venue GLB now wears what the editor puts on it: `engineContent` sends a source
+>   list and, per three.js MESH in traversal order, the source it shows (−1 = the file's material) — mesh
+>   ORDER, not names, because three sanitises/de-duplicates node names and both loaders agree on the
+>   (node, triangle primitive) order (strips and fans count; `load_glb` converts them). Named screens show
+>   their bound surface; a whole model its surface through its UVs or PROJECTED (projectedMapping.ts line
+>   for line: edge ramp, optional back-face test, and OCCLUSION from a 1024² linear-depth map the presenter
+>   renders from each projector, re-rendered only when the scene or a file changes). Projector frustums
+>   (anything tagged `userData.engineLine`) are drawn as overlay lines. Per-PLACEMENT uniforms now — two
+>   placements of one file used to share a uniform buffer and draw at the last one's matrix.
+>   **It found two editor bugs, both fixed in the same change:** the editor painted both projected modes
+>   UPSIDE DOWN (since a156d09 turned the authored path upright and left the projected V flip behind; the
+>   bake was always right), and on WebGPU it read its projector depth map upside down (mirrored shadows; a
+>   curved screen shadowing its own lower band). Proven with a TL/TR/BL/BR test card on the multi-projector
+>   example: named screen; projected from a frozen view; a panel between projector and screen — engine,
+>   editor WebGPU and editor WebGL (forced) all identical. Guarded in verify:invariants.
 > - **Not yet (E4b…):** beams and the Rendered look, labels, selection / picking (the GPU id buffer, body
->   before LEDs) and the gizmo, screens named inside a GLB showing their surface (they show the GLB's
->   material), sources the engine does not draw (layers, shaders, tracking…) on screens, the four-view
->   layout, saving the window's place, macOS / Linux.
+>   before LEDs) and the gizmo, sources the engine does not draw (layers, shaders, tracking…) on screens
+>   and venue meshes, the four-view layout, saving the window's place, macOS / Linux.
 
 ## 10. Open questions
 

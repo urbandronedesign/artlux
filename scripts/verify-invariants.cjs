@@ -4298,6 +4298,40 @@ check(
 );
 
 check(
+  'projected content lands upright, and is shadowed where the projector cannot see — in every window',
+  'Found 2026-11-24 by the engine\'s 3D view, which computes projected UVs from first principles: the ' +
+  'editor had been painting both projected modes UPSIDE DOWN since a156d09 (Oct) turned the authored path ' +
+  'upright and left the projected V flip — anchored on "match the authored path" — behind; and on the ' +
+  'WebGPU renderer it read its projector depth map upside down, so a panel\'s shadow landed mirrored about ' +
+  'the projector\'s horizon and a curved screen shadowed its own lower band. Nothing threw; the venue just ' +
+  'looked wrong in a way that reads like a bad calibration. The calibration-file bake always had V up.',
+  () => {
+    const problems = [];
+    const M = 'src/renderer/components/Simulator3D/projectedMapping.ts', V = 'engine/artlux-engine/src/view3d.rs';
+    const B = 'src/renderer/components/Simulator3D/projectorBake.ts', E = 'src/renderer/components/Simulator3D/engineView.tsx';
+    if (![M, V, B, E].every(exists)) return 'projectedMapping.ts / view3d.rs / projectorBake.ts / engineView.tsx is gone';
+    const m = read(M), v = read(V);
+    if (!/vec2 artluxUv = vec2\(artluxNdc\.x \* 0\.5 \+ 0\.5, artluxNdc\.y \* 0\.5 \+ 0\.5\)/.test(m))
+      problems.push('the GLSL projected UV no longer follows NDC in V — the content goes upside down on the venue');
+    if (!/const uv = vec2\(ndc\.x\.mul\(0\.5\)\.add\(0\.5\), ndc\.y\.mul\(0\.5\)\.add\(0\.5\)\)/.test(m))
+      problems.push('the WebGPU projected UV no longer follows NDC in V — upside down on the default renderer');
+    if (!/depthNode = texture\(farDepthTexture\(\), vec2\(ndc\.x\.mul\(0\.5\)\.add\(0\.5\), float\(0\.5\)\.sub\(ndc\.y\.mul\(0\.5\)\)\)\)/.test(m))
+      problems.push('the WebGPU depth lookup lost its V turn — shadows land mirrored about the projector\'s horizon');
+    if (!/clip\.xy \/ clip\.w \* 0\.5 \+ 0\.5/.test(read(B)))
+      problems.push('projectorBake.ts changed its projected UV — the baked file and the preview must agree');
+    // The engine samples pictures whose row 0 is the TOP, so its V is the mirror of three's, on purpose.
+    if (!/uv = vec2<f32>\(ndc\.x \* 0\.5 \+ 0\.5, 0\.5 - ndc\.y \* 0\.5\)/.test(v))
+      problems.push('view3d.rs changed its projected UV (its pictures are top-row-first; three\'s are not)');
+    // The engine window's projection preview: what each mesh wears, and the frustums.
+    if (!/content: m \? engineContent\(c, m\)/.test(read(E)) || !/lines/.test(read(E)))
+      problems.push('engineView.tsx no longer sends what each venue mesh wears / the projector frustums');
+    if (!/Mode::Triangles \| Mode::TriangleStrip \| Mode::TriangleFan/.test(v))
+      problems.push('view3d.rs no longer counts every primitive three makes a Mesh — content would land on the wrong meshes');
+    return problems.length ? problems.join('; ') : null;
+  },
+);
+
+check(
   'the floor grid scales in X and Z only',
   'Every vertex of the grid sits at y = 0.001 — a 1 mm lift, because the beams draw their ' +
   'illumination boundary AT y = 0 and a coincident line pair z-fights into a dashed mess as the ' +
