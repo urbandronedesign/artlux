@@ -92,6 +92,7 @@
     "test:light-show-parity": "node scripts/test-light-show-parity.cjs",
     "test:light-pack-parity": "node scripts/test-light-pack-parity.cjs",
     "test:light-bytes": "node scripts/test-light-bytes.cjs",
+    "test:fade-over-lane-wire": "node scripts/test-fade-over-lane-wire.cjs",
     "test:showctl": "node scripts/test-show-control.cjs",
     "test:showctl:ui": "node scripts/test-show-control-ui.cjs"
   },

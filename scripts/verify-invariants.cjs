@@ -4418,6 +4418,28 @@ check(
 );
 
 check(
+  'a GO fades from the look as it is on stage',
+  'A scene recall and a cue fade every fadeable numeric FROM a view. That view used to be the COMMITTED look, ' +
+  'so a GO over a running automation lane snapped from the curve (on stage, 0.78) to the outgoing scene\'s ' +
+  'authored value (0.6) for a frame and then glided back: a 98-of-255 step on the wire on every crossfade, and ' +
+  'a GO landing mid-fade restarted from the committed value the same way. Found 2026-11-24 by the native ' +
+  'engine\'s fade-over-lane wire test (test-fade-over-lane-wire.cjs), where the engine reproduced it exactly. ' +
+  'Both GO paths now read frameEngine.onStage() (the last frame\'s look with lanes and fades applied), and ' +
+  'frameEngine records it after the fade is laid over.',
+  () => {
+    const problems = [];
+    const A = 'src/renderer/App.tsx', F = 'src/renderer/engine/frameEngine.ts';
+    if (!exists(A) || !exists(F)) return 'App.tsx / frameEngine.ts is gone';
+    const a = read(A), f = read(F);
+    if (!a.includes('const fromView = frameEngine.onStage() ?? { surfaces, fixtures, globalBrightness };')) problems.push('the scene recall no longer fades from frameEngine.onStage()');
+    if (!a.includes('const fromView: StateView = frameEngine.onStage() ?? { surfaces, fixtures, globalBrightness };')) problems.push('a cue no longer fades from frameEngine.onStage()');
+    const fadeAt = f.indexOf('const v = fade.apply('), stageAt = f.indexOf('this.stage = { surfaces: effSurfaces');
+    if (fadeAt < 0 || stageAt < 0 || stageAt < fadeAt) problems.push('frameEngine no longer records the stage AFTER the fade is applied');
+    return problems.length ? problems.join('; ') : null;
+  },
+);
+
+check(
   'the native engine solves a light\'s bytes with the app\'s own tables',
   'E3f: the engine packs every light through its profile (engine lightpack.rs, a port of profilePack / ' +
   'colorEngine / frameEngine\'s precedence stack) and checks the bytes against the app\'s every frame. What is ' +

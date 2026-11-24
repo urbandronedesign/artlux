@@ -1962,8 +1962,9 @@ const App: React.FC = () => {
     // Only a human clicking GO records history. A recall reached through the show (FSM/OSC/cue/tablet/
     // scheduler) passes no origin → 'show' → no record. See plans/timeline-undo.md §5.2.
     if (origin === 'operator') recordHistory();
-    // Capture the pre-recall view for the fade's "from" before committing the target.
-    const fromView = { surfaces, fixtures, globalBrightness };
+    // Capture the pre-recall view for the fade's "from" before committing the target — AS ON STAGE (lanes and
+    // any running fade applied; frameEngine.onStage), or a GO over a running curve snaps before it fades.
+    const fromView = frameEngine.onStage() ?? { surfaces, fixtures, globalBrightness };
     // THE RIG SURVIVES THE RECALL — only the LOOK part of each fixture travels. `scene.fixtures` is a
     // whole-array snapshot, so assigning it replaced the live rig with the rig as it stood when the
     // scene was stored: a fixture patched since simply vanished, and every surviving one reverted to
@@ -2487,7 +2488,8 @@ const App: React.FC = () => {
       lightingCue.fire(lightingEntries, lightingPoses, groups, fixtures, performance.now());
     }
 
-    const fromView: StateView = { surfaces, fixtures, globalBrightness };
+    // The fade's "from" is the look AS ON STAGE (frameEngine.onStage — see handleRecallScene).
+    const fromView: StateView = frameEngine.onStage() ?? { surfaces, fixtures, globalBrightness };
     let next: StateView = { surfaces, fixtures, globalBrightness };
     const legs: transitions.FadeLeg[] = [];
     // cueEntries(): the container AND the elements. `Cue.entries` has no normalizer, so a `for…of` over a

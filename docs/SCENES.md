@@ -156,6 +156,11 @@ value to the scene's over `fadeSec`; discrete params (media, effectId, palette, 
 so it never re-renders React. Per-surface **opacity** (`content.opacity`, set in the Inspector) enables
 fade-in/out and crossfades.
 
+**The fade starts from what is on stage**, not from the stored value: if an automation curve is moving a
+parameter, or an earlier fade is still running, the new fade picks up exactly where the stage is and glides
+from there. When the incoming scene's timeline has a curve on the same parameter, the fade lands *on* that
+curve rather than on a fixed value. A GO never jumps first and fades after.
+
 > **Note:** a scene holds whole `Surface` / `scene3D` snapshots, so it carries asset paths of its own.
 > Those paths ARE relativized on save and resolved on load, exactly like the top-level ones —
 > `mapAssetPaths` walks every scene's `surfaces`, `scene3D` and `timeline` (`main/projectFolder.ts`).

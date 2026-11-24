@@ -151,6 +151,23 @@ class FrameEngine {
   private gammaLut = buildGammaLut(1);
   /** E1f-2: the light fixtures' channel values from the LAST pack (fixture id → values, as written). */
   private lightBytes: Record<string, number[]> = {};
+  private stage: { surfaces: Surface[]; fixtures: Fixture[]; globalBrightness: number; at: number } | null = null;
+
+  /**
+   * THE LOOK AS THE LAST FRAME PUT IT ON STAGE — the committed look with every automation lane and any running
+   * fade applied — or null when no frame has run lately (the engine idle, or nothing for 250 ms).
+   *
+   * A GO (a scene recall, a cue) fades FROM this, not from the committed look. Fading from the committed value
+   * made every GO over a running lane SNAP: the stage showed the curve (0.78), the fade began at the outgoing
+   * scene's authored value (0.6) and only then glided back onto the incoming curve — a 38% drop for one frame
+   * and a visible dip on every crossfade, found by the native engine's fade-over-lane wire test, where the
+   * engine faithfully reproduced it. A GO landing mid-fade snapped the same way: the new leg restarted from
+   * the committed value instead of where the running fade had got to.
+   */
+  onStage(): { surfaces: Surface[]; fixtures: Fixture[]; globalBrightness: number } | null {
+    const s = this.stage;
+    return s && renderClock.now() - s.at < 250 ? s : null;
+  }
   /** E3f: what the live layer said per light channel this frame (fixture id → channel key → value), for the engine. */
   private lightLive: Record<string, Record<string, number>> = {};
   /** Controller lookup, so the per-frame packing loop does an O(1) get() instead of an O(n) find(). */
@@ -539,6 +556,9 @@ class FrameEngine {
       effSurfaces = v.surfaces; effFixtures = v.fixtures; effBrightness = v.globalBrightness;
       if (fade.geometryAnimating) geomDirty = true;
     }
+    // WHAT IS ON STAGE — this frame's look with automation and any running fade laid over it, for a GO
+    // (onStage, below) to fade FROM. Kept by reference: nothing here allocates.
+    this.stage = { surfaces: effSurfaces, fixtures: effFixtures, globalBrightness: effBrightness, at: renderClock.now() };
     // Geometry moves change the LED↔surface UV mapping → rebuild the GPU LED buffers this frame.
     if (geomDirty) mapper.updateMapping?.(effFixtures, effSurfaces);
     // Non-geometry fixture params (intensity/speed) otherwise reach the GPU only through the input

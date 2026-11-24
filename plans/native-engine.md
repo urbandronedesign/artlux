@@ -2001,7 +2001,25 @@ fallback until a source/output is proven byte-identical — risk 2):
 >   quantised solve match the app's (mutation-tested).
 > - **Still the app's:** the pose cue, live faders and automation on light channels (events; sent per tick), the
 >   3D beams' resolved state (fixtureSignal.resolveFixture). Next in E3: the playhead from the audio clock, and a
->   scene-fade-over-lane wire test.
+>   scene-fade-over-lane wire test. → **the wire test is done, below.**
+>
+> ✅ **E3d follow-up done 2026-11-24 — A SCENE FADE OVER A RUNNING LANE, on the wire; and the app bug it found.**
+> `test:fade-over-lane-wire`: two states bound to two scenes, each scene's own timeline running an opacity curve
+> on one white surface, the state machine crossfading A ↔ B over 3 s every few seconds — so every fade hands the
+> lane from the engine to the app (frameEngine withholds the lanes while a fade runs) and back. Run A (the app)
+> and run B (the engine owning the wire) each record the strip's level per ArtDmx frame; a flash is a step
+> between consecutive frames.
+> - **First run: both runs stepped 98 of 255 at every GO — identically.** The engine was faithful; the APP
+>   snapped. A recall (and a cue) faded FROM the committed look, so over a running lane the stage jumped from
+>   the curve (0.78) to the outgoing scene's authored value (0.6) and only then glided onto the incoming curve;
+>   a GO landing mid-fade restarted from the committed value too. Traced with per-frame logs in a packaged build.
+> - **Fix:** `frameEngine.onStage()` — the last frame's look with lanes and fades applied, recorded after the
+>   fade — is what both GO paths (handleRecallScene, applyCues) fade from. docs/SCENES.md says so;
+>   `verify:invariants` guards it ("a GO fades from the look as it is on stage").
+> - **After:** largest step 3 in both runs (the curves themselves); the engine handed the lane over on all 7
+>   fades, never `automation: differs`.
+> - The repo's scene / state-machine CDP tests (test-scene-timelines, test-zone-fsm, test-hold-at-end, …) still
+>   launch on the owner's profile and were NOT run; they need moving to a scratch `--user-data-dir` first.
 
 ## 9d. E4 started early — the 3D view in the engine (owner, 2026-11-24)
 
