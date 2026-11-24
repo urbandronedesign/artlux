@@ -38,6 +38,7 @@ pub mod view3d;
 pub mod beams;
 pub mod labels;
 pub mod gizmo;
+pub mod grid;
 pub mod shader;
 pub mod blobs;
 pub mod comp;

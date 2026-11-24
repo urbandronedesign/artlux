@@ -9411,6 +9411,27 @@ check(
   },
 );
 
+check(
+  'the engine\'s floor grid follows the editor\'s',
+  'E4b: the engine window draws the floor grid (engine grid.rs) by the editor\'s GroundGrid / gridScale / ' +
+  'OriginGnomon rules, with their constants COPIED: the lattice extent, its fade and step, the line opacity, the ' +
+  'pixels at which a decade fades in and is full, the gnomon size. Change one in the editor and the two windows ' +
+  'draw a different floor with nothing failing. They are compared here.',
+  () => {
+    const problems = [];
+    const R = 'engine/artlux-engine/src/grid.rs';
+    const T = ['src/renderer/components/Simulator3D/GroundGrid.tsx', 'src/renderer/components/Simulator3D/gridScale.ts', 'src/renderer/components/Simulator3D/OriginGnomon.tsx'];
+    for (const f of [R, ...T]) if (!exists(f)) return `${f} is gone`;
+    const r = read(R), ts = T.map(read).join('\n');
+    for (const k of ['EXTENT', 'FADE', 'STEP', 'LINE_OPACITY', 'FAMILY_GONE_PX', 'FAMILY_FULL_PX', 'GNOMON_PX', 'RADIUS_FRAC']) {
+      const a = new RegExp('(?:export )?const ' + k + ' = ([0-9.]+);').exec(ts), b = new RegExp('const ' + k + ': [a-z0-9]+ = ([0-9.]+);').exec(r);
+      if (!a || !b) { problems.push(`${k} not found in ${a ? R : 'the editor grid files'}`); continue; }
+      if (Number(a[1]) !== Number(b[1])) problems.push(`${k}: editor ${a[1]}, engine ${b[1]}`);
+    }
+    return problems.length ? problems.join('; ') : null;
+  },
+);
+
 const ok = (m) => console.log(`\x1b[32m✓\x1b[0m ${m}`);
 const bad = (m) => console.error(`\x1b[31m✗\x1b[0m ${m}`);
 

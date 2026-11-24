@@ -747,15 +747,6 @@ pub fn present(gpu: Arc<Gpu>, window: Arc<Window>, surface: wgpu::Surface<'stati
         fragment: Some(wgpu::FragmentState { module: &module, entry_point: Some("fs_led"), targets: &[Some(format.into())], compilation_options: Default::default() }),
         primitive: Default::default(), depth_stencil: ds(true), multisample: ms, multiview_mask: None, cache: None,
     });
-    let line_pipe = d.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
-        label: Some("lines"), layout: Some(&cam_pl),
-        vertex: wgpu::VertexState { module: &module, entry_point: Some("vs_line"), compilation_options: Default::default(), buffers: &[Some(wgpu::VertexBufferLayout {
-            array_stride: 28, step_mode: wgpu::VertexStepMode::Vertex, attributes: &wgpu::vertex_attr_array![0 => Float32x3, 1 => Float32x4] })] },
-        fragment: Some(wgpu::FragmentState { module: &module, entry_point: Some("fs_line"), targets: &[Some(wgpu::ColorTargetState {
-            format, blend: Some(wgpu::BlendState::ALPHA_BLENDING), write_mask: wgpu::ColorWrites::ALL })], compilation_options: Default::default() }),
-        primitive: wgpu::PrimitiveState { topology: wgpu::PrimitiveTopology::LineList, ..Default::default() },
-        depth_stencil: ds(false), multisample: ms, multiview_mask: None, cache: None,
-    });
     let flat_line_pipe = d.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
         label: Some("overlay lines"), layout: Some(&cam_pl),
         vertex: wgpu::VertexState { module: &module, entry_point: Some("vs_line"), compilation_options: Default::default(), buffers: &[Some(wgpu::VertexBufferLayout {
@@ -845,24 +836,6 @@ pub fn present(gpu: Arc<Gpu>, window: Arc<Window>, surface: wgpu::Surface<'stati
         dimension: wgpu::TextureDimension::D2, format: wgpu::TextureFormat::R32Float, usage: wgpu::TextureUsages::TEXTURE_BINDING, view_formats: &[] });
     let no_depth_bind = mk_depth_bind(&no_depth.create_view(&Default::default()));
 
-    // The grid (100 m, a line a metre, brighter every 5) and the world axes.
-    let grid = {
-        let mut v: Vec<f32> = Vec::new();
-        let mut line = |a: [f32; 3], b: [f32; 3], c: [f32; 4]| { v.extend_from_slice(&[a[0], a[1], a[2], c[0], c[1], c[2], c[3], b[0], b[1], b[2], c[0], c[1], c[2], c[3]]); };
-        let n = 50;
-        for i in -n..=n {
-            let f = i as f32;
-            let c = if i == 0 { [0.0, 0.0, 0.0, 0.0] } else if i % 5 == 0 { [0.42, 0.42, 0.42, 0.55] } else { [0.32, 0.32, 0.32, 0.30] };
-            if i != 0 { line([f, 0.0, -n as f32], [f, 0.0, n as f32], c); line([-n as f32, 0.0, f], [n as f32, 0.0, f], c); }
-        }
-        line([-n as f32, 0.001, 0.0], [n as f32, 0.001, 0.0], [0.85, 0.25, 0.3, 0.9]);     // X
-        line([0.0, 0.001, -n as f32], [0.0, 0.001, n as f32], [0.3, 0.5, 0.95, 0.9]);      // Z
-        line([0.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.3, 0.85, 0.45, 0.95]);                    // Y, one metre
-        let buf = d.create_buffer(&wgpu::BufferDescriptor { label: Some("grid"), size: (v.len() * 4) as u64, usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST, mapped_at_creation: false });
-        gpu.queue.write_buffer(&buf, 0, &bytes(&v));
-        (buf, (v.len() / 7) as u32)
-    };
-
     // A unit box (a light's housing), as a mesh.
     let cube = {
         let mut v: Vec<f32> = Vec::new(); let mut idx: Vec<u32> = Vec::new();
@@ -908,6 +881,10 @@ pub fn present(gpu: Arc<Gpu>, window: Arc<Window>, surface: wgpu::Surface<'stati
     let mut label_state = crate::labels::State::default();
     let mut label_buf: Option<wgpu::Buffer> = None;
     let mut labels_logged = false;
+    // E4b: the adaptive floor grid (grid.rs) and the origin gnomon, rebuilt when the density or the reference moved.
+    let mut grid_lines: Option<(wgpu::Buffer, u32)> = None;
+    let mut grid_key = (i64::MIN, i64::MIN, i64::MIN);
+    let mut gnomon_buf: Option<wgpu::Buffer> = None;
     let mut handle_buf: Option<wgpu::Buffer> = None;
     // E4b: the selected model's outline (its world bounds), rebuilt when the selection, the scene or a file changes.
     let mut model_outline: Option<(wgpu::Buffer, u32)> = None;
@@ -1147,6 +1124,22 @@ pub fn present(gpu: Arc<Gpu>, window: Arc<Window>, surface: wgpu::Surface<'stati
         let n_beam_verts = (bf.lines.len() / crate::beams::LINE_FLOATS) as u32;
         // The floor numbers, laid out against this frame's camera, in css pixels.
         let grid_look = scene.as_ref().map(|s| s.grid).unwrap_or_default();
+        // The floor grid and the gnomon, against the same reference the numbers use.
+        let css_h0 = size.height as f32 / window.scale_factor().max(0.1) as f32;
+        let reference = { let (vpm, fwd, up) = camera_frame(&cam, aspect); crate::labels::reference(&vpm, eye, fwd, up, css_h0) };
+        let mut n_gnomon = 0u32;
+        if let (Some((at, ppm)), true) = (reference, grid_look.visible) {
+            let fine = crate::grid::families(ppm).first().map_or(1.0, |f| f.0);
+            let key = (((ppm.max(1e-6)).log2() * 32.0).round() as i64, (at[0] / fine * 4.0).round() as i64, (at[2] / fine * 4.0).round() as i64);
+            if key != grid_key {
+                grid_key = key;
+                let v = crate::grid::lines(at, ppm);
+                grid_lines = (!v.is_empty()).then(|| (buf_init(&gpu, "floor grid", &bytes(&v), wgpu::BufferUsages::VERTEX), (v.len() / crate::grid::VERT_FLOATS) as u32));
+            }
+            let g = crate::grid::gnomon(ppm, eye);
+            n_gnomon = (g.len() / crate::grid::VERT_FLOATS) as u32;
+            grow(&mut gnomon_buf, &g, "gnomon");
+        }
         let label_verts = if grid_look.visible && grid_look.labels && label_bind.is_some() {
             let (vpm, fwd, up) = camera_frame(&cam, aspect);
             let css_h = size.height as f32 / window.scale_factor().max(0.1) as f32;
@@ -1360,9 +1353,11 @@ pub fn present(gpu: Arc<Gpu>, window: Arc<Window>, surface: wgpu::Surface<'stati
                 pass.draw(0..n_beam_verts, 0..1);
             }
             if scene.as_ref().is_none_or(|s| s.grid.visible) {
-                pass.set_pipeline(&line_pipe);
-                pass.set_vertex_buffer(0, grid.0.slice(..));
-                pass.draw(0..grid.1, 0..1);
+                if let Some((gb, n)) = &grid_lines {
+                    pass.set_pipeline(&flat_line_pipe);
+                    pass.set_vertex_buffer(0, gb.slice(..));
+                    pass.draw(0..*n, 0..1);
+                }
             }
             if let (Some(lb), Some(bind), true) = (&label_buf, &label_bind, n_label_verts > 0) {
                 pass.set_pipeline(&label_pipe);
@@ -1379,6 +1374,11 @@ pub fn present(gpu: Arc<Gpu>, window: Arc<Window>, surface: wgpu::Surface<'stati
                 pass.set_pipeline(&flat_line_pipe);
                 pass.set_vertex_buffer(0, ob.slice(..));
                 pass.draw(0..*n, 0..1);
+            }
+            if let (Some(gb), true) = (&gnomon_buf, n_gnomon > 0) {
+                pass.set_pipeline(&handle_pipe);
+                pass.set_vertex_buffer(0, gb.slice(..));
+                pass.draw(0..n_gnomon, 0..1);
             }
             if let (Some(hb), true) = (&handle_buf, n_handle_verts > 0) {
                 pass.set_pipeline(&handle_pipe);

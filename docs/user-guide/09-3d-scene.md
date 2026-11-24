@@ -143,9 +143,10 @@ machine, not the project. If that screen is no longer connected, it opens at its
   step to **Undo** — exactly as if you had dragged the handle in the editor. (Clicking a fixture that is
   part of a selected group keeps the group, as in the editor; click empty space first to start over.)
 - It shows the **venue models**, the **screens with their live pictures**, **every LED in its live
-  colour**, the **light fixtures** (as housings) and the floor grid **with its numbers** (whole metres
-  along both axes, where you are looking — turned on and off with the editor's own grid and number
-  settings), and follows every change you make in the editor within a quarter of a second.
+  colour**, the **light fixtures** (as housings) and the floor grid **with its numbers**, drawn as the
+  editor draws them — the lines follow your zoom (centimetres up close, tens of metres across a venue),
+  whole metres are numbered along both axes where you are looking, and a small gnomon marks the origin;
+  the editor's own grid and number settings turn them on and off — and follows every change you make in the editor within a quarter of a second.
 - **Every lit head throws its beam**, the way the editor draws it: the haze cone in the head's live colour
   (the same **Haze** setting; the **Rendered** look's solid shafts to the floor when the editor's 3D view is
   in Rendered), and the **cone outline** where the beam meets the floor. The heads selected in the editor

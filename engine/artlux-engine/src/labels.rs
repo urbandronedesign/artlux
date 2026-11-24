@@ -99,9 +99,10 @@ fn stick(prev: Option<f32>, r: f32, s: f32) -> f32 {
 
 /// One frame's glyph quads. `vp` is the view-projection (column-major, WebGPU clip), `eye` the camera, `fwd`
 /// its unit look direction, `up` its unit screen-up, `height_css` the window height in css pixels.
-pub fn build(st: &mut State, vp: &[f32; 16], eye: [f32; 3], fwd: [f32; 3], up: [f32; 3], height_css: f32, cell_aspect: f32) -> Vec<f32> {
-    let mut out = Vec::new();
-    // solveGridFrame: the reference point is where the view meets the floor (capped), else just ahead.
+/// gridScale.ts solveGridFrame: the REFERENCE POINT — where the view meets the floor (capped at MAX_REF_M or ten
+/// eye heights), else just ahead — and pixelsPerMetre there (the NDC span of one metre of screen-up, in css px).
+/// The floor grid (grid.rs) and the numbers lay themselves out against the same answer, as the editor's do.
+pub fn reference(vp: &[f32; 16], eye: [f32; 3], fwd: [f32; 3], up: [f32; 3], height_css: f32) -> Option<([f32; 3], f32)> {
     let mut t = f32::NAN;
     if fwd[1].abs() > 1e-4 { t = -eye[1] / fwd[1]; }
     let at = if t > 0.0 && t.is_finite() {
@@ -111,10 +112,15 @@ pub fn build(st: &mut State, vp: &[f32; 16], eye: [f32; 3], fwd: [f32; 3], up: [
         let t = eye[1].abs().max(1e-3);
         [eye[0] + fwd[0] * t, eye[1] + fwd[1] * t, eye[2] + fwd[2] * t]
     };
-    // pixelsPerMetre: the NDC span of one metre of screen-up at the reference, in css px.
     let clip = |p: [f32; 3]| { let x = vp[0] * p[0] + vp[4] * p[1] + vp[8] * p[2] + vp[12]; let y = vp[1] * p[0] + vp[5] * p[1] + vp[9] * p[2] + vp[13]; let w = vp[3] * p[0] + vp[7] * p[1] + vp[11] * p[2] + vp[15]; (x / w, y / w) };
     let (a, b) = (clip(at), clip([at[0] + up[0], at[1] + up[1], at[2] + up[2]]));
     let px = (b.1 - a.1).abs() * 0.5 * height_css;
+    (px > 0.0 && px.is_finite()).then_some((at, px))
+}
+
+pub fn build(st: &mut State, vp: &[f32; 16], eye: [f32; 3], fwd: [f32; 3], up: [f32; 3], height_css: f32, cell_aspect: f32) -> Vec<f32> {
+    let mut out = Vec::new();
+    let Some((at, px)) = reference(vp, eye, fwd, up, height_css) else { return out };
     let fams = families(px);
     if fams.is_empty() { return out; }
     // Which way is AWAY on the floor: from the look direction (a straight-down view uses screen-up).

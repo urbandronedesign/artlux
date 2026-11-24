@@ -2170,7 +2170,15 @@ fallback until a source/output is proven byte-identical — risk 2):
 >   `test:engine-beams` raises the selected screen with its Y handle (+1.66 m in the engine → saved y = 4.66, x / z
 >   unchanged; undone). The test now waits for every engine log line it judges (`settle`, and each grab paired
 >   with its release) — two runs had read a line that landed a moment late.
-> - **Not yet (E4b…):** the rest of the Rendered look (the lit room), the adaptive grid, sources the engine does not draw (timeline video clips, a tracking overlay…) on screens
+> - ✅ **E4b-9 2026-11-24 — the adaptive floor grid.** `grid.rs` ports GroundGrid + gridScale.gridFamilies +
+>   OriginGnomon: three decades of lines faded in by the pixels a cell covers at the reference point (labels.rs
+>   `reference`, now shared, so the grid and the numbers solve one frame), each lattice centred on the reference
+>   snapped to its spacing and fading with distance in its own units, rebuilt only when the density (1/32 octave)
+>   or the reference (¼ of the finest spacing) moves; the origin marked by the editor's 28 px gnomon over everything,
+>   replacing the fixed 100 m metre grid and its long axis lines. **Proof:** two unit tests (the decades by density;
+>   the lattice centred and faded, the gnomon's arms); `test:engine-beams`' downward capture shows the metre lattice,
+>   the decimetre patch fading in around the reference and the gnomon; a guard compares the copied constants.
+> - **Not yet (E4b…):** the rest of the Rendered look (the lit room), sources the engine does not draw (timeline video clips, a tracking overlay…) on screens
 >   and venue meshes, the four-view layout, saving the window's place, macOS / Linux.
 
 ## 10. Open questions
