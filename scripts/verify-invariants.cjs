@@ -4344,6 +4344,33 @@ check(
 );
 
 check(
+  'the native engine evaluates the timeline\'s time with the app\'s own formulas',
+  'E3c: the engine evaluates each composited track\'s clip alpha and clip-local time from the playhead (engine ' +
+  'eval.rs, a port of automation.ts / clipFadeAlpha / layerAlpha) and draws ITS values. A curve kind added to ' +
+  'EASE_FN and not to eval.rs would play linear in the engine and eased in the editor; a change to the fade or ' +
+  'clip-time formula would move the wall and not the preview. test:eval-parity holds the numbers (it needs the ' +
+  'engine built); this holds the shape: every ease name, the bezier default, the two formulas and the playhead ' +
+  'on the tick.',
+  () => {
+    const problems = [];
+    const A = 'src/renderer/services/automation.ts', E = 'engine/artlux-engine/src/eval.rs', T = 'src/renderer/services/timeline.ts', N = 'src/renderer/engine/nativeLink.ts';
+    if (![A, E, T, N].every(exists)) return 'automation.ts / eval.rs / timeline.ts / nativeLink.ts is gone';
+    const a = read(A), e = read(E), t = read(T);
+    const table = (a.match(/export const EASE_FN\b[^{]*\{([\s\S]*?)\r?\n\};/) ?? [])[1] ?? '';
+    const names = [...table.matchAll(/^\s*(ease\w+)\s*:/gm)].map((m) => m[1]);
+    if (names.length < 30) problems.push(`EASE_FN not found as expected (${names.length} names)`);
+    for (const n of names) if (!e.includes(`"${n}" =>`)) problems.push(`eval.rs has no ${n}`);
+    const bd = (a.match(/BEZ_DEFAULT = \{ cx1: ([\d.]+), cy1: ([\d.]+), cx2: ([\d.]+), cy2: ([\d.]+) \}/) ?? []).slice(1).map(Number);
+    const be = (e.match(/BEZ_DEFAULT: \[f64; 4\] = \[([\d.]+), ([\d.]+), ([\d.]+), ([\d.]+)\]/) ?? []).slice(1).map(Number);
+    if (bd.length !== 4 || be.length !== 4 || bd.some((v, i) => v !== be[i])) problems.push('BEZ_DEFAULT differs between automation.ts and eval.rs');
+    if (!/base \* clipFadeAlpha\(c, playhead - c\.start\)/.test(fnBody(t, 'layerAlpha') ?? '')) problems.push('layerAlpha changed — re-port it to eval.rs clip_alpha');
+    if (!/time: c \? playhead - c\.start \+ c\.inPoint : 0/.test(t)) problems.push('the clip-local time nativeLayers reports changed — re-port it to eval.rs clip_time');
+    if (!/ph: timeline\.getPlayhead\(\)/.test(read(N))) problems.push('the tick no longer carries the playhead the engine evaluates from');
+    return problems.length ? problems.join('; ') : null;
+  },
+);
+
+check(
   'a 3-channel fixture keeps full RGB, in the app and in the engine',
   'The RGBW mode defaults to SUBTRACT (W = min(r,g,b), taken out of r, g and b) and the inspector shows the ' +
   'White control on 4-channel fixtures only. So an RGB strip whose mode was never set had the neutral part ' +

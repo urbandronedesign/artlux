@@ -262,7 +262,9 @@ export function compositeNativeSource(s: Surface): contentSource.NativeSource {
     w = d.width; h = d.height;
   }
   const entries = timeline.nativeLayers(program ? null : ids ?? (s.content.layerId ? [s.content.layerId] : []), single);
-  const layers: { key: string; opacity: number; blend: string }[] = [];
+  // E3c: each track's clip TIMING rides with it (stable: it changes when the clip is edited), so the engine
+  // evaluates the clip alpha and clip-local time from the playhead itself (engine eval.rs, runtime evaluate_clock).
+  const layers: { key: string; opacity: number; blend: string; clip: { start: number; inPoint: number; duration: number; fadeIn?: number; fadeOut?: number; opacity?: number } }[] = [];
   const sources: Record<string, { src: contentSource.NativeSource; content: unknown }> = {};
   for (const e of entries) {
     if (!e.clip) continue;   // nothing under the playhead: the track contributes nothing (as in the app)
@@ -273,7 +275,8 @@ export function compositeNativeSource(s: Surface): contentSource.NativeSource {
     else if (e.codec) src = contentSource.codecClipNativeSource(e.codec.id, e.codec.path, e.codec.frame);
     else return { kind: 'unsupported', why: e.element ? 'a timeline track playing a video through a <video> element (no exact frame to hand the engine)' : 'a timeline video clip that is not decoding yet' };
     if (src.kind === 'unsupported') return { kind: 'unsupported', why: `a timeline clip: ${src.why}` };
-    layers.push({ key, opacity: e.opacity, blend: e.blend });
+    const c = e.clip;
+    layers.push({ key, opacity: e.opacity, blend: e.blend, clip: { start: c.start, inPoint: c.inPoint, duration: c.duration, fadeIn: c.fadeIn, fadeOut: c.fadeOut, opacity: c.content?.opacity } });
     sources[key] = { src, content: e.clip.content };
   }
   return { kind: 'comp', w, h, single, layers, sources };

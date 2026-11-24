@@ -28,9 +28,10 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 /// E3a: a timeline surface composited by the engine (comp.rs) — its canvas size (0 for a single LAYER surface,
-/// which is its track's picture itself), and its tracks back-most first: (hidden source key, opacity, blend).
+/// which is its track's picture itself), and its tracks back-most first: (hidden source key, opacity, blend,
+/// E3c: the clip's timing — the engine evaluates its alpha and clip-local time from the playhead).
 #[derive(PartialEq, Clone)]
-struct CompSpec { w: u32, h: u32, single: bool, layers: Vec<(String, f32, String)> }
+struct CompSpec { w: u32, h: u32, single: bool, layers: Vec<(String, f32, String, Option<crate::eval::ClipTime>)> }
 
 #[derive(PartialEq)]
 enum Source { Image(String), Effect(Params), Hap(String), Spout(String), Ndi(String), Mp4(String, i64), Camera(CamSpec), Shader(crate::shader::Spec), Raster, Blobs(u32, u32), Comp(CompSpec), None }
@@ -123,6 +124,9 @@ pub struct Runtime {
     view_published: HashMap<String, u64>,
     view_colors_gen: u64,
     view_last_summary: String,
+    /// E3c: values the engine evaluated that differed from the app's (logged), and the document last announced.
+    clock_diffs: u64,
+    clock_rev: u64,
 }
 
 impl Runtime {
@@ -134,7 +138,7 @@ impl Runtime {
             #[cfg(feature = "ndi")] ndis: HashMap::new(),
             #[cfg(windows)] mp4s: HashMap::new(), conv: None,
             #[cfg(windows)] cams: HashMap::new(), resolved: HashMap::new(), pending_cams: HashMap::new(), last_doc: None, redo: false,
-            view: None, view_scene_ver: 0, view_published: HashMap::new(), view_colors_gen: 0, view_last_summary: String::new() }
+            view: None, view_scene_ver: 0, view_published: HashMap::new(), view_colors_gen: 0, view_last_summary: String::new(), clock_diffs: 0, clock_rev: 0 }
     }
 
     /// E4a: the 3D view's shared state and its open flag (serve.rs makes them; the windows thread shares them).
@@ -152,7 +156,7 @@ impl Runtime {
         // Each track's picture as a texture: a GPU picture copied from its visible rect, a CPU one uploaded
         // once per generation.
         let mut texs: Vec<(wgpu::Texture, f32, f32, String, u32, u32)> = Vec::new();
-        for (key, opacity, blend) in &spec.layers {
+        for (key, opacity, blend, _) in &spec.layers {
             let Some(p) = self.pictures.get(key) else { continue };   // not ready this frame: skipped, as the app does
             let alpha = v["comp"][sid][key].as_f64().unwrap_or(1.0) as f32;
             let gen = self.gens.get(key).copied().unwrap_or(0);
@@ -397,7 +401,7 @@ impl Runtime {
                 "raster" => Source::Raster,
                 "comp" => Source::Comp(CompSpec {
                     w: src["w"].as_u64().unwrap_or(0) as u32, h: src["h"].as_u64().unwrap_or(0) as u32, single: src["single"].as_bool().unwrap_or(false),
-                    layers: src["layers"].as_array().into_iter().flatten().map(|l| (l["key"].as_str().unwrap_or_default().to_string(), l["opacity"].as_f64().unwrap_or(1.0) as f32, l["blend"].as_str().unwrap_or("normal").to_string())).collect(),
+                    layers: src["layers"].as_array().into_iter().flatten().map(|l| (l["key"].as_str().unwrap_or_default().to_string(), l["opacity"].as_f64().unwrap_or(1.0) as f32, l["blend"].as_str().unwrap_or("normal").to_string(), crate::eval::ClipTime::from_json(&l["clip"]))).collect(),
                 }),
                 "blobs" => Source::Blobs(src["w"].as_u64().unwrap_or(1920).clamp(2, 4096) as u32, src["h"].as_u64().unwrap_or(1024).clamp(2, 4096) as u32),
                 "none" => Source::None,
@@ -573,9 +577,45 @@ impl Runtime {
     /// One frame at show time `t`. Nothing is sent unless the engine owns the wire for document `rev`.
     pub fn tick(&mut self, v: &Value) -> Result<(), String> {
         let Some(mut doc) = self.doc.take() else { return Ok(()) };
-        let r = self.tick_with(&mut doc, v);
+        let ev = self.evaluate_clock(&doc, v);
+        let r = self.tick_with(&mut doc, ev.as_ref().unwrap_or(v));
         self.doc = Some(doc);
         r
+    }
+
+    /// E3c — THE ENGINE EVALUATES THE TIMELINE'S TIME (plans/native-engine.md §4). From the playhead (`ph`) and
+    /// each track's clip timing in the document, every composited track's clip alpha (content opacity × fades)
+    /// and clip-local time — eval.rs, the port of the app's own formulas (`test:eval-parity`). The app still
+    /// sends its values while both exist: each one is CHECKED against the engine's, and a difference is logged
+    /// (`clock: differs`), which is the parity harness running on the show itself. The engine's values are the
+    /// ones drawn. None when the tick carries no playhead (an older host) — the app's values are then used.
+    fn evaluate_clock(&mut self, doc: &Doc, v: &Value) -> Option<Value> {
+        let ph = v["ph"].as_f64()?;
+        let mut w = v.clone();
+        let mut n = 0usize;
+        for (sid, src) in &doc.sources {
+            let Source::Comp(spec) = src else { continue };
+            for (key, _, _, clip) in &spec.layers {
+                let Some(c) = clip else { continue };
+                let (a, t) = (crate::eval::clip_alpha(c, ph), crate::eval::clip_time(c, ph));
+                for (what, app, ours) in [("alpha", v["comp"][sid][key].as_f64(), a), ("time", v["times"][key].as_f64(), t)] {
+                    if let Some(app) = app {
+                        if (app - ours).abs() > 1e-9 {
+                            self.clock_diffs += 1;
+                            if self.clock_diffs <= 20 { eprintln!("artlux-engine: clock: differs — {key} {what} at playhead {ph}: app {app}, engine {ours}"); }
+                        }
+                    }
+                }
+                w["comp"][sid][key] = a.into();
+                w["times"][key] = t.into();
+                n += 1;
+            }
+        }
+        if n > 0 && self.clock_rev != doc.rev {
+            self.clock_rev = doc.rev;
+            eprintln!("artlux-engine: clock: {n} track(s) evaluated from the playhead (document {}; {} difference(s) from the app so far)", doc.rev, self.clock_diffs);
+        }
+        Some(w)
     }
 
     fn tick_with(&mut self, doc: &mut Doc, v: &Value) -> Result<(), String> {

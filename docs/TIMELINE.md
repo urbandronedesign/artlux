@@ -304,9 +304,12 @@ what it should do; the hold covers a decoder opening mid-cut and nothing else.
 
 When ArtLux runs with the native engine (`--native-engine`), the engine can draw a surface fed by the
 timeline — a single track, a stack of tracks, or the whole program — on the fixtures, its projector outputs
-and its 3D view. ArtLux still decides which clip plays, its fades and which tracks are muted or soloed; the
-engine draws each track's clip and layers them the way the editor does (track opacity, and the **Normal**,
-**Add**, **Screen** and **Multiply** blends). The result matches the editor's within one step in 255.
+and its 3D view. ArtLux still decides which clip plays and which tracks are muted or soloed; the engine works
+out each clip's **fades** and its position in time from the playhead itself, draws each track's clip and
+layers them the way the editor does (track opacity, and the **Normal**, **Add**, **Screen** and **Multiply**
+blends). The result matches the editor's within one step in 255. While both still run, the engine checks its
+fades and clip times against the editor's on every frame; if they ever disagree, the machine log says
+`clock: differs`.
 
 Tracks can carry **content clips** (a still image, a shader, text or an effect) and **video clips** played
 through the HAP or MP4 decoders — the engine shows exactly the frame the editor shows. A video the editor plays

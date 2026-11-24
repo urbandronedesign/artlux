@@ -1888,6 +1888,30 @@ fallback until a source/output is proven byte-identical — risk 2):
 >   compared; a surface's MP4 was proven moving in 2c-4 with the same frame identity), crossing a clip boundary.
 > - **Next:** the CLOCK (§4: time evaluated in Rust on the audio clock), JUCE in the engine process, and
 >   lighting evaluation — each needs the parity harness §4 asks for before the TypeScript path goes.
+>
+> ✅ **E3c done 2026-11-24 — the time evaluators in Rust, and the PARITY HARNESS §4 asks for.** `eval.rs` ports,
+> line for line, `segmentEase` (every EASE_FN ease, bezier, linear / unknown), `bezierEase`, `sampleLane` (hold
+> before / after, coincident keys step, `hold`, log targets), `clipFadeAlpha`, `layerAlpha` and the clip-local
+> time. Two harnesses, as §4 asks — offline AND on the show:
+> - **`test:eval-parity`** bundles the app's OWN evaluators from source (esbuild — nothing copied) and runs them
+>   and the engine's (`--eval-cases`) on one list: every curve kind on a dense grid, 300 random beziers (degenerate
+>   handles, overshoot), 200 random lanes (coincident keys, log targets) before / across / after their keys, 200
+>   clips with fades, and every automation lane and clip of every example project (the "recorded shows") across
+>   its span — 79k cases, worst |TS − Rust| 2.7e-10 (V8 pow / sin against the C runtime's), and the app's
+>   frame-to-frame cursor gives the searched answer. Mutation: 0.9375 → 0.9376 in one bounce arm fails 395 cases.
+> - **On the show:** the tick now carries the PLAYHEAD and the document each track's clip timing; the engine
+>   evaluates every composited track's clip alpha and clip-local time ITSELF and draws its own values
+>   (runtime `evaluate_clock`). The app still sends its values, and each is CHECKED — a difference is logged
+>   (`clock: differs`). `test:clock-parity`: a looping 6 s show plays itself for 24 s (overlapping fades, a gap, a
+>   trimmed clip, content opacity, ADD at 0.7) — 12 clip-boundary documents, **0 differences**, the fades on the
+>   wire; a clip time off by 1 ms is caught on the first frame (mutation). The timeline / video wire tests still
+>   pass on the engine's values.
+> - `verify:invariants`: every EASE_FN name has an arm in eval.rs, the bezier default matches, layerAlpha and
+>   the clip-time formula are the ported ones, the tick carries the playhead (mutation-tested).
+> - **Not yet:** automation lanes and colour / lighting keys evaluated BY the engine on the show (the sampler is
+>   ported and proven; the app's automation writes surface params the engine reads through the document —
+>   moving that to a per-tick evaluation is the next step), and the playhead itself from the audio clock (JUCE
+>   in the engine process).
 
 ## 9d. E4 started early — the 3D view in the engine (owner, 2026-11-24)
 

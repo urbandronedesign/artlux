@@ -6,6 +6,7 @@
 //!   artlux-engine --frame-once <project> <out>  one whole frame from a project (E1d)
 //!   artlux-engine --project-once <in> <out>   a picture through projector settings, offscreen (E1e-1)
 //!   artlux-engine --project-windows <in> [--seconds N]   projector outputs as native windows (E1e-2)
+//!   artlux-engine --eval-cases <in.json>   the time evaluators on a list of cases (E3c parity)
 //!   artlux-engine --serve                     ArtLux main's child: hello / ping / pong / quit on stdio (E1a)
 //!   artlux-engine --info                      every adapter the native API offers, best first
 //!   artlux-engine --selftest                  the headless test on the best HARDWARE adapter
@@ -23,6 +24,13 @@ use std::process::ExitCode;
 fn main() -> ExitCode {
     let args: Vec<String> = std::env::args().skip(1).collect();
     let has = |f: &str| args.iter().any(|a| a == f);
+    // E3c parity: the time evaluators (eval.rs) on a list of cases — the TypeScript side runs the same list.
+    if let Some(i) = args.iter().position(|a| a == "--eval-cases") {
+        let Some(inp) = args.get(i + 1) else { eprintln!("usage: --eval-cases <cases.json>"); return ExitCode::from(2); };
+        let cases: serde_json::Value = match std::fs::read_to_string(inp).ok().and_then(|s| serde_json::from_str(&s).ok()) { Some(v) => v, None => { eprintln!("unreadable {inp}"); return ExitCode::from(2); } };
+        println!("{}", artlux_engine::eval::run_cases(&cases));
+        return ExitCode::SUCCESS;
+    }
     // E2: compile every shader of a corpus (scripts make it from the app's own sources) — the coverage harness.
     if let Some(i) = args.iter().position(|a| a == "--shader-check") {
         let Some(inp) = args.get(i + 1) else { eprintln!("usage: --shader-check <corpus.json>"); return ExitCode::from(2); };
