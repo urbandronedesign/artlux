@@ -39,6 +39,7 @@ pub mod beams;
 pub mod labels;
 pub mod gizmo;
 pub mod grid;
+pub mod post;
 pub mod shader;
 pub mod blobs;
 pub mod comp;

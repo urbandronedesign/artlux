@@ -2178,7 +2178,19 @@ fallback until a source/output is proven byte-identical — risk 2):
 >   replacing the fixed 100 m metre grid and its long axis lines. **Proof:** two unit tests (the decades by density;
 >   the lattice centred and faded, the gnomon's arms); `test:engine-beams`' downward capture shows the metre lattice,
 >   the decimetre patch fading in around the reference and the gnomon; a guard compares the copied constants.
-> - **Not yet (E4b…):** the rest of the Rendered look (the lit room), sources the engine does not draw (timeline video clips, a tracking overlay…) on screens
+> - ✅ **E4b-10 2026-11-24 — the Rendered look's lit room.** The window now draws its scene LINEAR into an HDR
+>   target (Rgba16Float, 4× MSAA resolved) and finishes it in `post.rs`: a straight copy in Shaded (unchanged to
+>   the eye), and in Rendered three's BloomNode(0.8, 0.4, 0.6) (a bright-pass and five half-size levels down / up,
+>   UnrealBloom's radius weighting) then AgX at exposure 1.1 — three.js's AgXToneMapping line for line, over the
+>   whole frame as the editor's render pipeline does. The heads light the room: `beams.rs spots` = MoverLights (the
+>   eight brightest; penumbra 0.4, range 30 m, decay 1.2, dimmer × gain × 14; gain = the editor's lightGain, now
+>   sent) as three's physical SpotLight falloff and cone in the mesh shader (Lambert), in both looks; Rendered adds
+>   RenderedMode's matte #1c1c1c floor and drops the studio fill to a trace. **Proof:** a unit test for the spots
+>   (ranking, packing, the cone cosines, no gain → none); `test:engine-beams`' Rendered step beside an editor
+>   capture in Rendered; a guard compares the copied numbers. **Not yet:** shadows (the editor's PCF-soft shadow maps
+>   per spot), GTAO and SMAA. The test's drags now wait for their own grab and release line (a late grab line had
+>   let a previous release look current).
+> - **Not yet (E4b…):** Rendered's shadows and ambient occlusion, sources the engine does not draw (timeline video clips, a tracking overlay…) on screens
 >   and venue meshes, the four-view layout, saving the window's place, macOS / Linux.
 
 ## 10. Open questions

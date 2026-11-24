@@ -390,14 +390,20 @@ async function settle(fn, ms = 4000) {
     // land late too (seen once: the scale check read the move's release). So wait until every grab in the log has
     // its release, then read the last one.
     const count = (re) => [...fs.readFileSync(logf, 'utf8').matchAll(re)].length;
+    // Each drag waits for ITS grab and ITS release: the count of grabs must pass the one before it (a late grab
+    // line would otherwise leave the previous drag's release looking current), then every grab must be released.
+    let grabsSeen = 0;
     const nextRelease = async () => {
-      for (let i = 0; i < 40 && count(/3D view gizmo: released at/g) < count(/3D view gizmo: grabbed the/g); i++) await sleep(100);
+      for (let i = 0; i < 40 && (count(/3D view gizmo: grabbed the/g) <= grabsSeen || count(/3D view gizmo: released at/g) < count(/3D view gizmo: grabbed the/g)); i++) await sleep(100);
+      grabsSeen = count(/3D view gizmo: grabbed the/g);
       return lastRelease();
     };
     const lastRelease = () => {
       const all = [...fs.readFileSync(logf, 'utf8').matchAll(/3D view gizmo: released at \[([-\d.]+), ([-\d.]+), ([-\d.]+)\] turned ([-\d.]+) deg scaled \[([-\d.]+), ([-\d.]+), ([-\d.]+)\]/g)];
       return all.length ? all[all.length - 1].slice(1).map(Number) : null;
     };
+    await settle(() => count(/3D view gizmo: grabbed the/g) >= 1 && count(/3D view gizmo: released at/g) >= 1);
+    grabsSeen = count(/3D view gizmo: grabbed the/g);
 
     // SCALE: the two heads, the X handle (the anchor's frame — identity for a group), pulled outward.
     note(await tool('Scale'), 'the editor\'s Scale tool');
@@ -482,6 +488,7 @@ async function settle(fn, ms = 4000) {
     const rend = await page.evaluate(() => { const b = [...document.querySelectorAll('button')].find((x) => /^Rendered look/.test(x.getAttribute('title') || '')); b?.click(); return !!b; });
     note(rend, 'switched the editor to Rendered');
     await sleep(3500);
+    await page.screenshot({ path: path.join(WORK, 'editor-rendered.png') });
     const shot2 = path.join(WORK, 'engine-beams-rendered.png');
     const cap2 = captureEngineWindow(shot2);
     const rl = fs.readFileSync(logf, 'utf8').split(/\r?\n/).filter((l) => /3D view beams:/.test(l));

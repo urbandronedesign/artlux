@@ -1035,6 +1035,7 @@ const Simulator3D: React.FC<Props> = ({
           selectedModel: selectedModelId ?? null,
           model: selectedModelId ? (scene3D.models ?? []).find((m) => m.id === selectedModelId) ?? null : null,
           modelMode: transformMode,
+          lightGain: venueLit ? lightGain : 0,
         }} />}
         {/* Press-and-drag the selection itself, with object snaps — after the guard, whose window
             listener must decide "gizmo handle?" first. Not while picking calibration anchors or looking

@@ -135,6 +135,38 @@ pub fn build(lights: &[LightFix], states: &HashMap<String, Beam>, look: &BeamLoo
     Frame { cones, lines }
 }
 
+/// E4b — THE HEADS AS REAL LIGHTS (the editor's MoverLights.tsx): the MAX_SPOTS brightest lit heads, each a three.js
+/// SpotLight at its lens, aimed down its beam, angle = the beam's half-angle (capped short of 90°), penumbra 0.4,
+/// distance 30 m, decay 1.2, its colour, intensity = dimmer × gain × 14 (gain: the scene's light level, ×6 and at
+/// least 1 in Rendered — Simulator3D's lightGain). Packed for the mesh shader: per spot position + range, direction
+/// + decay, colour × intensity, cos(outer) + cos(inner); then the count.
+pub const MAX_SPOTS: usize = 8;
+pub const SPOT_FLOATS: usize = 16;
+pub fn spots(lights: &[LightFix], states: &HashMap<String, Beam>, gain: f32) -> (Vec<f32>, usize) {
+    let deg = std::f32::consts::PI / 180.0;
+    let mut lit: Vec<(&crate::view3d::BeamFix, &Beam)> = lights.iter().filter_map(|l| {
+        let b = l.beam.as_ref()?;
+        let st = states.get(&l.id)?;
+        (!st.blackout && st.intensity > 0.01).then_some((b, st))
+    }).collect();
+    lit.sort_by(|a, b| b.1.intensity.partial_cmp(&a.1.intensity).unwrap_or(std::cmp::Ordering::Equal));
+    lit.truncate(MAX_SPOTS);
+    let mut out = vec![0f32; MAX_SPOTS * SPOT_FLOATS];
+    if gain <= 0.0 { return (out, 0); }
+    for (k, (b, st)) in lit.iter().enumerate() {
+        let aim = qmul(qmul(b.q, qaxis([0.0, 1.0, 0.0], (st.pan as f32 - b.pan_mid) * deg)), qaxis([1.0, 0.0, 0.0], (st.tilt as f32 - b.tilt_mid) * deg));
+        let dir = qrot(aim, [0.0, 0.0, -1.0]);
+        let half = match st.zoom { Some(z) if z > 0.0 => (z as f32 / 2.0).max(0.5), _ => b.lens_half };
+        let angle = (half * deg).min(std::f32::consts::FRAC_PI_2 - 0.01);
+        let i = st.intensity as f32 * gain * 14.0;
+        let o = k * SPOT_FLOATS;
+        out[o..o + 16].copy_from_slice(&[b.apex[0], b.apex[1], b.apex[2], 30.0, dir[0], dir[1], dir[2], 1.2,
+            st.r as f32 * i, st.g as f32 * i, st.b as f32 * i, 0.0, angle.cos(), (angle * (1.0 - 0.4)).cos(), 0.0, 0.0]);
+    }
+    let n = lit.len();
+    (out, n)
+}
+
 /// three's ConeGeometry(1, 1, 28, 1, true), apex moved to the origin and the base sent to −Z (Beams.tsx
 /// UNIT_CONE): position + normal per vertex, triangles. Open-ended — a capped cone shows a bright disc in mid-air.
 pub fn unit_cone() -> (Vec<f32>, Vec<u32>) {
@@ -188,5 +220,29 @@ mod tests {
         // h59 is blacked out, h0 is at 0: the dimmest kept is h11 (58 lit, the 48 brightest are h11..h58).
         let min_tint = f.cones.chunks_exact(CONE_FLOATS).map(|c| c[16]).fold(f32::MAX, f32::min);
         assert!((min_tint - 11.0 / 60.0).abs() < 1e-6, "{min_tint}");
+    }
+}
+
+#[cfg(test)]
+mod spot_tests {
+    use super::*;
+    #[test]
+    fn the_brightest_eight_heads_become_lights() {
+        let mut lights = Vec::new();
+        let mut st = HashMap::new();
+        for i in 0..10 {
+            let id = format!("h{i}");
+            lights.push(LightFix { id: id.clone(), pos: [i as f32, 5.0, 0.0], beam: Some(crate::view3d::BeamFix { apex: [i as f32, 5.0, 0.0], q: [0.0, 0.0, 0.0, 1.0], pan_mid: 0.0, tilt_mid: 0.0, lens_half: 10.0 }) });
+            st.insert(id, Beam { intensity: (i + 1) as f64 / 10.0, r: 1.0, g: 0.5, b: 0.0, pan: 0.0, tilt: -90.0, zoom: None, blackout: false });
+        }
+        let (v, n) = spots(&lights, &st, 6.0);
+        assert_eq!(n, MAX_SPOTS);
+        // The brightest first: h9 at full, intensity = 1 × 6 × 14, its colour, aimed straight down.
+        assert_eq!(&v[0..4], &[9.0, 5.0, 0.0, 30.0]);
+        assert!((v[5] + 1.0).abs() < 1e-5 && (v[7] - 1.2).abs() < 1e-6);
+        assert!((v[8] - 84.0).abs() < 1e-4 && (v[9] - 42.0).abs() < 1e-4 && v[10] == 0.0);
+        assert!((v[12] - 10f32.to_radians().cos()).abs() < 1e-6 && (v[13] - 6f32.to_radians().cos()).abs() < 1e-6);
+        // No gain: no lights.
+        assert_eq!(spots(&lights, &st, 0.0).1, 0);
     }
 }

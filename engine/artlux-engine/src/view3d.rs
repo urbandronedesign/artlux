@@ -59,8 +59,10 @@ pub struct BeamFix { pub apex: [f32; 3], pub q: [f32; 4], pub pan_mid: f32, pub 
 /// How the beams look — what Simulator3D hands its Beams: room haze, the cone diagram, the Rendered look, and
 /// the heads being aimed (they get the whole diagram: axis and edge rays).
 #[derive(Clone)]
-pub struct BeamLook { pub haze: f32, pub cones: bool, pub rendered: bool, pub selected: std::collections::HashSet<String> }
-impl Default for BeamLook { fn default() -> Self { BeamLook { haze: 0.35, cones: true, rendered: false, selected: Default::default() } } }
+pub struct BeamLook { pub haze: f32, pub cones: bool, pub rendered: bool, pub selected: std::collections::HashSet<String>,
+    /// The heads' spotlights' gain (Simulator3D lightGain; 0 = the venue is not lit by the rig).
+    pub light_gain: f32 }
+impl Default for BeamLook { fn default() -> Self { BeamLook { haze: 0.35, cones: true, rendered: false, selected: Default::default(), light_gain: 0.0 } } }
 
 /// E4a+: WHAT A VENUE GLB WEARS, as the editor decided it (engineView.tsx `engineContent`, which reads
 /// the same precedence modelScreens.assignContentMaterials applies): a list of content sources, and for
@@ -129,6 +131,7 @@ impl Scene {
         let b = &v["beams"];
         let look = BeamLook {
             haze: b["haze"].as_f64().unwrap_or(0.35) as f32,
+            light_gain: b["lightGain"].as_f64().unwrap_or(0.0) as f32,
             cones: b["cones"].as_bool().unwrap_or(true),
             rendered: b["rendered"].as_bool().unwrap_or(false),
             selected: b["selected"].as_array().into_iter().flatten().filter_map(|x| x.as_str().map(str::to_string)).collect(),
@@ -552,6 +555,28 @@ struct VOut { @builtin(position) pos: vec4<f32>, @location(0) n: vec3<f32>, @loc
   return o;
 }
 fn to_linear(c: vec3<f32>) -> vec3<f32> { return pow(max(c, vec3<f32>(0.0)), vec3<f32>(2.2)); }
+// E4b: the heads as real lights (beams.rs `spots`, the editor's MoverLights) — three.js's physically based
+// SpotLight: distance falloff 1 / max(d^decay, 0.01) × (1 − (d / range)^4)^2, the cone smoothstep(cos outer,
+// cos inner), Lambert (albedo / π × N·L × colour × intensity).
+struct Spot { pos: vec4<f32>, dir: vec4<f32>, color: vec4<f32>, cone: vec4<f32> };
+struct Lights { spots: array<Spot, 8>, n: vec4<f32> };   // n.x: spots in use; n.y: 1 = Rendered (a dark room)
+@group(3) @binding(0) var<uniform> lights: Lights;
+fn spot_light(w: vec3<f32>, n: vec3<f32>) -> vec3<f32> {
+  var sum = vec3<f32>(0.0);
+  for (var k = 0u; k < u32(lights.n.x); k = k + 1u) {
+    let s = lights.spots[k];
+    let l = s.pos.xyz - w;
+    let d = length(l);
+    let ld = l / max(d, 1e-5);
+    let ndl = max(dot(n, ld), 0.0);
+    if (ndl <= 0.0) { continue; }
+    var fall = 1.0 / max(pow(d, s.dir.w), 0.01);
+    if (s.pos.w > 0.0) { let r = clamp(1.0 - pow(d / s.pos.w, 4.0), 0.0, 1.0); fall = fall * r * r; }
+    let cone = smoothstep(s.cone.x, s.cone.y, dot(ld, -s.dir.xyz));
+    sum = sum + s.color.rgb * (ndl * fall * cone);
+  }
+  return sum;
+}
 @fragment fn fs_mesh(i: VOut, @builtin(front_facing) front: bool) -> @location(0) vec4<f32> {
   var base = obj.color;
   var uv = i.uv;
@@ -587,10 +612,12 @@ fn to_linear(c: vec3<f32>) -> vec3<f32> { return pow(max(c, vec3<f32>(0.0)), vec
   if (obj.flags.y > 0.5) { return vec4<f32>(base.rgb, 1.0); }
   var n = normalize(i.n);
   if (!front) { n = -n; }
-  // A soft studio light: sky / ground fill plus one key from over the viewer's shoulder.
+  // A soft studio light: sky / ground fill plus one key from over the viewer's shoulder — or, in Rendered, a dark
+  // room with a trace of fill (the editor's RoomEnvironment at 0.08) where the rig is the light.
   let sky = mix(0.18, 0.42, n.y * 0.5 + 0.5);
   let key = max(dot(n, normalize(vec3<f32>(-0.35, 0.85, 0.45))), 0.0) * 0.55;
-  return vec4<f32>(base.rgb * (sky + key), 1.0);
+  let fill = select(sky + key, 0.05, lights.n.y > 0.5);
+  return vec4<f32>(base.rgb * fill + base.rgb * spot_light(i.w, n) * 0.31830988, 1.0);
 }
 
 // LEDs: a camera-facing disc per LED, at least 3 px across so a far rig never vanishes.
@@ -709,7 +736,11 @@ const DEPTH: wgpu::TextureFormat = wgpu::TextureFormat::Depth32Float;
 pub fn present(gpu: Arc<Gpu>, window: Arc<Window>, surface: wgpu::Surface<'static>, stop: Arc<AtomicBool>, shared: Arc<Mutex<Shared>>) {
     let d = &gpu.device;
     let caps = surface.get_capabilities(&gpu.adapter);
-    let format = caps.formats.iter().copied().find(|f| f.is_srgb()).unwrap_or(caps.formats[0]);
+    let surf_format = caps.formats.iter().copied().find(|f| f.is_srgb()).unwrap_or(caps.formats[0]);
+    // E4b: the scene is drawn LINEAR into an HDR target and finished by post.rs (a copy in Shaded; bloom and AgX in
+    // Rendered) — so every scene pipeline below targets the HDR format, and only the last pass the surface's.
+    let format = crate::post::HDR;
+    let mut post = crate::post::Post::new(d, surf_format);
     let module = d.create_shader_module(wgpu::ShaderModuleDescriptor { label: Some("view3d"), source: wgpu::ShaderSource::Wgsl(SHADER.into()) });
 
     let cam_layout = d.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor { label: Some("cam"), entries: &[wgpu::BindGroupLayoutEntry {
@@ -724,7 +755,11 @@ pub fn present(gpu: Arc<Gpu>, window: Arc<Window>, surface: wgpu::Surface<'stati
     ] });
     // Group 2 is its own group (not a binding in the object's): the depth pass draws with the object
     // groups while writing the map, and a bind group naming the map would be a usage conflict there.
-    let mesh_pl = d.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor { label: None, bind_group_layouts: &[Some(&cam_layout), Some(&obj_layout), Some(&depth_layout)], immediate_size: 0 });
+    let light_layout = d.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor { label: Some("lights"), entries: &[wgpu::BindGroupLayoutEntry {
+        binding: 0, visibility: wgpu::ShaderStages::FRAGMENT, ty: wgpu::BindingType::Buffer { ty: wgpu::BufferBindingType::Uniform, has_dynamic_offset: false, min_binding_size: None }, count: None }] });
+    let light_buf = d.create_buffer(&wgpu::BufferDescriptor { label: Some("lights"), size: ((crate::beams::MAX_SPOTS * crate::beams::SPOT_FLOATS + 4) * 4) as u64, usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST, mapped_at_creation: false });
+    let light_bind = d.create_bind_group(&wgpu::BindGroupDescriptor { label: None, layout: &light_layout, entries: &[wgpu::BindGroupEntry { binding: 0, resource: light_buf.as_entire_binding() }] });
+    let mesh_pl = d.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor { label: None, bind_group_layouts: &[Some(&cam_layout), Some(&obj_layout), Some(&depth_layout), Some(&light_layout)], immediate_size: 0 });
     let depth_pl = d.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor { label: None, bind_group_layouts: &[Some(&cam_layout), Some(&obj_layout)], immediate_size: 0 });
     let cam_pl = d.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor { label: None, bind_group_layouts: &[Some(&cam_layout)], immediate_size: 0 });
     let ds = |write: bool| Some(wgpu::DepthStencilState { format: DEPTH, depth_write_enabled: Some(write), depth_compare: Some(wgpu::CompareFunction::LessEqual), stencil: Default::default(), bias: Default::default() });
@@ -886,6 +921,10 @@ pub fn present(gpu: Arc<Gpu>, window: Arc<Window>, surface: wgpu::Surface<'stati
     let mut grid_key = (i64::MIN, i64::MIN, i64::MIN);
     let mut gnomon_buf: Option<wgpu::Buffer> = None;
     let mut handle_buf: Option<wgpu::Buffer> = None;
+    // E4b: Rendered's matte stage floor (RenderedMode: 400 × 400 m, #1c1c1c, 3 mm under the grid), lit by the rig.
+    let floor_ub = obj_ub();
+    write_obj(&floor_ub, &[400., 0., 0., 0., 0., 0., -400., 0., 0., 1., 0., 0., 0., -0.003, 0., 1.], [0.0113, 0.0113, 0.0113, 1.0], [0.0; 4]);
+    let floor_bind = obj_bind(&floor_ub, &white_view);
     // E4b: the selected model's outline (its world bounds), rebuilt when the selection, the scene or a file changes.
     let mut model_outline: Option<(wgpu::Buffer, u32)> = None;
     let mut model_outline_key = String::new();
@@ -934,13 +973,14 @@ pub fn present(gpu: Arc<Gpu>, window: Arc<Window>, surface: wgpu::Surface<'stati
         if size.width == 0 || size.height == 0 { std::thread::sleep(Duration::from_millis(50)); continue; }
         if configured != Some(size) {
             surface.configure(d, &wgpu::SurfaceConfiguration {
-                usage: wgpu::TextureUsages::RENDER_ATTACHMENT, format, width: size.width, height: size.height,
+                usage: wgpu::TextureUsages::RENDER_ATTACHMENT, format: surf_format, width: size.width, height: size.height,
                 present_mode: wgpu::PresentMode::Fifo, desired_maximum_frame_latency: 2, alpha_mode: caps.alpha_modes[0],
                 view_formats: vec![], color_space: wgpu::SurfaceColorSpace::Auto,
             });
             let mk = |f: wgpu::TextureFormat| d.create_texture(&wgpu::TextureDescriptor { label: None, size: wgpu::Extent3d { width: size.width, height: size.height, depth_or_array_layers: 1 },
                 mip_level_count: 1, sample_count: SAMPLES, dimension: wgpu::TextureDimension::D2, format: f, usage: wgpu::TextureUsages::RENDER_ATTACHMENT, view_formats: &[] }).create_view(&Default::default());
             targets = Some((mk(format), mk(DEPTH)));
+            post.ensure(d, size.width, size.height);
             configured = Some(size);
         }
 
@@ -1120,6 +1160,12 @@ pub fn present(gpu: Arc<Gpu>, window: Arc<Window>, surface: wgpu::Surface<'stati
             }
             drag_drawn = want_drawn;
         }
+        // The heads as lights, this frame (moved with a drag, as the beams are).
+        {
+            let (mut v, n) = scene.as_ref().map(|s| crate::beams::spots(moved_lights.as_deref().unwrap_or(&s.lights), &beam_states, s.look.light_gain)).unwrap_or((vec![0.0; crate::beams::MAX_SPOTS * crate::beams::SPOT_FLOATS], 0));
+            v.extend_from_slice(&[n as f32, look.rendered as u32 as f32, 0.0, 0.0]);
+            gpu.queue.write_buffer(&light_buf, 0, &bytes(&v));
+        }
         let n_cones = (bf.cones.len() / crate::beams::CONE_FLOATS) as u32;
         let n_beam_verts = (bf.lines.len() / crate::beams::LINE_FLOATS) as u32;
         // The floor numbers, laid out against this frame's camera, in css pixels.
@@ -1298,7 +1344,7 @@ pub fn present(gpu: Arc<Gpu>, window: Arc<Window>, surface: wgpu::Surface<'stati
             let bg = 0.008;   // #0d0d0d-ish in linear, the editor's background
             let mut pass = enc.begin_render_pass(&wgpu::RenderPassDescriptor {
                 label: Some("view3d"),
-                color_attachments: &[Some(wgpu::RenderPassColorAttachment { view: msaa, depth_slice: None, resolve_target: Some(&view),
+                color_attachments: &[Some(wgpu::RenderPassColorAttachment { view: msaa, depth_slice: None, resolve_target: post.hdr(),
                     ops: wgpu::Operations { load: wgpu::LoadOp::Clear(wgpu::Color { r: bg, g: bg, b: bg, a: 1.0 }), store: wgpu::StoreOp::Discard } })],
                 depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment { view: depth, depth_ops: Some(wgpu::Operations { load: wgpu::LoadOp::Clear(1.0), store: wgpu::StoreOp::Discard }), stencil_ops: None }),
                 ..Default::default()
@@ -1306,6 +1352,14 @@ pub fn present(gpu: Arc<Gpu>, window: Arc<Window>, surface: wgpu::Surface<'stati
             pass.set_bind_group(0, &cam_bind, &[]);
             pass.set_pipeline(&mesh_pipe);
             pass.set_bind_group(2, &no_depth_bind, &[]);
+            pass.set_bind_group(3, &light_bind, &[]);
+            // Rendered's floor, under everything.
+            if look.rendered {
+                pass.set_bind_group(1, &floor_bind, &[]);
+                pass.set_vertex_buffer(0, quad.0.slice(..));
+                pass.set_index_buffer(quad.1.slice(..), wgpu::IndexFormat::Uint32);
+                pass.draw_indexed(0..6, 0, 0..1);
+            }
             if let Some(sc) = &scene {
                 for m in &sc.models {
                     match &m.kind {
@@ -1386,6 +1440,8 @@ pub fn present(gpu: Arc<Gpu>, window: Arc<Window>, surface: wgpu::Surface<'stati
                 pass.draw(0..n_handle_verts, 0..1);
             }
         }
+        // The last step: bloom + AgX in Rendered, a straight copy in Shaded (post.rs).
+        post.finish(&gpu.queue, &mut enc, &view, look.rendered);
         gpu.queue.submit([enc.finish()]);
         window.pre_present_notify();
         gpu.queue.present(frame);   // wgpu 30: presenting is the queue's, after the submit

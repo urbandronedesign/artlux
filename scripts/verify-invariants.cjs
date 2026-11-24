@@ -9337,7 +9337,7 @@ check(
     if (!/RENDERED_STRENGTH = 2\.2;/.test(b) || !read('engine/artlux-engine/src/view3d.rs').includes('mix(1.0, 2.2, solid)')) problems.push('the Rendered strength (2.2) no longer matches between Beams.tsx and view3d.rs');
     if (!read(L).includes('pub fn resolve(&self, dmx: &Value, o: &Over) -> Beam')) problems.push('lightpack.rs no longer resolves a light\'s state');
     if (!read(T).includes('sh.beams = Arc::new(self.light_beams.clone());')) problems.push('runtime.rs no longer publishes the resolved states to the 3D view');
-    if (!/beams: \{ haze: r4\(beams\.haze\), cones: beams\.cones, rendered: beams\.rendered, selected: beams\.selected \}/.test(e)) problems.push('engineView no longer sends the beams\' look');
+    if (!/beams: \{ haze: r4\(beams\.haze\), cones: beams\.cones, rendered: beams\.rendered, selected: beams\.selected, lightGain: /.test(e)) problems.push('engineView no longer sends the beams\' look (and the rig\'s light gain)');
     if (!/<EngineViewLink fixtures=\{fixtures\} beams=\{\{/.test(s)) problems.push('Simulator3D no longer hands the engine view the beams\' look');
     return problems.length ? problems.join('; ') : null;
   },
@@ -9428,6 +9428,30 @@ check(
       if (!a || !b) { problems.push(`${k} not found in ${a ? R : 'the editor grid files'}`); continue; }
       if (Number(a[1]) !== Number(b[1])) problems.push(`${k}: editor ${a[1]}, engine ${b[1]}`);
     }
+    return problems.length ? problems.join('; ') : null;
+  },
+);
+
+check(
+  'the engine\'s Rendered look uses the editor\'s lights and finish',
+  'E4b: in Rendered the engine window lights the room with the heads as spotlights (engine beams.rs spots, the ' +
+  'editor\'s MoverLights) and finishes the frame with bloom and AgX (engine post.rs, the editor\'s RenderedMode). ' +
+  'Their numbers are COPIED: eight spots, penumbra 0.4, range 30 m, decay 1.2, intensity × 14; exposure 1.1; bloom ' +
+  'strength 0.8, radius 0.4, threshold 0.6. Change one in the editor and the two windows light the show differently ' +
+  'with nothing failing. They are compared here.',
+  () => {
+    const problems = [];
+    const ML = 'src/renderer/components/Simulator3D/MoverLights.tsx', RM = 'src/renderer/components/Simulator3D/RenderedMode.tsx';
+    const B = 'engine/artlux-engine/src/beams.rs', P = 'engine/artlux-engine/src/post.rs';
+    for (const f of [ML, RM, B, P]) if (!exists(f)) return `${f} is gone`;
+    const ml = read(ML), rm = read(RM), b = read(B), p = read(P);
+    if (!/const MAX_SPOTS = 8;/.test(ml) || !/pub const MAX_SPOTS: usize = 8;/.test(b)) problems.push('the spot count differs (MoverLights MAX_SPOTS vs beams.rs)');
+    if (!/L\.penumbra = 0\.4;/.test(ml) || !/\(angle \* \(1\.0 - 0\.4\)\)\.cos\(\)/.test(b)) problems.push('the penumbra differs');
+    if (!/L\.distance = 30;/.test(ml) || !/L\.decay = 1\.2;/.test(ml) || !/b\.apex\[2\], 30\.0, dir\[0\], dir\[1\], dir\[2\], 1\.2,/.test(b)) problems.push('the range or decay differs');
+    if (!/st\.intensity \* gain \* 14;/.test(ml) || !/st\.intensity as f32 \* gain \* 14\.0;/.test(b)) problems.push('the intensity scale differs');
+    if (!/toneMappingExposure = 1\.1;/.test(rm) || !/const EXPOSURE: f32 = 1\.1;/.test(p)) problems.push('the exposure differs');
+    if (!/bloom\(lit as never, 0\.8, 0\.4, 0\.6\)/.test(rm) || !/const STRENGTH: f32 = 0\.8;/.test(p) || !/const RADIUS: f32 = 0\.4;/.test(p) || !/const THRESHOLD: f32 = 0\.6;/.test(p)) problems.push('the bloom differs');
+    if (!/AgXToneMapping/.test(rm)) problems.push('the editor no longer tone-maps Rendered with AgX (post.rs ports AgX)');
     return problems.length ? problems.join('; ') : null;
   },
 );

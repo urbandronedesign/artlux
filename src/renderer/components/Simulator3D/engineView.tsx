@@ -149,7 +149,7 @@ function buildScene(scene: THREE.Scene, fixtures: Fixture[], beams: EngineBeams)
   // align scale handles — gizmoDelta's scale is read in that frame). The snap is the one for this tool.
   const handleQ = g && (tool === 'scale' || g.space === 'local') ? [g.q.x, g.q.y, g.q.z, g.q.w] : [0, 0, 0, 1];
   const snap = gz?.snap?.on ? (tool === 'rotate' ? gz.snap.rotate : tool === 'scale' ? gz.snap.scale : gz.snap.move) : null;
-  return JSON.stringify({ models, leds, lights, lines, beams: { haze: r4(beams.haze), cones: beams.cones, rendered: beams.rendered, selected: beams.selected },
+  return JSON.stringify({ models, leds, lights, lines, beams: { haze: r4(beams.haze), cones: beams.cones, rendered: beams.rendered, selected: beams.selected, lightGain: r4(beams.lightGain ?? 0) },
     grid: { visible: beams.grid, labels: beams.gridLabels },
     gizmo: mg ?? (g ? { mode: tool, at: [r4(g.at.x), r4(g.at.y), r4(g.at.z)], q: handleQ.map((x) => Math.round(x * 1e6) / 1e6), snap } : null),
     selectedModel: beams.selectedModel ?? null });
@@ -259,6 +259,8 @@ export function applyEngineGizmo(
 export interface EngineBeams { profiles: ReadonlyMap<string, FixtureProfile>; haze: number; cones: boolean; rendered: boolean; selected: readonly string[];
   /** The editor's fixture gizmo: the selection it drives, its tool and axes, the snap — the engine draws Move. */
   gizmo?: { fixtures: readonly Fixture[]; mode: string; space: 'world' | 'local'; activeId: string | null | undefined; snap?: SnapSettings };
+  /** The heads' spotlights' gain, as MoverLights is given it (0: the rig does not light the venue). */
+  lightGain?: number;
   /** The venue model / screen selected in the editor — outlined in the engine window, with its own handles. */
   selectedModel?: string | null;
   model?: SceneModel | null;
