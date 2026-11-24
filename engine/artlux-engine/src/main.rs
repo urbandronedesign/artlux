@@ -23,6 +23,50 @@ use std::process::ExitCode;
 fn main() -> ExitCode {
     let args: Vec<String> = std::env::args().skip(1).collect();
     let has = |f: &str| args.iter().any(|a| a == f);
+    // E2: compile every shader of a corpus (scripts make it from the app's own sources) — the coverage harness.
+    if let Some(i) = args.iter().position(|a| a == "--shader-check") {
+        let Some(inp) = args.get(i + 1) else { eprintln!("usage: --shader-check <corpus.json>"); return ExitCode::from(2); };
+        let list: serde_json::Value = match std::fs::read_to_string(inp).ok().and_then(|s| serde_json::from_str(&s).ok()) { Some(v) => v, None => { eprintln!("unreadable {inp}"); return ExitCode::from(2); } };
+        let (mut ok, mut bad) = (0, 0);
+        for s in list.as_array().into_iter().flatten() {
+            let inputs: Vec<artlux_engine::shader::Input> = s["inputs"].as_array().into_iter().flatten()
+                .map(|x| artlux_engine::shader::Input { name: x["name"].as_str().unwrap_or("").into(), glsl: x["glsl"].as_str().unwrap_or("float").into() }).collect();
+            match artlux_engine::shader::compile(s["source"].as_str().unwrap_or(""), &inputs, s["lastFrame"].as_bool().unwrap_or(false)) {
+                Ok(_) => { ok += 1; println!("ok    {}", s["name"].as_str().unwrap_or("?")); }
+                Err(e) => { bad += 1; println!("FAIL  {}\n      {}", s["name"].as_str().unwrap_or("?"), e.replace('\n', "\n      ")); }
+            }
+        }
+        println!("{ok} compiled, {bad} failed");
+        return if bad == 0 { ExitCode::SUCCESS } else { ExitCode::from(1) };
+    }
+    // E2 parity: render every shader of a corpus at w × h, show time t, default inputs, no sound / people —
+    // raw RGBA (row 0 at the top) per shader into <outdir>/<index>.raw, for the WebGL side to compare.
+    if let Some(i) = args.iter().position(|a| a == "--shader-render") {
+        let (Some(inp), Some(outdir)) = (args.get(i + 1), args.get(i + 2)) else { eprintln!("usage: --shader-render <corpus.json> <outdir> [--size WxH] [--times a,b]"); return ExitCode::from(2); };
+        let (w, h) = args.iter().position(|a| a == "--size").and_then(|k| args.get(k + 1)).and_then(|s| s.split_once('x')).and_then(|(a, b)| Some((a.parse().ok()?, b.parse().ok()?))).unwrap_or((256u32, 144u32));
+        let times: Vec<f64> = args.iter().position(|a| a == "--times").and_then(|k| args.get(k + 1)).map(|s| s.split(',').filter_map(|x| x.parse().ok()).collect()).unwrap_or(vec![1.25]);
+        let list: serde_json::Value = match std::fs::read_to_string(inp).ok().and_then(|s| serde_json::from_str(&s).ok()) { Some(v) => v, None => { eprintln!("unreadable {inp}"); return ExitCode::from(2); } };
+        let gpu = match Gpu::open(AdapterPolicy { allow_software: has("--allow-software"), force_software: has("--software") }) { Ok(g) => g, Err(e) => { eprintln!("artlux-engine: {e}"); return ExitCode::from(2); } };
+        let _ = std::fs::create_dir_all(outdir);
+        for (k, s) in list.as_array().into_iter().flatten().enumerate() {
+            let spec = artlux_engine::shader::Spec {
+                source: s["source"].as_str().unwrap_or("").into(),
+                inputs: s["inputs"].as_array().into_iter().flatten().map(|x| (x["name"].as_str().unwrap_or("").into(), x["glsl"].as_str().unwrap_or("float").into())).collect(),
+                last_frame: s["lastFrame"].as_bool().unwrap_or(false), w, h, hold: false,
+            };
+            let mut r = match artlux_engine::shader::Runner::new(&gpu, &spec) { Ok(r) => r, Err(e) => { println!("FAIL {k} {e}"); continue; } };
+            // Each input at its DEFAULT, as the app draws an untouched shader.
+            let ins: Vec<serde_json::Value> = s["defaults"].as_array().cloned().unwrap_or_default();
+            for (n, &t) in times.iter().enumerate() {
+                let u = serde_json::json!({ "wall": t, "frame": n, "in": ins });
+                let tex = r.render(&gpu, w, h, t, &u);
+                let px = artlux_engine::read_texture_rgba(&gpu, &tex, w, h);
+                let _ = std::fs::write(format!("{outdir}/{k}-{n}.raw"), &px);
+            }
+            println!("ok {k} {}", s["name"].as_str().unwrap_or(""));
+        }
+        return ExitCode::SUCCESS;
+    }
     if has("--info") {
         println!("backend: {:?}", native_backends());
         for info in list_adapters() {
@@ -346,6 +390,22 @@ fn main() -> ExitCode {
         println!("qs {:?}", artlux_engine::projector::corner_qs(&o.pin));
         println!("geometry {:?}", artlux_engine::projector::geometry(&o));
         return ExitCode::SUCCESS;
+    }
+    if let Some(i) = args.iter().position(|a| a == "--dump-shader-hlsl") {
+        // E2 diagnostic: the HLSL naga writes for corpus shader <index> (to compare with ANGLE's for the app).
+        let (Some(inp), Some(idx), Some(outp)) = (args.get(i + 1), args.get(i + 2).and_then(|s| s.parse::<usize>().ok()), args.get(i + 3)) else { eprintln!("usage: --dump-shader-hlsl <corpus.json> <index> <out.hlsl>"); return ExitCode::from(2); };
+        let list: serde_json::Value = serde_json::from_str(&std::fs::read_to_string(inp).unwrap_or_default()).unwrap_or_default();
+        let s = &list[idx];
+        let inputs: Vec<artlux_engine::shader::Input> = s["inputs"].as_array().into_iter().flatten().map(|x| artlux_engine::shader::Input { name: x["name"].as_str().unwrap_or("").into(), glsl: x["glsl"].as_str().unwrap_or("float").into() }).collect();
+        let wgsl = match artlux_engine::shader::compile(s["source"].as_str().unwrap_or(""), &inputs, s["lastFrame"].as_bool().unwrap_or(false)) { Ok(w) => w, Err(e) => { eprintln!("{e}"); return ExitCode::from(1); } };
+        let module = match naga::front::wgsl::parse_str(&wgsl) { Ok(m) => m, Err(e) => { eprintln!("wgsl: {e:?}"); return ExitCode::from(1); } };
+        let info = match naga::valid::Validator::new(naga::valid::ValidationFlags::all(), naga::valid::Capabilities::all()).validate(&module) { Ok(i) => i, Err(e) => { eprintln!("validate: {e:?}"); return ExitCode::from(1); } };
+        let options = naga::back::hlsl::Options { shader_model: naga::back::hlsl::ShaderModel::V5_1, ..Default::default() };
+        let mut out = String::new();
+        let pipeline = naga::back::hlsl::PipelineOptions { entry_point: None };
+        if let Err(e) = naga::back::hlsl::Writer::new(&mut out, &options, &pipeline).write(&module, &info, None) { eprintln!("hlsl: {e:?}"); return ExitCode::from(1); }
+        let _ = std::fs::write(format!("{outp}.wgsl"), &wgsl);
+        return match std::fs::write(outp, out) { Ok(()) => ExitCode::SUCCESS, Err(e) => { eprintln!("{outp}: {e}"); ExitCode::from(2) } };
     }
     if let Some(i) = args.iter().position(|a| a == "--dump-hlsl") {
         // The HLSL naga writes for the plain warp (shader model 5.1 — what wgpu hands FXC), to compare with

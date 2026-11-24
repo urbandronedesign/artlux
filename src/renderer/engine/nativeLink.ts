@@ -158,9 +158,18 @@ export function frame(inputs: LinkInputs, surfaces: Surface[], fixtures: Fixture
     const fp = contentSource.cameraFingerprintFor(s.content);
     if (fp) camfp[s.id] = fp;
   }
+  // E2: each SHADER surface's uniforms this frame (the plugin's nativeTick — the same taps the app's own draw
+  // reads), at the show time the app draws it at.
+  const shader: Record<string, unknown> = {};
+  const showT = timeline.getShowTime();
+  for (const s of surfaces) {
+    if (sources[s.id].kind !== 'shader') continue;
+    const u = contentSource.nativeTick(s.id, s.content, showT);
+    if (u) shader[s.id] = u;
+  }
   // A light's values as the wire will carry them: the frame codec stores each into a Uint8Array, i.e.
   // JavaScript's ToUint8 (truncate, then modulo 256; NaN → 0). Done HERE so the engine gets bytes.
   const lights: Record<string, number[]> = {};
   for (const id in lightBytes) lights[id] = lightBytes[id].map((v) => { const t = Math.trunc(Number(v)); return Number.isFinite(t) ? ((t % 256) + 256) % 256 : 0; });
-  window.artlux?.nativeEngineTick?.(JSON.stringify({ rev, t: timeline.getShowTime(), brightness, hap, mp4, ndi, camfp, lights, proj: { brightness: projBrightness, booting: projBooting } }));
+  window.artlux?.nativeEngineTick?.(JSON.stringify({ rev, t: timeline.getShowTime(), brightness, hap, mp4, ndi, camfp, shader, lights, proj: { brightness: projBrightness, booting: projBooting } }));
 }

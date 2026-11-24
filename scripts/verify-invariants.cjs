@@ -4298,6 +4298,28 @@ check(
 );
 
 check(
+  'the native engine gives a shader every uniform the app does, and holds what the app holds',
+  'E2: the engine draws SHADER surfaces itself (engine shader.rs), wrapping the author\'s text the way ' +
+  'plugins/shader/src/wrapper.ts does — the ONE list of what a shader gets for free is wrapper.ts UNIFORMS. ' +
+  'A uniform added there and not in shader.rs would make every shader reading it fail to compile in the ' +
+  'engine, and the app would quietly keep the whole show. And a surface the app\'s guard DISABLES keeps its ' +
+  'last picture in the app; it used to be answered "unsupported" to the engine, whose picture then went BLACK ' +
+  'where the app\'s froze (measured with the 3D view and the engine window open) — so it is sent as `hold`.',
+  () => {
+    const problems = [];
+    const W = 'plugins/shader/src/wrapper.ts', R = 'engine/artlux-engine/src/shader.rs', D = 'plugins/shader/src/shaderDrawable.ts', RT = 'engine/artlux-engine/src/runtime.rs';
+    if (![W, R, D, RT].every(exists)) return 'wrapper.ts / shader.rs / shaderDrawable.ts / runtime.rs is gone';
+    const w = read(W), r = read(R);
+    const names = [...w.matchAll(/\{ name: '([A-Za-z]+)'/g)].map((m) => m[1]);
+    if (names.length < 10) problems.push('could not read wrapper.ts UNIFORMS');
+    for (const n of names) if (!new RegExp(`\\b${n}\\b`).test(r)) problems.push(`shader.rs does not provide ${n} (wrapper.ts UNIFORMS)`);
+    if (!/hold: true/.test(read(D)) || /why: 'a shader disabled/.test(read(D))) problems.push('a disabled shader is no longer sent to the engine as `hold`');
+    if (!/Source::Shader\(spec\) if spec\.hold && self\.pictures\.contains_key\(sid\) => \{\}/.test(read(RT))) problems.push('runtime.rs no longer keeps a held shader\'s last picture');
+    return problems.length ? problems.join('; ') : null;
+  },
+);
+
+check(
   'projected content lands upright, and is shadowed where the projector cannot see — in every window',
   'Found 2026-11-24 by the engine\'s 3D view, which computes projected UVs from first principles: the ' +
   'editor had been painting both projected modes UPSIDE DOWN since a156d09 (Oct) turned the authored path ' +
@@ -8968,7 +8990,7 @@ check(
     if (!/if \(vf\.format !== 'NV12'\)/.test(c) || !/cs\?\.matrix === 'bt709' && cs\?\.fullRange === false && cs\?\.primaries === 'bt709'/.test(c)) problems.push('contentSource no longer limits the engine to the proven MP4 frames (8-bit NV12, BT.709 limited)');
     if (!/durUs: info\.durationSec \* 1e6/.test(c)) problems.push('the MP4 source no longer carries the file duration the engine folds the loop with');
     const n = raw('src/renderer/engine/nativeLink.ts');
-    if (!/mp4\[s\.id\] = g;/.test(n) || !/hap, mp4, ndi, (camfp, )?lights/.test(n)) problems.push('the tick no longer carries each MP4 surface frame timestamp');
+    if (!/mp4\[s\.id\] = g;/.test(n) || !/hap, mp4, ndi, (camfp, )?(shader, )?lights/.test(n)) problems.push('the tick no longer carries each MP4 surface frame timestamp');
     if (/an MP4 on a projector/.test(n)) problems.push('an MP4 on a projector is refused again (the engine draws it: one device, outputs.rs content_texture_from)');
     const r = raw('engine/artlux-engine/src/runtime.rs');
     if (!/let local = if \*dur_us > 0 \{ abs - abs\.div_euclid\(\*dur_us\) \* dur_us \} else \{ abs \};/.test(r)) problems.push('runtime.rs no longer folds a looping surface timestamp back into the file');

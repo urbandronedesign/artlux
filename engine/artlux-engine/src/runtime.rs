@@ -28,7 +28,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 #[derive(PartialEq)]
-enum Source { Image(String), Effect(Params), Hap(String), Spout(String), Ndi(String), Mp4(String, i64), Camera(CamSpec), None }
+enum Source { Image(String), Effect(Params), Hap(String), Spout(String), Ndi(String), Mp4(String, i64), Camera(CamSpec), Shader(crate::shader::Spec), None }
 
 /// Item 2d step 5: a camera surface as the host describes it — the app's track label (which camera), the
 /// colour space of the app's own VideoFrames (what the engine's picture is held to — cam::picture), and
@@ -62,6 +62,12 @@ pub struct Runtime {
     gens: HashMap<String, u64>,
     images: HashMap<String, Arc<Picture>>,
     effects: HashMap<String, SurfaceEffect>,
+    /// E2: one shader runner per SHADER surface (its program and its feedback history — shader.rs).
+    shaders: HashMap<String, crate::shader::Runner>,
+    sources_summary: String,
+    /// E2: a shader surface on an engine projector, drawn AGAIN at that output's size by its own runner
+    /// (`<sid>@proj`, its own feedback history) — as the app's projector window runs its own copy.
+    proj_pictures: HashMap<String, Picture>,
     rng: Rng,
     cache: TexCache,
     gen: u64,
@@ -109,7 +115,7 @@ pub struct Runtime {
 impl Runtime {
     pub fn new(gpu: Arc<Gpu>) -> Self {
         Runtime { gpu, out: None, broadcast: false, out_cfg: (44.0, true, false), doc: None, pictures: HashMap::new(), gens: HashMap::new(),
-            images: HashMap::new(), effects: HashMap::new(), rng: Rng::new(0x5eed), cache: TexCache::default(), gen: 0, path_gens: HashMap::new(), frames: 0,
+            images: HashMap::new(), effects: HashMap::new(), shaders: HashMap::new(), sources_summary: String::new(), proj_pictures: HashMap::new(), rng: Rng::new(0x5eed), cache: TexCache::default(), gen: 0, path_gens: HashMap::new(), frames: 0,
             outputs: None, projectors: Vec::new(), proj_published: HashMap::new(), proj_opts: HashMap::new(), opts_ver: 0,
             #[cfg(windows)] spouts: HashMap::new(),
             #[cfg(feature = "ndi")] ndis: HashMap::new(),
@@ -216,7 +222,13 @@ impl Runtime {
             })),
         }).collect() };
         self.projectors = if why.is_some() { Vec::new() } else {
-            list.iter().map(|p| (p["id"].as_str().unwrap_or_default().to_string(), p["surfaceId"].as_str().unwrap_or_default().to_string(), p["output"].clone())).collect()
+            list.iter().map(|p| {
+                // E2: the display's CSS size rides with the output settings (main's `css`) — a shader on this
+                // output is drawn at it, as the app's projector window draws it.
+                let mut out = p["output"].clone();
+                if let Some(o) = out.as_object_mut() { o.insert("css".into(), p["css"].clone()); }
+                (p["id"].as_str().unwrap_or_default().to_string(), p["surfaceId"].as_str().unwrap_or_default().to_string(), out)
+            }).collect()
         };
         self.proj_opts.clear();
         if let Some((proxy, _)) = &self.outputs { let _ = proxy.send_event(crate::outputs::Cmd::Set(specs.clone())); }
@@ -231,7 +243,7 @@ impl Runtime {
         let mut sh = shared.lock().unwrap();
         sh.booting = v["proj"]["booting"].as_bool().unwrap_or(false);
         for (id, sid, out) in &self.projectors {
-            if let (Some(&g), Some(p)) = (self.gens.get(sid), self.pictures.get(sid)) {
+            if let (Some(&g), Some(p)) = (self.gens.get(sid), self.proj_pictures.get(sid).or_else(|| self.pictures.get(sid))) {
                 if self.proj_published.get(sid) != Some(&g) {
                     sh.pictures.insert(sid.clone(), (g, Arc::new(Picture { w: p.w, h: p.h, rgba: p.rgba.clone(), mips: p.mips, crop: p.crop, tex: p.tex.clone() })));
                     self.proj_published.insert(sid.clone(), g);
@@ -308,11 +320,16 @@ impl Runtime {
                     app: crate::yuv::Space { bt709: src["bt709"].as_bool().unwrap_or(false), full_range: src["fullRange"].as_bool().unwrap_or(false) },
                     twins: src["twins"].as_bool().unwrap_or(false),
                 }),
+                "shader" => Source::Shader(crate::shader::Spec::from_json(src)),
                 "none" => Source::None,
                 _ => Source::None,
             };
             sources.insert(id, source);
         }
+        // What each surface's source resolved to, once per change (diagnostic: which kinds the engine was given).
+        let kinds: Vec<String> = d["surfaces"].as_array().into_iter().flatten().map(|s| { let id = s["id"].as_str().unwrap_or_default(); let k = &d["sources"][id]; format!("{}={}{}", s["name"].as_str().unwrap_or(id), k["kind"].as_str().unwrap_or("?"), k["why"].as_str().map(|w| format!(" ({w})")).unwrap_or_default()) }).collect();
+        let summary = kinds.join(", ");
+        if summary != self.sources_summary { eprintln!("artlux-engine: sources: {summary}"); self.sources_summary = summary; }
         let mut doc = Doc { rev, lfix, surfaces, pfix, controllers, defaults, lut: pack::gamma_lut(d["gamma"].as_f64().unwrap_or(1.0)),
             port: d["port"].as_u64().unwrap_or(6454) as u16, sources, opacity, owns: false, lights: Vec::new() };
         let light_ids: Vec<&str> = d["lights"].as_array().into_iter().flatten().filter_map(|v| v.as_str()).collect();
@@ -322,7 +339,9 @@ impl Runtime {
         // generation belong to the old source.
         if let Some(old) = &self.doc {
             for (k, src) in &doc.sources {
-                if old.sources.get(k) != Some(src) && !matches!((old.sources.get(k), src), (Some(Source::Effect(_)), Source::Effect(_))) {
+                // A shader whose SIZE alone changed (a surface being dragged) keeps its picture and history.
+                let same_shader = matches!((old.sources.get(k), src), (Some(Source::Shader(a)), Source::Shader(b)) if a.source == b.source && a.inputs == b.inputs && a.last_frame == b.last_frame);
+                if old.sources.get(k) != Some(src) && !same_shader && !matches!((old.sources.get(k), src), (Some(Source::Effect(_)), Source::Effect(_))) {
                     self.pictures.remove(k); self.gens.remove(k);
                 }
             }
@@ -338,6 +357,8 @@ impl Runtime {
         self.pending_cams.retain(|k, l| matches!(doc.sources.get(k), Some(Source::Camera(c)) if &c.label == l));
         // Keep the effects' state (Fire's heat) across documents for surfaces that are still effects.
         self.effects.retain(|k, _| matches!(doc.sources.get(k), Some(Source::Effect(_))));
+        self.shaders.retain(|k, r| matches!(doc.sources.get(k.trim_end_matches("@proj")), Some(Source::Shader(s)) if r.fits(s)));
+        self.proj_pictures.retain(|k, _| matches!(doc.sources.get(k), Some(Source::Shader(_))));
         let ids: Vec<String> = doc.sources.keys().cloned().collect();
         self.cache.retain(&|k| ids.iter().any(|i| i == k));
         self.pictures.retain(|k, _| ids.iter().any(|i| i == k));
@@ -358,6 +379,14 @@ impl Runtime {
             let src = &d["sources"][sid];
             match src["kind"].as_str() {
                 Some("image") | Some("effect") | Some("hap") | Some("spout") | Some("none") => {}
+                // E2: compiled HERE, so a text naga cannot take leaves the show to the app, with naga's log.
+                Some("shader") => {
+                    let Some(Source::Shader(spec)) = doc.sources.get(sid) else { unreachable!() };
+                    if self.shaders.get(sid).is_none_or(|r| !r.fits(spec)) {
+                        let r = crate::shader::Runner::new(&self.gpu, spec).map_err(|e| format!("surface '{}': shader: {}", name_of(d, sid), e.lines().next().unwrap_or("")))?;
+                        self.shaders.insert(sid.clone(), r);
+                    }
+                }
                 Some("camera") => {
                     #[cfg(windows)]
                     { let Some(Source::Camera(c)) = doc.sources.get(sid) else { unreachable!() }; let c = c.clone(); self.ensure_camera(sid, &c).map_err(|e| format!("surface '{}': {e}", name_of(d, sid)))?; }
@@ -538,6 +567,38 @@ impl Runtime {
                     }
                     #[cfg(not(windows))]
                     { let _ = c; self.pictures.remove(sid); }
+                }
+                // Held (the app's guard froze it): the last frame stays, as the app's does.
+                Source::Shader(spec) if spec.hold && self.pictures.contains_key(sid) => {}
+                Source::Shader(spec) => {
+                    // Compiled on first use too: a surface shown only by a projector or the 3D view is drawn
+                    // without the LED verdict having seen it. A text that will not compile draws nothing.
+                    if self.shaders.get(sid).is_none_or(|r| !r.fits(spec)) {
+                        match crate::shader::Runner::new(&self.gpu, spec) {
+                            Ok(r) => { self.shaders.insert(sid.clone(), r); }
+                            Err(e) => { eprintln!("artlux-engine: surface {sid}: shader: {}", e.lines().next().unwrap_or("")); self.pictures.remove(sid); continue; }
+                        }
+                    }
+                    if !self.pictures.contains_key(sid) { eprintln!("artlux-engine: surface {sid}: shader drawn by the engine ({}x{}, {} inputs{})", spec.w, spec.h, spec.inputs.len(), if spec.last_frame { ", feedback" } else { "" }); }
+                    let tex = self.shaders.get_mut(sid).unwrap().render(&self.gpu, spec.w, spec.h, t, &v["shader"][sid]);
+                    self.pictures.insert(sid.clone(), Picture::gpu_frame(spec.w, spec.h, tex, [0, 0, spec.w, spec.h]));
+                    // On an engine projector: drawn again at that output's own size (the largest, if several).
+                    let css = self.projectors.iter().filter(|(_, s, _)| s == sid).filter_map(|(_, _, o)| Some((o["css"][0].as_f64()?, o["css"][1].as_f64()?))).max_by(|a, b| (a.0 * a.1).total_cmp(&(b.0 * b.1)));
+                    match css {
+                        Some((cw, ch)) => {
+                            let (pw, ph) = crate::shader::size_for(cw * ch, spec.w as f64 / spec.h.max(1) as f64);
+                            let key = format!("{sid}@proj");
+                            if !self.shaders.contains_key(&key) {
+                                if let Ok(r) = crate::shader::Runner::new(&self.gpu, spec) { self.shaders.insert(key.clone(), r); }
+                            }
+                            if let Some(r) = self.shaders.get_mut(&key) {
+                                let tex = r.render(&self.gpu, pw, ph, t, &v["shader"][sid]);
+                                self.proj_pictures.insert(sid.clone(), Picture::gpu_frame(pw, ph, tex, [0, 0, pw, ph]));
+                            }
+                        }
+                        None => { self.proj_pictures.remove(sid); }
+                    }
+                    self.gen += 1; self.gens.insert(sid.clone(), self.gen << 2 | 2);
                 }
                 Source::None => { self.pictures.remove(sid); }
             }

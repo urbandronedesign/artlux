@@ -814,6 +814,25 @@ Started with `--broadcast`, ArtLux runs your shaders and shows them on the outpu
 and no library** — there is no operator at that machine and nothing should be compiling while a show
 is on. Everything you built is already in the project.
 
+## With the native engine
+
+When ArtLux runs with the native engine (`--native-engine`), the engine draws your shaders itself — on
+the fixtures, on its projector outputs and in its own 3D view window — from the same code, the same
+parameters, the same sound and the same people as the editor. Nothing about writing a shader changes, and
+there is nothing to switch on.
+
+- **What you see is what goes out.** The pictures match the editor's within one step in 255; on a
+  projector output the shader is drawn at that display's full size, as before.
+- **Noise built on the `fract(sin(x) * 43758.5…)` hash** keeps its look but not its exact grain: that
+  hash turns the tiniest rounding difference in `sin` into a different random value, so the engine's
+  grain and the editor's differ the way two different graphics cards already do. The cookbook's noise
+  and the node editor's noise nodes are made this way. If a cue depends on one exact speck, use a hash
+  without `sin` (an integer or `fract(p * 0.1031)`-style hash).
+- **A shader the editor stops for overrunning its time** stays frozen on its last picture in the
+  engine too, rather than going dark.
+- **A shader that will not build** in the engine (rare — every shader ArtLux ships builds) leaves the
+  show to the editor, which keeps the outputs and says why in the machine log.
+
 ## The clock: a shader follows the show, not the wall
 
 A shader's motion is driven by **show time**. That means it does what the rest of the show does:

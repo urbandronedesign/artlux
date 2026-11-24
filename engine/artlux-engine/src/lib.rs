@@ -35,6 +35,7 @@ pub mod projector;
 pub mod runtime;
 pub mod outputs;
 pub mod view3d;
+pub mod shader;
 #[cfg(feature = "ndi")]
 pub mod ndi;
 pub mod windows;
@@ -212,6 +213,21 @@ impl Gpu {
         buf.unmap();
         Ok(out)
     }
+}
+
+/// Read an RGBA8 texture back to the CPU (rows tightly packed, row 0 first) — for harnesses and tests.
+pub fn read_texture_rgba(gpu: &Gpu, tex: &wgpu::Texture, w: u32, h: u32) -> Vec<u8> {
+    let stride = (w * 4).div_ceil(256) * 256;
+    let buf = gpu.device.create_buffer(&wgpu::BufferDescriptor { label: Some("readback"), size: (stride * h) as u64, usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::MAP_READ, mapped_at_creation: false });
+    let mut enc = gpu.device.create_command_encoder(&Default::default());
+    enc.copy_texture_to_buffer(wgpu::TexelCopyTextureInfo { texture: tex, mip_level: 0, origin: wgpu::Origin3d::ZERO, aspect: wgpu::TextureAspect::All },
+        wgpu::TexelCopyBufferInfo { buffer: &buf, layout: wgpu::TexelCopyBufferLayout { offset: 0, bytes_per_row: Some(stride), rows_per_image: Some(h) } },
+        wgpu::Extent3d { width: w, height: h, depth_or_array_layers: 1 });
+    gpu.queue.submit([enc.finish()]);
+    let raw = gpu.read_buffer(&buf, (stride * h) as usize).unwrap_or_default();
+    let mut out = Vec::with_capacity((w * h * 4) as usize);
+    for y in 0..h as usize { let o = y * stride as usize; if o + (w * 4) as usize <= raw.len() { out.extend_from_slice(&raw[o..o + (w * 4) as usize]); } }
+    out
 }
 
 // ── 1. AN OFFSCREEN RENDER, READ BACK ────────────────────────────────────────────────────────────────

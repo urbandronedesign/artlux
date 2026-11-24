@@ -507,3 +507,41 @@ export function clearPrograms(): void {
   if (g) for (const e of programs.values()) if (e.program) g.deleteProgram(e.program);
   programs.clear();
 }
+
+/**
+ * E2 — THIS FRAME'S UNIFORMS FOR THE NATIVE ENGINE (plans/native-engine.md: "the host evaluates, the
+ * engine draws"; engine half engine/artlux-engine/src/shader.rs).
+ *
+ * Every value renderToBitmap above uploads, from the SAME taps and the same rules, so the engine's
+ * picture is the app's: the render clock's wall time and frame, the enveloped sound, the beat with this
+ * shader's own damper when it declares one, the people (only for a shader that reads them — 384 floats
+ * otherwise sent for nothing) and each declared input as one vec4 in header order. Resolution, aspect
+ * and show time are the engine's (it knows the size it draws at and the tick's `t`).
+ */
+export function nativeUniforms(source: string, timeSec: number, params?: Map<string, number | number[]>): Record<string, unknown> {
+  const inputs = parseHeader(source).inputs;
+  const offline = renderClock.isOffline();
+  const damp = inputs.find((i) => i.type === 'beatDamp');
+  const sec = damp ? Number(params?.get(damp.name) ?? damp.def) : NaN;
+  const reads = /\b(iPeople|iPeopleMotion|iPeopleCount|iTrackZone)\b/.test(source);
+  const vec = (input: ShaderInput): number[] => {
+    const v = params?.get(input.name) ?? input.def;
+    switch (input.type) {
+      case 'color': { const c = Array.isArray(v) ? v : [1, 1, 1, 1]; return [c[0] ?? 0, c[1] ?? 0, c[2] ?? 0, c[3] ?? 1]; }
+      case 'point2D': { const c = Array.isArray(v) ? v : [0.5, 0.5]; return [c[0] ?? 0, c[1] ?? 0, 0, 0]; }
+      case 'bool': return [(typeof v === 'number' ? v : 0) >= 0.5 ? 1 : 0, 0, 0, 0];
+      case 'long': case 'palette': return [Math.round(typeof v === 'number' ? v : 0), 0, 0, 0];
+      default: return [typeof v === 'number' ? v : 0, 0, 0, 0];
+    }
+  };
+  return {
+    wall: renderClock.now() / 1000,
+    frame: offline ? Math.round(timeSec * OFFLINE_IFRAME_FPS) : frameCounter,
+    audio: Array.from(audioSpectrum()),
+    level: broadband(),
+    beat: Array.from(Number.isFinite(sec) ? beatPulsesWith(sec) : beatPulses()),
+    beatCount: Array.from(beatCounts()),
+    ...(reads ? { people: Array.from(peoplePos(offline)), motion: Array.from(peopleMotion(offline)), count: Array.from(peopleCount(offline)), zone: Array.from(trackZone()) } : {}),
+    in: inputs.map(vec),
+  };
+}

@@ -1758,6 +1758,49 @@ fallback until a source/output is proven byte-identical — risk 2):
 > - **Next:** a dev-only hook in the app that writes its own camera frames, to measure the engine's MJPEG decode
 >   against them; then the camera takeover.
 
+## 9e. E2 — shaders in the engine (owner, 2026-11-24: "make sure we can draw shaders" → "the remaining plan")
+
+> ✅ **E2 shaders done 2026-11-24.** `engine/artlux-engine/src/shader.rs`:
+> - **The author's text is never edited.** The engine wraps it the way `plugins/shader/src/wrapper.ts` does,
+>   for naga's GLSL front end instead of WebGL: the uniforms live in ONE std140 block (naga takes no loose
+>   uniforms) and the names the author reads are private globals filled at the top of `main` (a real
+>   `float iAudio[16]`, not a vec4[4]); `palette()` and `lastFrame` are a texture + a sampler
+>   (`lastFrame` a macro for `sampler2D(tex, samp)`); `iPeople`/`iPeopleMotion` are macros onto the block (no
+>   96-vec4 copy per pixel). naga → WGSL → wgpu. WebGL's BOTTOM-left window origin is kept where an author
+>   can see it: `gl_FragCoord` is turned back, `dFdy` keeps GL's sign, the feedback history is stored in GL's
+>   row order (one flip pass per frame), and vUv is built bottom-up as the app's.
+> - **"The host evaluates, the engine draws."** The SDK's `ContentSourceProvider` gained optional
+>   `nativeSource` / `nativeTick`; core `contentSource.nativeSource` asks a plugin type's provider. The shader
+>   plugin answers with the text the app is RUNNING (the last that compiled, if an edit is broken), its header
+>   inputs and their GLSL types, and the main window's raster (`sizeFor`); each tick `nativeUniforms` sends
+>   what `renderToBitmap` uploads, from the same taps: wall time and frame, the enveloped sound, the beat with
+>   the shader's own damper, the people (only for a shader that reads them), each input as one vec4.
+> - **One runner per surface** (its program, its feedback history). A surface on an ENGINE projector output is
+>   drawn AGAIN by a second runner at that display's CSS size (main sends `css`) — as the app's projector
+>   window runs its own copy at its own size. A surface the app's guard DISABLED is sent with `hold`: the
+>   engine keeps its last picture (it first answered "unsupported" and the engine's picture went BLACK where
+>   the app's froze — found with the 3D view and the engine window open). A text naga refuses leaves the show
+>   to the app with naga's log (`verdict`).
+> - **Proof** (packaged Show, scratch profiles):
+>   - `test:shader-parity` — every shader ArtLux ships (12 starters, the cookbook, the node editor's 8
+>     examples, every SHADER surface in examples/ — 28 unique) compiles, and renders within 1 of 255 of the
+>     app's own WebGL program in ArtLux's Chromium, over three show times (feedback carried), EXCEPT the 3
+>     built on the `fract(sin(x)*43758)` hash: ANGLE's HLSL and naga's are the same expression (dumped and
+>     compared), but the app compiles through D3D11 and the engine through D3D12, and one ulp of `sin`
+>     amplified 43 758× moves the grain (2–9 % of channels). Reported, not gated; the app's own picture
+>     already differs that way between GPUs; SHADERS.md tells the operator.
+>   - `test:shader-wire` — the engine owns the wire; two still shaders (one reading a palette input) give
+>     IDENTICAL Art-Net on strips and serpentine matrices (4 universes); the moving plasma moves and every
+>     engine payload equals one the app sent (median 0.00 levels).
+>   - `test:shader-projector` — a still shader on a keystoned, soft-edged, colour-corrected projector output:
+>     the engine's screen = the app's, 0 of 2 073 600 pixels apart by more than 1 (it was 10 % apart while the
+>     engine drew at the editor's raster — the second runner fixed it).
+>   - The engine's 3D view window shows shader screens (multi-projector example), matching the editor.
+>   - `verify:invariants`: every uniform in wrapper.ts UNIFORMS exists in shader.rs; a disabled shader is
+>     sent as `hold` and held (mutation-tested both). `test:engine-runtime` unchanged.
+> - **Not covered:** a shader on a LAYER / timeline clip (layers stay the app's — E3), the offline bake (E6),
+>   shaders reading sound/people verified only through the live wire test's plasma (no sound/people in it).
+
 ## 9d. E4 started early — the 3D view in the engine (owner, 2026-11-24)
 
 > **Owner, 2026-11-24: "start E4's 3D now"** — for the detachable 3D view (plans/3d-workbench.md §5/Phase 4),
@@ -1809,7 +1852,7 @@ fallback until a source/output is proven byte-identical — risk 2):
 >   example: named screen; projected from a frozen view; a panel between projector and screen — engine,
 >   editor WebGPU and editor WebGL (forced) all identical. Guarded in verify:invariants.
 > - **Not yet (E4b…):** beams and the Rendered look, labels, selection / picking (the GPU id buffer, body
->   before LEDs) and the gizmo, sources the engine does not draw (layers, shaders, tracking…) on screens
+>   before LEDs) and the gizmo, sources the engine does not draw (layers, text, tracking…) on screens
 >   and venue meshes, the four-view layout, saving the window's place, macOS / Linux.
 
 ## 10. Open questions

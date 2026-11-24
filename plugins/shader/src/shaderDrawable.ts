@@ -8,7 +8,8 @@
 import type { SurfaceContent } from '@/types';
 import { getSurface } from '@/services/surfaceMedia'; // host service (transitional runtime seam, as in augmentaDrawable)
 import { reportFault } from '@/services/faultReporter';
-import { getProgram, renderToBitmap, failedProgram, dropHistory, maxRenderHeight, type CompiledProgram } from './shaderContext';
+import { getProgram, renderToBitmap, failedProgram, dropHistory, maxRenderHeight, nativeUniforms, type CompiledProgram } from './shaderContext';
+import { parseHeader, glslTypeOf } from './header';
 import { sourceOf } from './shaderSource';
 import { lintLoops, noteDraw, isDisabled, rearm, BUDGET } from './shaderGuard';
 import { resolve as resolveParams } from './shaderParams';
@@ -222,4 +223,29 @@ export function release(key: string): void {
   entries.delete(key);
   dropHistory(key); // a feedback buffer is a full-resolution texture; it must not outlive its surface
   rearm(key);
+}
+
+/**
+ * E2 — what the NATIVE ENGINE should draw for this surface (contentSource.nativeSource asks every plugin
+ * type through its provider). The text is the one the app is RUNNING — the last that compiled when an
+ * edit is broken, exactly as resolveProgram does — so the engine never shows a typo the app hides. Sized
+ * as the main window sizes it (sizeFor), header inputs in order, and their GLSL types (wrapper.ts).
+ */
+export function nativeSourceFor(key: string, content: SurfaceContent): { kind: string; [k: string]: unknown } {
+  const source = sourceOf(content);
+  const run = compile(source).ok ? source : entries.get(key)?.lastGoodSource ?? null;
+  if (!run) return { kind: 'unsupported', why: 'a shader that does not compile' };
+  const header = parseHeader(run);
+  const { w, h } = sizeFor(content.shaderRes ?? DEFAULT_HEIGHT, aspectFor(key));
+  // A surface the guard DISABLED keeps its last picture in the app (getFor) — `hold` asks the engine for the
+  // same: keep the frame it has, draw no more. (It used to answer "unsupported", and the engine's picture went
+  // BLACK where the app's froze — measured with the 3D view and the engine window both open.)
+  return { kind: 'shader', source: run, inputs: header.inputs.map((i) => ({ name: i.name, glsl: glslTypeOf(i.type) })), lastFrame: header.needsLastFrame, w, h, ...(isDisabled(key) ? { hold: true } : {}) };
+}
+
+/** E2 — this frame's uniforms for the native engine (shaderContext.nativeUniforms), for the text it runs. */
+export function nativeTickFor(key: string, content: SurfaceContent, timeSec: number): Record<string, unknown> | undefined {
+  const src = nativeSourceFor(key, content);
+  if (src.kind !== 'shader') return undefined;
+  return nativeUniforms(src.source as string, timeSec, resolveParams(key, content));
 }

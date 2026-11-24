@@ -148,7 +148,7 @@ export function noteBakedMap(key: string, w: number, h: number, uv: Float32Array
 // windows by PHYSICAL bounds (winit monitors), so each projector entry gets its display's bounds in screen
 // pixels here — or a reason when that display is not connected (the engine then opens nothing anywhere).
 function withDisplayBounds(json: string): string {
-  let doc: { projectors?: { displayId?: number | null; bounds?: unknown; why?: string; baked?: { key: string } & Record<string, unknown> }[] };
+  let doc: { projectors?: { displayId?: number | null; bounds?: unknown; css?: [number, number]; why?: string; baked?: { key: string } & Record<string, unknown> }[] };
   try { doc = JSON.parse(json); } catch { return json; }
   if (!doc.projectors?.length) return json;
   const displays = screen.getAllDisplays();
@@ -156,6 +156,9 @@ function withDisplayBounds(json: string): string {
     const d = displays.find((x) => x.id === p.displayId);
     if (!d) { if (!p.why) p.why = 'its display is not connected'; continue; }
     p.bounds = process.platform === 'win32' ? screen.dipToScreenRect(null, d.bounds) : { x: Math.round(d.bounds.x * d.scaleFactor), y: Math.round(d.bounds.y * d.scaleFactor), width: Math.round(d.bounds.width * d.scaleFactor), height: Math.round(d.bounds.height * d.scaleFactor) };
+    // E2: the display in CSS pixels — the app's projector window's innerWidth × innerHeight, which is the
+    // pixel budget its shaders are drawn at (plugins/shader shaderDrawable.sizeFor, windowKind 'projector').
+    p.css = [d.bounds.width, d.bounds.height];
     // Item 3: the calibration map's files. Not written yet → not drawable yet (the engine would warp it flat).
     if (p.baked) {
       const f = bakedFiles.get(p.baked.key);

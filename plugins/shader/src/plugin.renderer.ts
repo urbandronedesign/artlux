@@ -67,6 +67,9 @@ export const plugin: RendererPlugin = {
       // pixels did not change — which, because timeSec is SHOW time, is every frame of a paused show.
       getDrawableGeneration: (key) => shaderDrawable.generationOf(key),
       release: (key) => shaderDrawable.release(key),
+      // E2: the native engine draws shaders itself (engine shader.rs) — what to draw, and each frame's values.
+      nativeSource: (key, content) => shaderDrawable.nativeSourceFor(key, content as SurfaceContent),
+      nativeTick: (key, content, timeSec) => shaderDrawable.nativeTickFor(key, content as SurfaceContent, timeSec),
       // Its editor fragment is the UI half's (ui.ts), activated by the host in every window.
     });
 

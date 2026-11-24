@@ -64,6 +64,15 @@ export interface ContentSourceProvider<C = unknown, D = Drawable> {
   getDrawableGeneration?(key: string, content: C): number | undefined;
   getAspect?(key: string, content: C): number | null;
   /**
+   * OPTIONAL — what the NATIVE ENGINE should draw for this key (plans/native-engine.md). Return a source
+   * the engine knows (`{ kind: 'shader', … }` today) or `{ kind: 'unsupported', why }`; absent means the
+   * engine cannot draw this type and the app keeps the output, with that reason. The engine draws only
+   * what it was measured to draw exactly as the app does, so opt in per kind, not per plugin.
+   */
+  nativeSource?(key: string, content: C): { kind: string; [k: string]: unknown } | null;
+  /** OPTIONAL — this frame's values for the source `nativeSource` named (sent with every engine tick). */
+  nativeTick?(key: string, content: C, timeSec: number): unknown;
+  /**
    * OPTIONAL — declare that this source is a PURE FUNCTION of the `timeSec` it is handed, so a
    * non-realtime render (an offline bake) can step it off the wall clock and get the same pictures.
    *

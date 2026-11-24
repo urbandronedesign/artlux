@@ -33,7 +33,7 @@ artlux-output-engine = { path = "../../native/output-engine", default-features =
 grafton-ndi = { version = "=1.0.0", optional = true }
 # The plain warp's soft-edge residue (plans/native-engine.md): `--dump-hlsl` prints the HLSL naga writes for
 # the projector shader — the SAME naga wgpu 30 uses (no new crate; only its writer is called directly).
-naga = { version = "=30.0.2", features = ["wgsl-in", "hlsl-out"] }
+naga = { version = "=30.0.2", features = ["wgsl-in", "hlsl-out", "glsl-in", "wgsl-out"] }
 gltf = { version = "1", default-features = false, features = ["import", "utils", "KHR_materials_unlit"] }   # E4a: the 3D view loads the venue GLBs itself
 
 [features]

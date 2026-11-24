@@ -738,7 +738,10 @@ export function releaseExact(keys?: readonly string[]): void {
 // A VIDEO is HAP only once its codec has claimed it — until then it is unsupported, i.e. the app's.
 export type NativeSource = { kind: 'image' | 'hap'; path: string } | { kind: 'mp4'; path: string; durUs: number } | { kind: 'spout' | 'ndi'; name: string }
   | { kind: 'camera'; label: string; bt709: boolean; fullRange: boolean; twins: boolean }
-  | { kind: 'effect' | 'none' } | { kind: 'unsupported'; why: string };
+  | { kind: 'effect' | 'none' } | { kind: 'unsupported'; why: string }
+  // E2: a shader (plugins/shader nativeSourceFor; engine shader.rs) — the text the app is running, its
+  // header inputs with their GLSL types, and the raster the main window draws it at.
+  | { kind: 'shader'; source: string; inputs: { name: string; glsl: string }[]; lastFrame: boolean; w: number; h: number; hold?: boolean };
 
 // Item 2d step 5 (plans/native-engine.md): a CAMERA surface. The app keeps its camera (owner's decision); the
 // engine reads the same device SHARED and draws it as this app does (engine cam.rs — proven by
@@ -830,8 +833,18 @@ export function nativeSource(key: string, content: SurfaceContent): NativeSource
       if (e?.type === 'CODEC' && e.codecId === 'mp4-webcodecs') return mp4NativeSource(e.path);
       return { kind: 'unsupported', why: e?.type === 'CODEC' ? `a ${e.codecId} video is decoded in the browser` : 'a video that is not HAP is decoded in the browser' };
     }
-    default: return { kind: 'unsupported', why: `${content.type} is not drawn by the native engine yet` };
+    default: {
+      // A PLUGIN TYPE ANSWERS FOR ITSELF (E2: SHADER) — the same registry getDrawable dispatches through.
+      const ns = contentSourceRegistry.get(content.type)?.nativeSource?.(key, content);
+      if (ns) return ns as NativeSource;
+      return { kind: 'unsupported', why: `${content.type} is not drawn by the native engine yet` };
+    }
   }
+}
+
+/** E2: this frame's values for a plugin source the engine draws (the provider's nativeTick), or undefined. */
+export function nativeTick(key: string, content: SurfaceContent, timeSec: number): unknown {
+  return contentSourceRegistry.get(content.type)?.nativeTick?.(key, content, timeSec);
 }
 
 export function getDrawableGeneration(key: string, content: SurfaceContent): number | undefined {
