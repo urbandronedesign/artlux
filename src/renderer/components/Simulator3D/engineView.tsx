@@ -2,7 +2,10 @@ import { useEffect, useRef } from 'react';
 import * as THREE from 'three';
 import { useThree } from '@react-three/fiber';
 import type { Fixture, FixtureProfile } from '../../types';
-import { computeLedPositions, effectivePos, effectiveRot, meanScale } from '../../services/led3dLayout';
+import { computeLedPositions, effectivePos, effectiveRot, meanScale, authoredRot, effectiveScale } from '../../services/led3dLayout';
+import { gizmoDelta, gestureSummary, type GizmoBasis, type GizmoStart } from './gizmoDelta';
+import { setPreview, clearPreview, beginPreview, type FixtureTransform } from './fixturePreview';
+import { getLivePreview, type SnapSettings } from '../../services/scene3dQuality';
 import { isResolvedLight } from '../../services/fixtureKind';
 import { rigMetrics, mountShift } from '../../services/profileRig';
 import { isLight } from '../../services/fixtureKind';
@@ -135,13 +138,74 @@ function buildScene(scene: THREE.Scene, fixtures: Fixture[], beams: EngineBeams)
     }
     return out;
   });
+  const g = beams.gizmo && beams.gizmo.mode === 'translate' ? gizmoAnchor(beams.gizmo.fixtures, beams.gizmo.space, beams.gizmo.activeId) : null;
   return JSON.stringify({ models, leds, lights, lines, beams: { haze: r4(beams.haze), cones: beams.cones, rendered: beams.rendered, selected: beams.selected },
-    grid: { visible: beams.grid, labels: beams.gridLabels } });
+    grid: { visible: beams.grid, labels: beams.gridLabels },
+    gizmo: g ? { at: [r4(g.at.x), r4(g.at.y), r4(g.at.z)], q: (g.space === 'local' ? [g.q.x, g.q.y, g.q.z, g.q.w] : [0, 0, 0, 1]).map((x) => Math.round(x * 1e6) / 1e6),
+      snap: beams.gizmo!.snap?.on ? beams.gizmo!.snap.move : null } : null });
+}
+
+/**
+ * E4b — WHERE THE GIZMO SITS, exactly as FixtureGizmo parks its anchor: the selection's centroid; oriented to the
+ * ACTIVE fixture with "Object" axes, to a lone fixture's own rotation in "World" (three world-aligns translate
+ * handles regardless), identity for a group. The engine draws the handles there; a drag comes back as an offset.
+ */
+export function gizmoAnchor(fixtures: readonly Fixture[], space: 'world' | 'local', activeId: string | null | undefined) {
+  if (!fixtures.length) return null;
+  const at = new THREE.Vector3();
+  for (const f of fixtures) at.add(effectivePos(f));
+  at.divideScalar(fixtures.length);
+  const active = (activeId && fixtures.find((f) => f.id === activeId)) || fixtures[0];
+  const e = space === 'local' ? effectiveRot(active) : fixtures.length === 1 ? effectiveRot(fixtures[0]) : new THREE.Euler();
+  return { at, q: new THREE.Quaternion().setFromEuler(e), space };
+}
+
+// ── E4b: a drag on the ENGINE window's move gizmo, applied as the editor's own gizmo applies one ─────────────
+// The same `gizmoDelta` as FixtureGizmo (the one definition of what a drag means), the same preview channel
+// (fixturePreview: the editor's views follow at pointer rate, no document write), undo recorded on the FIRST
+// movement, one commit on release. The engine sends only the offset; the anchor is re-derived here from the
+// selection as it was at the grab, so the commit is measured against exactly what the editor had.
+let engineGesture: { start: GizmoStart[]; basis: GizmoBasis; moved: boolean } | null = null;
+export function applyEngineGizmo(
+  phase: 'start' | 'move' | 'end', delta: [number, number, number],
+  ctx: { fixtures: readonly Fixture[]; space: 'world' | 'local'; activeId: string | null | undefined; onRecordHistory: () => void; onCommit: (u: Array<{ id: string } & FixtureTransform>) => void },
+): void {
+  if (phase === 'start') {
+    const a = gizmoAnchor(ctx.fixtures, ctx.space, ctx.activeId);
+    if (!a) { engineGesture = null; return; }
+    engineGesture = {
+      basis: { centroid: a.at.clone(), quat: a.q.clone(), scale: new THREE.Vector3(1, 1, 1) },
+      start: ctx.fixtures.map((f) => ({ id: f.id, pos: effectivePos(f), rot: authoredRot(f), scale: effectiveScale(f) })),
+      moved: false,
+    };
+    beginPreview(getLivePreview());
+    return;
+  }
+  const g = engineGesture;
+  if (!g) return;
+  const anchor = new THREE.Object3D();
+  anchor.position.copy(g.basis.centroid).add(new THREE.Vector3(delta[0], delta[1], delta[2]));
+  anchor.quaternion.copy(g.basis.quat);
+  const moved = delta.some((x) => Math.abs(x) > 1e-9);
+  if (phase === 'move') {
+    if (!moved) return;
+    if (!g.moved) { g.moved = true; ctx.onRecordHistory(); }
+    setPreview(gizmoDelta(g.start, g.basis, anchor, 'translate'), gestureSummary(g.start, g.basis, anchor, 'translate'));
+    return;
+  }
+  // end
+  engineGesture = null;
+  clearPreview();
+  if (!moved) return;   // grabbed and let go where it was: nothing to record or commit
+  if (!g.moved) ctx.onRecordHistory();
+  ctx.onCommit(gizmoDelta(g.start, g.basis, anchor, 'translate'));
 }
 
 /** How the beams look, as the editor's Beams is told (Simulator3D): haze, the cone diagram, the Rendered look, and
  *  the heads being aimed (they get the whole diagram). */
 export interface EngineBeams { profiles: ReadonlyMap<string, FixtureProfile>; haze: number; cones: boolean; rendered: boolean; selected: readonly string[];
+  /** The editor's fixture gizmo: the selection it drives, its tool and axes, the snap — the engine draws Move. */
+  gizmo?: { fixtures: readonly Fixture[]; mode: string; space: 'world' | 'local'; activeId: string | null | undefined; snap?: SnapSettings };
   /** The editor's floor grid and its numbers (scene3D.gridVisible / gridLabels) — the engine view follows them. */
   grid: boolean; gridLabels: boolean }
 

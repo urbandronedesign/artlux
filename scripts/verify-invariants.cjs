@@ -9386,6 +9386,28 @@ check(
   },
 );
 
+check(
+  'the engine window\'s move gizmo moves through the editor\'s own gizmo maths',
+  'E4b: a drag on the engine window\'s handles reaches the document ONLY through the editor: the engine sends the ' +
+  'offset (view3dGizmo), main relays it, Simulator3D hands it to engineView.applyEngineGizmo, which applies it with ' +
+  'the same gizmoDelta FixtureGizmo uses, records undo, previews and commits once. A second implementation of what ' +
+  'a drag means would drift from the editor\'s; a broken hop makes a drag in the engine window do nothing at all.',
+  () => {
+    const problems = [];
+    const O = 'engine/artlux-engine/src/outputs.rs', H = 'src/main/engineHost.ts', P = 'src/preload/index.ts', S = 'src/renderer/components/Simulator3D/Simulator3D.tsx', E = 'src/renderer/components/Simulator3D/engineView.tsx';
+    for (const f of [O, H, P, S, E]) if (!exists(f)) return `${f} is gone`;
+    const o = read(O), h = read(H), p = read(P), s = read(S), e = read(E);
+    if (!o.includes('"type":"view3dGizmo","phase":"end"')) problems.push('the engine no longer sends the drag\'s end');
+    if (!/m\.type === 'view3dGizmo'[\s\S]{0,400}IPC\.NATIVE_ENGINE_VIEW3D_GIZMO/.test(h)) problems.push('main no longer relays view3dGizmo');
+    if (!p.includes('IPC.NATIVE_ENGINE_VIEW3D_GIZMO')) problems.push('the preload no longer exposes the drag');
+    if (!s.includes('onNativeEngineView3dGizmo') || !s.includes('applyEngineGizmo(')) problems.push('Simulator3D no longer applies the drag');
+    const fn = e.slice(e.indexOf('export function applyEngineGizmo'));
+    if (!/ctx\.onCommit\(gizmoDelta\(/.test(fn) || !/setPreview\(gizmoDelta\(/.test(fn)) problems.push('applyEngineGizmo no longer previews and commits through gizmoDelta');
+    if (!/onRecordHistory\(\)/.test(fn)) problems.push('applyEngineGizmo no longer records undo');
+    return problems.length ? problems.join('; ') : null;
+  },
+);
+
 const ok = (m) => console.log(`\x1b[32m✓\x1b[0m ${m}`);
 const bad = (m) => console.error(`\x1b[31m✗\x1b[0m ${m}`);
 

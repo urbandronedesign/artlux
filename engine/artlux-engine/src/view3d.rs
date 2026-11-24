@@ -40,7 +40,9 @@ pub enum ModelKind {
 pub struct Model { pub id: String, pub kind: ModelKind, pub matrix: [f32; 16], pub content: Option<Content> }
 /// One pixel fixture: its LED world positions, in the same order as its texels in the composed buffer.
 pub struct LedFix { pub id: String, pub pos: Vec<f32> }
-pub struct Scene { pub models: Vec<Model>, pub leds: Vec<LedFix>, pub lights: Vec<LightFix>, pub lines: Vec<f32>, pub look: BeamLook, pub grid: GridLook }
+pub struct Scene { pub models: Vec<Model>, pub leds: Vec<LedFix>, pub lights: Vec<LightFix>, pub lines: Vec<f32>, pub look: BeamLook, pub grid: GridLook,
+    /// E4b: the editor's move gizmo, when it shows one (a selection, the Move tool) — gizmo.rs.
+    pub gizmo: Option<crate::gizmo::Gizmo> }
 /// The editor's grid toggles (scene3D.gridVisible / gridLabels): the floor grid with its axes, and its numbers.
 #[derive(Clone, Copy)]
 pub struct GridLook { pub visible: bool, pub labels: bool }
@@ -50,6 +52,7 @@ impl Default for GridLook { fn default() -> Self { GridLook { visible: true, lab
 /// (a quaternion, x y z w), the pan / tilt mid-points and the lens half-angle, in degrees. The MOVING half is
 /// resolved by the engine every tick (`Shared::beams`).
 pub struct LightFix { pub id: String, pub pos: [f32; 3], pub beam: Option<BeamFix> }
+#[derive(Clone, Copy)]
 pub struct BeamFix { pub apex: [f32; 3], pub q: [f32; 4], pub pan_mid: f32, pub tilt_mid: f32, pub lens_half: f32 }
 /// How the beams look — what Simulator3D hands its Beams: room haze, the cone diagram, the Rendered look, and
 /// the heads being aimed (they get the whole diagram: axis and edge rays).
@@ -130,7 +133,8 @@ impl Scene {
         };
         let g = &v["grid"];
         let grid = GridLook { visible: g["visible"].as_bool().unwrap_or(true), labels: g["labels"].as_bool().unwrap_or(true) };
-        Scene { models, leds, lights, lines, look, grid }
+        let gizmo = crate::gizmo::Gizmo::from_json(&v["gizmo"]);
+        Scene { models, leds, lights, lines, look, grid, gizmo }
     }
 }
 
@@ -300,6 +304,9 @@ pub struct Shared {
     pub cam_set: u64,
     /// E4b: where the operator last had the window, as main saved it (machine prefs) — None: the default.
     pub place: Option<Place>,
+    /// E4b: the gizmo handle under the cursor (drawn hot), and the drag in progress (its offset drawn here).
+    pub hover_axis: Option<usize>,
+    pub drag: Option<crate::gizmo::Drag>,
 }
 
 // ── Math (column-major, three.js / WGSL order) ──────────────────────────────────────────────────────
@@ -676,6 +683,17 @@ pub fn present(gpu: Arc<Gpu>, window: Arc<Window>, surface: wgpu::Surface<'stati
         primitive: wgpu::PrimitiveState { topology: wgpu::PrimitiveTopology::LineList, ..Default::default() },
         depth_stencil: ds(false), multisample: ms, multiview_mask: None, cache: None,
     });
+    // The gizmo's handles: flat-coloured triangles drawn OVER everything (depth ignored), as TransformControls'.
+    let handle_pipe = d.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+        label: Some("gizmo"), layout: Some(&cam_pl),
+        vertex: wgpu::VertexState { module: &module, entry_point: Some("vs_line"), compilation_options: Default::default(), buffers: &[Some(wgpu::VertexBufferLayout {
+            array_stride: 28, step_mode: wgpu::VertexStepMode::Vertex, attributes: &wgpu::vertex_attr_array![0 => Float32x3, 1 => Float32x4] })] },
+        fragment: Some(wgpu::FragmentState { module: &module, entry_point: Some("fs_line_flat"), targets: &[Some(wgpu::ColorTargetState {
+            format, blend: Some(wgpu::BlendState::ALPHA_BLENDING), write_mask: wgpu::ColorWrites::ALL })], compilation_options: Default::default() }),
+        primitive: wgpu::PrimitiveState { cull_mode: None, ..Default::default() },
+        depth_stencil: Some(wgpu::DepthStencilState { format: DEPTH, depth_write_enabled: Some(false), depth_compare: Some(wgpu::CompareFunction::Always), stencil: Default::default(), bias: Default::default() }),
+        multisample: ms, multiview_mask: None, cache: None,
+    });
     let label_pipe = d.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
         label: Some("floor numbers"), layout: Some(&depth_pl),
         vertex: wgpu::VertexState { module: &module, entry_point: Some("vs_label"), compilation_options: Default::default(), buffers: &[Some(wgpu::VertexBufferLayout {
@@ -808,6 +826,9 @@ pub fn present(gpu: Arc<Gpu>, window: Arc<Window>, surface: wgpu::Surface<'stati
     let mut label_state = crate::labels::State::default();
     let mut label_buf: Option<wgpu::Buffer> = None;
     let mut labels_logged = false;
+    let mut handle_buf: Option<wgpu::Buffer> = None;
+    // E4b: the drawing of a drag in progress — the selection's LEDs, housings and beams moved by the offset.
+    let mut drag_drawn: Option<[f32; 3]> = None;
 
     // The screen quad: 1 × 1 in XY facing +Z, scaled per plane (PlaneGeometry's UVs: v = 0 at the bottom,
     // and the picture's row 0 is its TOP, so the quad samples (u, 1 - v)).
@@ -862,10 +883,17 @@ pub fn present(gpu: Arc<Gpu>, window: Arc<Window>, surface: wgpu::Surface<'stati
         }
 
         // What the render thread and the window published.
-        let (sc, colors, pics, cam, beam_states) = {
+        let (sc, colors, pics, cam, beam_states, hover_axis, mut drag) = {
             let s = shared.lock().unwrap();
-            (s.scene.clone(), s.colors.clone(), s.pictures.clone(), s.cam, s.beams.clone())
+            (s.scene.clone(), s.colors.clone(), s.pictures.clone(), s.cam, s.beams.clone(), s.hover_axis, s.drag.clone())
         };
+        // A finished drag's offset is drawn until the scene that carries the committed positions arrives.
+        if let (Some(dg), Some((ver, _))) = (&drag, &sc) {
+            if dg.ended_at_scene.is_some_and(|e| *ver > e) {
+                shared.lock().unwrap().drag = None;
+                drag = None;
+            }
+        }
 
         // A new scene: start loading files never seen, (re)write every placement.
         if let Some((ver, sc)) = &sc {
@@ -910,6 +938,7 @@ pub fn present(gpu: Arc<Gpu>, window: Arc<Window>, surface: wgpu::Surface<'stati
                 }
                 overlay = if ov.is_empty() { None } else { Some((buf_init(&gpu, "overlay", &bytes(&ov), wgpu::BufferUsages::VERTEX), (ov.len() / 7) as u32)) };
                 colors_gen = u64::MAX;
+                drag_drawn = None;   // a drag's offset is re-applied over the new positions
                 planes.retain(|id, _| sc.models.iter().any(|m| &m.id == id));
                 insts.retain(|id, _| sc.models.iter().any(|m| &m.id == id && matches!(m.kind, ModelKind::Glb(_))));
                 depths.retain(|id, _| sc.models.iter().any(|m| &m.id == id));
@@ -964,7 +993,44 @@ pub fn present(gpu: Arc<Gpu>, window: Arc<Window>, surface: wgpu::Surface<'stati
         cu.extend_from_slice(&vp); cu.extend_from_slice(&[eye[0], eye[1], eye[2], 1.0]); cu.extend_from_slice(&[px, look.haze, look.rendered as u32 as f32, 0.0]);
 
         // The beams, from this tick's resolved states.
-        let bf = scene.as_ref().map(|s| crate::beams::build(&s.lights, &beam_states, &s.look)).unwrap_or(crate::beams::Frame { cones: Vec::new(), lines: Vec::new() });
+        // A drag in progress moves the selection's drawing by its offset: the beams leave from the moved lenses.
+        let moved_lights: Option<Vec<LightFix>> = match (&drag, &scene) {
+            (Some(dg), Some(s)) => Some(s.lights.iter().map(|l| LightFix {
+                id: l.id.clone(),
+                pos: if dg.ids.contains(&l.id) { add(l.pos, dg.delta) } else { l.pos },
+                beam: l.beam.as_ref().map(|b| BeamFix { apex: if dg.ids.contains(&l.id) { add(b.apex, dg.delta) } else { b.apex }, ..*b }),
+            }).collect()),
+            _ => None,
+        };
+        let bf = scene.as_ref().map(|s| crate::beams::build(moved_lights.as_deref().unwrap_or(&s.lights), &beam_states, &s.look)).unwrap_or(crate::beams::Frame { cones: Vec::new(), lines: Vec::new() });
+        // The gizmo, at the anchor (moved with the drag), its held / hovered handle hot.
+        let handle_verts = match scene.as_ref().and_then(|s| s.gizmo) {
+            Some(mut g) => {
+                if let Some(dg) = &drag { g.at = add(g.at, dg.delta); }
+                crate::gizmo::geometry(&g, eye, px, drag.as_ref().map(|d| d.axis).or(hover_axis))
+            }
+            None => Vec::new(),
+        };
+        let n_handle_verts = (handle_verts.len() / 7) as u32;
+        grow(&mut handle_buf, &handle_verts, "gizmo");
+        // Housings and LED positions follow the drag (rewritten only while the offset changes).
+        let want_drawn = drag.as_ref().map(|d| d.delta);
+        if want_drawn != drag_drawn {
+            if let Some(s) = &scene {
+                let off = |id: &str| -> [f32; 3] { drag.as_ref().filter(|d| d.ids.contains(id)).map_or([0.0; 3], |d| d.delta) };
+                for (l, (ub, _)) in s.lights.iter().zip(&lights) {
+                    let p = add(l.pos, off(&l.id));
+                    let sel = s.look.selected.contains(&l.id);
+                    let m = [0.3, 0., 0., 0., 0., 0.3, 0., 0., 0., 0., 0.3, 0., p[0], p[1], p[2], 1.];
+                    write_obj(ub, &m, if sel { [ACCENT[0], ACCENT[1], ACCENT[2], 1.0] } else { [0.16, 0.16, 0.17, 1.0] }, [0.0; 4]);
+                }
+                if let Some((pb, _, _)) = &led_bufs {
+                    let pos: Vec<f32> = s.leds.iter().flat_map(|f| { let o = off(&f.id); f.pos.chunks_exact(3).flat_map(move |p| [p[0] + o[0], p[1] + o[1], p[2] + o[2]]).collect::<Vec<_>>() }).collect();
+                    gpu.queue.write_buffer(pb, 0, &bytes(&pos));
+                }
+            }
+            drag_drawn = want_drawn;
+        }
         let n_cones = (bf.cones.len() / crate::beams::CONE_FLOATS) as u32;
         let n_beam_verts = (bf.lines.len() / crate::beams::LINE_FLOATS) as u32;
         // The floor numbers, laid out against this frame's camera, in css pixels.
@@ -1195,6 +1261,11 @@ pub fn present(gpu: Arc<Gpu>, window: Arc<Window>, surface: wgpu::Surface<'stati
                 pass.set_vertex_buffer(0, ob.slice(..));
                 pass.draw(0..*n, 0..1);
             }
+            if let (Some(hb), true) = (&handle_buf, n_handle_verts > 0) {
+                pass.set_pipeline(&handle_pipe);
+                pass.set_vertex_buffer(0, hb.slice(..));
+                pass.draw(0..n_handle_verts, 0..1);
+            }
         }
         gpu.queue.submit([enc.finish()]);
         window.pre_present_notify();
@@ -1228,7 +1299,7 @@ mod pick_tests {
             // A strip along X at y = 2, z = 0, and a light housing in front of it (nearer the camera at +Z).
             leds: vec![LedFix { id: "strip".into(), pos: (0..10).flat_map(|i| [i as f32 * 0.1 - 0.5, 2.0, 0.0]).collect() }],
             lights: vec![LightFix { id: "head".into(), pos: [0.2, 2.0, 2.0], beam: None }],
-            lines: Vec::new(), look: BeamLook::default(), grid: GridLook::default(),
+            lines: Vec::new(), look: BeamLook::default(), grid: GridLook::default(), gizmo: None,
         }
     }
     #[test]

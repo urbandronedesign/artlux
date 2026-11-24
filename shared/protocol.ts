@@ -299,6 +299,9 @@ export const IPC = {
   /** E4b — main → renderer: a click in the engine's 3D view picked this fixture (null: empty space), `add` when
    *  Shift / Ctrl was held. The editor applies it to its own selection. */
   NATIVE_ENGINE_VIEW3D_PICK: 'native-engine:view3d-pick',
+  /** E4b — main → renderer: a drag on the engine window's move gizmo: phase start / move / end and the offset
+   *  (world metres) so far. The editor applies it as its own gizmo's translate. */
+  NATIVE_ENGINE_VIEW3D_GIZMO: 'native-engine:view3d-gizmo',
   /**
    * Main → renderer: this window's end of a MessagePort to the Show Host (src/showhost, E5/W3), the
    * process that holds the authoritative project document. Sent on every load; the preload relays it
@@ -1981,6 +1984,8 @@ export interface ArtluxApi {
   onNativeEngineView3dClosed?(cb: () => void): () => void;
   /** E4b: a click in the engine's 3D view window picked a fixture (null: empty space); `add` = Shift / Ctrl. */
   onNativeEngineView3dPick?(cb: (id: string | null, add: boolean) => void): () => void;
+  /** E4b: a drag on the engine window's move gizmo — `delta` is the offset so far, in world metres. */
+  onNativeEngineView3dGizmo?(cb: (phase: 'start' | 'move' | 'end', delta: [number, number, number]) => void): () => void;
   /**
    * Renderer → main: an uncaught renderer error. ALWAYS audited (even with the watchdog disabled);
    * in an armed broadcast install a root/stage fault also triggers the relaunch ladder. Fire-and-

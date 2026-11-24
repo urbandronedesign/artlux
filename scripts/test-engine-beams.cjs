@@ -17,6 +17,9 @@
 //     with the window's own camera): the engine logs the pick, the EDITOR's selection follows (its inspector
 //     shows the head), and the selection comes back to the engine — the full diagram moves to the picked head;
 //     a click on empty sky clears it (160 segments: rings only); Shift-click adds a second head (178);
+//   - THE MOVE GIZMO (E4b): with both heads selected, a real drag on the engine window's X handle (press, pull,
+//     release — OS mouse events) moves BOTH heads along X in the editor's document (read back from the saved
+//     project), and nothing else; the editor's Undo puts them back;
 //   - the Rendered look: solid shafts, no diagram.
 // Own processes only; nothing of the owner's is read or written.
 'use strict';
@@ -130,6 +133,37 @@ function Click($x, $y, $shift) {
   Start-Sleep -Milliseconds 1500
 }
 ${body}
+Write-Output "OK"
+`);
+  return execSync(`powershell -NoProfile -ExecutionPolicy Bypass -File "${ps}"`).toString().trim();
+}
+/** A real drag in the engine window: hover at a, press, pull to b in steps, release (CLIENT pixels). */
+function dragEngineWindow(a, b) {
+  const ps = path.join(WORK, 'drag.ps1');
+  fs.writeFileSync(ps, `
+Add-Type @"
+using System; using System.Runtime.InteropServices;
+public class D { [DllImport("user32.dll", CharSet=CharSet.Unicode)] public static extern IntPtr FindWindow(string c, string t);
+  [DllImport("user32.dll")] public static extern bool ClientToScreen(IntPtr h, ref P p);
+  [DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr h);
+  [DllImport("user32.dll")] public static extern bool SetCursorPos(int x, int y);
+  [DllImport("user32.dll")] public static extern void mouse_event(int f, int x, int y, int d, int e);
+  [DllImport("user32.dll")] public static extern bool SetProcessDPIAware();
+  public struct P { public int X, Y; } }
+"@
+[D]::SetProcessDPIAware() | Out-Null
+$h = [D]::FindWindow([NullString]::Value, "ArtLux $([char]0x2014) 3D view (engine)")
+if ($h -eq [IntPtr]::Zero) { Write-Output "NOWINDOW"; exit 0 }
+[D]::SetForegroundWindow($h) | Out-Null
+Start-Sleep -Milliseconds 400
+function To($x, $y) { $p = New-Object D+P; $p.X = $x; $p.Y = $y; [D]::ClientToScreen($h, [ref]$p) | Out-Null; [D]::SetCursorPos($p.X, $p.Y) | Out-Null }
+To ${Math.round(a[0]) - 6} ${Math.round(a[1])}; Start-Sleep -Milliseconds 120
+To ${Math.round(a[0])} ${Math.round(a[1])}; Start-Sleep -Milliseconds 400
+[D]::mouse_event(0x02, 0, 0, 0, 0); Start-Sleep -Milliseconds 150
+for ($i = 1; $i -le 20; $i++) { To ([int](${a[0]} + (${b[0]} - ${a[0]}) * $i / 20)) ([int](${a[1]} + (${b[1]} - ${a[1]}) * $i / 20)); Start-Sleep -Milliseconds 30 }
+Start-Sleep -Milliseconds 300
+[D]::mouse_event(0x04, 0, 0, 0, 0)
+Start-Sleep -Milliseconds 600
 Write-Output "OK"
 `);
   return execSync(`powershell -NoProfile -ExecutionPolicy Bypass -File "${ps}"`).toString().trim();
@@ -284,6 +318,55 @@ const segmentsNow = (logf) => { const l = beamLines(logf); const m = /(\d+) diag
     note(/3D view pick: fx_m2 \(add\)/.test(fs.readFileSync(logf, 'utf8')), 'Shift-click adds Mover 2');
     note(JSON.stringify((await inspector()).sort()) === '["Mover 2","Mover 3"]', 'the editor holds both', JSON.stringify(await inspector()));
     note(segmentsNow(logf) === 178, 'both heads get the full diagram', `${segmentsNow(logf)} segments`);
+
+    // THE MOVE GIZMO: both heads selected → the handles sit at their centroid (0, 5, -4). Grab X 60 % along its
+    // drawn shaft (GIZMO_PX = 90 on screen) and pull 160 px further along it on screen.
+    await sleep(1000);   // the scene (≤ 4 Hz) brings the gizmo for the new selection
+    const c0 = at([0, 5, -4]), cx = at([0.5, 5, -4]);
+    const ux = [cx[0] - c0[0], cx[1] - c0[1]], ul = Math.hypot(ux[0], ux[1]);
+    const dirX = [ux[0] / ul, ux[1] / ul];
+    const grab = [c0[0] + dirX[0] * 54, c0[1] + dirX[1] * 54];
+    const to = [grab[0] + dirX[0] * 160, grab[1] + dirX[1] * 160];
+    dragEngineWindow(grab, to);
+    await sleep(1500);
+    const glog = fs.readFileSync(logf, 'utf8');
+    note(/3D view gizmo: grabbed the X handle/.test(glog), 'the X handle is grabbed in the engine window');
+    const rel = /3D view gizmo: released at \[([-\d.]+), ([-\d.]+), ([-\d.]+)\]/.exec(glog);
+    note(!!rel && +rel[1] > 0.3 && Math.abs(+rel[2]) < 1e-6 && Math.abs(+rel[3]) < 1e-6, 'pulled along X only', rel ? rel.slice(1).join(', ') : 'no release');
+    captureEngineWindow(path.join(WORK, 'engine-gizmo.png'));
+    // Read the DOCUMENT: save in place and look at the file.
+    // Through the editor's own File / Edit menus: Ctrl+S / Ctrl+Z are menu ACCELERATORS, which a scripted key
+    // event never reaches.
+    const menu = async (top, item) => {
+      const ok = await page.evaluate((t, it) => {
+        const m = [...document.querySelectorAll('[role="menubar"] [role="menuitem"]')].find((x) => (x.textContent || '').trim() === t);
+        if (!m) return false;
+        m.click();
+        return true;
+      }, top, item);
+      await sleep(300);
+      const ok2 = await page.evaluate((it) => {
+        const b = [...document.querySelectorAll('[data-menuitem]')].find((x) => new RegExp('^' + it + '(Ctrl|$)').test((x.textContent || '').trim()));
+        b?.click(); return !!b;
+      }, item);
+      if (!ok || !ok2) throw new Error(`no ${top} ▸ ${item}`);
+    };
+    const savedPos = async () => {
+      await menu('File', 'Save');
+      await sleep(1500);
+      const doc = JSON.parse(fs.readFileSync(project, 'utf8'));
+      return Object.fromEntries(doc.fixtures.map((f) => [f.id, f.position3D]));
+    };
+    const after = await savedPos();
+    const dx = rel ? +rel[1] : 0;
+    const near = (a, b) => Math.abs(a - b) < 1e-3;
+    note(near(after.fx_m2.x, -1 + dx) && near(after.fx_m3.x, 1 + dx) && near(after.fx_m2.y, 5) && near(after.fx_m3.z, -4),
+      'the editor moved both heads by the engine\'s offset', `m2 ${JSON.stringify(after.fx_m2)}, m3 ${JSON.stringify(after.fx_m3)}`);
+    note(near(after.fx_m1.x, -3) && near(after.fx_w1.x, -2), 'and nothing else', `m1 ${JSON.stringify(after.fx_m1)}`);
+    await menu('Edit', 'Undo');
+    await sleep(800);
+    const undone = await savedPos();
+    note(near(undone.fx_m2.x, -1) && near(undone.fx_m3.x, 1), 'one Undo puts them back', `m2 ${JSON.stringify(undone.fx_m2)}, m3 ${JSON.stringify(undone.fx_m3)}`);
     captureEngineWindow(path.join(WORK, 'engine-pick.png'));
 
     // THE RENDERED LOOK follows the editor's display mode: the button flips it, the scene (≤ 4 Hz) carries it, the

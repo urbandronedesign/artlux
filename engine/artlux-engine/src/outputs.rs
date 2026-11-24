@@ -74,7 +74,11 @@ struct View {
     /// E4b: the place last reported, its un-maximised rect, and when it last changed — reported to main
     /// PLACE_SETTLE after the last move / resize (a drag is hundreds of events; main writes a prefs file).
     reported: Option<crate::view3d::Place>, normal: Option<(i32, i32, u32, u32)>, moved_at: Option<std::time::Instant>,
+    /// E4b: a gizmo drag — the handle, the gizmo as grabbed, where along the axis the press was, the offset last
+    /// sent and when (moves are sent at most every MOVE_EVERY).
+    grab: Option<(usize, crate::gizmo::Gizmo, f32, [f32; 3], std::time::Instant)>,
 }
+const MOVE_EVERY: Duration = Duration::from_millis(16);
 const PLACE_SETTLE: Duration = Duration::from_millis(500);
 const CLICK_PX: f64 = 4.0;
 
@@ -157,7 +161,7 @@ impl App {
         self.view_open.store(true, Ordering::SeqCst);
         let reported = place.filter(|p| p.on_screen(&monitors));
         self.view = Some(View { window, stop, thread, cursor: None, orbit: false, pan: false, press: None, travel: 0.0, additive: false,
-            reported, normal: reported.map(|p| (p.x, p.y, p.w, p.h)), moved_at: None });
+            reported, normal: reported.map(|p| (p.x, p.y, p.w, p.h)), moved_at: None, grab: None });
     }
     /// E4b: the window's place now — its un-maximised rect while maximised.
     fn place_now(v: &mut View) -> Option<crate::view3d::Place> {
@@ -225,6 +229,39 @@ impl ApplicationHandler<Cmd> for App {
             WindowEvent::MouseInput { state, button, .. } => {
                 let down = state == ElementState::Pressed;
                 match button { MouseButton::Left => v.orbit = down, MouseButton::Right | MouseButton::Middle => v.pan = down, _ => {} }
+                // E4b: a press on a gizmo handle grabs it — no orbit, no pick.
+                if button == MouseButton::Left && down {
+                    if let Some((cx, cy)) = v.cursor {
+                        let size = v.window.inner_size();
+                        let mut s = self.view_shared.lock().unwrap();
+                        let g = s.scene.as_ref().and_then(|(_, sc)| sc.gizmo);
+                        if let (Some(g), Some(axis)) = (g, s.hover_axis) {
+                            let (o, d) = s.cam.ray(cx as f32, cy as f32, size.width as f32, size.height as f32);
+                            if let Some(t0) = crate::gizmo::along(g.at, g.axes()[axis], o, d) {
+                                let ids = s.scene.as_ref().map(|(_, sc)| sc.look.selected.clone()).unwrap_or_default();
+                                s.drag = Some(crate::gizmo::Drag { ids, delta: [0.0; 3], axis, ended_at_scene: None });
+                                drop(s);
+                                v.grab = Some((axis, g, t0, [0.0; 3], std::time::Instant::now()));
+                                v.orbit = false;
+                                v.press = None;
+                                eprintln!("artlux-engine: 3D view gizmo: grabbed the {} handle", ["X", "Y", "Z"][axis]);
+                                (self.view_event)(r#"{"type":"view3dGizmo","phase":"start","delta":[0,0,0]}"#.to_string());
+                                return;
+                            }
+                        }
+                    }
+                }
+                if button == MouseButton::Left && !down {
+                    if let Some((_, _, _, last, _)) = v.grab.take() {
+                        let mut s = self.view_shared.lock().unwrap();
+                        let ver = s.scene.as_ref().map(|(ver, _)| *ver);
+                        if let Some(dg) = s.drag.as_mut() { dg.delta = last; dg.ended_at_scene = ver; }
+                        drop(s);
+                        eprintln!("artlux-engine: 3D view gizmo: released at [{:.4}, {:.4}, {:.4}]", last[0], last[1], last[2]);
+                        (self.view_event)(format!(r#"{{"type":"view3dGizmo","phase":"end","delta":[{},{},{}]}}"#, last[0], last[1], last[2]));
+                        return;
+                    }
+                }
                 if button == MouseButton::Left {
                     if down { v.press = v.cursor; v.travel = 0.0; }
                     else if let (Some((x, y)), true) = (v.press.take(), v.travel <= CLICK_PX) {
@@ -248,6 +285,37 @@ impl ApplicationHandler<Cmd> for App {
                 if let Some((x, y)) = v.cursor {
                     let (dx, dy) = ((position.x - x) as f32, (position.y - y) as f32);
                     if v.press.is_some() { v.travel += ((dx * dx + dy * dy) as f64).sqrt(); }
+                    // E4b: a gizmo drag — the pull along the held axis, read off the cursor's ray each move.
+                    if let Some((axis, g, t0, last, at)) = v.grab.as_mut() {
+                        let size = v.window.inner_size();
+                        let mut s = self.view_shared.lock().unwrap();
+                        let (o, d) = s.cam.ray(position.x as f32, position.y as f32, size.width as f32, size.height as f32);
+                        if let Some(t) = crate::gizmo::along(g.at, g.axes()[*axis], o, d) {
+                            let off = crate::gizmo::offset(g, *axis, t - *t0);
+                            if let Some(dg) = s.drag.as_mut() { dg.delta = off; }
+                            drop(s);
+                            if off != *last && at.elapsed() >= MOVE_EVERY {
+                                *last = off; *at = std::time::Instant::now();
+                                (self.view_event)(format!(r#"{{"type":"view3dGizmo","phase":"move","delta":[{},{},{}]}}"#, off[0], off[1], off[2]));
+                            } else if off != *last {
+                                *last = off;   // the release sends the final offset whatever the throttle held back
+                            }
+                        }
+                        v.cursor = Some((position.x, position.y));
+                        return;
+                    }
+                    // Hover: which handle a press would grab.
+                    if !v.orbit && !v.pan {
+                        let size = v.window.inner_size();
+                        let mut s = self.view_shared.lock().unwrap();
+                        let hot = s.scene.as_ref().and_then(|(_, sc)| sc.gizmo).and_then(|g| {
+                            let (w, h) = (size.width as f32, size.height as f32);
+                            let (vp, _, _) = crate::view3d::camera_frame(&s.cam, w / h.max(1.0));
+                            let px = 2.0 * (s.cam.fov.to_radians() / 2.0).tan() / h.max(1.0);
+                            crate::gizmo::hit(&g, &vp, s.cam.eye(), px, w, h, position.x as f32, position.y as f32)
+                        });
+                        s.hover_axis = hot;
+                    }
                     if v.orbit || v.pan {
                         let h = v.window.inner_size().height as f32;
                         let mut s = self.view_shared.lock().unwrap();

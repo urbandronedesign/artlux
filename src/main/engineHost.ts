@@ -307,7 +307,7 @@ function spawnEngine(): void {
       const line = buf.slice(0, i).trim();
       buf = buf.slice(i + 1);
       if (!line) continue;
-      let m: { type?: string; adapter?: string; version?: string; backend?: string; pid?: number; n?: number; u?: number; d?: number; pps?: number; fps?: number; rev?: number; owns?: boolean; why?: string; id?: string | null; add?: boolean; place?: EngineView3dPlace };
+      let m: { type?: string; adapter?: string; version?: string; backend?: string; pid?: number; n?: number; u?: number; d?: number; pps?: number; fps?: number; rev?: number; owns?: boolean; why?: string; id?: string | null; add?: boolean; place?: EngineView3dPlace; phase?: string; delta?: number[] };
       try { m = JSON.parse(line); } catch { console.log(`[engine] ${line}`); continue; }
       if (m.type === 'hello') {
         if (helloTimer) { clearTimeout(helloTimer); helloTimer = null; }
@@ -348,6 +348,11 @@ function spawnEngine(): void {
       } else if (m.type === 'view3d') {
         // The operator closed the engine's 3D view from its title bar: tell the editor (its button state).
         view3dClosedByOperator();
+      } else if (m.type === 'view3dGizmo') {
+        // E4b: a drag on the engine window's move gizmo — relayed; the EDITOR turns the offset into the move.
+        if ((m.phase === 'start' || m.phase === 'move' || m.phase === 'end') && Array.isArray(m.delta) && m.delta.length === 3) {
+          for (const w of BrowserWindow.getAllWindows()) if (!w.isDestroyed()) w.webContents.send(IPC.NATIVE_ENGINE_VIEW3D_GIZMO, m.phase, m.delta);
+        }
       } else if (m.type === 'view3dPlace') {
         // E4b: the operator moved / resized the window (reported once it settles). Per MACHINE — screens are.
         if (m.place && typeof m.place === 'object') setPrefs({ engineView3dPlace: m.place });

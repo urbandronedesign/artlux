@@ -40,7 +40,7 @@ import { GizmoOrbitGuard } from './GizmoOrbitGuard';
 import { ObjectDrag, FixtureDragTarget } from './ObjectDrag';
 import { RenderedMode, RENDERED_LIGHT_GAIN } from './RenderedMode';
 import { MeasureTool } from './MeasureTool';
-import { EngineViewLink, EngineCameraBridge, currentEditorCamera } from './engineView';
+import { EngineViewLink, EngineCameraBridge, currentEditorCamera, applyEngineGizmo } from './engineView';
 import { getOsnap, setOsnap, subscribeOsnap, toggleOsnapKind, OSNAP_KINDS, OSNAP_LABEL, OSNAP_HINT } from '../../services/snap3d';
 import { MultiView, multiViewEvents } from './MultiView';
 import { htmlPosition } from './htmlPosition';
@@ -381,6 +381,14 @@ const Simulator3D: React.FC<Props> = ({
   // comes back with the scene) follows from this one call. The same rules as a click in this view: a fixture
   // replaces the selection, Shift / Ctrl toggles it in or out, empty space clears it (and the model selection,
   // as onPointerMissed does).
+  // E4b: a drag on the engine window's move gizmo — applied by engineView.applyEngineGizmo through this view's
+  // own gizmo maths, preview, undo and commit. Refs, because the listener lives for the component's life.
+  const gizmoRef = useRef({ fixtures: [] as Fixture[], space: 'world' as 'world' | 'local', activeId: selectedFixtureId, onRecordHistory, onCommitFixture3D });
+  useEffect(() => window.artlux?.onNativeEngineView3dGizmo?.((phase, delta) => {
+    const g = gizmoRef.current;
+    if (!g.onCommitFixture3D) return;
+    applyEngineGizmo(phase, delta, { fixtures: g.fixtures, space: g.space, activeId: g.activeId, onRecordHistory: g.onRecordHistory ?? (() => {}), onCommit: g.onCommitFixture3D });
+  }), []);
   const pickRef = useRef({ selectedFixtureIds, onSelectFixture, onSelectFixtures, onSelectModel });
   pickRef.current = { selectedFixtureIds, onSelectFixture, onSelectFixtures, onSelectModel };
   useEffect(() => window.artlux?.onNativeEngineView3dPick?.((id, add) => {
@@ -543,6 +551,7 @@ const Simulator3D: React.FC<Props> = ({
     [selectedModelId, fixtures, selectedFixtureIds, selectedFixtureId],
   );
   const selectionCount = gizmoFixtures.length;
+  gizmoRef.current = { fixtures: gizmoFixtures, space: gizmoSpace, activeId: selectedFixtureId, onRecordHistory, onCommitFixture3D };
   // ⚠ InstancedLeds and FixtureLights still receive the FULL list: they index the canonical pixel
   // buffer by cumulative ledCount, so handing them a filtered array would silently misalign every
   // fixture after the first profiled one. Only the BODY is split.
@@ -1015,6 +1024,7 @@ const Simulator3D: React.FC<Props> = ({
           selected: selectedFixtureIds,
           grid: scene3D.gridVisible !== false,
           gridLabels: scene3D.gridLabels !== false,
+          gizmo: { fixtures: gizmoFixtures, mode, space: gizmoSpace, activeId: selectedFixtureId, snap },
         }} />}
         {/* Press-and-drag the selection itself, with object snaps — after the guard, whose window
             listener must decide "gizmo handle?" first. Not while picking calibration anchors or looking

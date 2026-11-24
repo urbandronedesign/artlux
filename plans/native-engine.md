@@ -2127,8 +2127,21 @@ fallback until a source/output is proven byte-identical — risk 2):
 >   `test:engine-beams` captures a downward view (273 glyphs: −6…6 along X, the Z run, both letters) beside the
 >   editor's. A guard compares the copied constants. The run also caught an injected Shift-click that Windows
 >   dropped (1 run in 3, no pick logged at all); that step now retries once, out loud.
+> - ✅ **E4b-5 2026-11-24 — the MOVE gizmo.** With the Move tool and a selection, the engine window draws the
+>   handles where FixtureGizmo parks its anchor (engineView.gizmoAnchor: the centroid; room axes, or the active
+>   fixture's with Object axes; the move snap), a fixed 90 px on screen and over everything. `gizmo.rs`: hover and
+>   grab in screen space (within 10 px of a shaft, end-on axes refused), the pull read as the closest approach of
+>   the cursor's ray to the axis line, snapped as three snaps (a room axis lands the anchor's coordinate on the
+>   step; an object axis snaps the distance). The window streams `view3dGizmo` start / move (≤ 60 Hz) / end with
+>   the OFFSET; main relays it; `applyEngineGizmo` turns it into the move with the SAME `gizmoDelta` the editor's
+>   handles use, previews through fixturePreview, records undo on the first movement and commits once. The window
+>   draws the selection moved by the offset itself (LEDs, housings, beams, the handles) until a scene with the
+>   committed positions arrives. **Proof:** three unit tests (a pull reads as the distance; snapping on room and
+>   object axes; the handle under the cursor); `test:engine-beams` DRAGS the X handle with OS mouse events on two
+>   selected heads: grabbed, released at +1.92 m on X only, the saved project has both heads moved by exactly
+>   that and nothing else, one Undo (Edit menu) puts them back. Rotate / Scale stay in the editor's view.
 > - **Not yet (E4b…):** the rest of the Rendered look (the lit room), the adaptive grid, picking venue models and
->   screens, the gizmo, sources the engine does not draw (timeline video clips, a tracking overlay…) on screens
+>   screens, the Rotate / Scale gizmo, sources the engine does not draw (timeline video clips, a tracking overlay…) on screens
 >   and venue meshes, the four-view layout, saving the window's place, macOS / Linux.
 
 ## 10. Open questions

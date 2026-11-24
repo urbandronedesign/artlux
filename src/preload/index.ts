@@ -40,6 +40,11 @@ const api: ArtluxApi = {
         ipcRenderer.on(IPC.NATIVE_ENGINE_VIEW3D_CLOSED, listener);
         return () => { ipcRenderer.removeListener(IPC.NATIVE_ENGINE_VIEW3D_CLOSED, listener); };
     },
+    onNativeEngineView3dGizmo: (cb: (phase: 'start' | 'move' | 'end', delta: [number, number, number]) => void) => {
+        const listener = (_e: unknown, phase: 'start' | 'move' | 'end', delta: [number, number, number]) => cb(phase, delta);
+        ipcRenderer.on(IPC.NATIVE_ENGINE_VIEW3D_GIZMO, listener);
+        return () => { ipcRenderer.removeListener(IPC.NATIVE_ENGINE_VIEW3D_GIZMO, listener); };
+    },
     onNativeEngineView3dPick: (cb: (id: string | null, add: boolean) => void) => {
         const listener = (_e: unknown, id: string | null, add: boolean) => cb(id, !!add);
         ipcRenderer.on(IPC.NATIVE_ENGINE_VIEW3D_PICK, listener);
