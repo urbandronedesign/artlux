@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // E2 — A SHADER ON A PROJECTOR OUTPUT, drawn by the native engine, read from the SCREEN (Windows).
 //
-//   node scripts/test-shader-projector.cjs --packaged <ArtLux.exe>
+//   node scripts/test-shader-projector.cjs --packaged <ArtLux.exe> [--text]
 //
 // ⚠ IT COVERS THE PRIMARY DISPLAY with a fullscreen projector output, twice, for ~15 s each.
 //
@@ -25,6 +25,7 @@ const WORK = path.join(os.tmpdir(), 'artlux-shader-projector');
 const PROFILE = path.join(WORK, 'profile');
 fs.rmSync(WORK, { recursive: true, force: true }); fs.mkdirSync(WORK, { recursive: true });
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const TEXT = process.argv.includes('--text');
 const env0 = { ...process.env }; delete env0.ELECTRON_RUN_AS_NODE;
 
 // The primary display, as Electron names it.
@@ -41,7 +42,10 @@ const SHADER = `vec4 shaderColor(vec2 uv) {
 const project = path.join(WORK, 'shader-projector.artlux');
 fs.writeFileSync(project, JSON.stringify({
   version: '1.2', timestamp: '2026-01-01T00:00:00.000Z',
-  surfaces: [{ id: 'sP', name: 'Projected', x: 0.1, y: 0.1, width: 0.5, height: 0.28125, rotation: 0, zIndex: 0, content: { type: 'SHADER', shaderSource: SHADER, opacity: 1 } }],
+  surfaces: [{ id: 'sP', name: 'Projected', x: 0.1, y: 0.1, width: 0.5, height: 0.28125, rotation: 0, zIndex: 0, content: TEXT
+    // --text: a TEXT surface instead (E2 text — a raster the app draws; the projector copy at the display's size).
+    ? { type: 'TEXT', textBody: 'ArtLux on the wall — small type 12345', textWrap: true, textSize: 0.18, textColor: '#ffe680', textStrokeColor: '#2040ff', textStrokeWidth: 0.01, opacity: 1 }
+    : { type: 'SHADER', shaderSource: SHADER, opacity: 1 } }],
   fixtures: [], controllers: [], groups: [], scenes: [], cueBanks: [],
   projectorBrightness: 0.9,
   projectorOutputs: [{
@@ -87,14 +91,16 @@ async function runOnce(native) {
   let fails = 0;
   const ok = (c, m) => { if (!c) fails++; console.log(`${c ? 'ok  ' : 'FAIL'} ${m}`); };
   const A = await runOnce(false);
-  ok(lit(A.shot) > 0.3, `A: the app's projector window shows the shader (${(100 * lit(A.shot)).toFixed(0)}% of the screen lit)`);
+  // Type covers far less of the screen than a full-frame shader does.
+  ok(lit(A.shot) > (TEXT ? 0.02 : 0.3), `A: the app's projector window shows the ${TEXT ? 'text' : 'shader'} (${(100 * lit(A.shot)).toFixed(0)}% of the screen lit)`);
   const B = await runOnce(true);
   const owns = B.lines.find((l) => /owns the projector outputs/i.test(l));
   ok(!!owns, `B: the engine owns the projector outputs${owns ? '' : ' — ' + (B.lines.find((l) => /keeps the projector/.test(l)) || 'no word from main')}`);
-  const shaderLine = B.lines.find((l) => /shader drawn by the engine/.test(l));
-  ok(!!shaderLine, `B: ${shaderLine || 'the engine never drew the shader'}`);
+  const shaderLine = B.lines.find((l) => TEXT ? /sources: .*=raster/.test(l) : /shader drawn by the engine/.test(l));
+  ok(!!shaderLine, `B: ${shaderLine || (TEXT ? 'the engine was never given the text raster' : 'the engine never drew the shader')}`);
   const d = diff(A.shot, B.shot);
   ok(d.n / d.of < 0.0001, `B = A on screen: ${d.n} of ${d.of} pixels differ by more than 1 (max ${d.max})`);
-  console.log(fails ? `\nshader projector: ${fails} FAILED` : '\nshader projector OK');
+  const what = TEXT ? 'text' : 'shader';
+  console.log(fails ? `\n${what} projector: ${fails} FAILED` : `\n${what} projector OK`);
   process.exit(fails ? 1 : 0);
 })();

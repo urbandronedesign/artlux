@@ -39,7 +39,12 @@ export function buildSegParams(fixtures: Fixture[]): Float32Array {
     // effects are retired — effects live on surfaces now. An off segment outputs black:
     // mode -2 is already the WGSL "off" path (mode < -1.5), same as the trailing gap entry.
     out[base + 0] = s.off ? -2 : -1; // -2 off (gap) / -1 media
-    out[base + 4] = f.rgbwMode === RGBWMode.NONE ? 1 : 0;
+    // A 3-CHANNEL FIXTURE HAS NO WHITE CHANNEL, so it always keeps full RGB. The RGBW mode defaults to
+    // SUBTRACT (W = min(r,g,b), taken OUT of r, g and b) and the inspector shows the White control on 4-channel
+    // fixtures only — so an RGB strip whose mode was never set (a fixture switched to 3 channels, a generated
+    // rig) had the neutral part of every colour moved into a W the packer then dropped: white and grey went
+    // BLACK on the wire, with no control to fix it. Found 2026-11-24 by the native engine's text wire test.
+    out[base + 4] = f.rgbwMode === RGBWMode.NONE || f.channelsPerPixel === 3 ? 1 : 0;
   });
   // trailing off-segment for gap LEDs
   out[segs.length * 8 + 0] = -2;

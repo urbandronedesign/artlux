@@ -144,6 +144,28 @@ export function noteBakedMap(key: string, w: number, h: number, uv: Float32Array
   } catch (e) { logger.log('warn', 'engine', 'baked-map-write-failed', { key }, e); }
 }
 
+// E2: PICTURES THE APP DRAWS AND THE ENGINE SHOWS (`raster` sources — TEXT first, plans/native-engine.md §2
+// "phase 1: the app rasterises, the engine receives an image on change"). The renderer ships a surface's
+// pixels when its generation changes; main writes them where the engine can read them and tells it. One file
+// per surface and generation, the previous one removed once the next is announced. The last message per
+// surface is kept: a restarted engine is given every raster BEFORE the document that names them.
+const rasterMsgs = new Map<string, { msg: string; file: string }>();
+export function noteRaster(surfaceId: string, gen: number, w: number, h: number, rgba: Uint8Array): void {
+  if (!FLAG) return;
+  const dir = join(app.getPath('temp'), 'artlux-native-engine');
+  try {
+    mkdirSync(dir, { recursive: true });
+    const file = join(dir, `raster-${surfaceId.replace(/[^\w.-]/g, '_')}-${gen}.rgba`);
+    writeFileSync(file, Buffer.from(rgba.buffer, rgba.byteOffset, rgba.byteLength));
+    const msg = JSON.stringify({ type: 'raster', surface: surfaceId, gen, w, h, path: file });
+    const prev = rasterMsgs.get(surfaceId);
+    rasterMsgs.set(surfaceId, { msg, file });
+    if (status.state === 'up') write(msg);
+    // The engine reads a raster as the message arrives, so the previous file is free once this one is sent.
+    if (prev && prev.file !== file) { try { unlinkSync(prev.file); } catch { /* gone */ } }
+  } catch (e) { logger.log('warn', 'engine', 'raster-write-failed', { surfaceId }, e); }
+}
+
 // E1f-3: THE DISPLAYS ARE MAIN'S. The renderer names an output's display by Electron id; the engine places
 // windows by PHYSICAL bounds (winit monitors), so each projector entry gets its display's bounds in screen
 // pixels here — or a reason when that display is not connected (the engine then opens nothing anywhere).
@@ -291,6 +313,7 @@ function spawnEngine(): void {
         console.log(`[engine] up (pid ${proc.pid}, ${m.adapter}, start ${status.starts})`);
         // A (re)started engine knows nothing: the settings, then the document, before any tick.
         if (lastOutput) write(lastOutput);
+        for (const r of rasterMsgs.values()) write(r.msg);   // E2: the pictures before the document naming them
         if (lastDoc) write(`{"type":"doc","doc":${lastDoc}}`);
         // E4a: the 3D view's scene, and the window if it was open.
         if (lastScene3d) write(`{"type":"scene3d",${lastScene3d.slice(1)}`);

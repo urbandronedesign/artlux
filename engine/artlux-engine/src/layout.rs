@@ -41,6 +41,7 @@ pub struct Fixture {
     #[serde(default)] pub led_map: Option<Vec<Value>>,
     #[serde(default)] pub segments: Option<Vec<Segment>>,
     #[serde(default)] pub rgbw_mode: Value,
+    #[serde(default)] pub channels_per_pixel: Value,
 }
 
 #[derive(Deserialize, Clone, Debug, Default)]
@@ -101,7 +102,8 @@ pub fn build_seg_params(fixtures: &[Fixture]) -> Vec<f32> {
         for s in fixture_segments(f) {
             let mut e = [0f32; 8];
             e[0] = if s.off { -2.0 } else { -1.0 };
-            e[4] = if f.rgbw_mode.as_str() == Some("NONE") { 1.0 } else { 0.0 };
+            // ledLayout.ts buildSegParams, exactly: a 3-channel fixture keeps full RGB (it has no W to put white in).
+            e[4] = if f.rgbw_mode.as_str() == Some("NONE") || f.channels_per_pixel.as_f64() == Some(3.0) { 1.0 } else { 0.0 };
             out.extend_from_slice(&e);
         }
     }

@@ -88,9 +88,15 @@ async function run(native) {
       // Moving: every engine payload must be close to SOME payload the app sent (the frames are not in step).
       const near = B.all.get(uni).map((pb) => Math.min(...A.all.get(uni).map((pa) => pa.reduce((s, v, i) => s + Math.abs(v - pb[i]), 0) / pa.length)));
       const moved = new Set(B.all.get(uni).map((x) => x.join(','))).size;
-      const median = near.slice().sort((x, y) => x - y)[near.length >> 1];
-      if (moved < 10 || median > 0.5) failed++;
-      console.log(`universe 4 ${names[4]}: engine payloads ${B.all.get(uni).length} (${moved} distinct), mean |Δ| to nearest app payload: median ${near.sort((x, y) => x - y)[near.length >> 1].toFixed(2)} levels`);
+      const med = (xs) => xs.slice().sort((x, y) => x - y)[xs.length >> 1];
+      const median = med(near);
+      // The bound is the APP's own motion: the engine's frames are taken at other instants than the app's, so
+      // each must be as close to some app frame as two CONSECUTIVE app frames are to each other (a fixed level
+      // was timing luck — 0.00 one run, 0.6 the next).
+      const appSeq = A.all.get(uni);
+      const step = med(appSeq.slice(1).map((pa, i) => pa.reduce((s, v, k) => s + Math.abs(v - appSeq[i][k]), 0) / pa.length).filter((x) => x > 0));
+      if (moved < 10 || !(median <= Math.max(0.5, step))) failed++;
+      console.log(`universe 4 ${names[4]}: engine payloads ${B.all.get(uni).length} (${moved} distinct), mean |Δ| to nearest app payload: median ${median.toFixed(2)} levels (the app's own frame-to-frame step: ${step?.toFixed(2)})`);
       continue;
     }
     let max = 0, diff = 0; for (let i = 0; i < a.length; i++) { const d = Math.abs(a[i] - b[i]); if (d > max) max = d; if (d) diff++; }

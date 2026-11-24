@@ -278,11 +278,15 @@ export const IPC = {
    * tick per frame; main relays both to the engine (src/main/engineHost.ts). Nothing is sent when it is off.
    */
   NATIVE_ENGINE_ENABLED: 'native-engine:enabled',
+  /** E2 — every display's size in CSS pixels, by Electron id (a raster for a projector is drawn at it). */
+  NATIVE_ENGINE_DISPLAYS: 'native-engine:displays',
   NATIVE_ENGINE_DOC: 'native-engine:doc',
   NATIVE_ENGINE_TICK: 'native-engine:tick',
   /** Renderer → main: an output's calibration map for the native engine, once per map (main writes it to a
    *  file the engine reads; the document names it by key). Item 3, engine/nativeLink.ts. */
   NATIVE_ENGINE_BAKED_MAP: 'native-engine:baked-map',
+  /** E2 — a `raster` surface's pixels (text first): renderer → main, on each new generation (engineHost.noteRaster). */
+  NATIVE_ENGINE_RASTER: 'native-engine:raster',
   /**
    * E4a — THE ENGINE'S 3D VIEW WINDOW (engine/artlux-engine/src/view3d.rs). Renderer → main: the scene the
    * view draws (models with their world matrices, LED positions, lights — from the editor's own three.js
@@ -1950,6 +1954,8 @@ export interface ArtluxApi {
   onProjectorCovered?(cb: (covered: boolean) => void): () => void;
   /** E1f: is the native engine running behind `--native-engine`? (Resolves false when it is off.) */
   nativeEngineEnabled?(): Promise<boolean>;
+  /** E2: every display's CSS size by Electron id — what an app projector window on it would measure. */
+  nativeEngineDisplays?(): Promise<Record<string, [number, number]>>;
   /** E1f: the effective document for the native engine — its JSON (which carries `rev`) and that rev. */
   nativeEngineDoc?(json: string, rev: number): void;
   /** E1f: one frame for the native engine — `{"rev":…,"t":…,"brightness":…,"hap":{…}}` as JSON. */
@@ -1958,6 +1964,8 @@ export interface ArtluxApi {
   nativeEngineBakedMap?(key: string, w: number, h: number, uv: Float32Array, alpha: { w: number; h: number; data: Uint8Array } | null): void;
   /** E4a: the scene the engine's 3D view draws, as JSON (Simulator3D/engineView.ts). */
   nativeEngineScene3d?(json: string): void;
+  /** E2: a raster surface's RGBA pixels (straight alpha, row 0 at the top) for its generation `gen`. */
+  nativeEngineRaster?(surfaceId: string, gen: number, w: number, h: number, rgba: Uint8Array): void;
   /** E4a: open the engine's 3D view window at this camera (`{position,target,fov}`), or close it. */
   nativeEngineView3d?(open: boolean, camera: { position: number[]; target: number[]; fov: number } | null): void;
   /** E4a: the operator closed the engine's 3D view window from its title bar. */

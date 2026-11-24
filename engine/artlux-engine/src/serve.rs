@@ -124,6 +124,7 @@ pub fn run(policy: AdapterPolicy) -> ExitCode {
                     }
                     Some("output") => rt.output(&m),
                     Some("scene3d") => rt.scene3d(&m),
+                    Some("raster") => rt.raster(&m),
                     Some("view3d") => rt.view3d(&m),
                     _ => {}
                 };

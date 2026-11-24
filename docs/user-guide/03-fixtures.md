@@ -55,7 +55,9 @@ In the parameters column's **2D / Output** section:
   usually **GRB**. *If colors look swapped, this is the setting to change.*
 - **Channels** — **RGB (3)** or **RGBW (4)**.
 - **White** (RGBW only) — *Subtract min* derives white from the common minimum of R/G/B (brighter,
-  keeps hue); *None* leaves white off.
+  keeps hue); *None* leaves white off. An **RGB (3)** fixture always sends full R, G and B — it has no
+  white channel to move white into. (Until 24 November 2026 an RGB fixture switched from 4 channels kept
+  a hidden *Subtract min*, and white and grey content went **black** on it.)
 - **Reverse** — flips the whole fixture's pixel order (pixel 0 ↔ last) for backward wiring.
 
 ---

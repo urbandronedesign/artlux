@@ -741,7 +741,9 @@ export type NativeSource = { kind: 'image' | 'hap'; path: string } | { kind: 'mp
   | { kind: 'effect' | 'none' } | { kind: 'unsupported'; why: string }
   // E2: a shader (plugins/shader nativeSourceFor; engine shader.rs) — the text the app is running, its
   // header inputs with their GLSL types, and the raster the main window draws it at.
-  | { kind: 'shader'; source: string; inputs: { name: string; glsl: string }[]; lastFrame: boolean; w: number; h: number; hold?: boolean };
+  | { kind: 'shader'; source: string; inputs: { name: string; glsl: string }[]; lastFrame: boolean; w: number; h: number; hold?: boolean }
+  // E2: a picture THIS app draws and ships when it changes (text first — nativeLink, engineHost.noteRaster).
+  | { kind: 'raster' };
 
 // Item 2d step 5 (plans/native-engine.md): a CAMERA surface. The app keeps its camera (owner's decision); the
 // engine reads the same device SHARED and draws it as this app does (engine cam.rs — proven by
@@ -840,6 +842,11 @@ export function nativeSource(key: string, content: SurfaceContent): NativeSource
       return { kind: 'unsupported', why: `${content.type} is not drawn by the native engine yet` };
     }
   }
+}
+
+/** E2: a raster source's picture to ship (the provider's nativeRaster), or null. */
+export function nativeRaster(key: string, content: SurfaceContent, budgetPx?: number): { bitmap: ImageBitmap; gen: number } | null {
+  return contentSourceRegistry.get(content.type)?.nativeRaster?.(key, content, budgetPx) ?? null;
 }
 
 /** E2: this frame's values for a plugin source the engine draws (the provider's nativeTick), or undefined. */

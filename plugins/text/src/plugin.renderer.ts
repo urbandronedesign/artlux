@@ -30,7 +30,17 @@ export const plugin: RendererPlugin = {
       // The whole reason text is cheap: still copy re-uses its bitmap, so the 3D texture upload, the
       // projector pump's per-window createImageBitmap and each projector window's repaint all skip it.
       getDrawableGeneration: (key) => textRaster.generationOf(key),
-      release: (key) => textRaster.release(key),
+      release: (key) => { textRaster.release(key); textRaster.release(`${key}@proj`); },
+      // E2: the native engine shows text as a RASTER this window draws (plans/native-engine.md §2, phase 1):
+      // the editor's own raster for the fixtures and the 3D view, and — for an engine projector output — a
+      // second one at that display's pixel budget, as the app's projector window would draw it.
+      nativeSource: () => ({ kind: 'raster' }),
+      nativeRaster: (key, content, budgetPx) => {
+        const k = budgetPx === undefined ? key : `${key}@proj`;
+        const bitmap = textRaster.getFor(key, content as SurfaceContent, budgetPx, k);
+        const gen = textRaster.generationOf(k);
+        return bitmap && gen !== undefined ? { bitmap, gen } : null;
+      },
       // Never auto-fit the surface to the content. `getAspect` returning a number makes the engine
       // RESIZE the operator's box (frameEngine's aspect follow), which is right for a video with a
       // native shape and wrong for type, which has none — the box is the design decision, and the

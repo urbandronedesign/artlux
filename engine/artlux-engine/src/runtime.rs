@@ -28,7 +28,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 #[derive(PartialEq)]
-enum Source { Image(String), Effect(Params), Hap(String), Spout(String), Ndi(String), Mp4(String, i64), Camera(CamSpec), Shader(crate::shader::Spec), None }
+enum Source { Image(String), Effect(Params), Hap(String), Spout(String), Ndi(String), Mp4(String, i64), Camera(CamSpec), Shader(crate::shader::Spec), Raster, None }
 
 /// Item 2d step 5: a camera surface as the host describes it — the app's track label (which camera), the
 /// colour space of the app's own VideoFrames (what the engine's picture is held to — cam::picture), and
@@ -68,6 +68,9 @@ pub struct Runtime {
     /// E2: a shader surface on an engine projector, drawn AGAIN at that output's size by its own runner
     /// (`<sid>@proj`, its own feedback history) — as the app's projector window runs its own copy.
     proj_pictures: HashMap<String, Picture>,
+    /// E2: the pictures the APP draws and ships on change (`raster` sources — text first): surface id (or
+    /// `<id>@proj`, the copy at a projector display's size) → (the host's sequence, the picture).
+    rasters: HashMap<String, (u64, Arc<Picture>)>,
     rng: Rng,
     cache: TexCache,
     gen: u64,
@@ -115,7 +118,7 @@ pub struct Runtime {
 impl Runtime {
     pub fn new(gpu: Arc<Gpu>) -> Self {
         Runtime { gpu, out: None, broadcast: false, out_cfg: (44.0, true, false), doc: None, pictures: HashMap::new(), gens: HashMap::new(),
-            images: HashMap::new(), effects: HashMap::new(), shaders: HashMap::new(), sources_summary: String::new(), proj_pictures: HashMap::new(), rng: Rng::new(0x5eed), cache: TexCache::default(), gen: 0, path_gens: HashMap::new(), frames: 0,
+            images: HashMap::new(), effects: HashMap::new(), shaders: HashMap::new(), sources_summary: String::new(), proj_pictures: HashMap::new(), rasters: HashMap::new(), rng: Rng::new(0x5eed), cache: TexCache::default(), gen: 0, path_gens: HashMap::new(), frames: 0,
             outputs: None, projectors: Vec::new(), proj_published: HashMap::new(), proj_opts: HashMap::new(), opts_ver: 0,
             #[cfg(windows)] spouts: HashMap::new(),
             #[cfg(feature = "ndi")] ndis: HashMap::new(),
@@ -131,6 +134,21 @@ impl Runtime {
     fn view_open(&self) -> bool { self.view.as_ref().is_some_and(|(_, o)| o.load(std::sync::atomic::Ordering::SeqCst)) }
 
     /// E4a: `{"type":"scene3d", models, leds, lights}` — what the 3D view draws, from the editor's own scene.
+    /// E2: `{"type":"raster","surface","gen","w","h","path"}` — a picture the app drew (main wrote its straight-
+    /// alpha RGBA, row 0 at the top). Read now: main deletes the file once the next one is announced.
+    pub fn raster(&mut self, v: &Value) {
+        let (Some(sid), Some(path)) = (v["surface"].as_str(), v["path"].as_str()) else { return };
+        let (w, h, g) = (v["w"].as_u64().unwrap_or(0) as u32, v["h"].as_u64().unwrap_or(0) as u32, v["gen"].as_u64().unwrap_or(0));
+        match std::fs::read(path) {
+            Ok(px) if px.len() == (w as usize) * (h as usize) * 4 && w > 0 => {
+                // A CANVAS picture (premultiplied here, no mips) — as the app's compositor draws a bitmap.
+                self.rasters.insert(sid.to_string(), (g, Arc::new(Picture::canvas(w, h, px))));
+            }
+            Ok(px) => eprintln!("artlux-engine: raster {sid}: {} bytes for {w}x{h}", px.len()),
+            Err(e) => eprintln!("artlux-engine: raster {sid}: {e}"),
+        }
+    }
+
     pub fn scene3d(&mut self, v: &Value) {
         let Some((shared, _)) = &self.view else { return };
         self.view_scene_ver += 1;
@@ -321,6 +339,7 @@ impl Runtime {
                     twins: src["twins"].as_bool().unwrap_or(false),
                 }),
                 "shader" => Source::Shader(crate::shader::Spec::from_json(src)),
+                "raster" => Source::Raster,
                 "none" => Source::None,
                 _ => Source::None,
             };
@@ -358,7 +377,8 @@ impl Runtime {
         // Keep the effects' state (Fire's heat) across documents for surfaces that are still effects.
         self.effects.retain(|k, _| matches!(doc.sources.get(k), Some(Source::Effect(_))));
         self.shaders.retain(|k, r| matches!(doc.sources.get(k.trim_end_matches("@proj")), Some(Source::Shader(s)) if r.fits(s)));
-        self.proj_pictures.retain(|k, _| matches!(doc.sources.get(k), Some(Source::Shader(_))));
+        self.proj_pictures.retain(|k, _| matches!(doc.sources.get(k), Some(Source::Shader(_) | Source::Raster)));
+        self.rasters.retain(|k, _| matches!(doc.sources.get(k.trim_end_matches("@proj")), Some(Source::Raster)) || !doc.sources.contains_key(k.trim_end_matches("@proj")));
         let ids: Vec<String> = doc.sources.keys().cloned().collect();
         self.cache.retain(&|k| ids.iter().any(|i| i == k));
         self.pictures.retain(|k, _| ids.iter().any(|i| i == k));
@@ -378,7 +398,7 @@ impl Runtime {
         for sid in &sampled {
             let src = &d["sources"][sid];
             match src["kind"].as_str() {
-                Some("image") | Some("effect") | Some("hap") | Some("spout") | Some("none") => {}
+                Some("image") | Some("effect") | Some("hap") | Some("spout") | Some("none") | Some("raster") => {}
                 // E2: compiled HERE, so a text naga cannot take leaves the show to the app, with naga's log.
                 Some("shader") => {
                     let Some(Source::Shader(spec)) = doc.sources.get(sid) else { unreachable!() };
@@ -599,6 +619,24 @@ impl Runtime {
                         None => { self.proj_pictures.remove(sid); }
                     }
                     self.gen += 1; self.gens.insert(sid.clone(), self.gen << 2 | 2);
+                }
+                // E2: the app's own raster, as it last shipped it (black until the first arrives — it is sent
+                // before the document that names it, so that is never on the wire).
+                Source::Raster => {
+                    match self.rasters.get(sid) {
+                        Some((g, pic)) => {
+                            let key = (*g << 2) | 1;
+                            if self.gens.get(sid) != Some(&key) || !self.pictures.contains_key(sid) {
+                                self.pictures.insert(sid.clone(), Picture { w: pic.w, h: pic.h, rgba: pic.rgba.clone(), mips: pic.mips, crop: pic.crop, tex: pic.tex.clone() });
+                                self.gens.insert(sid.clone(), key);
+                            }
+                        }
+                        None => { self.pictures.remove(sid); }
+                    }
+                    match self.rasters.get(&format!("{sid}@proj")) {
+                        Some((_, pic)) => { self.proj_pictures.insert(sid.clone(), Picture { w: pic.w, h: pic.h, rgba: pic.rgba.clone(), mips: pic.mips, crop: pic.crop, tex: pic.tex.clone() }); }
+                        None => { self.proj_pictures.remove(sid); }
+                    }
                 }
                 Source::None => { self.pictures.remove(sid); }
             }

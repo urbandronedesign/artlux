@@ -27,11 +27,13 @@ const api: ArtluxApi = {
         return () => { ipcRenderer.removeListener(IPC.PROJECTOR_COVERED, listener); };
     },
     nativeEngineEnabled: () => ipcRenderer.invoke(IPC.NATIVE_ENGINE_ENABLED) as Promise<boolean>,
+    nativeEngineDisplays: () => ipcRenderer.invoke(IPC.NATIVE_ENGINE_DISPLAYS) as Promise<Record<string, [number, number]>>,
     nativeEngineDoc: (json: string, rev: number) => ipcRenderer.send(IPC.NATIVE_ENGINE_DOC, json, rev),
     nativeEngineTick: (json: string) => ipcRenderer.send(IPC.NATIVE_ENGINE_TICK, json),
     nativeEngineBakedMap: (key: string, w: number, h: number, uv: Float32Array, alpha: { w: number; h: number; data: Uint8Array } | null) =>
         ipcRenderer.send(IPC.NATIVE_ENGINE_BAKED_MAP, key, w, h, uv, alpha),
     nativeEngineScene3d: (json: string) => ipcRenderer.send(IPC.NATIVE_ENGINE_SCENE3D, json),
+    nativeEngineRaster: (surfaceId: string, gen: number, w: number, h: number, rgba: Uint8Array) => ipcRenderer.send(IPC.NATIVE_ENGINE_RASTER, surfaceId, gen, w, h, rgba),
     nativeEngineView3d: (open: boolean, camera: { position: number[]; target: number[]; fov: number } | null) => ipcRenderer.send(IPC.NATIVE_ENGINE_VIEW3D, !!open, camera),
     onNativeEngineView3dClosed: (cb: () => void) => {
         const listener = () => cb();

@@ -71,8 +71,10 @@ const MAX_DIM = 3840;
  * `textRes` therefore names a pixel BUDGET spent in this surface's proportions. Quantised to 16 px so
  * that dragging a surface crosses a size boundary occasionally rather than reallocating every frame.
  */
-export function sizeFor(res: number, aspect: number): { w: number; h: number } {
-  const budget = windowKind === 'projector' && typeof window !== 'undefined'
+export function sizeFor(res: number, aspect: number, budgetPx?: number): { w: number; h: number } {
+  // E2: an explicit budget is a projector's, asked for by the native engine's link from the MAIN window
+  // (the engine's projector outputs are drawn at their display's size, as the app's projector window is).
+  const budget = budgetPx !== undefined ? budgetPx : windowKind === 'projector' && typeof window !== 'undefined'
     ? Math.max(1, window.innerWidth) * Math.max(1, window.innerHeight)
     : res * ((res * 16) / 9);
   const a = Number.isFinite(aspect) && aspect > 0 ? aspect : 16 / 9;
@@ -291,8 +293,9 @@ function paint(g: OffscreenCanvasRenderingContext2D, c: SurfaceContent, w: numbe
  * Note what is NOT an argument: time. Stage 1 does not animate — the same copy in the same box is the
  * same pixels forever, which is exactly what makes a still text surface free.
  */
-export function getFor(key: string, content: SurfaceContent): ImageBitmap | null {
-  const { w, h } = sizeFor(content.textRes ?? DEFAULT_RES, aspectFor(key));
+export function getFor(key: string, content: SurfaceContent, budgetPx?: number, cacheKey: string = key): ImageBitmap | null {
+  const { w, h } = sizeFor(content.textRes ?? DEFAULT_RES, aspectFor(key), budgetPx);
+  key = cacheKey;   // the aspect is the SURFACE's; the cache entry is this raster's (a projector copy is its own)
   const sig = signatureOf(content, w, h);
   const prev = entries.get(key);
   if (prev && prev.sig === sig && prev.bitmap) return prev.bitmap;

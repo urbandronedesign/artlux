@@ -40,6 +40,7 @@ try {
     enabled = !!v;
     // A calibration map handed over BEFORE this answer came back would otherwise never reach main.
     if (enabled) for (const { map, key } of baked.values()) window.artlux?.nativeEngineBakedMap?.(key, map.w, map.h, map.uv, map.alpha ?? null);
+    refreshDisplays();
   }, () => { /* an older main: off */ });
 } catch { /* no bridge (a test page): off */ }
 
@@ -57,7 +58,44 @@ let lastSources = '';
 let projOutputs: ProjectorOutput[] = [];
 let projBrightness = 1;
 let projBooting = false;
-export function setProjectors(outputs: ProjectorOutput[], brightness: number): void { projOutputs = outputs; projBrightness = brightness; }
+export function setProjectors(outputs: ProjectorOutput[], brightness: number): void { projOutputs = outputs; projBrightness = brightness; refreshDisplays(); }
+
+// ── E2: RASTER SOURCES (text first) ─────────────────────────────────────────────────────────────────
+// A picture this app draws and the engine shows (plans/native-engine.md §2: "the app rasterises, the engine
+// receives an image on change"). Shipped when its BITMAP changes — by identity, not the plugin's generation
+// number, which restarts at 1 when a surface is released and drawn again — and BEFORE the document naming the
+// source (one IPC channel order: main forwards the raster first). A surface on an enabled projector output
+// gets a second raster at that display's CSS size (`<id>@proj`), as the app's projector window draws it.
+let displayCss: Record<string, [number, number]> = {};
+function refreshDisplays(): void {
+  if (!enabled) return;
+  void window.artlux?.nativeEngineDisplays?.().then((d) => { displayCss = d ?? {}; }, () => { /* keep the last */ });
+}
+const rasterSent = new Map<string, ImageBitmap>();
+let rasterSeq = 0;
+function shipRaster(key: string, r: { bitmap: ImageBitmap; gen: number } | null): void {
+  if (!r || rasterSent.get(key) === r.bitmap) return;
+  const { width: w, height: h } = r.bitmap;
+  if (!w || !h || typeof OffscreenCanvas === 'undefined') return;
+  const g = new OffscreenCanvas(w, h).getContext('2d');
+  if (!g) return;
+  g.drawImage(r.bitmap, 0, 0);
+  const px = g.getImageData(0, 0, w, h).data;   // straight alpha, row 0 at the top
+  rasterSent.set(key, r.bitmap);
+  window.artlux?.nativeEngineRaster?.(key, ++rasterSeq, w, h, new Uint8Array(px.buffer, px.byteOffset, px.byteLength));
+}
+function shipRasters(surfaces: Surface[], sources: Record<string, contentSource.NativeSource>): void {
+  for (const s of surfaces) {
+    if (sources[s.id]?.kind !== 'raster') { rasterSent.delete(s.id); rasterSent.delete(`${s.id}@proj`); continue; }
+    shipRaster(s.id, contentSource.nativeRaster(s.id, s.content));
+    let best: [number, number] | null = null;
+    for (const o of projOutputs) {
+      const c = o.enabled && o.surfaceId === s.id && o.displayId != null ? displayCss[String(o.displayId)] : undefined;
+      if (c && (!best || c[0] * c[1] > best[0] * best[1])) best = c;
+    }
+    if (best) shipRaster(`${s.id}@proj`, contentSource.nativeRaster(s.id, s.content, best[0] * best[1]));
+  }
+}
 export function setProjectorBrightness(brightness: number): void { projBrightness = brightness; }
 export function setBooting(booting: boolean): void { projBooting = booting; }
 
@@ -114,6 +152,7 @@ export function frame(inputs: LinkInputs, surfaces: Surface[], fixtures: Fixture
   if (ndiSources.size > 1) {
     for (const id in sources) if (sources[id].kind === 'ndi') sources[id] = { kind: 'unsupported', why: 'two NDI sources at once (the app shows one of them on every NDI surface)' };
   }
+  shipRasters(surfaces, sources);   // E2: before the document that names them
   const sourcesKey = JSON.stringify(sources);
   const refs = [surfaces, fixtures, inputs.controllers, inputs.protocol, inputs.targetIp, inputs.broadcast, inputs.gamma, inputs.artNetPort, inputs.outputEnabled, projOutputs, bakedSeq];
   if (sourcesKey !== lastSources || refs.length !== lastRefs.length || refs.some((r, i) => r !== lastRefs[i])) {

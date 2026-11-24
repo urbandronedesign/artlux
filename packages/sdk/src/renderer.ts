@@ -73,6 +73,12 @@ export interface ContentSourceProvider<C = unknown, D = Drawable> {
   /** OPTIONAL — this frame's values for the source `nativeSource` named (sent with every engine tick). */
   nativeTick?(key: string, content: C, timeSec: number): unknown;
   /**
+   * OPTIONAL — for `{ kind: 'raster' }`: the picture to SHIP to the engine, and a generation that changes only
+   * when its pixels do (the host ships it then, and only then). `budgetPx` asks for a copy at a projector
+   * display's pixel budget (width × height in CSS pixels) instead of this window's own size.
+   */
+  nativeRaster?(key: string, content: C, budgetPx?: number): { bitmap: ImageBitmap; gen: number } | null;
+  /**
    * OPTIONAL — declare that this source is a PURE FUNCTION of the `timeSec` it is handed, so a
    * non-realtime render (an offline bake) can step it off the wall clock and get the same pictures.
    *

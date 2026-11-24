@@ -1801,6 +1801,31 @@ fallback until a source/output is proven byte-identical — risk 2):
 > - **Not covered:** a shader on a LAYER / timeline clip (layers stay the app's — E3), the offline bake (E6),
 >   shaders reading sound/people verified only through the live wire test's plasma (no sound/people in it).
 
+> ✅ **E2 text done 2026-11-24 — a RASTER source (§2 "phase 1: the app rasterises, the engine receives an image
+> on change").** Generic, so other app-drawn sources can use it: the SDK's `nativeRaster(key, content, budget?)`
+> hands the host a bitmap and a generation; `nativeLink.shipRasters` ships a surface's pixels when its BITMAP
+> changes (identity — the plugin's generation restarts at 1 after a release), BEFORE the document naming the
+> source; main writes the file and sends `{"type":"raster"}` (`engineHost.noteRaster`), replaying every raster
+> before the document to a restarted engine; the engine holds it as a canvas picture (`runtime.raster`). A
+> surface on an enabled projector output gets a second raster at that display's CSS size (`<id>@proj`; main
+> answers `nativeEngineDisplays`), which the engine's projector shows — as the app's projector window draws
+> type at its own size.
+> - **Proof:** `test:text-wire` — a bold word, a wrapped stroked paragraph, a turned and scaled white word on
+>   strips and serpentine matrices: IDENTICAL Art-Net on all 5 universes, every one lit;
+>   `test:shader-projector --text` — type on a keystoned, soft-edged output: 0 of 2 073 600 screen pixels apart
+>   by more than 1. `verify:invariants`: rasters before the document, on first send and on restart
+>   (mutation-tested).
+> - **Found on the way — an APP bug, fixed in both samplers:** an RGB (3-channel) fixture whose RGBW mode was
+>   never set kept the hidden default SUBTRACT (W = min(r,g,b) taken out of r, g, b) and the packer dropped
+>   that W: white and grey went BLACK on the wire, and the inspector shows the White control only on
+>   4-channel fixtures. The test's white word was black in BOTH runs — identically, which is why parity alone
+>   did not catch it; the "every universe lit" gate did. `ledLayout.buildSegParams` and the engine's
+>   `build_seg_params` now keep full RGB for 3 channels (no project in examples/ or the owner's recent list
+>   was affected); `test:sampling-parity` (60 cases) and `test:pack-parity` still identical; guarded.
+> - **Limit:** MOVING text (keyframed position / rotation / scale) is re-shipped on every frame it moves —
+>   ~3.7 MB per frame at 720p. Fine for a caption, wasteful for a constantly animated title; `glyphon` in the
+>   engine is the later answer (§2).
+
 ## 9d. E4 started early — the 3D view in the engine (owner, 2026-11-24)
 
 > **Owner, 2026-11-24: "start E4's 3D now"** — for the detachable 3D view (plans/3d-workbench.md §5/Phase 4),
@@ -1852,7 +1877,7 @@ fallback until a source/output is proven byte-identical — risk 2):
 >   example: named screen; projected from a frozen view; a panel between projector and screen — engine,
 >   editor WebGPU and editor WebGL (forced) all identical. Guarded in verify:invariants.
 > - **Not yet (E4b…):** beams and the Rendered look, labels, selection / picking (the GPU id buffer, body
->   before LEDs) and the gizmo, sources the engine does not draw (layers, text, tracking…) on screens
+>   before LEDs) and the gizmo, sources the engine does not draw (layers, tracking…) on screens
 >   and venue meshes, the four-view layout, saving the window's place, macOS / Linux.
 
 ## 10. Open questions

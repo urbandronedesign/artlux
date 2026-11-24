@@ -259,7 +259,7 @@ export const chromeHelp: HelpEntry[] = [
     id: 'general.rgbw-mode',
     title: 'White channel',
     short: 'How the white (W) channel is derived on RGBW fixtures.',
-    body: 'On 4-channel RGBW pixels, "Subtract min" pulls the common white component out of R/G/B into the dedicated white LED for cleaner whites; "None" leaves the white channel unused.',
+    body: 'On 4-channel RGBW pixels, "Subtract min" pulls the common white component out of R/G/B into the dedicated white LED for cleaner whites; "None" leaves the white channel unused. A 3-channel RGB fixture always sends full R, G and B.',
     group: 'General',
     keywords: ['rgbw', 'white', 'channel', 'subtract', 'pixel'],
   },

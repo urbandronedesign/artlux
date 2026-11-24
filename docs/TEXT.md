@@ -131,6 +131,12 @@ suits LED work, where fixtures sample a small area and anything finer is thrown 
 re-draws the text itself rather than being sent a picture, which is exactly what keeps glyph edges
 crisp on a large output — a letter's edge is where a resolution limit first becomes visible.
 
+**With the native engine** (`--native-engine`) nothing changes in how text looks: ArtLux still draws
+the type, and hands the engine the finished picture whenever the text changes — the editor's picture for
+your fixtures and the engine's 3D view, and one drawn at a projector's full resolution for each of the
+engine's projector outputs. A still text surface costs the engine nothing after that; text that
+**moves** (a keyframed position, rotation or scale) is handed over on every frame it moves.
+
 ---
 
 ## Notes

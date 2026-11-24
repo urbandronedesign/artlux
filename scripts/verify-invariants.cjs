@@ -4298,6 +4298,41 @@ check(
 );
 
 check(
+  'a 3-channel fixture keeps full RGB, in the app and in the engine',
+  'The RGBW mode defaults to SUBTRACT (W = min(r,g,b), taken out of r, g and b) and the inspector shows the ' +
+  'White control on 4-channel fixtures only. So an RGB strip whose mode was never set had the neutral part ' +
+  'of every colour moved into a W the packer then dropped: white and grey went BLACK on the wire, with no ' +
+  'control to fix it. Found 2026-11-24 by the native engine\'s text wire test (both runs black, identically). ' +
+  'The engine ports buildSegParams byte for byte, so both halves carry the rule.',
+  () => {
+    const problems = [];
+    const T = 'src/renderer/gpu/ledLayout.ts', R = 'engine/artlux-engine/src/layout.rs';
+    if (!exists(T) || !exists(R)) return 'ledLayout.ts / layout.rs is gone';
+    if (!/f\.rgbwMode === RGBWMode\.NONE \|\| f\.channelsPerPixel === 3 \? 1 : 0/.test(read(T))) problems.push('ledLayout.buildSegParams subtracts white on a 3-channel fixture again');
+    if (!/f\.channels_per_pixel\.as_f64\(\) == Some\(3\.0\)/.test(read(R))) problems.push('the engine\'s build_seg_params subtracts white on a 3-channel fixture again');
+    return problems.length ? problems.join('; ') : null;
+  },
+);
+
+check(
+  'a raster reaches the native engine before the document that names it',
+  'E2 text: the app draws the type and ships the picture when it changes (nativeLink → main writes a file → ' +
+  'the engine reads it). The document naming a `raster` source must never arrive first, or the engine takes ' +
+  'the wire showing BLACK for that surface until the picture lands — and a restarted engine must be given ' +
+  'every raster again, before the document, since it knows nothing.',
+  () => {
+    const problems = [];
+    const L = 'src/renderer/engine/nativeLink.ts', H = 'src/main/engineHost.ts';
+    if (!exists(L) || !exists(H)) return 'nativeLink.ts / engineHost.ts is gone';
+    const l = read(L), h = read(H);
+    const ship = l.indexOf('shipRasters(surfaces, sources);'), doc = l.indexOf('nativeEngineDoc?.(');
+    if (ship < 0 || doc < 0 || ship > doc) problems.push('nativeLink no longer ships rasters before it sends the document');
+    if (!/for \(const r of rasterMsgs\.values\(\)\) write\(r\.msg\);[^\n]*\n\s*if \(lastDoc\)/.test(h)) problems.push('a restarted engine is no longer given the rasters before the document');
+    return problems.length ? problems.join('; ') : null;
+  },
+);
+
+check(
   'the native engine gives a shader every uniform the app does, and holds what the app holds',
   'E2: the engine draws SHADER surfaces itself (engine shader.rs), wrapping the author\'s text the way ' +
   'plugins/shader/src/wrapper.ts does — the ONE list of what a shader gets for free is wrapper.ts UNIFORMS. ' +
