@@ -2,7 +2,7 @@ import React, { Suspense, useState, useMemo, useCallback, useEffect, useLayoutEf
 import { Canvas, useThree, useFrame } from '@react-three/fiber';
 import { OrbitControls, GizmoHelper, GizmoViewport } from '@react-three/drei';
 import type * as THREE from 'three';
-import { Move3d, Rotate3d, Maximize, BoxSelect, Video, Globe, Box, Magnet, Scan, Cuboid, LayoutGrid, Crosshair, ChevronDown } from 'lucide-react';
+import { Move3d, Rotate3d, Maximize, BoxSelect, Video, Globe, Box, Magnet, Scan, Cuboid, LayoutGrid, Crosshair, ChevronDown, Sparkles } from 'lucide-react';
 import { Fixture, Vec3, Euler3, FixtureProfile } from '../../types';
 
 // One shared empty map, so a scene with no profiled fixtures allocates nothing per render.
@@ -38,10 +38,11 @@ import { OrthoCamera, ViewController, FrameController, DisplayModeController } f
 import { setGridPlane, gridQuaternion, registerGridGroup } from './gridSpace';
 import { GizmoOrbitGuard } from './GizmoOrbitGuard';
 import { ObjectDrag, FixtureDragTarget } from './ObjectDrag';
+import { RenderedMode, RENDERED_LIGHT_GAIN } from './RenderedMode';
 import { getOsnap, setOsnap, subscribeOsnap, toggleOsnapKind, OSNAP_KINDS, OSNAP_LABEL, OSNAP_HINT } from '../../services/snap3d';
 import { MultiView, multiViewEvents } from './MultiView';
 import { htmlPosition } from './htmlPosition';
-import { getView, setView, subscribeView, isOrtho, viewLabel, viewAlong, VIEW_ORDER, requestFrame, capturePose, applyPose, getDisplayMode, subscribeDisplayMode, cycleDisplayMode, displayLabel, getLayout, setLayout, subscribeLayout, maximisePane, QUAD_PANES, getActivePane, subscribeActivePane, type ViewKind } from '../../services/view3d';
+import { getView, setView, subscribeView, isOrtho, viewLabel, viewAlong, VIEW_ORDER, requestFrame, capturePose, applyPose, getDisplayMode, subscribeDisplayMode, cycleDisplayMode, toggleRendered, displayLabel, getLayout, setLayout, subscribeLayout, maximisePane, QUAD_PANES, getActivePane, subscribeActivePane, type ViewKind } from '../../services/view3d';
 import { usePrompt } from '../ui/feedback';
 import { nextNumberedName } from '@artlux/sdk/renderer';
 import { OriginGnomon } from './OriginGnomon';
@@ -388,6 +389,7 @@ const Simulator3D: React.FC<Props> = ({
       else if (VIEW_KEYS.some(([id, v]) => keymap.matches(e, id) && (setView(v), true))) e.preventDefault();
       else if (keymap.matches(e, 'scene3d.zoomExtents')) { e.preventDefault(); requestFrame('extents'); }
       else if (keymap.matches(e, 'scene3d.zoomSelected')) { e.preventDefault(); requestFrame('selected'); }
+      else if (keymap.matches(e, 'scene3d.toggleRendered')) { e.preventDefault(); toggleRendered(); }
       else if (keymap.matches(e, 'scene3d.cycleDisplay')) { e.preventDefault(); cycleDisplayMode(); }
       else if (keymap.matches(e, 'scene3d.toggleQuad')) { e.preventDefault(); setLayout(getLayout() === 'quad' ? 'single' : 'quad'); }
       else {
@@ -588,7 +590,11 @@ const Simulator3D: React.FC<Props> = ({
     [scene3D, projectorCalibs]);
   // Does the venue want SIMULATED fixture lighting at all? Absent gain means 1 (the historical
   // default), so only an explicit 0 turns the real lights off — see the two mount sites below.
-  const venueLit = (scene3D.lightIntensity ?? 1) > 0;
+  // Rendered (the lighting-simulation look) always lights the room from the rig — that is its purpose
+  // — at the authored gain, or 1 when the scene had it at 0. See RenderedMode.tsx.
+  const renderedLook = displayMode === 'rendered' && !quad;
+  const venueLit = renderedLook || (scene3D.lightIntensity ?? 1) > 0;
+  const lightGain = renderedLook ? Math.max(1, scene3D.lightIntensity ?? 1) * RENDERED_LIGHT_GAIN : scene3D.lightIntensity;
 
   return (
     <div
@@ -677,6 +683,8 @@ const Simulator3D: React.FC<Props> = ({
         {/* DISPLAY MODE — the label is the mode it is IN, like World/Object; a click (or the key) steps on. */}
         <ToolBtn active={displayMode !== 'shaded'} title={`Venue display: ${displayLabel(displayMode)}${keyHint('scene3d.cycleDisplay')} — Shaded → Wireframe → X-ray (models and screens only; fixtures always draw)`} helpId="scene3d.display-mode" onClick={cycleDisplayMode}><Cuboid size={14} /></ToolBtn>
         <span className="text-micro text-fg-3 -ml-0.5 mr-0.5 select-none">{displayLabel(displayMode)}</span>
+        {/* RENDERED — the lighting-simulation look, its own toggle (it was unfindable as a 4th cycle step). */}
+        <ToolBtn active={displayMode === 'rendered'} title={`Rendered look${keyHint('scene3d.toggleRendered')} — solid beams to the floor, pools of light, shadows and glow, for lighting simulation (colours are tone-mapped: use Shaded to judge content). One view, WebGPU`} helpId="scene3d.rendered" onClick={toggleRendered}><Sparkles size={14} /></ToolBtn>
         <ToolBtn active={false} title={`Zoom extents${keyHint('scene3d.zoomExtents')} — frame every model and fixture (zoom to the selection: ${keymap.resolve('scene3d.zoomSelected').map(formatChord).join(' / ')})`} helpId="scene3d.zoom-extents" onClick={() => requestFrame('extents')}><Scan size={14} /></ToolBtn>
         {/* LOOK THROUGH A PROJECTOR. Only calibrated outputs can offer a viewpoint, so the control
             appears once one exists rather than sitting there empty. The choice is stored on the
@@ -780,7 +788,7 @@ const Simulator3D: React.FC<Props> = ({
         {ortho && <OrthoCamera />}
         <ViewController view={shownView} />
         <ViewerCameraBridge />
-        <Lighting env={scene3D.environment} />
+        <Lighting env={scene3D.environment} dim={renderedLook} />
         {/* No reflective floor (removed 2026-10-22). It was drei's MeshReflectorMaterial, whose useFrame
             calls gl.state.buffers — WebGL-only. On the WebGPU renderer the scene defaults to, gl.state is
             undefined, so it threw on every frame and the whole viewport went black. Guarded by
@@ -905,12 +913,14 @@ const Simulator3D: React.FC<Props> = ({
           hazeDensity={scene3D.hazeDensity}
           // The heads being aimed get the whole diagram; see Beams' `selectedIds`.
           selectedIds={selectedFixtureIds}
-          cones={scene3D.beamCones !== false}
+          // Rendered is a picture, not an aiming aid: no diagram, solid beams to the floor.
+          cones={scene3D.beamCones !== false && !renderedLook}
+          look={renderedLook ? 'rendered' : 'diagram'}
         />
         {/* Tier 2: a few REAL spotlights so the brightest beams actually light the room. Capped —
             see MoverLights on why lights are not additive in cost — and skipped outright at zero
             gain, for the reason spelled out on FixtureLights above. */}
-        {venueLit && <MoverLights fixtures={fixtures} profiles={fixtureProfiles} gain={scene3D.lightIntensity} />}
+        {venueLit && <MoverLights fixtures={fixtures} profiles={fixtureProfiles} gain={lightGain} />}
         <InstancedLeds fixtures={fixtures} onSelectFixture={onSelectFixture} />
         {mode !== 'select' && <FixtureGizmo
           fixtures={gizmoFixtures}
@@ -949,6 +959,9 @@ const Simulator3D: React.FC<Props> = ({
         <FixtureDragTarget fixtures={gizmoFixtures} onRecordHistory={onRecordHistory} onCommit={onCommitFixture3D} />
         <ViewBridge />
         <DisplayModeController mode={displayMode} />
+        {/* RENDERED — the lighting-simulation look (tone curve, bloom, AO, environment, mover shadows).
+            One view, WebGPU only: the four-view renderer draws its own passes. */}
+        {renderedLook && <RenderedMode quality="high" />}
         {quad && <MultiView orbitEnabled={dragPick == null && !viewFrom} />}
         <FrameController fixtures={fixtures} selectedFixtureIds={gizmoFixtures.map((f) => f.id)} selectedModelId={selectedModelId ?? null} view={shownView} />
         {/* drei's GizmoViewport builds its axis-head sprites through `gl.capabilities.getMaxAnisotropy()`,

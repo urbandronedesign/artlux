@@ -87,6 +87,24 @@ drawn:
 Only the venue changes: fixtures, LEDs and beams always draw as they are. It changes this view only — not
 the project, not the projector outputs.
 
+### Rendered — see what the light will look like
+
+The **sparkles** button beside the cube (or **Shift+Z**) turns on **Rendered**, a lighting simulation in
+the spirit of Blender's rendered view. Use it to judge a look, not to judge content:
+
+- Every moving head throws a **solid beam** in its colour **all the way to the floor**, and lands as a
+  **pool of light**; its spotlight casts **shadows** from models and fixtures.
+- LEDs and lenses **glow**, corners and the floor under things darken, and a **dark stage floor** catches
+  the light even when there is no venue model.
+- The room is lit by **the rig alone** — even when **Light gain** is at 0 — and the aiming diagram (the
+  outline circles and rays) is hidden.
+
+**Colours are tone‑mapped** in Rendered, so they are not the exact values going to the wall: switch back
+(the same button or **Shift+Z** returns to the mode you were in) to judge a picture. Rendered works in
+**one view** and on the **WebGPU** renderer; in four views, or on the WebGL fallback, it draws as Shaded.
+The eight brightest heads cast real pools and shadows — on a bigger rig every beam still draws, the
+dimmer ones without a pool.
+
 ### Frame what you are working on
 
 - **Zoom extents** (the frame button next to the view picker, or **Home**) fits every model and fixture in

@@ -241,7 +241,7 @@ export const DisplayModeController: React.FC<{ mode: DisplayMode }> = ({ mode })
   // Leaving a mode, or the view going away: every touched material back as it was.
   useEffect(() => restore, [mode]); // eslint-disable-line react-hooks/exhaustive-deps
   useFrame(() => {
-    if (mode === 'shaded') return;
+    if (mode === 'shaded' || mode === 'rendered') return;   // Rendered keeps the materials; RenderedMode.tsx adds the look
     scene.traverse((o) => {
       if (!o.userData?.modelId) return;
       o.traverse((c) => {

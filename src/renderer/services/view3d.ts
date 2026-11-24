@@ -118,9 +118,13 @@ export function onFrameRequest(f: (t: FrameTarget) => void): () => void { frameL
 // How the VENUE (models and screens) is drawn. Fixtures, LEDs and beams always draw as they are — the
 // point of Wireframe and X-ray is to see the rig through the room, not to change the rig. Per window and
 // per session, like the view; in Phase 2 it becomes per viewport.
-export type DisplayMode = 'shaded' | 'wireframe' | 'xray';
+// 'rendered' (2026-11-24) is the lighting-simulation look — tone curve, bloom, AO, shadows — and the one
+// mode that changes how the RIG looks too; see Simulator3D/RenderedMode.tsx.
+export type DisplayMode = 'shaded' | 'wireframe' | 'xray' | 'rendered';
+// The cube button / Z cycle the three VENUE modes; Rendered has its own toggle (owner, 2026-11-24: it was
+// unfindable as the fourth step of a cycle) — toggleRendered.
 export const DISPLAY_MODES: DisplayMode[] = ['shaded', 'wireframe', 'xray'];
-export const displayLabel = (m: DisplayMode): string => (m === 'shaded' ? 'Shaded' : m === 'wireframe' ? 'Wireframe' : 'X-ray');
+export const displayLabel = (m: DisplayMode): string => (m === 'shaded' ? 'Shaded' : m === 'wireframe' ? 'Wireframe' : m === 'xray' ? 'X-ray' : 'Rendered');
 let display: DisplayMode = 'shaded';
 const displaySubs = new Set<() => void>();
 export const getDisplayMode = (): DisplayMode => display;
@@ -130,6 +134,13 @@ export function setDisplayMode(m: DisplayMode): void {
   displaySubs.forEach((f) => f());
 }
 export const cycleDisplayMode = (): void => setDisplayMode(DISPLAY_MODES[(DISPLAY_MODES.indexOf(display) + 1) % DISPLAY_MODES.length]);
+// From Rendered, indexOf is -1, so the cycle lands on Shaded — the natural way out.
+let beforeRendered: DisplayMode = 'shaded';
+/** Rendered on, or back to whichever venue mode was showing before it. */
+export function toggleRendered(): void {
+  if (display === 'rendered') setDisplayMode(beforeRendered);
+  else { beforeRendered = display; setDisplayMode('rendered'); }
+}
 export function subscribeDisplayMode(f: () => void): () => void { displaySubs.add(f); return () => { displaySubs.delete(f); }; }
 
 // ── Poses (named views, item 5) ─────────────────────────────────────────────────────────────────

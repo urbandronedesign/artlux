@@ -180,11 +180,24 @@ interface Props {
   selectedIds?: readonly string[];
   /** Draw the cone diagram at all. Absent ⇒ on. */
   cones?: boolean;
+  /** 'rendered' = the Rendered display mode's solid beams to the floor; see RENDERED_THROW. */
+  look?: 'diagram' | 'rendered';
 }
 
 const DEG = Math.PI / 180;
 
-export const Beams: React.FC<Props> = ({ fixtures, profiles, hazeDensity, selectedIds, cones = true }) => {
+// ── THE RENDERED LOOK (2026-11-24, owner: "I want the beams like in this image" — a visualiser's solid
+// coloured shafts down to a pool on the floor) ─────────────────────────────────────────────────────
+// Shaded keeps the honest haze above: faint, gone by three-quarters of 8 m. The Rendered display mode
+// (RenderedMode.tsx) asks for the other look: every cone runs TO THE FLOOR (or RENDERED_THROW when it
+// never meets it), stays strong along its whole length, and its edge softens rather than vanishing —
+// the bright pool where it lands is the moving head's real spotlight (MoverLights). WebGPU only, as the
+// whole Rendered mode is, so this lives in the node build alone; the GLSL keeps Shaded's maths.
+const RENDERED_THROW = 30;
+const RENDERED_STRENGTH = 2.2;
+
+export const Beams: React.FC<Props> = ({ fixtures, profiles, hazeDensity, selectedIds, cones = true, look = 'diagram' }) => {
+  const rendered = look === 'rendered';
   const movers = useMemo(
     () => fixtures.filter((f) => isResolvedLight(f, profiles)),
     [fixtures, profiles],
@@ -232,7 +245,7 @@ export const Beams: React.FC<Props> = ({ fixtures, profiles, hazeDensity, select
   // The RENDERER decides, not module availability — the same trap that blacked out the projector
   // window's output once the TSL modules started preloading. See makeProjectedMaterial.
   const useNodes = isWebGPURenderer(useThree((st) => st.gl));
-  const { material, setHaze } = useMemo(() => {
+  const { material, setHaze, setSolid } = useMemo(() => {
     const mods = useNodes ? nodes() : null;
     if (!mods) {
       const m = new THREE.ShaderMaterial({
@@ -248,12 +261,13 @@ export const Beams: React.FC<Props> = ({ fixtures, profiles, hazeDensity, select
         side: THREE.DoubleSide,
         toneMapped: false,
       });
-      return { material: m as THREE.Material, setHaze: (v: number) => { m.uniforms.uHaze.value = v; } };
+      return { material: m as THREE.Material, setHaze: (v: number) => { m.uniforms.uHaze.value = v; }, setSolid: (_on: boolean) => { /* Rendered is WebGPU-only */ } };
     }
 
     const { MeshBasicNodeMaterial } = mods.webgpu;
-    const { uniform, float, vec3, positionLocal, positionView, normalView, normalize, abs, dot, clamp, smoothstep, Discard, instancedDynamicBufferAttribute } = mods.tsl;
+    const { uniform, float, vec3, positionLocal, positionView, normalView, normalize, abs, dot, clamp, smoothstep, Discard, instancedDynamicBufferAttribute, mix, pow } = mods.tsl;
     const uHaze = uniform(0.35);
+    const uSolid = uniform(0);   // 0 = Shaded's haze, 1 = the Rendered look (see RENDERED_THROW)
     const m = new MeshBasicNodeMaterial();
     m.transparent = true;
     m.blending = THREE.AdditiveBlending;
@@ -266,10 +280,13 @@ export const Beams: React.FC<Props> = ({ fixtures, profiles, hazeDensity, select
     // `normalView` is already the correctly un-skewed normal — which is precisely the fiddly part the
     // GLSL has to do by hand (see the inverse-scale comment in VERT).
     const t = clamp(positionLocal.z.negate(), float(0), float(1));
-    const facing = abs(dot(normalize(normalView), normalize(positionView.negate())));
-    const fall = float(1).sub(t).mul(float(1).sub(t));
+    const facing0 = abs(dot(normalize(normalView), normalize(positionView.negate())));
+    // Rendered: a softer edge (facing^0.6 — the shaft reads as a solid, not a hollow tube) and a falloff
+    // that keeps ~45% at the floor instead of (1-t)², which is 0 there.
+    const facing = mix(facing0, pow(facing0, float(0.6)), uSolid);
+    const fall = mix(float(1).sub(t).mul(float(1).sub(t)), float(1).sub(t.mul(0.55)), uSolid);
     const throat = smoothstep(float(0), float(0.05), t);
-    const a = facing.mul(fall).mul(throat).mul(uHaze);
+    const a = facing.mul(fall).mul(throat).mul(uHaze).mul(mix(float(1), float(RENDERED_STRENGTH), uSolid));
     Discard(a.lessThanEqual(float(0.002)));
 
     // The same buffer the GLSL reads as `aTint`. `instancedDynamicBufferAttribute` is the node three
@@ -280,13 +297,14 @@ export const Beams: React.FC<Props> = ({ fixtures, profiles, hazeDensity, select
     const tint = vec3(instancedDynamicBufferAttribute(tintAttr, 'vec3', 3, 0) as never);
     m.colorNode = tint.mul(a);
     m.opacityNode = a;
-    return { material: m as THREE.Material, setHaze: (v: number) => { uHaze.value = v; } };
+    return { material: m as THREE.Material, setHaze: (v: number) => { uHaze.value = v; }, setSolid: (on: boolean) => { uSolid.value = on ? 1 : 0; } };
     // Rebuilt when the tint buffer is replaced: the node path BAKES that attribute into the shader,
     // so a material left pointing at the previous buffer would tint from a stale array.
   }, [useNodes, tintAttr]);
 
   useEffect(() => () => material.dispose(), [material]);
   useEffect(() => { setHaze(hazeDensity ?? 0.35); }, [setHaze, hazeDensity]);
+  useEffect(() => { setSolid(rendered); }, [setSolid, rendered]);
 
   // Reused per-frame ranking scratch — see MAX_BEAMS.
   const ranked = useRef<number[]>([]);
@@ -431,8 +449,14 @@ export const Beams: React.FC<Props> = ({ fixtures, profiles, hazeDensity, select
         continue;
       }
 
-      const radius = BEAM_LENGTH * tanH;
-      s.set(radius, radius, BEAM_LENGTH);
+      // Rendered: to the floor (y = 0) along the optical axis, or RENDERED_THROW when it never gets there.
+      let len = BEAM_LENGTH;
+      if (rendered) {
+        dir.set(0, 0, -1).applyQuaternion(aim);
+        len = dir.y < -1e-4 && p.y > 0 ? Math.min(p.y / -dir.y, RENDERED_THROW) : RENDERED_THROW;
+      }
+      const radius = len * tanH;
+      s.set(radius, radius, len);
 
       m.compose(p, aim, s);
       mesh.setMatrixAt(i, m);

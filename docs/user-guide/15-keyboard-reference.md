@@ -137,6 +137,7 @@ Live only while the pointer is over the 3D viewport.
 | `Home` | Zoom extents — Frames every model and fixture, in the current view |
 | `.` or `F` | Zoom to selection — Frames the selected fixtures or model (everything when nothing is selected) |
 | `Z` | Venue display mode — Steps Shaded → Wireframe → X-ray. Models and screens only; fixtures and LEDs always draw as they are |
+| `Shift+Z` | Rendered look — Toggles the lighting-simulation look: solid beams to the floor, pools of light, shadows, glow. One view, WebGPU |
 | `Ctrl+Alt+Q` | One view / four views — Four views is Top, Perspective, Front and Right; double-click a pane title to make it the only view |
 
 **Editing**

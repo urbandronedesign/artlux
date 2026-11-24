@@ -113,6 +113,15 @@ export const scene3dHelp: HelpEntry[] = [
     keywords: ['wireframe', 'x-ray', 'xray', 'shaded', 'display', 'transparent', 'see through', 'shading'],
   },
   {
+    id: 'scene3d.rendered',
+    title: 'Rendered look',
+    short: 'A lighting simulation: solid beams down to pools of light, shadows and glow.',
+    body: 'For seeing what the light will look like, not for judging content. Moving heads throw solid beams in their colour all the way to the floor, land as pools of light, and cast shadows; LEDs and lenses glow; a dark stage floor catches the light even without a venue model, and the room is lit by the rig alone — even with Light gain at 0. Colours are tone-mapped, so they are NOT the exact values sent to the wall: switch back to Shaded to judge content. Shift+Z toggles it and returns to the mode you were in. One view only, and only on the WebGPU renderer; in four views it draws as Shaded.',
+    group: '3D Scene',
+    keywords: ['rendered', 'render', 'eevee', 'lighting simulation', 'beams', 'shadows', 'bloom', 'glow', 'visualiser', 'visualizer', 'pools'],
+    shortcut: 'Shift+Z',
+  },
+  {
     id: 'scene3d.views-panel',
     title: 'Saved views',
     short: 'Viewpoints of this venue, saved with the project.',
