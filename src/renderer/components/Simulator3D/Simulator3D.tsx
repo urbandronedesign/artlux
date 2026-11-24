@@ -1013,6 +1013,8 @@ const Simulator3D: React.FC<Props> = ({
           cones: scene3D.beamCones !== false && !renderedLook,
           rendered: !!renderedLook,
           selected: selectedFixtureIds,
+          grid: scene3D.gridVisible !== false,
+          gridLabels: scene3D.gridLabels !== false,
         }} />}
         {/* Press-and-drag the selection itself, with object snaps — after the guard, whose window
             listener must decide "gizmo handle?" first. Not while picking calibration anchors or looking

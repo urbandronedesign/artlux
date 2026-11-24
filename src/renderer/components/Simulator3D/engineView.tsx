@@ -135,12 +135,15 @@ function buildScene(scene: THREE.Scene, fixtures: Fixture[], beams: EngineBeams)
     }
     return out;
   });
-  return JSON.stringify({ models, leds, lights, lines, beams: { haze: r4(beams.haze), cones: beams.cones, rendered: beams.rendered, selected: beams.selected } });
+  return JSON.stringify({ models, leds, lights, lines, beams: { haze: r4(beams.haze), cones: beams.cones, rendered: beams.rendered, selected: beams.selected },
+    grid: { visible: beams.grid, labels: beams.gridLabels } });
 }
 
 /** How the beams look, as the editor's Beams is told (Simulator3D): haze, the cone diagram, the Rendered look, and
  *  the heads being aimed (they get the whole diagram). */
-export interface EngineBeams { profiles: ReadonlyMap<string, FixtureProfile>; haze: number; cones: boolean; rendered: boolean; selected: readonly string[] }
+export interface EngineBeams { profiles: ReadonlyMap<string, FixtureProfile>; haze: number; cones: boolean; rendered: boolean; selected: readonly string[];
+  /** The editor's floor grid and its numbers (scene3D.gridVisible / gridLabels) — the engine view follows them. */
+  grid: boolean; gridLabels: boolean }
 
 /** Mounted inside the Canvas while the engine's 3D view is open: keeps the engine's scene current. */
 export const EngineViewLink: React.FC<{ fixtures: Fixture[]; beams: EngineBeams }> = ({ fixtures, beams }) => {

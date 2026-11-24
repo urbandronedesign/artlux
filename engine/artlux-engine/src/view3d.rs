@@ -40,7 +40,11 @@ pub enum ModelKind {
 pub struct Model { pub id: String, pub kind: ModelKind, pub matrix: [f32; 16], pub content: Option<Content> }
 /// One pixel fixture: its LED world positions, in the same order as its texels in the composed buffer.
 pub struct LedFix { pub id: String, pub pos: Vec<f32> }
-pub struct Scene { pub models: Vec<Model>, pub leds: Vec<LedFix>, pub lights: Vec<LightFix>, pub lines: Vec<f32>, pub look: BeamLook }
+pub struct Scene { pub models: Vec<Model>, pub leds: Vec<LedFix>, pub lights: Vec<LightFix>, pub lines: Vec<f32>, pub look: BeamLook, pub grid: GridLook }
+/// The editor's grid toggles (scene3D.gridVisible / gridLabels): the floor grid with its axes, and its numbers.
+#[derive(Clone, Copy)]
+pub struct GridLook { pub visible: bool, pub labels: bool }
+impl Default for GridLook { fn default() -> Self { GridLook { visible: true, labels: true } } }
 /// E4b: one light fixture — its housing, and (when its profile resolves) its beam's FIXED half, as the editor
 /// computed it (engineView.tsx; Beams.tsx's maths): the lens apex in world space, the fixture's base rotation
 /// (a quaternion, x y z w), the pan / tilt mid-points and the lens half-angle, in degrees. The MOVING half is
@@ -124,7 +128,9 @@ impl Scene {
             rendered: b["rendered"].as_bool().unwrap_or(false),
             selected: b["selected"].as_array().into_iter().flatten().filter_map(|x| x.as_str().map(str::to_string)).collect(),
         };
-        Scene { models, leds, lights, lines, look }
+        let g = &v["grid"];
+        let grid = GridLook { visible: g["visible"].as_bool().unwrap_or(true), labels: g["labels"].as_bool().unwrap_or(true) };
+        Scene { models, leds, lights, lines, look, grid }
     }
 }
 
@@ -206,6 +212,15 @@ impl Place {
             ty >= my && ty < my1 && cx1 > mx && cx0 < mx1
         })
     }
+}
+
+/// The view-projection (WebGPU clip), the unit look direction and the unit screen-up, for an aspect — what the
+/// presenter draws with and the floor numbers lay themselves out against.
+pub fn camera_frame(cam: &Cam, aspect: f32) -> ([f32; 16], [f32; 3], [f32; 3]) {
+    let eye = cam.eye();
+    let vp = mul(&perspective(cam.fov, aspect, 0.03, 4000.0), &look_at(eye, cam.target));
+    let (_, up) = cam.basis();
+    (vp, norm(sub(cam.target, eye)), up)
 }
 
 // ── Picking (E4b) ───────────────────────────────────────────────────────────────────────────────────
@@ -558,6 +573,18 @@ struct BOut { @builtin(position) pos: vec4<f32>, @location(0) local: vec3<f32>, 
   return vec4<f32>(i.tint * a, a);
 }
 
+// E4b — the floor numbers (labels.rs): glyph quads lying on the floor, the atlas's alpha the coverage, the
+// vertex colour the ink (already faded).
+struct TOut { @builtin(position) pos: vec4<f32>, @location(0) uv: vec2<f32>, @location(1) c: vec3<f32> };
+@vertex fn vs_label(@location(0) p: vec3<f32>, @location(1) uv: vec2<f32>, @location(2) c: vec3<f32>) -> TOut {
+  var o: TOut; o.pos = cam.vp * vec4<f32>(p, 1.0); o.uv = uv; o.c = c; return o;
+}
+@fragment fn fs_label(i: TOut) -> @location(0) vec4<f32> {
+  let a = textureSample(tex, samp, i.uv).a;
+  if (a < 0.01) { discard; }
+  return vec4<f32>(i.c, a);
+}
+
 // A projector's depth map: the venue seen from the projector, distance along its view axis per texel.
 struct DOut { @builtin(position) pos: vec4<f32>, @location(0) d: f32 };
 @vertex fn vs_depth(@location(0) p: vec3<f32>) -> DOut {
@@ -647,6 +674,15 @@ pub fn present(gpu: Arc<Gpu>, window: Arc<Window>, surface: wgpu::Surface<'stati
         fragment: Some(wgpu::FragmentState { module: &module, entry_point: Some("fs_line_flat"), targets: &[Some(wgpu::ColorTargetState {
             format, blend: Some(wgpu::BlendState::ALPHA_BLENDING), write_mask: wgpu::ColorWrites::ALL })], compilation_options: Default::default() }),
         primitive: wgpu::PrimitiveState { topology: wgpu::PrimitiveTopology::LineList, ..Default::default() },
+        depth_stencil: ds(false), multisample: ms, multiview_mask: None, cache: None,
+    });
+    let label_pipe = d.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+        label: Some("floor numbers"), layout: Some(&depth_pl),
+        vertex: wgpu::VertexState { module: &module, entry_point: Some("vs_label"), compilation_options: Default::default(), buffers: &[Some(wgpu::VertexBufferLayout {
+            array_stride: (crate::labels::VERT_FLOATS * 4) as u64, step_mode: wgpu::VertexStepMode::Vertex, attributes: &wgpu::vertex_attr_array![0 => Float32x3, 1 => Float32x2, 2 => Float32x3] })] },
+        fragment: Some(wgpu::FragmentState { module: &module, entry_point: Some("fs_label"), targets: &[Some(wgpu::ColorTargetState {
+            format, blend: Some(wgpu::BlendState::ALPHA_BLENDING), write_mask: wgpu::ColorWrites::ALL })], compilation_options: Default::default() }),
+        primitive: wgpu::PrimitiveState { cull_mode: None, ..Default::default() },
         depth_stencil: ds(false), multisample: ms, multiview_mask: None, cache: None,
     });
     // The beams' volume: additive (three's AdditiveBlending: src x alpha + dst), depth-tested, never written.
@@ -760,6 +796,18 @@ pub fn present(gpu: Arc<Gpu>, window: Arc<Window>, surface: wgpu::Surface<'stati
         gpu.queue.write_buffer(slot.as_ref().unwrap(), 0, &bytes(data));
     };
     let mut beams_logged = (0u32, 0u32, false);
+    // The floor numbers' glyph atlas, rasterised once (labels.rs), bound through an object group (its texture slot).
+    let label_atlas = crate::labels::atlas();
+    let label_bind = label_atlas.as_ref().map(|a| {
+        eprintln!("artlux-engine: 3D view floor numbers: glyph atlas {} x {}", a.w, a.h);
+        let t = tex_rgba(&gpu, a.w, a.h, &a.rgba);
+        obj_bind(&obj_ub(), &t.create_view(&Default::default()))
+    });
+    if label_atlas.is_none() { eprintln!("artlux-engine: 3D view: no monospace system font — the floor has no numbers"); }
+    let cell_aspect = label_atlas.as_ref().map_or(0.6, |a| a.cell_aspect);
+    let mut label_state = crate::labels::State::default();
+    let mut label_buf: Option<wgpu::Buffer> = None;
+    let mut labels_logged = false;
 
     // The screen quad: 1 × 1 in XY facing +Z, scaled per plane (PlaneGeometry's UVs: v = 0 at the bottom,
     // and the picture's row 0 is its TOP, so the quad samples (u, 1 - v)).
@@ -919,6 +967,16 @@ pub fn present(gpu: Arc<Gpu>, window: Arc<Window>, surface: wgpu::Surface<'stati
         let bf = scene.as_ref().map(|s| crate::beams::build(&s.lights, &beam_states, &s.look)).unwrap_or(crate::beams::Frame { cones: Vec::new(), lines: Vec::new() });
         let n_cones = (bf.cones.len() / crate::beams::CONE_FLOATS) as u32;
         let n_beam_verts = (bf.lines.len() / crate::beams::LINE_FLOATS) as u32;
+        // The floor numbers, laid out against this frame's camera, in css pixels.
+        let grid_look = scene.as_ref().map(|s| s.grid).unwrap_or_default();
+        let label_verts = if grid_look.visible && grid_look.labels && label_bind.is_some() {
+            let (vpm, fwd, up) = camera_frame(&cam, aspect);
+            let css_h = size.height as f32 / window.scale_factor().max(0.1) as f32;
+            crate::labels::build(&mut label_state, &vpm, eye, fwd, up, css_h, cell_aspect)
+        } else { Vec::new() };
+        let n_label_verts = (label_verts.len() / crate::labels::VERT_FLOATS) as u32;
+        grow(&mut label_buf, &label_verts, "floor numbers");
+        if !labels_logged && n_label_verts > 0 { labels_logged = true; eprintln!("artlux-engine: 3D view floor numbers: {} glyph(s)", n_label_verts / 6); }
         grow(&mut cone_inst, &bf.cones, "beam instances");
         grow(&mut beam_lines, &bf.lines, "beam lines");
         // Logged on the first beams and again whenever the look or the count changes (a test reads it).
@@ -1121,9 +1179,17 @@ pub fn present(gpu: Arc<Gpu>, window: Arc<Window>, surface: wgpu::Surface<'stati
                 pass.set_vertex_buffer(0, lb.slice(..));
                 pass.draw(0..n_beam_verts, 0..1);
             }
-            pass.set_pipeline(&line_pipe);
-            pass.set_vertex_buffer(0, grid.0.slice(..));
-            pass.draw(0..grid.1, 0..1);
+            if scene.as_ref().is_none_or(|s| s.grid.visible) {
+                pass.set_pipeline(&line_pipe);
+                pass.set_vertex_buffer(0, grid.0.slice(..));
+                pass.draw(0..grid.1, 0..1);
+            }
+            if let (Some(lb), Some(bind), true) = (&label_buf, &label_bind, n_label_verts > 0) {
+                pass.set_pipeline(&label_pipe);
+                pass.set_bind_group(1, bind, &[]);
+                pass.set_vertex_buffer(0, lb.slice(..));
+                pass.draw(0..n_label_verts, 0..1);
+            }
             if let Some((ob, n)) = &overlay {
                 pass.set_pipeline(&flat_line_pipe);
                 pass.set_vertex_buffer(0, ob.slice(..));
@@ -1162,7 +1228,7 @@ mod pick_tests {
             // A strip along X at y = 2, z = 0, and a light housing in front of it (nearer the camera at +Z).
             leds: vec![LedFix { id: "strip".into(), pos: (0..10).flat_map(|i| [i as f32 * 0.1 - 0.5, 2.0, 0.0]).collect() }],
             lights: vec![LightFix { id: "head".into(), pos: [0.2, 2.0, 2.0], beam: None }],
-            lines: Vec::new(), look: BeamLook::default(),
+            lines: Vec::new(), look: BeamLook::default(), grid: GridLook::default(),
         }
     }
     #[test]

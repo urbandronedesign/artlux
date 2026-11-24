@@ -240,6 +240,14 @@ const segmentsNow = (logf) => { const l = beamLines(logf); const m = /(\d+) diag
       console.log(`   screenshot: ${shot}`);
     }
 
+    // THE FLOOR NUMBERS (E4b, labels.rs): looking down at the floor, as the editor's default view does — whole
+    // metres along both runs, laid out by the editor's own rules; the engine logs how many glyphs it laid.
+    await page.evaluate(() => window.artlux.nativeEngineView3d(true, { position: [0, 5, 7], target: [0, 0, 0], fov: 50 }));
+    await sleep(2000);
+    captureEngineWindow(path.join(WORK, 'engine-floor.png'));
+    const gl = /floor numbers: (\d+) glyph/.exec(fs.readFileSync(logf, 'utf8'));
+    note(!!gl && +gl[1] > 20, 'the floor is numbered', gl ? `${gl[1]} glyphs` : 'no glyphs logged');
+
     // PICKING (E4b): the engine camera looks along the row of movers, so the three clicks are well apart.
     const EYE = [1, 5.6, 5], TARGET = [0, 5, -4], FOV = 55;
     await page.evaluate((e, t, f) => window.artlux.nativeEngineView3d(true, { position: e, target: t, fov: f }), EYE, TARGET, FOV);
@@ -265,6 +273,14 @@ const segmentsNow = (logf) => { const l = beamLines(logf); const m = /(\d+) diag
     note(segmentsNow(logf) === 160, 'rings only, no head aimed', `${segmentsNow(logf)} segments`);
     clickEngineWindow([[m3[0], m3[1], false], [m2[0], m2[1], true]]);
     await sleep(1200);
+    // An INJECTED Shift-click is occasionally dropped by Windows before it reaches the window (1 run in 3 on the
+    // RTX box, 2026-11-24: no pick logged at all — not a wrong pick). One retry, said out loud; a wrong pick or a
+    // second miss still fails.
+    if (!/3D view pick: fx_m2/.test(fs.readFileSync(logf, 'utf8'))) {
+      console.log('   (the Shift-click never arrived — retried once)');
+      clickEngineWindow([[m2[0], m2[1], true]]);
+      await sleep(1200);
+    }
     note(/3D view pick: fx_m2 \(add\)/.test(fs.readFileSync(logf, 'utf8')), 'Shift-click adds Mover 2');
     note(JSON.stringify((await inspector()).sort()) === '["Mover 2","Mover 3"]', 'the editor holds both', JSON.stringify(await inspector()));
     note(segmentsNow(logf) === 178, 'both heads get the full diagram', `${segmentsNow(logf)} segments`);

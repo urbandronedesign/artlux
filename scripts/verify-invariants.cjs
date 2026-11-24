@@ -9364,6 +9364,28 @@ check(
   },
 );
 
+check(
+  'the engine\'s floor numbers follow the editor\'s rules',
+  'E4b: the engine window numbers its floor (engine labels.rs) with constants COPIED from the editor\'s ' +
+  'GridLabels.tsx and gridScale.ts — the label size, the fade-in band, how far each run counts, the fade ' +
+  'distance, the run stickiness, the widest a number may be, the reference cap. Change one in the editor and the ' +
+  'two windows number the floor differently with nothing failing. They are compared here.',
+  () => {
+    const problems = [];
+    const R = 'engine/artlux-engine/src/labels.rs', G = 'src/renderer/components/Simulator3D/GridLabels.tsx', S = 'src/renderer/components/Simulator3D/gridScale.ts';
+    for (const f of [R, G, S]) if (!exists(f)) return `${f} is gone`;
+    const r = read(R), ts = read(G) + read(S);
+    for (const k of ['LABEL_GONE_PX', 'LABEL_FULL_PX', 'LABEL_PX', 'MAX_REF_M', 'L_EXT', 'L_FADE', 'RUN_STICK', 'MAX_W']) {
+      const a = new RegExp('(?:export )?const ' + k + ' = ([0-9.]+);').exec(ts), b = new RegExp('const ' + k + ': [a-z0-9]+ = ([0-9.]+);').exec(r);
+      if (!a || !b) { problems.push(`${k} not found in ${a ? R : 'GridLabels.tsx / gridScale.ts'}`); continue; }
+      if (Number(a[1]) !== Number(b[1])) problems.push(`${k}: editor ${a[1]}, engine ${b[1]}`);
+    }
+    const chars = /const CHARS = '([^']+)'/.exec(read(G)), rchars = /pub const CHARS: &str = "([^"]+)"/.exec(r);
+    if (!chars || !rchars || chars[1] !== rchars[1]) problems.push('the glyph set differs');
+    return problems.length ? problems.join('; ') : null;
+  },
+);
+
 const ok = (m) => console.log(`\x1b[32m✓\x1b[0m ${m}`);
 const bad = (m) => console.error(`\x1b[31m✗\x1b[0m ${m}`);
 

@@ -131,8 +131,9 @@ machine, not the project. If that screen is no longer connected, it opens at its
   selection or takes it out; a click on empty space clears it. A light is picked by its housing, an LED
   strip anywhere along its length. Selected fixtures show in the accent colour in both windows.
 - It shows the **venue models**, the **screens with their live pictures**, **every LED in its live
-  colour**, the **light fixtures** (as housings) and the floor grid, and follows every change you make in
-  the editor within a quarter of a second.
+  colour**, the **light fixtures** (as housings) and the floor grid **with its numbers** (whole metres
+  along both axes, where you are looking — turned on and off with the editor's own grid and number
+  settings), and follows every change you make in the editor within a quarter of a second.
 - **Every lit head throws its beam**, the way the editor draws it: the haze cone in the head's live colour
   (the same **Haze** setting; the **Rendered** look's solid shafts to the floor when the editor's 3D view is
   in Rendered), and the **cone outline** where the beam meets the floor. The heads selected in the editor
@@ -146,7 +147,7 @@ machine, not the project. If that screen is no longer connected, it opens at its
   calibrated ones and the projectors placed in the model file.
 - Close it with its own close button or the same header button.
 
-It does not yet draw labels, the gizmo (move and turn fixtures in the editor's view) or the rest of the
+It does not yet draw the gizmo (move and turn fixtures in the editor's view) or the rest of the
 Rendered look (the lit room), and content the engine
 does not draw yet (a video in a format no ArtLux decoder plays, a tracking surface with its calibration overlay…) stays dark there — those stay in the editor's 3D
 view for now.

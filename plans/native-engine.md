@@ -2114,8 +2114,21 @@ fallback until a source/output is proven byte-identical — risk 2):
 >   SetWindowPos): saved once settled; close / reopen → the exact rect; maximised saved over its rect and
 >   reopened maximised; a restarted app opens it there; a place far off every screen → the default, with the
 >   reason logged.
-> - **Not yet (E4b…):** the rest of the Rendered look (the lit room), labels, picking venue models and screens,
->   the gizmo, sources the engine does not draw (timeline video clips, a tracking overlay…) on screens
+> - ✅ **E4b-4 2026-11-24 — the floor numbers.** `labels.rs` ports GridLabels.tsx + gridScale.ts's
+>   solveGridFrame / labelFamilies: whole metres flat on the floor along an X run and a Z run through the lines
+>   nearest where the view meets the floor (sticky, so orbiting never jumps a row), counted in the decades the
+>   density allows, each number fading with its distance, the X / Z letters in the axis colours, text facing away
+>   from the viewer (a dead band against blinking), LABEL_PX tall at the reference divided by the floor's tilt.
+>   Glyphs rasterised ONCE with `ab_glyph` (already in the lock via winit) from the system monospace font —
+>   Consolas first, as the editor asks; no font → no numbers, logged. Depth-tested, so a screen hides them. The
+>   editor's grid toggles now reach the engine (`grid: {visible, labels}`). The editor's grid itself is adaptive
+>   (1·2·5 sections) and the engine's is still a fixed metre grid — the numbers are the editor's either way.
+>   **Proof:** two unit tests (families by density; a downward view numbers both runs, all on the floor);
+>   `test:engine-beams` captures a downward view (273 glyphs: −6…6 along X, the Z run, both letters) beside the
+>   editor's. A guard compares the copied constants. The run also caught an injected Shift-click that Windows
+>   dropped (1 run in 3, no pick logged at all); that step now retries once, out loud.
+> - **Not yet (E4b…):** the rest of the Rendered look (the lit room), the adaptive grid, picking venue models and
+>   screens, the gizmo, sources the engine does not draw (timeline video clips, a tracking overlay…) on screens
 >   and venue meshes, the four-view layout, saving the window's place, macOS / Linux.
 
 ## 10. Open questions
