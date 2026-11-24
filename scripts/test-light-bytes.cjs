@@ -88,6 +88,11 @@ fs.writeFileSync(project, JSON.stringify(p, null, 2));
   if (lines.some((l) => /lighting: differs/.test(l))) { console.log("FAIL: the engine's light show disagrees with the app's"); failed++; }
   if (last[0] < 400) { console.log('FAIL: too few ticks solved'); failed++; }
   if (maxLights < 8) { console.log('FAIL: not every light was solved'); failed++; }
+  // E3h: the bytes PLACED are the show at the engine's OWN clock (the check above stays at the app's instant).
+  const drawn = lines.map((l) => l.match(/lanes and lights drawn at the engine's own clock on (\d+) tick\(s\), at the app's frame on (\d+); (\d+) light tick\(s\) placed bytes the clock had moved on/)).filter(Boolean).map((m) => m.slice(1).map(Number));
+  const d = drawn[drawn.length - 1];
+  console.log(d ? `drawn at the engine's own clock on ${d[0]} tick(s), at the app's frame on ${d[1]}; ${d[2]} tick(s) placed bytes the clock had moved on from the app's frame` : 'no drawn-clock summary');
+  if (!d || d[0] < 4 * d[1]) { console.log("FAIL: the lights are not drawn at the engine's own clock"); failed++; }
   console.log(failed ? `\nlight bytes: ${failed} FAILED` : '\nlight bytes OK');
   process.exit(failed ? 1 : 0);
 })();

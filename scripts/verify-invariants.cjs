@@ -4397,6 +4397,14 @@ check(
     if (!/t = a \+ \(\(t - a\) % \(b - a\)\);/.test(t) || !/t = a \+ \(\(t - a\) % \(b - a\)\);/.test(r)) problems.push('the loop wrap is no longer the same formula in timeline.ts and transport.rs');
     if (!/t = Math\.max\(a, b - eps\);/.test(t) || !/t = js_max\(a, b - f\);/.test(r)) problems.push('the end park is no longer the same in timeline.ts and transport.rs');
     if (!/fm: timeline\.getFrameTimeMs\(\), tp,/.test(n)) problems.push('the tick no longer carries the frame time and the anchor');
+    // E3h: lanes and lights are DRAWN at the engine's own clock and CHECKED at the app's instant; the composite stays
+    // on the app's playhead (the document carries each track's ACTIVE clip only, and the app decodes the frames).
+    const rt = exists('engine/artlux-engine/src/runtime.rs') ? read('engine/artlux-engine/src/runtime.rs') : '';
+    const body = (name) => { const i = rt.indexOf(`fn ${name}(`); if (i < 0) return ''; let d = 0; for (let j = rt.indexOf('{', i); j < rt.length; j++) { if (rt[j] === '{') d++; else if (rt[j] === '}' && --d === 0) return rt.slice(i, j); } return ''; };
+    if (!/self\.transport\.own\(\)/.test(body('draw_clock'))) problems.push("draw_clock no longer reads the engine's own clock");
+    if (!/at_app = crate::eval::sample_lane\(&l\.keys, if l\.show \{ st \} else \{ ph \}/.test(body('evaluate_lanes'))) problems.push("the lane check is no longer at the app's instant");
+    if (!/self\.show\.roles\(dph\)/.test(body('evaluate_lighting')) || !/self\.show\.roles\(ph\)/.test(body('evaluate_lighting'))) problems.push("the light show is no longer checked at the app's instant and drawn at the engine's clock");
+    if (/draw_at/.test(body('evaluate_clock'))) problems.push("the composite is evaluated at the engine's clock, but the document only describes the clip active at the app's playhead");
     return problems.length ? problems.join('; ') : null;
   },
 );

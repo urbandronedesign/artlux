@@ -130,6 +130,13 @@ pub struct Runtime {
     clock_diffs: u64,
     /// E3: the engine's own transport clock, run from the app's anchors and checked every frame (transport.rs).
     transport: crate::transport::Transport,
+    /// E3h: the clock lanes and lights are DRAWN at this tick — the engine's own (playhead, show time), or the
+    /// app's when the engine has no clock to read or it strays (see `draw_clock`). Stats: (own, the app's, light
+    /// ticks whose drawn bytes moved on from the app's frame).
+    draw_at: Option<(f64, f64)>,
+    draw_stats: (u64, u64, u64),
+    /// The largest single byte the engine's clock moved from the app's frame (a sanity bound on the drift).
+    draw_max_step: u8,
     clock_rev: u64,
     /// E3d: the automation lanes the engine evaluates, this tick's effect overrides (surface → speed,
     /// intensity), and the check's counters.
@@ -169,7 +176,7 @@ impl Runtime {
             #[cfg(feature = "ndi")] ndis: HashMap::new(),
             #[cfg(windows)] mp4s: HashMap::new(), conv: None,
             #[cfg(windows)] cams: HashMap::new(), resolved: HashMap::new(), pending_cams: HashMap::new(), last_doc: None, redo: false,
-            view: None, view_scene_ver: 0, view_published: HashMap::new(), view_colors_gen: 0, view_last_summary: String::new(), clock_diffs: 0, transport: Default::default(), clock_rev: 0, lanes: Vec::new(), auto_fx: HashMap::new(), auto_diffs: 0, auto_ticks: 0, show: Default::default(), light_diffs: 0, light_ticks: 0, rig: None, light_fix: HashMap::new(), byte_diffs: 0, byte_ticks: 0, light_solved: HashMap::new(), light_beams: HashMap::new() }
+            view: None, view_scene_ver: 0, view_published: HashMap::new(), view_colors_gen: 0, view_last_summary: String::new(), clock_diffs: 0, transport: Default::default(), draw_at: None, draw_stats: (0, 0, 0), draw_max_step: 0, clock_rev: 0, lanes: Vec::new(), auto_fx: HashMap::new(), auto_diffs: 0, auto_ticks: 0, show: Default::default(), light_diffs: 0, light_ticks: 0, rig: None, light_fix: HashMap::new(), byte_diffs: 0, byte_ticks: 0, light_solved: HashMap::new(), light_beams: HashMap::new() }
     }
 
     /// E4a: the 3D view's shared state and its open flag (serve.rs makes them; the windows thread shares them).
@@ -620,6 +627,7 @@ impl Runtime {
     /// One frame at show time `t`. Nothing is sent unless the engine owns the wire for document `rev`.
     pub fn tick(&mut self, v: &Value) -> Result<(), String> {
         self.transport.tick(v);   // E3: the engine's own clock, before anything needs a document
+        self.draw_at = self.draw_clock(v);
         let Some(mut doc) = self.doc.take() else { return Ok(()) };
         self.evaluate_lanes(&mut doc, v);
         self.light_solved.clear();
@@ -629,6 +637,24 @@ impl Runtime {
         let r = self.tick_with(&mut doc, ev.as_ref().unwrap_or(v));
         self.doc = Some(doc);
         r
+    }
+
+    /// E3h — WHAT THE ENGINE DRAWS AT: its OWN clock (transport.rs, read as this tick is handled), no longer the
+    /// app's frame time. The lanes and the light show carry all their data in the document, so they are
+    /// evaluated there; the CHECKS stay at the app's instant (`ph` / `t`), where the app's values are true. The
+    /// app's numbers are used instead when the engine has no clock (no anchor yet, a bake) or when its clock is
+    /// more than STRAY from the app's frame — an event the app has not drawn yet, or a loop wrap between the two —
+    /// so a drawn value is never further from the app's than a frame's trip through main.
+    /// NOT the composite: the document carries each track's ACTIVE clip at the app's playhead, and the app
+    /// decodes the video frames, so a track drawn at a later time would cross a clip boundary the document does
+    /// not describe yet.
+    fn draw_clock(&mut self, v: &Value) -> Option<(f64, f64)> {
+        const STRAY: f64 = 0.25;
+        let (ph, st) = (v["ph"].as_f64()?, v["t"].as_f64()?);
+        match self.transport.own() {
+            Some((p, s)) if (p - ph).abs() < STRAY && (s - st).abs() < STRAY => { self.draw_stats.0 += 1; Some((p, s)) }
+            _ => { self.draw_stats.1 += 1; Some((ph, st)) }
+        }
     }
 
     /// E3d: the document's automation lanes — the ones the engine evaluates (nativeLink.engineLane: a surface's
@@ -668,15 +694,18 @@ impl Runtime {
             return;
         }
         let (Some(ph), Some(st)) = (v["ph"].as_f64(), v["t"].as_f64()) else { return };
+        let (dph, dst) = self.draw_at.unwrap_or((ph, st));
         let mut opacity = doc.base_opacity.clone();
         for l in &self.lanes {
-            let val = crate::eval::sample_lane(&l.keys, if l.show { st } else { ph }, l.log);
+            let at_app = crate::eval::sample_lane(&l.keys, if l.show { st } else { ph }, l.log);
             if let Some(app) = v["auto"][&l.path].as_f64() {
-                if !((app - val).abs() < l.eps + 1e-9) {
+                if !((app - at_app).abs() < l.eps + 1e-9) {
                     self.auto_diffs += 1;
-                    if self.auto_diffs <= 20 { eprintln!("artlux-engine: automation: differs — {} at playhead {ph} / show {st}: app {app}, engine {val} (eps {})", l.path, l.eps); }
+                    if self.auto_diffs <= 20 { eprintln!("artlux-engine: automation: differs — {} at playhead {ph} / show {st}: app {app}, engine {at_app} (eps {})", l.path, l.eps); }
                 }
             }
+            // E3h: the value DRAWN is the lane at the engine's own clock.
+            let val = if (dph, dst) == (ph, st) { at_app } else { crate::eval::sample_lane(&l.keys, if l.show { dst } else { dph }, l.log) };
             match l.leaf {
                 AutoLeaf::Opacity => { opacity.insert(l.sid.clone(), val as f32); }
                 AutoLeaf::Speed => { self.auto_fx.entry(l.sid.clone()).or_default().0 = Some(val); }
@@ -699,7 +728,26 @@ impl Runtime {
             (true, Some(ph)) => { let (r, c) = (self.show.roles(ph), self.show.colors(ph)); self.check_show(ph, &r, &c, v); Some((r, c)) }
             _ => None,
         };
-        self.check_bytes(v, ours.as_ref());
+        self.check_bytes(v, ours.as_ref(), true);
+        // E3h: the bytes PLACED are the show at the engine's own clock — solved again when it has moved on from
+        // the app's frame (the check above stays at the app's instant, where the app's bytes are true).
+        if let (Some(_), Some(ph), Some((dph, _))) = (ours.as_ref(), v["ph"].as_f64(), self.draw_at) {
+            if dph != ph {
+                let checked = self.light_solved.clone();
+                let drawn = (self.show.roles(dph), self.show.colors(dph));
+                self.check_bytes(v, Some(&drawn), false);
+                if self.light_solved != checked {
+                    self.draw_stats.2 += 1;
+                    for (id, b) in &self.light_solved {
+                        if let Some(c) = checked.get(id) { for (x, y) in b.iter().zip(c) { self.draw_max_step = self.draw_max_step.max(x.abs_diff(*y)); } }
+                    }
+                }
+            }
+        }
+        let (own, app, moved) = self.draw_stats;
+        if (own + app) % 600 == 1 && own + app > 1 {
+            eprintln!("artlux-engine: clock: lanes and lights drawn at the engine's own clock on {own} tick(s), at the app's frame on {app}; {moved} light tick(s) placed bytes the clock had moved on from the app's frame (largest step {} of 255)", self.draw_max_step);
+        }
     }
 
     /// E3e: the engine's light show against the app's players' (`lroles`, `lcolors`).
@@ -748,7 +796,8 @@ impl Runtime {
     /// (`lcue`), the faders under a hand (`llive`), the channels an automation lane owns (`lown`). CHECKED byte
     /// for byte against what the app packed (`lights`): `light bytes: differs`. The ENGINE's bytes are the ones
     /// placed on the wire (`light_solved`); the app's stand in for a light the engine was not given.
-    fn check_bytes(&mut self, v: &Value, ours: Option<&(crate::light::Roles, crate::light::Colors)>) {
+    /// `check` false: solve and place only (E3h — the bytes at the engine's own clock, no comparison).
+    fn check_bytes(&mut self, v: &Value, ours: Option<&(crate::light::Roles, crate::light::Colors)>, check: bool) {
         let (Some(rig), Some(app)) = (self.rig.as_mut(), v["lights"].as_object()) else { return };
         if app.is_empty() { return; }
         let map = |x: &Value| -> HashMap<String, f64> { x.as_object().into_iter().flatten().map(|(k, y)| (k.clone(), y.as_f64().unwrap_or(f64::NAN))).collect() };
@@ -790,6 +839,7 @@ impl Runtime {
                 why.push(format!("{id} (channel {}): app {:?}, engine {:?}", at + 1, want, got));
             }
         }
+        if !check { return; }
         self.byte_ticks += 1;
         if !why.is_empty() {
             self.byte_diffs += 1;

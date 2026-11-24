@@ -2047,7 +2047,28 @@ fallback until a source/output is proven byte-identical — risk 2):
 >   the wrap and the park are the same formula on both sides (mutation-tested: setPlaying without its anchor).
 > - **Next (stage 2):** the evaluators driven from the engine's own clock (read at its tick, not at `fm`) — the
 >   engine then needs `ph` only as the check — and then JUCE in the engine process, so that clock IS the audio
->   clock and picture, sound and DMX share it.
+>   clock and picture, sound and DMX share it. → **lanes and lights done in E3h, below.**
+>
+> ✅ **E3h done 2026-11-24 — LANES AND LIGHTS DRAWN AT THE ENGINE'S OWN CLOCK (stage 2, part 1).** runtime
+> `draw_clock` reads the transport off the engine's wall clock as the tick is handled (transport.rs `own`), and
+> that is what the automation lanes are sampled at and the light show is evaluated and SOLVED at — the bytes on
+> the wire. Every CHECK stays at the app's instant (`ph` / `t`), where the app's values are true: lanes against
+> `auto`, the show against `lroles` / `lcolors`, the bytes against `lights` — the light solve runs twice when the
+> clocks differ (once to check, once to place). The app's numbers are drawn instead when the engine has no clock
+> (no anchor yet, a bake) or it is more than 0.25 s from the app's frame (an event the app has not drawn yet, a
+> loop wrap between the two).
+> - **Proof:** `test:light-bytes` — 8 lights, 0 ticks differing at the app's instant; 600 of 601 ticks drawn at the
+>   engine's clock, every one placing bytes the clock had moved on from the app's frame (16-bit fine channels move
+>   within a millisecond; the largest step, 247, is the square strobe's edge or a fine byte rolling over). The
+>   engine's clock led the app's frames by 2 ms on average and 74 ms once — a stalled app frame, which the engine
+>   no longer draws late. test:automation-parity (0 differences, the curves on the wire), test:fade-over-lane-wire
+>   (largest step 4, 7 hand-overs) and test:transport-clock unchanged.
+> - `verify:invariants` (in the transport check): draw_clock reads the engine's clock, the lane and show checks
+>   stay at the app's instant, the composite does NOT use the drawn clock (mutation-tested).
+> - **Not yet — the composite.** The document carries each track's ACTIVE clip at the app's playhead and the app
+>   decodes the video frames, so a track drawn later than the app's frame could cross a clip boundary the
+>   document does not describe yet. It needs every clip of a track in the document (as the lighting clips
+>   already are) and the engine's own decode (HAP / MP4 are already in the engine, E1d / E3b); then JUCE.
 
 ## 9d. E4 started early — the 3D view in the engine (owner, 2026-11-24)
 

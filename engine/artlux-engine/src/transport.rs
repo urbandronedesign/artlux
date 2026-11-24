@@ -135,11 +135,15 @@ impl Transport {
 
     /// The scene clock read off the ENGINE's own wall clock, now — pure (no origin moves). None without an
     /// anchor, during a bake, or without a wall epoch.
-    pub fn own_playhead(&self) -> Option<f64> {
+    pub fn own_playhead(&self) -> Option<f64> { self.own().map(|(p, _)| p) }
+
+    /// BOTH clocks off the engine's own wall clock, now (E3h: what the engine DRAWS lanes and lights at).
+    pub fn own(&self) -> Option<(f64, f64)> {
         let a = self.anchor.as_ref()?;
         if a.off || !a.w0.is_finite() { return None; }
-        let mut o = self.o;
-        Some(step_one(&mut o, render_now(a.w0), a.playing, a.p, a.a, a.b, a.lp, a.f))
+        let now = render_now(a.w0);
+        let (mut o, mut so) = (self.o, self.so);
+        Some((step_one(&mut o, now, a.playing, a.p, a.a, a.b, a.lp, a.f), step_one(&mut so, now, a.playing, a.s, a.ga, a.gb, a.glp, a.gf)))
     }
 
     /// One tick: take its anchor, check the app's `ph` / `t` against the engine's clock at `fm`, and read
