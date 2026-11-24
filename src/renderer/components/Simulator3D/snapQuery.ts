@@ -159,7 +159,11 @@ export function snapCandidates(q: SnapQuery): SnapCandidate[] {
   if (!hit) return out;
   const mesh = hit.object as THREE.Mesh;
   if (hit.face) {
-    const n = hit.face.normal.clone().transformDirection(mesh.matrixWorld);
+    // Normals transform by the inverse-transpose (a non-uniformly scaled model skews them otherwise),
+    // and a face seen from behind — screens are double-sided — reports the normal pointing AWAY: turn
+    // it toward the viewer, which is the side something placed on it belongs on.
+    const n = hit.face.normal.clone().applyNormalMatrix(new THREE.Matrix3().getNormalMatrix(mesh.matrixWorld)).normalize();
+    if (n.dot(_ray.ray.direction) > 0) n.negate();
     push('face', hit.point, n);
   }
   const f = features(mesh.geometry);

@@ -64,14 +64,15 @@ export function pickBest(cands: SnapCandidate[]): SnapCandidate | null {
 }
 
 // ── The settings: on/off and which kinds, per machine ────────────────────────────────────────────
-export interface OsnapSettings { on: boolean; kinds: OsnapKind[] }
+/** `align`: a drop on a Face snap also TURNS the selection to lie flat against that surface (Phase 3 step 2). */
+export interface OsnapSettings { on: boolean; kinds: OsnapKind[]; align: boolean }
 const KEY = 'artlux.osnap';
-const DEFAULT: OsnapSettings = { on: true, kinds: ['end', 'mid', 'center', 'fixture'] };
+const DEFAULT: OsnapSettings = { on: true, kinds: ['end', 'mid', 'center', 'fixture'], align: true };
 let settings: OsnapSettings = (() => {
   try {
     const raw = JSON.parse(localStorage.getItem(KEY) || 'null');
     if (raw && typeof raw.on === 'boolean' && Array.isArray(raw.kinds)) {
-      return { on: raw.on, kinds: raw.kinds.filter((k: unknown): k is OsnapKind => OSNAP_KINDS.includes(k as OsnapKind)) };
+      return { on: raw.on, kinds: raw.kinds.filter((k: unknown): k is OsnapKind => OSNAP_KINDS.includes(k as OsnapKind)), align: raw.align !== false };
     }
   } catch { /* blocked storage: defaults */ }
   return { ...DEFAULT, kinds: [...DEFAULT.kinds] };

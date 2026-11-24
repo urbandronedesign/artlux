@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useRef } from 'react';
 import * as THREE from 'three';
 import { useThree } from '@react-three/fiber';
 import type { Fixture } from '../../types';
-import { authoredRot, effectivePos, effectiveScale, computeLedPositions } from '../../services/led3dLayout';
+import { authoredRot, effectivePos, effectiveRot, effectiveScale, computeLedPositions } from '../../services/led3dLayout';
 import { getOsnap, pickBest, fixtureSnapPoints, SNAP_POINT_LABEL, type SnapCandidate } from '../../services/snap3d';
 import { getSnap, getLivePreview } from '../../services/scene3dQuality';
 import { gizmoDelta, gestureSummary, type GizmoBasis, type GizmoStart } from './gizmoDelta';
@@ -40,8 +40,18 @@ export interface DragTarget {
   /** Fixtures it moves (their ends/centre can be the base point; excluded as targets). */
   fixtures(): Fixture[];
   begin(): void;
-  /** Move by this world delta from where the drag began. */
-  move(delta: THREE.Vector3): void;
+  /**
+   * Move by this world delta from where the drag began — and, when `turn` is given, first turn by
+   * `turn.q` about `turn.pivot` (the base point): PLACE ON A SURFACE. Every point p of the selection
+   * goes to  q·(p − pivot) + pivot + delta, and every orientation to  q · orientation.
+   */
+  move(delta: THREE.Vector3, turn?: { q: THREE.Quaternion; pivot: THREE.Vector3 }): void;
+  /**
+   * The direction the thing FACES, in world space, as it was when the drag began — a fixture's LEDs
+   * and a screen's picture both face their local +Z. Absent = it is never turned onto a surface
+   * (a venue model has no front).
+   */
+  facing?(): THREE.Vector3;
   /** Release: commit if anything moved. */
   end(): void;
   /** Esc: put everything back, commit nothing. */
@@ -62,6 +72,8 @@ function isUnder(o: THREE.Object3D | null, root: THREE.Object3D): boolean {
 }
 
 const DRAG_PX = 4;
+const DEG = Math.PI / 180;
+const IDENTITY = new THREE.Quaternion();
 const _plane = new THREE.Plane();
 const _n = new THREE.Vector3();
 const _hit = new THREE.Vector3();
@@ -182,7 +194,18 @@ export const ObjectDrag: React.FC<{ fixtures: Fixture[]; enabled: boolean }> = (
           to = d.add(p.base);
         }
       }
-      p.target.move(to.sub(p.base));
+      // PLACE ON A SURFACE (Phase 3 step 2): a Face snap carries the surface's normal (turned toward the
+      // viewer by snapQuery). With "Turn to face the surface" on, the selection turns by the SMALLEST
+      // rotation that brings its front onto that normal — so a bar keeps its run direction as near as
+      // the wall allows, and a screen lies flush, picture outward. About the base point, so the point
+      // you grabbed is still the one that lands.
+      const front = p.target.facing?.();
+      if (snap?.kind === 'face' && snap.normal && os.align && front) {
+        const q = new THREE.Quaternion().setFromUnitVectors(front.clone().normalize(), snap.normal.clone().normalize());
+        p.target.move(to.sub(p.base), { q, pivot: p.base });
+      } else {
+        p.target.move(to.sub(p.base));
+      }
       showMarker(snap, p);
     };
 
@@ -211,12 +234,13 @@ export const ObjectDrag: React.FC<{ fixtures: Fixture[]; enabled: boolean }> = (
         targets: targets.size, pending: !!pending, started: !!pending?.started, base: pending?.baseKind ?? null,
         fixtures: allFixtures.current.map((f) => {
           const fp = fixtureSnapPoints(computeLedPositions(f));
-          return { id: f.id, name: f.name, ends: (fp?.ends ?? []).map((e) => ({ w: r3(e), s: scr(e) })), centre: fp ? { w: r3(fp.centre), s: scr(fp.centre) } : null };
+          const er = effectiveRot(f);
+          return { id: f.id, name: f.name, rot: [er.x, er.y, er.z].map((v) => Math.round(v / DEG * 10) / 10), ends: (fp?.ends ?? []).map((e) => ({ w: r3(e), s: scr(e) })), centre: fp ? { w: r3(fp.centre), s: scr(fp.centre) } : null };
         }),
         models: modelGroups(scene).map((g) => {
           const b = new THREE.Box3().setFromObject(g);
           const corners = [b.min, b.max].flatMap((a) => [b.min, b.max].flatMap((c) => [b.min, b.max].map((d) => new THREE.Vector3(a.x, c.y, d.z))));
-          return { id: g.userData.modelId, corners: corners.map((c) => ({ w: r3(c), s: scr(c) })) };
+          return { id: g.userData.modelId, rot: [g.rotation.x, g.rotation.y, g.rotation.z].map((v) => Math.round(v / DEG * 10) / 10), corners: corners.map((c) => ({ w: r3(c), s: scr(c) })) };
         }),
       };
     };
@@ -263,9 +287,27 @@ export const FixtureDragTarget: React.FC<{
     if (!fixtures.length) return;
     const idSet = new Set(fixtures.map((f) => f.id));
     let start: GizmoStart[] = [];
+    let last: Array<{ id: string } & FixtureTransform> | null = null;
+    // A plain move is the gizmo's translate (gizmoDelta, so the two can never disagree). A TURN is the
+    // gizmo's rotate composed the same way — a world delta premultiplied onto the AUTHORED trim
+    // (gizmoDelta's note on why the delta form) — but about the grabbed point, not the centroid.
+    const transforms = (d: THREE.Vector3, turn?: { q: THREE.Quaternion; pivot: THREE.Vector3 }) => {
+      if (!turn) { anchor.position.copy(basis.centroid).add(d); anchor.quaternion.identity(); return gizmoDelta(start, basis, anchor, 'translate'); }
+      const e = new THREE.Euler();
+      const qs = new THREE.Quaternion();
+      return start.map((st) => {
+        const p = st.pos.clone().sub(turn.pivot).applyQuaternion(turn.q).add(turn.pivot).add(d);
+        e.setFromQuaternion(turn.q.clone().multiply(qs.setFromEuler(st.rot)), 'XYZ');
+        return { id: st.id, position3D: { x: p.x, y: p.y, z: p.z }, rotation3D: { pitch: e.x / DEG, yaw: e.y / DEG, roll: e.z / DEG } };
+      });
+    };
     let basis: GizmoBasis = { centroid: new THREE.Vector3(), quat: new THREE.Quaternion(), scale: new THREE.Vector3(1, 1, 1) };
     let moved = false;
+    let front = new THREE.Vector3(0, 0, 1);
     return registerDragTarget({
+      // The ACTIVE fixture's front (the first selected): its LEDs face local +Z (FixtureBodies sits the
+      // housing behind them, along -Z). One direction for the group, so a row turns as one.
+      facing: () => front.clone(),
       owns: (hit) => {
         const at = hit.object.userData?.fixtureIdAt as ((i: number) => string | undefined) | undefined;
         return typeof at === 'function' && hit.instanceId != null && idSet.has(at(hit.instanceId) ?? '');
@@ -279,19 +321,26 @@ export const FixtureDragTarget: React.FC<{
         anchor.position.copy(c);
         basis = { centroid: c.clone(), quat: new THREE.Quaternion(), scale: new THREE.Vector3(1, 1, 1) };
         start = fixtures.map((f) => ({ id: f.id, pos: effectivePos(f), rot: authoredRot(f), scale: effectiveScale(f) }));
+        front = new THREE.Vector3(0, 0, 1).applyEuler(effectiveRot(fixtures[0]));
+        last = null;
         moved = false;
         beginPreview(getLivePreview());
       },
-      move: (d) => {
+      move: (d, turn) => {
         if (!moved) { moved = true; cb.current.onRecordHistory(); }
-        anchor.position.copy(basis.centroid).add(d);
-        setPreview(gizmoDelta(start, basis, anchor, 'translate'), gestureSummary(start, basis, anchor, 'translate'));
+        last = transforms(d, turn);
+        // The readout's anchor: the centroid carried the same way, turned by the same rotation.
+        anchor.position.copy(basis.centroid);
+        if (turn) anchor.position.sub(turn.pivot).applyQuaternion(turn.q).add(turn.pivot);
+        anchor.position.add(d);
+        anchor.quaternion.copy(turn ? turn.q : IDENTITY);
+        setPreview(last, gestureSummary(start, basis, anchor, turn ? 'rotate' : 'translate'));
       },
       end: () => {
         clearPreview();
-        if (moved) cb.current.onCommit(gizmoDelta(start, basis, anchor, 'translate'));
+        if (moved && last) cb.current.onCommit(last);
       },
-      cancel: () => { clearPreview(); },
+      cancel: () => { clearPreview(); last = null; },
     });
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [anchor, ids, fixtures]);
@@ -302,24 +351,31 @@ export const FixtureDragTarget: React.FC<{
 export function useModelDragTarget(
   selected: boolean, group: THREE.Object3D,
   commit: () => void, onRecordHistory: () => void,
+  /** A screen has a front (its picture, local +Z) and is turned onto a surface; a venue model is not. */
+  hasFront = false,
 ): void {
   const cb = useRef({ commit, onRecordHistory }); cb.current = { commit, onRecordHistory };
   useEffect(() => {
     if (!selected) return;
     const start = new THREE.Vector3();
+    const startQ = new THREE.Quaternion();
     let moved = false;
     return registerDragTarget({
+      ...(hasFront ? { facing: () => new THREE.Vector3(0, 0, 1).applyQuaternion(startQ) } : {}),
       owns: (hit) => isUnder(hit.object, group),
       groups: () => [group],
       fixtures: () => [],
-      begin: () => { start.copy(group.position); moved = false; },
-      move: (d) => {
+      begin: () => { start.copy(group.position); startQ.copy(group.quaternion); moved = false; },
+      move: (d, turn) => {
         if (!moved) { moved = true; cb.current.onRecordHistory(); }
         // The delta is in WORLD space; a model's group sits directly in the scene (no scaled parent).
-        group.position.copy(start).add(d);
+        group.position.copy(start);
+        if (turn) group.position.sub(turn.pivot).applyQuaternion(turn.q).add(turn.pivot);
+        group.position.add(d);
+        group.quaternion.copy(turn ? turn.q.clone().multiply(startQ) : startQ);
       },
       end: () => { if (moved) cb.current.commit(); },
-      cancel: () => { group.position.copy(start); },
+      cancel: () => { group.position.copy(start); group.quaternion.copy(startQ); },
     });
-  }, [selected, group]);
+  }, [selected, group, hasFront]);
 }

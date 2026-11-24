@@ -121,6 +121,7 @@ Live only while the pointer is over the 3D viewport.
 | `Q` | Box select tool — Drag to select fixtures; hold Shift to add to the selection. Right-drag orbits, middle-drag pans |
 | `X` | World / Object axes — Toggles. Object aligns the handles to the selected fixture; the pivot stays on the middle of the selection either way |
 | `S` | Toggle snapping — Hold Ctrl during a drag to invert it for that drag only |
+| `M` | Measure — Click two points for the distance, its X / Y / Z parts and the angle from level. Snaps like a drag; Esc clears |
 | `O` | Toggle object snaps — Snaps a dragged object onto corners, edges, surfaces, centres and fixture ends. Hold Alt during a drag to ignore them for that drag |
 
 **View**

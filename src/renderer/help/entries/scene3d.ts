@@ -52,10 +52,19 @@ export const scene3dHelp: HelpEntry[] = [
   },
 
   {
+    id: 'scene3d.measure',
+    title: 'Measure',
+    short: 'Click two points: the distance between them, its X / Y / Z parts and the angle from level.',
+    body: 'Turn it on, click a first point, click a second: a line joins them with the distance, how much of it is along X, Y (height) and Z, and how steeply it climbs. Each click lands on the same object snaps as a drag — a corner, the middle of an edge, a fixture end or centre — and on any surface under the cursor; with nothing there, on the floor. Before the second click the line follows the cursor, so you can read a distance without committing it. A third click starts a new measurement, Esc clears it, M or the button leaves the tool. Measuring never selects or moves anything, and dragging still orbits.',
+    group: '3D Scene',
+    keywords: ['measure', 'distance', 'ruler', 'tape', 'length', 'height', 'angle', 'dimension'],
+    shortcut: 'M',
+  },
+  {
     id: 'scene3d.osnap',
     title: 'Object snaps',
     short: 'Drag an object onto a corner, an edge, a surface, a centre or a fixture end.',
-    body: 'Press on something that is already selected and drag it. The point you pressed is what lands — and when you press near one of its own ends, corners or centre, it grabs that point exactly, so a LED bar taken by its end chains onto the end of another with one pitch across the joint. While you drag, a marker names the snap under the cursor: End, Mid, Edge, Face, Centre, Fixture end, Fixture centre. The menu beside this button chooses which ones are on; the button (O) turns them all off and on. With nothing to snap to, the object slides on the floor-level plane (in a flat view, on that view’s plane) and lands on the grid step when the magnet is on. Hold Alt to ignore object snaps for one drag, Ctrl to invert the grid, Esc to put it back.',
+    body: 'Press on something that is already selected and drag it. The point you pressed is what lands — and when you press near one of its own ends, corners or centre, it grabs that point exactly, so a LED bar taken by its end chains onto the end of another with one pitch across the joint. While you drag, a marker names the snap under the cursor: End, Mid, Edge, Face, Centre, Fixture end, Fixture centre. The menu beside this button chooses which ones are on; the button (O) turns them all off and on. With nothing to snap to, the object slides on the floor-level plane (in a flat view, on that view’s plane) and lands on the grid step when the magnet is on. With Face on, a fixture or a screen dropped on a surface also turns to lie flat against it, facing out (Turn to face the surface, in the same menu, switches that off). Hold Alt to ignore object snaps for one drag, Ctrl to invert the grid, Esc to put it back.',
     group: '3D Scene',
     keywords: ['osnap', 'object snap', 'snap', 'vertex', 'corner', 'end', 'midpoint', 'edge', 'face', 'centre', 'center', 'chain', 'drag', 'align', 'rhino'],
     shortcut: 'O',

@@ -2,7 +2,7 @@ import React, { Suspense, useState, useMemo, useCallback, useEffect, useLayoutEf
 import { Canvas, useThree, useFrame } from '@react-three/fiber';
 import { OrbitControls, GizmoHelper, GizmoViewport } from '@react-three/drei';
 import type * as THREE from 'three';
-import { Move3d, Rotate3d, Maximize, BoxSelect, Video, Globe, Box, Magnet, Scan, Cuboid, LayoutGrid, Crosshair, ChevronDown, Sparkles } from 'lucide-react';
+import { Move3d, Rotate3d, Maximize, BoxSelect, Video, Globe, Box, Magnet, Scan, Cuboid, LayoutGrid, Crosshair, ChevronDown, Sparkles, Ruler } from 'lucide-react';
 import { Fixture, Vec3, Euler3, FixtureProfile } from '../../types';
 
 // One shared empty map, so a scene with no profiled fixtures allocates nothing per render.
@@ -39,6 +39,7 @@ import { setGridPlane, gridQuaternion, registerGridGroup } from './gridSpace';
 import { GizmoOrbitGuard } from './GizmoOrbitGuard';
 import { ObjectDrag, FixtureDragTarget } from './ObjectDrag';
 import { RenderedMode, RENDERED_LIGHT_GAIN } from './RenderedMode';
+import { MeasureTool } from './MeasureTool';
 import { getOsnap, setOsnap, subscribeOsnap, toggleOsnapKind, OSNAP_KINDS, OSNAP_LABEL, OSNAP_HINT } from '../../services/snap3d';
 import { MultiView, multiViewEvents } from './MultiView';
 import { htmlPosition } from './htmlPosition';
@@ -327,6 +328,11 @@ const OsnapControl: React.FC = () => {
               <span className="text-fg-3 truncate">{OSNAP_HINT[k]}</span>
             </label>
           ))}
+          <div className="my-1 h-px bg-line-1" />
+          <label title="Dropped on a Face snap, a fixture or a screen also turns to lie flat against that surface, facing out" className="flex items-center gap-2 px-1.5 py-1 rounded-sm text-micro text-fg-1 hover:bg-surface-2 cursor-pointer">
+            <input type="checkbox" checked={os.align} onChange={() => setOsnap({ align: !os.align })} />
+            <span>Turn to face the surface</span>
+          </label>
         </div>
       )}
     </div>
@@ -356,6 +362,9 @@ const Simulator3D: React.FC<Props> = ({
   paused = false,
 }) => {
   const [mode, setMode] = useState<Mode>('translate');
+  // The MEASURE tool (Phase 3) — a mode beside the transform tools: it changes what a click does and
+  // leaves the selection, the gizmo and the camera alone. See MeasureTool.tsx.
+  const [measuring, setMeasuring] = useState(false);
   // ── TOOL KEYS ─────────────────────────────────────────────────────────────────────────────
   // W/E/R/Q, scoped to this viewport by HOVER — the same gate the timeline uses, and the only one
   // available here: the canvas is not a focusable element and clicking it is a selection gesture, so
@@ -385,6 +394,7 @@ const Simulator3D: React.FC<Props> = ({
       else if (keymap.matches(e, 'scene3d.gizmoSpace')) setGizmoSpace(getGizmoSpace() === 'world' ? 'local' : 'world');
       else if (keymap.matches(e, 'scene3d.toggleSnap')) setSnap({ on: !getSnap().on });
       else if (keymap.matches(e, 'scene3d.toggleOsnap')) setOsnap({ on: !getOsnap().on });
+      else if (keymap.matches(e, 'scene3d.measure')) setMeasuring((m) => !m);
       // VIEWS (3d-workbench Phase 1) — Blender's numpad layout; Ctrl gives the opposite side.
       else if (VIEW_KEYS.some(([id, v]) => keymap.matches(e, id) && (setView(v), true))) e.preventDefault();
       else if (keymap.matches(e, 'scene3d.zoomExtents')) { e.preventDefault(); requestFrame('extents'); }
@@ -655,6 +665,7 @@ const Simulator3D: React.FC<Props> = ({
         {/* OBJECT SNAPS (Phase 3) — on/off, and a menu of which ones. A popover, not a second strip:
             the header must not grow. */}
         <OsnapControl />
+        <ToolBtn active={measuring} title={`Measure${keyHint('scene3d.measure')} — click two points: distance, X / Y / Z and the angle from level. Snaps to corners, edges, surfaces and fixture ends; Esc clears`} helpId="scene3d.measure" onClick={() => setMeasuring((m) => !m)}><Ruler size={14} /></ToolBtn>
         <div className="w-px h-4 bg-line-1 mx-1" />
         <ToolBtn active={mode === 'select'} title={`Box select${keyHint('scene3d.modeSelect')} — drag to select fixtures; hold Shift to add; right-drag orbits`} helpId="scene3d.gizmo-select" onClick={() => setMode('select')}><BoxSelect size={14} /></ToolBtn>
         <div className="w-px h-4 bg-line-1 mx-1" />
@@ -910,7 +921,9 @@ const Simulator3D: React.FC<Props> = ({
         <Beams
           fixtures={fixtures}
           profiles={fixtureProfiles}
-          hazeDensity={scene3D.hazeDensity}
+          // Rendered is a lighting simulation: a room with Haze at 0 would show no beam at all there, so it
+          // never goes below the default haze (Shaded keeps the honest value — see Beams on why).
+          hazeDensity={renderedLook ? Math.max(scene3D.hazeDensity ?? 0.35, 0.35) : scene3D.hazeDensity}
           // The heads being aimed get the whole diagram; see Beams' `selectedIds`.
           selectedIds={selectedFixtureIds}
           // Rendered is a picture, not an aiming aid: no diagram, solid beams to the floor.
@@ -955,7 +968,8 @@ const Simulator3D: React.FC<Props> = ({
         {/* Press-and-drag the selection itself, with object snaps — after the guard, whose window
             listener must decide "gizmo handle?" first. Not while picking calibration anchors or looking
             through a projector. */}
-        <ObjectDrag fixtures={fixtures} enabled={!calibPickMode && !viewFrom && dragPick == null} />
+        <ObjectDrag fixtures={fixtures} enabled={!calibPickMode && !viewFrom && dragPick == null && !measuring} />
+        {measuring && !calibPickMode && !viewFrom && <MeasureTool fixtures={fixtures} />}
         <FixtureDragTarget fixtures={gizmoFixtures} onRecordHistory={onRecordHistory} onCommit={onCommitFixture3D} />
         <ViewBridge />
         <DisplayModeController mode={displayMode} />

@@ -323,6 +323,24 @@ document state; a named view save **is**).
 > moves on the floor-level plane; empty-space drag still orbits; the per-pane gizmo tests still pass.
 > **Next:** Place on surface + align to the face normal (Face snaps already carry the normal), the Measure
 > tool, then perf on a heavy venue (budget < 1 ms per pointer move, production build).
+>
+> **Step 2 built 2026-11-24 — place on a surface.** A drop on a Face snap with "Turn to face the surface"
+> on (default) turns the selection by `setFromUnitVectors(front, normal)` — the smallest rotation, so a
+> bar keeps its run as near as the surface allows — about the BASE point, so the grabbed point still
+> lands. `DragTarget.move(delta, turn?)` + `facing()`: fixtures face their +Z (the housing is behind,
+> -Z), screens their picture (+Z); venue models declare no front and are only moved. The fixture turn is
+> composed like the gizmo's rotate (a world delta premultiplied onto the AUTHORED trim). Face normals
+> go through the normal matrix and are turned toward the viewer (screens are double-sided). Checked in
+> the packaged Show: the wall strip dropped on the floor projection → rotation [0,0,0] → [-90,0,0], on
+> the floor's height; the wall screen dropped on it → [-90,0,0], all four corners at y 0.002 (flush).
+>
+> **Measure built 2026-11-24** (`Simulator3D/MeasureTool.tsx`, ruler button / M): two clicks → distance,
+> ΔX/ΔY/ΔZ, angle from level; each click on the same snaps as a drag plus Face always, else the floor.
+> A mode beside the transform tools (object drag off while it is on), its click swallowed (never a pick),
+> drags still orbit, no React state. Checked: strip end → wall corner measured 2.9780 m, true 2.9782 m,
+> with both clicks a few px off the points; selection untouched, camera still. **Still open in Phase 3:**
+> perf on a heavy venue (budget < 1 ms per pointer move, production build); v2 snaps (intersection,
+> perpendicular, SmartTrack-lite).
 1. **The snap engine** generalises `vertexSnap.ts` into `services/snap3d/` (core) + a geometry provider
    (adapter):
    - **Modes (v1):** Grid · Vertex/End · Midpoint (of an edge) · Edge (nearest point on an edge) · Face (point

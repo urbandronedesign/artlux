@@ -94,7 +94,7 @@ export const PlaneObject: React.FC<Props> = ({ model, selected, mode, onSelect, 
     position: { x: group.position.x, y: group.position.y, z: group.position.z },
     rotation: { x: group.rotation.x / DEG, y: group.rotation.y / DEG, z: group.rotation.z / DEG },
     scaleXYZ: [Math.max(0.0001, group.scale.x), Math.max(0.0001, group.scale.y), Math.max(0.0001, group.scale.z)],
-  }), onRecordHistory);
+  }), onRecordHistory, true);   // a screen has a front: it is turned flush onto a surface
 
   if (!model.visible) return null;
 

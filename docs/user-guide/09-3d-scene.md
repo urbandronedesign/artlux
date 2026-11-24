@@ -96,8 +96,9 @@ the spirit of Blender's rendered view. Use it to judge a look, not to judge cont
   **pool of light**; its spotlight casts **shadows** from models and fixtures.
 - LEDs and lenses **glow**, corners and the floor under things darken, and a **dark stage floor** catches
   the light even when there is no venue model.
-- The room is lit by **the rig alone** — even when **Light gain** is at 0 — and the aiming diagram (the
-  outline circles and rays) is hidden.
+- The room is lit by **the rig alone** — even when **Light gain** is at 0 — beams show even when **Haze**
+  is turned right down, and the aiming diagram (the outline circles and rays) is hidden.
+- Beams come from **moving heads and other light fixtures**; LED strips and bars glow but throw no beam.
 
 **Colours are tone‑mapped** in Rendered, so they are not the exact values going to the wall: switch back
 (the same button or **Shift+Z** returns to the mode you were in) to judge a picture. Rendered works in
@@ -210,7 +211,23 @@ to it chooses which ones are on — End, Mid, Centre and Fixture to start with. 
 for one drag, **Ctrl** to invert the grid, **Esc** to put it back. One drag is one undo step, and the
 header shows the offset as you go, as it does for the gizmo.
 
+**Place on a surface.** Turn on **Face** in the menu and drop a fixture or a screen on a wall, the floor
+or any part of a model: it lands where you point **and turns to lie flat against it, facing out** — a LED
+bar's LEDs face out of the wall, a screen lies flush with its picture outward. It turns by the smallest
+amount that does that, so a bar keeps its run direction as near as the surface allows. **Turn to face the
+surface** at the bottom of the same menu switches the turning off when you only want the position.
+Venue models are only moved, never turned.
+
 The gizmo stays as it was for moves along one axis, turning and scaling.
+
+### Measure
+
+The **ruler** button (or **M**) turns on the measure tool. Click a point, then another: a line joins them
+with the **distance**, its **X / Y / Z** parts (Y is height) and the **angle from level**. Each click lands
+on the same snaps as a drag — a corner, the middle of an edge, a fixture end or centre — and on any surface
+under the cursor; with nothing there, on the floor. Before the second click the line follows the cursor, so
+you can read a distance without committing it. A third click starts again, **Esc** clears, and **M** or the
+button leaves the tool. Measuring never selects or moves anything, and dragging still orbits.
 
 ### Scale — each axis on its own
 

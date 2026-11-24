@@ -4269,7 +4269,9 @@ check(
       if (!/\.(ts|tsx)$/.test(f) || f.endsWith('snapQuery.ts')) continue;
       if (/new MeshBVH\(|computeBoundsTree/.test(read(f))) problems.push(`${f} builds a BVH — only snapQuery.ts may, off the frame`);
     }
-    if (/useState\(/.test(read(d))) problems.push('ObjectDrag.tsx keeps React state — a drag would re-render the 3D tree per pointer move');
+    for (const f of [d, S + 'MeasureTool.tsx']) {
+      if (exists(f) && /useState\(/.test(read(f))) problems.push(`${f} keeps React state — it would re-render the 3D tree per pointer move`);
+    }
     return problems.length ? problems.join('; ') : null;
   },
 );
