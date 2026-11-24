@@ -300,6 +300,18 @@ what it should do; the hold covers a decoder opening mid-cut and nothing else.
 
 <!-- audience:operator -->
 
+## With the native engine
+
+When ArtLux runs with the native engine (`--native-engine`), the engine can draw a surface fed by the
+timeline — a single track, a stack of tracks, or the whole program — on the fixtures, its projector outputs
+and its 3D view. ArtLux still decides which clip plays, its fades and which tracks are muted or soloed; the
+engine draws each track's clip and layers them the way the editor does (track opacity, and the **Normal**,
+**Add**, **Screen** and **Multiply** blends). The result matches the editor's within one step in 255.
+
+This first step covers tracks whose clips are **content clips** — a still image, a shader, text or an effect.
+A track playing a **video clip** keeps that surface in the editor for now, and the engine leaves the outputs to
+the editor, as for any source it does not draw yet; the machine log says why.
+
 ## Infinite navigation, looping & the end-stop (v0.12.0; clock bounded again in Wave A)
 
 - **Bounded clock.** `frame()` advances `playhead = (now − originMs)/1000` and tests it against

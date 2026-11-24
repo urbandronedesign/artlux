@@ -1,4 +1,4 @@
-import { Surface, SourceType } from '../types';
+import { Surface, SourceType, isContentClip } from '../types';
 import { FULL_RECT, type SrcRect } from '../../../shared/protocol';
 import { clampRect } from './outputSpan';
 import { timeline } from './timeline';
@@ -236,10 +236,44 @@ export function getDrawableGeneration(s: Surface): number | undefined {
 export function nativeSource(s: Surface): contentSource.NativeSource {
   const t = s.content.type === SourceType.LAYER || s.content.type === SourceType.PROGRAM ? timeline.getPlayhead() : timeline.getShowTime();
   if (bakeStore.statusFor(s, t, timeline.activePoolKey()).state === 'live') return { kind: 'unsupported', why: 'a baked surface plays its video in the browser' };
-  if (s.content.type === SourceType.SLICE || s.content.type === SourceType.LAYER || s.content.type === SourceType.PROGRAM) {
-    return { kind: 'unsupported', why: `a ${s.content.type} surface is composed in the browser` };
-  }
+  if (s.content.type === SourceType.LAYER || s.content.type === SourceType.PROGRAM) return compositeNativeSource(s);
+  if (s.content.type === SourceType.SLICE) return { kind: 'unsupported', why: 'a SLICE surface is composed in the browser' };
   return contentSource.nativeSource(s.id, s.content);
+}
+
+/**
+ * E3a — A TIMELINE SURFACE IN THE NATIVE ENGINE (plans/native-engine.md E3). The app keeps evaluating the
+ * timeline (which clip, its fades, gating — timeline.nativeLayers); the engine draws each track's clip as a
+ * hidden source `layer:<id>` and composites them as compositeLayers does (engine comp.rs). STABLE fields
+ * only — the per-frame clip alpha and clip time ride the tick (nativeLink), or the document would be
+ * re-sent every frame of a fade.
+ *
+ * A track whose clip is a VIDEO stays the app's for now (E3b), as does any clip content the engine does not
+ * draw — the whole surface then reports why, and the all-or-nothing rule leaves the show to the app.
+ */
+export function compositeNativeSource(s: Surface): contentSource.NativeSource {
+  const program = s.content.type === SourceType.PROGRAM;
+  const ids = program ? null : stackIdsOf(s);
+  const single = !program && !ids;
+  let w = 0, h = 0;
+  if (!single) {
+    const d = (program ? timeline.getProgramDrawable() : timeline.getStackDrawable(s.id)) as HTMLCanvasElement | null;
+    if (!d || !d.width) return { kind: 'unsupported', why: `a ${s.content.type} surface whose composite is not built yet` };
+    w = d.width; h = d.height;
+  }
+  const entries = timeline.nativeLayers(program ? null : ids ?? (s.content.layerId ? [s.content.layerId] : []), single);
+  const layers: { key: string; opacity: number; blend: string }[] = [];
+  const sources: Record<string, { src: contentSource.NativeSource; content: unknown }> = {};
+  for (const e of entries) {
+    if (!e.clip) continue;   // nothing under the playhead: the track contributes nothing (as in the app)
+    if (!isContentClip(e.clip)) return { kind: 'unsupported', why: 'a timeline track playing a video clip (timeline video in the engine is E3b)' };
+    const key = `layer:${e.layerId}`;
+    const src = contentSource.nativeSource(key, e.clip.content!);
+    if (src.kind === 'unsupported') return { kind: 'unsupported', why: `a timeline clip: ${src.why}` };
+    layers.push({ key, opacity: e.opacity, blend: e.blend });
+    sources[key] = { src, content: e.clip.content };
+  }
+  return { kind: 'comp', w, h, single, layers, sources };
 }
 
 // Drawable for a surface this frame, or null if not ready / no content.

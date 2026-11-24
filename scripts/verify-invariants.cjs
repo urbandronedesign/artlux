@@ -4322,6 +4322,28 @@ check(
 );
 
 check(
+  'the native engine composites the timeline from the app\'s own track list and blend modes',
+  'E3a: the engine composites LAYER / stack / PROGRAM surfaces itself (engine comp.rs) from what ' +
+  'timeline.nativeLayers reports. That list must be contributingLayers — the SAME list compositeLayers draws — ' +
+  'or a muted, disabled or un-soloed track would reach the wall from the engine while the editor hides it. ' +
+  'And the engine must map the four blend modes as blendOp does (add → lighter, screen, multiply, else ' +
+  'source-over), or a screen track would composite as normal on the wire and as screen in the preview.',
+  () => {
+    const problems = [];
+    const T = 'src/renderer/services/timeline.ts', C = 'engine/artlux-engine/src/comp.rs';
+    if (!exists(T) || !exists(C)) return 'timeline.ts / comp.rs is gone';
+    const t = read(T);
+    if (!/function contributingLayers\s*\(/.test(t)) problems.push('contributingLayers is gone');
+    const comp = fnBody(t, 'compositeLayers') ?? '';
+    if (!/contributingLayers\(/.test(comp)) problems.push('compositeLayers no longer draws contributingLayers');
+    if (!/nativeLayers\([\s\S]*?contributingLayers\(/.test(t)) problems.push('timeline.nativeLayers no longer reads contributingLayers');
+    if (!/m === 'add' \? 'lighter' : m === 'screen' \? 'screen' : m === 'multiply' \? 'multiply' : 'source-over'/.test(t)) problems.push('blendOp changed — re-port it to comp.rs and update this check');
+    if (!/"add" => 1, "screen" => 2, "multiply" => 3, _ => 0/.test(read(C))) problems.push('comp.rs no longer maps the blend modes as blendOp does');
+    return problems.length ? problems.join('; ') : null;
+  },
+);
+
+check(
   'a 3-channel fixture keeps full RGB, in the app and in the engine',
   'The RGBW mode defaults to SUBTRACT (W = min(r,g,b), taken out of r, g and b) and the inspector shows the ' +
   'White control on 4-channel fixtures only. So an RGB strip whose mode was never set had the neutral part ' +
@@ -9049,7 +9071,7 @@ check(
     if (!/if \(vf\.format !== 'NV12'\)/.test(c) || !/cs\?\.matrix === 'bt709' && cs\?\.fullRange === false && cs\?\.primaries === 'bt709'/.test(c)) problems.push('contentSource no longer limits the engine to the proven MP4 frames (8-bit NV12, BT.709 limited)');
     if (!/durUs: info\.durationSec \* 1e6/.test(c)) problems.push('the MP4 source no longer carries the file duration the engine folds the loop with');
     const n = raw('src/renderer/engine/nativeLink.ts');
-    if (!/mp4\[s\.id\] = g;/.test(n) || !/hap, mp4, ndi, (camfp, )?(shader, )?(blobs, )?lights/.test(n)) problems.push('the tick no longer carries each MP4 surface frame timestamp');
+    if (!/mp4\[s\.id\] = g;/.test(n) || !/hap, mp4, ndi, (camfp, )?(shader, )?(blobs, )?(comp, times, )?lights/.test(n)) problems.push('the tick no longer carries each MP4 surface frame timestamp');
     if (/an MP4 on a projector/.test(n)) problems.push('an MP4 on a projector is refused again (the engine draws it: one device, outputs.rs content_texture_from)');
     const r = raw('engine/artlux-engine/src/runtime.rs');
     if (!/let local = if \*dur_us > 0 \{ abs - abs\.div_euclid\(\*dur_us\) \* dur_us \} else \{ abs \};/.test(r)) problems.push('runtime.rs no longer folds a looping surface timestamp back into the file');

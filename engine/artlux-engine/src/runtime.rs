@@ -27,8 +27,13 @@ use serde_json::Value;
 use std::collections::HashMap;
 use std::sync::Arc;
 
+/// E3a: a timeline surface composited by the engine (comp.rs) — its canvas size (0 for a single LAYER surface,
+/// which is its track's picture itself), and its tracks back-most first: (hidden source key, opacity, blend).
+#[derive(PartialEq, Clone)]
+struct CompSpec { w: u32, h: u32, single: bool, layers: Vec<(String, f32, String)> }
+
 #[derive(PartialEq)]
-enum Source { Image(String), Effect(Params), Hap(String), Spout(String), Ndi(String), Mp4(String, i64), Camera(CamSpec), Shader(crate::shader::Spec), Raster, Blobs(u32, u32), None }
+enum Source { Image(String), Effect(Params), Hap(String), Spout(String), Ndi(String), Mp4(String, i64), Camera(CamSpec), Shader(crate::shader::Spec), Raster, Blobs(u32, u32), Comp(CompSpec), None }
 
 /// Item 2d step 5: a camera surface as the host describes it — the app's track label (which camera), the
 /// colour space of the app's own VideoFrames (what the engine's picture is held to — cam::picture), and
@@ -73,6 +78,9 @@ pub struct Runtime {
     rasters: HashMap<String, (u64, Arc<Picture>)>,
     /// E2: the tracking-blob renderer (blobs.rs), made on first use.
     blobs: Option<crate::blobs::Blobs>,
+    /// E3a: the timeline compositor (comp.rs), made on first use, and each still picture's upload by key.
+    compositor: Option<crate::comp::Compositor>,
+    comp_tex: HashMap<String, (u64, wgpu::Texture)>,
     rng: Rng,
     cache: TexCache,
     gen: u64,
@@ -120,7 +128,7 @@ pub struct Runtime {
 impl Runtime {
     pub fn new(gpu: Arc<Gpu>) -> Self {
         Runtime { gpu, out: None, broadcast: false, out_cfg: (44.0, true, false), doc: None, pictures: HashMap::new(), gens: HashMap::new(),
-            images: HashMap::new(), effects: HashMap::new(), shaders: HashMap::new(), sources_summary: String::new(), proj_pictures: HashMap::new(), rasters: HashMap::new(), blobs: None, rng: Rng::new(0x5eed), cache: TexCache::default(), gen: 0, path_gens: HashMap::new(), frames: 0,
+            images: HashMap::new(), effects: HashMap::new(), shaders: HashMap::new(), sources_summary: String::new(), proj_pictures: HashMap::new(), rasters: HashMap::new(), blobs: None, compositor: None, comp_tex: HashMap::new(), rng: Rng::new(0x5eed), cache: TexCache::default(), gen: 0, path_gens: HashMap::new(), frames: 0,
             outputs: None, projectors: Vec::new(), proj_published: HashMap::new(), proj_opts: HashMap::new(), opts_ver: 0,
             #[cfg(windows)] spouts: HashMap::new(),
             #[cfg(feature = "ndi")] ndis: HashMap::new(),
@@ -136,6 +144,51 @@ impl Runtime {
     fn view_open(&self) -> bool { self.view.as_ref().is_some_and(|(_, o)| o.load(std::sync::atomic::Ordering::SeqCst)) }
 
     /// E4a: `{"type":"scene3d", models, leds, lights}` — what the 3D view draws, from the editor's own scene.
+    /// E3a: one timeline surface — compositeLayers in the engine. A single LAYER surface is its track's picture,
+    /// with the clip alpha baked in when it is under 0.999 (timeline.layerDrawable); a stack or the program is
+    /// every track drawn over a transparent canvas of the app's size.
+    fn composite(&mut self, sid: &str, spec: &CompSpec, v: &Value) {
+        if self.compositor.is_none() { self.compositor = Some(crate::comp::Compositor::new(&self.gpu)); }
+        // Each track's picture as a texture: a GPU picture copied from its visible rect, a CPU one uploaded
+        // once per generation.
+        let mut texs: Vec<(wgpu::Texture, f32, f32, String, u32, u32)> = Vec::new();
+        for (key, opacity, blend) in &spec.layers {
+            let Some(p) = self.pictures.get(key) else { continue };   // not ready this frame: skipped, as the app does
+            let alpha = v["comp"][sid][key].as_f64().unwrap_or(1.0) as f32;
+            let gen = self.gens.get(key).copied().unwrap_or(0);
+            let tex = match &p.tex {
+                Some(t) => crate::projector::content_texture_from(&self.gpu, t, p.crop.unwrap_or([0, 0, p.w, p.h])),
+                None => {
+                    if self.comp_tex.get(key).map(|e| e.0) != Some(gen) {
+                        self.comp_tex.insert(key.clone(), (gen, crate::projector::content_texture(&self.gpu, p.w, p.h, &p.rgba)));
+                    }
+                    self.comp_tex[key].1.clone()
+                }
+            };
+            let (pw, ph) = p.shown();
+            texs.push((tex, alpha, *opacity, blend.clone(), pw, ph));
+        }
+        if spec.single {
+            match texs.first() {
+                None => { self.pictures.remove(sid); }
+                Some((tex, alpha, _, _, pw, ph)) => {
+                    let (pw, ph) = (*pw, *ph);
+                    let t = if *alpha >= 0.999 { tex.clone() } else {
+                        self.compositor.as_ref().unwrap().render(&self.gpu, pw, ph, &[crate::comp::Layer { tex, alpha: *alpha, opacity: 1.0, blend: "normal" }])
+                    };
+                    self.pictures.insert(sid.to_string(), Picture::gpu_frame(pw, ph, t, [0, 0, pw, ph]));
+                    self.gen += 1; self.gens.insert(sid.to_string(), self.gen << 2 | 2);
+                }
+            }
+            return;
+        }
+        if spec.w == 0 || spec.h == 0 { self.pictures.remove(sid); return; }
+        let layers: Vec<crate::comp::Layer> = texs.iter().map(|(t, a, o, b, _, _)| crate::comp::Layer { tex: t, alpha: *a, opacity: *o, blend: b.as_str() }).collect();
+        let t = self.compositor.as_ref().unwrap().render(&self.gpu, spec.w, spec.h, &layers);
+        self.pictures.insert(sid.to_string(), Picture::gpu_frame(spec.w, spec.h, t, [0, 0, spec.w, spec.h]));
+        self.gen += 1; self.gens.insert(sid.to_string(), self.gen << 2 | 2);
+    }
+
     /// E2: `{"type":"raster","surface","gen","w","h","path"}` — a picture the app drew (main wrote its straight-
     /// alpha RGBA, row 0 at the top). Read now: main deletes the file once the next one is announced.
     pub fn raster(&mut self, v: &Value) {
@@ -342,11 +395,28 @@ impl Runtime {
                 }),
                 "shader" => Source::Shader(crate::shader::Spec::from_json(src)),
                 "raster" => Source::Raster,
+                "comp" => Source::Comp(CompSpec {
+                    w: src["w"].as_u64().unwrap_or(0) as u32, h: src["h"].as_u64().unwrap_or(0) as u32, single: src["single"].as_bool().unwrap_or(false),
+                    layers: src["layers"].as_array().into_iter().flatten().map(|l| (l["key"].as_str().unwrap_or_default().to_string(), l["opacity"].as_f64().unwrap_or(1.0) as f32, l["blend"].as_str().unwrap_or("normal").to_string())).collect(),
+                }),
                 "blobs" => Source::Blobs(src["w"].as_u64().unwrap_or(1920).clamp(2, 4096) as u32, src["h"].as_u64().unwrap_or(1024).clamp(2, 4096) as u32),
                 "none" => Source::None,
                 _ => Source::None,
             };
             sources.insert(id, source);
+        }
+        // E3a: a composite's tracks — hidden sources `layer:<id>`, sampled by no fixture, drawn only to be
+        // composited. Same kinds as a surface's; an effect clip carries its own content.
+        for (key, src) in d["sources"].as_object().into_iter().flatten() {
+            if !key.starts_with("layer:") { continue; }
+            let source = match src["kind"].as_str().unwrap_or("none") {
+                "image" => Source::Image(src["path"].as_str().unwrap_or_default().to_string()),
+                "effect" => Source::Effect(Params::from_json(&src["content"])),
+                "shader" => Source::Shader(crate::shader::Spec::from_json(src)),
+                "raster" => Source::Raster,
+                _ => Source::None,
+            };
+            sources.insert(key.clone(), source);
         }
         // What each surface's source resolved to, once per change (diagnostic: which kinds the engine was given).
         let kinds: Vec<String> = d["surfaces"].as_array().into_iter().flatten().map(|s| { let id = s["id"].as_str().unwrap_or_default(); let k = &d["sources"][id]; format!("{}={}{}", s["name"].as_str().unwrap_or(id), k["kind"].as_str().unwrap_or("?"), k["why"].as_str().map(|w| format!(" ({w})")).unwrap_or_default()) }).collect();
@@ -402,6 +472,31 @@ impl Runtime {
             let src = &d["sources"][sid];
             match src["kind"].as_str() {
                 Some("image") | Some("effect") | Some("hap") | Some("spout") | Some("none") | Some("raster") | Some("blobs") => {}
+                // E3a: every track of the composite must be a kind the engine draws; stills are loaded here.
+                Some("comp") => {
+                    for l in src["layers"].as_array().into_iter().flatten() {
+                        let key = l["key"].as_str().unwrap_or_default();
+                        let ks = &d["sources"][key];
+                        match ks["kind"].as_str() {
+                            Some("image") => {
+                                let p = ks["path"].as_str().unwrap_or_default().to_string();
+                                if !self.images.contains_key(&p) {
+                                    let pic = compose::load_image(std::path::Path::new(&p)).map_err(|e| format!("surface '{}': timeline clip: {e}", name_of(d, sid)))?;
+                                    self.images.insert(p, Arc::new(pic));
+                                }
+                            }
+                            Some("effect") | Some("raster") | Some("none") => {}
+                            Some("shader") => {
+                                let Some(Source::Shader(spec)) = doc.sources.get(key) else { unreachable!() };
+                                if self.shaders.get(key).is_none_or(|r| !r.fits(spec)) {
+                                    let r = crate::shader::Runner::new(&self.gpu, spec).map_err(|e| format!("surface '{}': timeline shader clip: {}", name_of(d, sid), e.lines().next().unwrap_or("")))?;
+                                    self.shaders.insert(key.to_string(), r);
+                                }
+                            }
+                            k => return Err(format!("surface '{}': a timeline clip the engine does not draw ({})", name_of(d, sid), k.unwrap_or("?"))),
+                        }
+                    }
+                }
                 // E2: compiled HERE, so a text naga cannot take leaves the show to the app, with naga's log.
                 Some("shader") => {
                     let Some(Source::Shader(spec)) = doc.sources.get(sid) else { unreachable!() };
@@ -489,7 +584,8 @@ impl Runtime {
                 }
                 Source::Effect(params) => {
                     let e = self.effects.entry(sid.clone()).or_default();
-                    let rgba = e.render(*params, t, &mut self.rng).to_vec();
+                    // A timeline clip's effect runs at its CLIP-LOCAL time (the tick's `times`), as the app's does.
+                    let rgba = e.render(*params, v["times"][sid].as_f64().unwrap_or(t), &mut self.rng).to_vec();
                     self.pictures.insert(sid.clone(), Picture::canvas(crate::effects::FW as u32, crate::effects::FH as u32, rgba));
                     self.gen += 1; self.gens.insert(sid.clone(), self.gen << 2 | 2);
                 }
@@ -603,7 +699,8 @@ impl Runtime {
                         }
                     }
                     if !self.pictures.contains_key(sid) { eprintln!("artlux-engine: surface {sid}: shader drawn by the engine ({}x{}, {} inputs{})", spec.w, spec.h, spec.inputs.len(), if spec.last_frame { ", feedback" } else { "" }); }
-                    let tex = self.shaders.get_mut(sid).unwrap().render(&self.gpu, spec.w, spec.h, t, &v["shader"][sid]);
+                    let st = v["times"][sid].as_f64().unwrap_or(t);   // a timeline clip: its clip-local time
+                    let tex = self.shaders.get_mut(sid).unwrap().render(&self.gpu, spec.w, spec.h, st, &v["shader"][sid]);
                     self.pictures.insert(sid.clone(), Picture::gpu_frame(spec.w, spec.h, tex, [0, 0, spec.w, spec.h]));
                     // On an engine projector: drawn again at that output's own size (the largest, if several).
                     let css = self.projectors.iter().filter(|(_, s, _)| s == sid).filter_map(|(_, _, o)| Some((o["css"][0].as_f64()?, o["css"][1].as_f64()?))).max_by(|a, b| (a.0 * a.1).total_cmp(&(b.0 * b.1)));
@@ -615,7 +712,7 @@ impl Runtime {
                                 if let Ok(r) = crate::shader::Runner::new(&self.gpu, spec) { self.shaders.insert(key.clone(), r); }
                             }
                             if let Some(r) = self.shaders.get_mut(&key) {
-                                let tex = r.render(&self.gpu, pw, ph, t, &v["shader"][sid]);
+                                let tex = r.render(&self.gpu, pw, ph, st, &v["shader"][sid]);
                                 self.proj_pictures.insert(sid.clone(), Picture::gpu_frame(pw, ph, tex, [0, 0, pw, ph]));
                             }
                         }
@@ -650,9 +747,13 @@ impl Runtime {
                     self.pictures.insert(sid.clone(), Picture::gpu_frame(*w, *h, tex, [0, 0, *w, *h]));
                     self.gen += 1; self.gens.insert(sid.clone(), self.gen << 2 | 2);
                 }
+                Source::Comp(_) => {}   // composited below, once its tracks are drawn
                 Source::None => { self.pictures.remove(sid); }
             }
         }
+        // E3a: the timeline composites, from the tracks' pictures drawn above (comp.rs).
+        let comps: Vec<(String, CompSpec)> = doc.sources.iter().filter_map(|(k, s)| if let Source::Comp(c) = s { Some((k.clone(), c.clone())) } else { None }).collect();
+        for (sid, spec) in comps { self.composite(&sid, &spec, v); }
         // Twin cameras waiting for the app's picture: resolve with the fingerprint this tick carries, then the
         // document is answered AGAIN (serve.rs) — the engine may own it now.
         #[cfg(windows)]

@@ -745,7 +745,10 @@ export type NativeSource = { kind: 'image' | 'hap'; path: string } | { kind: 'mp
   // E2: a picture THIS app draws and ships when it changes (text first — nativeLink, engineHost.noteRaster).
   | { kind: 'raster' }
   // E2: tracking blobs (lidar-tracking / Augmenta) — the engine draws blobPass from each tick's instances.
-  | { kind: 'blobs'; w: number; h: number };
+  | { kind: 'blobs'; w: number; h: number }
+  // E3a: a timeline surface (LAYER / stack / PROGRAM) composited by the engine — surfaceMedia.compositeNativeSource.
+  // `sources` are the tracks' clips as hidden sources (`layer:<id>`), with the clip content they are drawn from.
+  | { kind: 'comp'; w: number; h: number; single: boolean; layers: { key: string; opacity: number; blend: string }[]; sources: Record<string, { src: NativeSource; content: unknown }> };
 
 // Item 2d step 5 (plans/native-engine.md): a CAMERA surface. The app keeps its camera (owner's decision); the
 // engine reads the same device SHARED and draws it as this app does (engine cam.rs — proven by

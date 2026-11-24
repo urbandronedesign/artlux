@@ -1844,6 +1844,35 @@ fallback until a source/output is proven byte-identical — risk 2):
 >   on an engine projector output was not measured on screen (moving content: the projector windows run
 >   their own clock — a screen comparison needs a frozen take).
 
+## 9f. E3 — the timeline in the engine (owner, 2026-11-24: "the remaining plan")
+
+> ✅ **E3a done 2026-11-24 — the timeline COMPOSITE in the engine, for content clips.** The composite is far
+> smaller than the 2.2k-line timeline: `compositeLayers` stretches each contributing track's picture over a
+> transparent Canvas2D canvas, back-most first, with the clip alpha (content opacity × linear fades) baked in and
+> the track's opacity and blend (normal / add→lighter / screen / multiply) applied; no clip transitions,
+> transforms or filters exist. So, "the host evaluates, the engine draws":
+> - **App:** `contributingLayers` is now the ONE list of what muted / solo / enabled / a non-picture lane mean;
+>   `compositeLayers` draws it and `timeline.nativeLayers` reports it with each track's active clip, its clip
+>   alpha, its clip-local time, the track's opacity and blend. `surfaceMedia.compositeNativeSource` turns a
+>   LAYER / stack / PROGRAM surface into `{kind:'comp'}` with each track's clip as a hidden source `layer:<id>`
+>   (the existing image / shader / text-raster / effect sources); the per-frame alpha and clip time ride the
+>   tick, so a fade does not re-send the document.
+> - **Engine:** hidden `layer:` sources are drawn like surfaces' (a clip's shader and effect at its clip-local
+>   time); `comp.rs` composites them — premultiplied, a ping-pong pair of 8-bit targets (each Canvas2D draw
+>   lands in 8 bits), bilinear stretch with no mips (drawImage, quality 'low'), the W3C formulas for the four
+>   operations. A single LAYER surface is its track's picture, its clip alpha baked in under 0.999, as
+>   `layerDrawable`. The canvas is the app's own (program / stack size, sent with the document).
+> - **Proof:** `test:timeline-wire` — a text clip at content opacity 0.5 (the baked-fade path), a still shader
+>   track at 0.6 SCREEN, an image track; the PROGRAM, the single faded track and a 2-track STACK on strips and
+>   matrices: the engine owns the wire, every universe lit, every channel within 1 of the app's (the app keeps
+>   8-bit intermediates — the fade scratch, the composite canvas — that the engine does not; ±1 rounding).
+>   `verify:invariants`: nativeLayers and compositeLayers read the one list; comp.rs maps the blend modes as
+>   blendOp does (mutation-tested). Shader / text / tracking / runtime tests unchanged.
+> - **Next — E3b:** VIDEO clips on tracks (the app plays them as `<video>` elements free-running with the
+>   transport, or through the HAP / MP4 codec plugins frame-exactly; the engine already decodes HAP and MP4 for
+>   surfaces — a track needs the frame the app shows, as 2c-4 does for a surface). Then the CLOCK (§4: time
+>   evaluated in Rust on the audio clock), JUCE in the engine process, and lighting evaluation.
+
 ## 9d. E4 started early — the 3D view in the engine (owner, 2026-11-24)
 
 > **Owner, 2026-11-24: "start E4's 3D now"** — for the detachable 3D view (plans/3d-workbench.md §5/Phase 4),
@@ -1895,7 +1924,7 @@ fallback until a source/output is proven byte-identical — risk 2):
 >   example: named screen; projected from a frozen view; a panel between projector and screen — engine,
 >   editor WebGPU and editor WebGL (forced) all identical. Guarded in verify:invariants.
 > - **Not yet (E4b…):** beams and the Rendered look, labels, selection / picking (the GPU id buffer, body
->   before LEDs) and the gizmo, sources the engine does not draw (layers, a tracking overlay…) on screens
+>   before LEDs) and the gizmo, sources the engine does not draw (timeline video clips, a tracking overlay…) on screens
 >   and venue meshes, the four-view layout, saving the window's place, macOS / Linux.
 
 ## 10. Open questions

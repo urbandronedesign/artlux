@@ -1494,18 +1494,31 @@ function anySoloActive(): boolean {
   return data.layers.some(l => l.solo && !clipKindRegistry.get(l.kind ?? '')?.excludeFromProgram);
 }
 
-function compositeLayers(ctx: CanvasRenderingContext2D, w: number, h: number, only: ReadonlySet<string> | null): void {
-  ctx.globalAlpha = 1; ctx.globalCompositeOperation = 'source-over';
-  ctx.clearRect(0, 0, w, h);
+/**
+ * The tracks that contribute to a composite, BACK-MOST FIRST — the one definition of what `muted`, `solo`,
+ * `enabled` and a non-picture lane mean for a picture. compositeLayers draws them; the native engine's link
+ * (nativeLayers, E3a) reads the same list, so the engine composites exactly the tracks the app does.
+ */
+function contributingLayers(only: ReadonlySet<string> | null): Timeline['layers'] {
   // Solo is judged across the WHOLE timeline, not within the subset: soloing a track is a statement
   // about the document ("show me only this"), and a surface that does not name the soloed track
   // should go dark exactly as the program does, rather than quietly ignoring the solo.
   const anySolo = anySoloActive();
+  const out: Timeline['layers'] = [];
   for (let i = data.layers.length - 1; i >= 0; i--) { // last in the list is the back-most layer
     const l = data.layers[i];
     if (only && !only.has(l.id)) continue;
     if (clipKindRegistry.get(l.kind ?? '')?.excludeFromProgram || l.enabled === false || l.muted) continue;
     if (anySolo && !l.solo) continue;
+    out.push(l);
+  }
+  return out;
+}
+
+function compositeLayers(ctx: CanvasRenderingContext2D, w: number, h: number, only: ReadonlySet<string> | null): void {
+  ctx.globalAlpha = 1; ctx.globalCompositeOperation = 'source-over';
+  ctx.clearRect(0, 0, w, h);
+  for (const l of contributingLayers(only)) {
     const d = layerDrawable(l.id);
     if (!d) continue;
     ctx.globalAlpha = Math.max(0, Math.min(1, l.opacity ?? 1));
@@ -2115,6 +2128,25 @@ export const timeline = {
     return programReady && programCanvas ? programCanvas : null;
   },
   programSize(): { w: number; h: number } { return { w: programW, h: programH }; },
+  /**
+   * E3a — WHAT THE NATIVE ENGINE COMPOSITES (plans/native-engine.md E3). For a set of tracks (null = the
+   * program; `single` = one LAYER surface, which shows its track's faded picture with no gating, opacity
+   * or blend — getLayerDrawable), the contributing tracks back-most first (contributingLayers — the SAME
+   * list compositeLayers draws) with each one's active clip, its clip alpha (content opacity × fades,
+   * layerAlpha), the clip-local time its content is drawn at, and the track's opacity and blend mode.
+   * Main window only: a mirror cannot composite.
+   */
+  nativeLayers(only: readonly string[] | null, single = false): { layerId: string; clip: VideoClip | null; alpha: number; time: number; opacity: number; blend: string }[] {
+    if (external) return [];
+    const layers = single ? data.layers.filter((l) => only?.includes(l.id)) : contributingLayers(only ? new Set(only) : null);
+    return layers.map((l) => {
+      const c = activeClip(l.id, playhead);
+      return {
+        layerId: l.id, clip: c, alpha: layerAlpha(l.id), time: c ? playhead - c.start + c.inPoint : 0,
+        opacity: single ? 1 : Math.max(0, Math.min(1, l.opacity ?? 1)), blend: single ? 'normal' : (l.blendMode ?? 'normal'),
+      };
+    });
+  },
   // Natural aspect (w/h) of what this layer is currently showing, or null when nothing is under the
   // playhead / it isn't measurable yet. Exists so a SURFACE fed by a timeline track can auto-fit its
   // rect the same way a direct VIDEO surface does — contentSource can't answer for LAYER (the

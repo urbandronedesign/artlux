@@ -1,4 +1,4 @@
-import type { Fixture, Surface, Controller, OutputProtocol } from '../types';
+import type { Fixture, Surface, Controller, OutputProtocol, SurfaceContent } from '../types';
 import { WINDOWED_DISPLAY, type ProjectorOutput } from '../../../shared/protocol';
 import * as surfaceMedia from '../services/surfaceMedia';
 import { isLight } from '../services/fixtureKind';
@@ -152,7 +152,20 @@ export function frame(inputs: LinkInputs, surfaces: Surface[], fixtures: Fixture
   if (ndiSources.size > 1) {
     for (const id in sources) if (sources[id].kind === 'ndi') sources[id] = { kind: 'unsupported', why: 'two NDI sources at once (the app shows one of them on every NDI surface)' };
   }
+  // E3a: a composite's tracks become hidden sources `layer:<id>` beside the surfaces (an effect clip carries
+  // its content: it is no surface's). Their clip content is kept for the rasters and the per-frame ticks.
+  const layerContent = new Map<string, SurfaceContent>();
+  for (const s of surfaces) {
+    const c = sources[s.id];
+    if (c.kind !== 'comp') continue;
+    for (const [key, { src, content }] of Object.entries(c.sources)) {
+      sources[key] = src.kind === 'effect' ? ({ ...src, content } as contentSource.NativeSource) : src;
+      layerContent.set(key, content as SurfaceContent);
+    }
+    sources[s.id] = { ...c, sources: {} };
+  }
   shipRasters(surfaces, sources);   // E2: before the document that names them
+  for (const [key, content] of layerContent) if (sources[key]?.kind === 'raster') shipRaster(key, contentSource.nativeRaster(key, content));
   const sourcesKey = JSON.stringify(sources);
   const refs = [surfaces, fixtures, inputs.controllers, inputs.protocol, inputs.targetIp, inputs.broadcast, inputs.gamma, inputs.artNetPort, inputs.outputEnabled, projOutputs, bakedSeq];
   if (sourcesKey !== lastSources || refs.length !== lastRefs.length || refs.some((r, i) => r !== lastRefs[i])) {
@@ -206,6 +219,24 @@ export function frame(inputs: LinkInputs, surfaces: Surface[], fixtures: Fixture
     const u = contentSource.nativeTick(s.id, s.content, showT);
     if (u) shader[s.id] = u;
   }
+  // E3a: each composite's per-frame values — every track's clip alpha, and its clip-local time (the time a
+  // track's shader / effect is drawn at); a track's shader uniforms are its clip's, at that time.
+  const comp: Record<string, Record<string, number>> = {};
+  const times: Record<string, number> = {};
+  for (const s of surfaces) {
+    const c = sources[s.id];
+    if (c.kind !== 'comp') continue;
+    const program = s.content.type === 'PROGRAM';
+    const ids = program ? null : surfaceMedia.stackIdsOf(s);
+    const a: Record<string, number> = {};
+    for (const e of timeline.nativeLayers(program ? null : ids ?? (s.content.layerId ? [s.content.layerId] : []), !program && !ids)) {
+      const key = `layer:${e.layerId}`;
+      a[key] = e.alpha; times[key] = e.time;
+      const content = layerContent.get(key);
+      if (content && sources[key]?.kind === 'shader') { const u = contentSource.nativeTick(key, content, e.time); if (u) shader[key] = u; }
+    }
+    comp[s.id] = a;
+  }
   // E2: each TRACKING / AUGMENTA surface's blobs and trail ribbons, as the app drew them this frame.
   const blobs: Record<string, unknown> = {};
   for (const s of surfaces) {
@@ -217,5 +248,5 @@ export function frame(inputs: LinkInputs, surfaces: Surface[], fixtures: Fixture
   // JavaScript's ToUint8 (truncate, then modulo 256; NaN → 0). Done HERE so the engine gets bytes.
   const lights: Record<string, number[]> = {};
   for (const id in lightBytes) lights[id] = lightBytes[id].map((v) => { const t = Math.trunc(Number(v)); return Number.isFinite(t) ? ((t % 256) + 256) % 256 : 0; });
-  window.artlux?.nativeEngineTick?.(JSON.stringify({ rev, t: timeline.getShowTime(), brightness, hap, mp4, ndi, camfp, shader, blobs, lights, proj: { brightness: projBrightness, booting: projBooting } }));
+  window.artlux?.nativeEngineTick?.(JSON.stringify({ rev, t: timeline.getShowTime(), brightness, hap, mp4, ndi, camfp, shader, blobs, comp, times, lights, proj: { brightness: projBrightness, booting: projBooting } }));
 }
