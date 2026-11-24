@@ -2190,7 +2190,16 @@ fallback until a source/output is proven byte-identical — risk 2):
 >   capture in Rendered; a guard compares the copied numbers. **Not yet:** shadows (the editor's PCF-soft shadow maps
 >   per spot), GTAO and SMAA. The test's drags now wait for their own grab and release line (a late grab line had
 >   let a previous release look current).
-> - **Not yet (E4b…):** Rendered's shadows and ambient occlusion, sources the engine does not draw (timeline video clips, a tracking overlay…) on screens
+> - ✅ **E4b-11 2026-11-24 — Rendered's shadows.** Each spot in use renders a 1024² depth map (one layer of a
+>   depth array) from three's SpotLightShadow camera (fov twice its cone, square, near 0.5, far its range) every
+>   frame in Rendered; casters as the editor's: venue meshes wearing their own lit material (a screen with a picture
+>   is MeshBasic there: none) and the housings. The mesh shader takes each spot through its map: the point pushed
+>   0.02 m along its normal, bias −0.0005, a 3 × 3 comparison average (PCFSoft). **Proof:** `test:engine-shadows`
+>   (packaged, scratch profile): a wash straight down over a box written as a tiny glTF, the engine window looking
+>   down in Rendered; the ring of floor around the box's foot brightens 131.6 → 137.3 when the editor hides the box,
+>   and the order of that ring against a lit ring further out flips (darker only while the box is there) — judged as a
+>   difference because Rendered's solid shaft lies over the whole pool. A guard compares the copied shadow numbers.
+> - **Not yet (E4b…):** Rendered's ambient occlusion (GTAO) and SMAA, sources the engine does not draw (timeline video clips, a tracking overlay…) on screens
 >   and venue meshes, the four-view layout, saving the window's place, macOS / Linux.
 
 ## 10. Open questions

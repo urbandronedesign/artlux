@@ -9438,7 +9438,7 @@ check(
   'editor\'s MoverLights) and finishes the frame with bloom and AgX (engine post.rs, the editor\'s RenderedMode). ' +
   'Their numbers are COPIED: eight spots, penumbra 0.4, range 30 m, decay 1.2, intensity × 14; exposure 1.1; bloom ' +
   'strength 0.8, radius 0.4, threshold 0.6. Change one in the editor and the two windows light the show differently ' +
-  'with nothing failing. They are compared here.',
+  'with nothing failing; so are its shadows (1024² maps, bias −0.0005, normal bias 0.02). They are compared here.',
   () => {
     const problems = [];
     const ML = 'src/renderer/components/Simulator3D/MoverLights.tsx', RM = 'src/renderer/components/Simulator3D/RenderedMode.tsx';
@@ -9452,6 +9452,10 @@ check(
     if (!/toneMappingExposure = 1\.1;/.test(rm) || !/const EXPOSURE: f32 = 1\.1;/.test(p)) problems.push('the exposure differs');
     if (!/bloom\(lit as never, 0\.8, 0\.4, 0\.6\)/.test(rm) || !/const STRENGTH: f32 = 0\.8;/.test(p) || !/const RADIUS: f32 = 0\.4;/.test(p) || !/const THRESHOLD: f32 = 0\.6;/.test(p)) problems.push('the bloom differs');
     if (!/AgXToneMapping/.test(rm)) problems.push('the editor no longer tone-maps Rendered with AgX (post.rs ports AgX)');
+    const V = read('engine/artlux-engine/src/view3d.rs');
+    if (!/l\.shadow\.mapSize\.set\(quality === 'high' \? 1024/.test(rm) || !/const SHADOW_SIZE: u32 = 1024;/.test(V)) problems.push('the shadow map size differs');
+    if (!/l\.shadow\.bias = -0\.0005;/.test(rm) || !/p\.z - 0\.0005\)/.test(V)) problems.push('the shadow bias differs');
+    if (!/l\.shadow\.normalBias = 0\.02;/.test(rm) || !/w \+ n \* 0\.02/.test(V)) problems.push('the shadow normal bias differs');
     return problems.length ? problems.join('; ') : null;
   },
 );

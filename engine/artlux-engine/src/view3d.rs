@@ -559,8 +559,29 @@ fn to_linear(c: vec3<f32>) -> vec3<f32> { return pow(max(c, vec3<f32>(0.0)), vec
 // SpotLight: distance falloff 1 / max(d^decay, 0.01) × (1 − (d / range)^4)^2, the cone smoothstep(cos outer,
 // cos inner), Lambert (albedo / π × N·L × colour × intensity).
 struct Spot { pos: vec4<f32>, dir: vec4<f32>, color: vec4<f32>, cone: vec4<f32> };
-struct Lights { spots: array<Spot, 8>, n: vec4<f32> };   // n.x: spots in use; n.y: 1 = Rendered (a dark room)
+// n.x: spots in use; n.y: 1 = Rendered (a dark room); n.z: 1 = the spots cast SHADOWS (Rendered).
+struct Lights { spots: array<Spot, 8>, n: vec4<f32>, shadow: array<mat4x4<f32>, 8> };
 @group(3) @binding(0) var<uniform> lights: Lights;
+@group(3) @binding(1) var shadow_maps: texture_depth_2d_array;
+@group(3) @binding(2) var shadow_cmp: sampler_comparison;
+// E4b: how much of spot k reaches w — the editor's Rendered shadows (PCFSoftShadowMap, bias −0.0005, normalBias
+// 0.02 m): the point pushed along its normal, projected into the spot's map, a 3 × 3 comparison average.
+fn spot_shadow(k: u32, w: vec3<f32>, n: vec3<f32>) -> f32 {
+  if (lights.n.z < 0.5) { return 1.0; }
+  let c = lights.shadow[k] * vec4<f32>(w + n * 0.02, 1.0);
+  if (c.w <= 0.0) { return 1.0; }
+  let p = c.xyz / c.w;
+  if (any(abs(p.xy) > vec2<f32>(1.0)) || p.z > 1.0) { return 1.0; }
+  let uv = vec2<f32>(p.x * 0.5 + 0.5, 0.5 - p.y * 0.5);
+  let texel = 1.0 / f32(textureDimensions(shadow_maps).x);
+  var lit = 0.0;
+  for (var y = -1; y <= 1; y = y + 1) {
+    for (var x = -1; x <= 1; x = x + 1) {
+      lit = lit + textureSampleCompareLevel(shadow_maps, shadow_cmp, uv + vec2<f32>(f32(x), f32(y)) * texel, k, p.z - 0.0005);
+    }
+  }
+  return lit / 9.0;
+}
 fn spot_light(w: vec3<f32>, n: vec3<f32>) -> vec3<f32> {
   var sum = vec3<f32>(0.0);
   for (var k = 0u; k < u32(lights.n.x); k = k + 1u) {
@@ -573,7 +594,8 @@ fn spot_light(w: vec3<f32>, n: vec3<f32>) -> vec3<f32> {
     var fall = 1.0 / max(pow(d, s.dir.w), 0.01);
     if (s.pos.w > 0.0) { let r = clamp(1.0 - pow(d / s.pos.w, 4.0), 0.0, 1.0); fall = fall * r * r; }
     let cone = smoothstep(s.cone.x, s.cone.y, dot(ld, -s.dir.xyz));
-    sum = sum + s.color.rgb * (ndl * fall * cone);
+    if (cone <= 0.0) { continue; }
+    sum = sum + s.color.rgb * (ndl * fall * cone * spot_shadow(k, w, n));
   }
   return sum;
 }
@@ -710,6 +732,8 @@ struct DOut { @builtin(position) pos: vec4<f32>, @location(0) d: f32 };
   return o;
 }
 @fragment fn fs_depth(i: DOut) -> @location(0) vec4<f32> { return vec4<f32>(i.d, 0.0, 0.0, 1.0); }
+// A spot's shadow map: depth only.
+@vertex fn vs_shadow(@location(0) p: vec3<f32>) -> @builtin(position) vec4<f32> { return cam.vp * (obj.model * vec4<f32>(p, 1.0)); }
 "#;
 
 /// A file's geometry, shared by every placement of it.
@@ -727,6 +751,8 @@ const DEPTH_SIZE: u32 = 1024;   // as the editor's (projectorDepth.ts)
 const GL_TO_WGPU: [f32; 16] = [1., 0., 0., 0., 0., 1., 0., 0., 0., 0., 0.5, 0., 0., 0., 0.5, 1.];
 
 const SAMPLES: u32 = 4;
+/// A spot's shadow map, square (RenderedMode: 1024 at "high").
+const SHADOW_SIZE: u32 = 1024;
 /// The selection accent (FixtureBodies' SELECTED, #27b6c4), in linear.
 const ACCENT: [f32; 3] = [0.0203, 0.4678, 0.5520];
 const DEPTH: wgpu::TextureFormat = wgpu::TextureFormat::Depth32Float;
@@ -755,10 +781,31 @@ pub fn present(gpu: Arc<Gpu>, window: Arc<Window>, surface: wgpu::Surface<'stati
     ] });
     // Group 2 is its own group (not a binding in the object's): the depth pass draws with the object
     // groups while writing the map, and a bind group naming the map would be a usage conflict there.
-    let light_layout = d.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor { label: Some("lights"), entries: &[wgpu::BindGroupLayoutEntry {
-        binding: 0, visibility: wgpu::ShaderStages::FRAGMENT, ty: wgpu::BindingType::Buffer { ty: wgpu::BufferBindingType::Uniform, has_dynamic_offset: false, min_binding_size: None }, count: None }] });
-    let light_buf = d.create_buffer(&wgpu::BufferDescriptor { label: Some("lights"), size: ((crate::beams::MAX_SPOTS * crate::beams::SPOT_FLOATS + 4) * 4) as u64, usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST, mapped_at_creation: false });
-    let light_bind = d.create_bind_group(&wgpu::BindGroupDescriptor { label: None, layout: &light_layout, entries: &[wgpu::BindGroupEntry { binding: 0, resource: light_buf.as_entire_binding() }] });
+    let light_layout = d.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor { label: Some("lights"), entries: &[
+        wgpu::BindGroupLayoutEntry { binding: 0, visibility: wgpu::ShaderStages::FRAGMENT, ty: wgpu::BindingType::Buffer { ty: wgpu::BufferBindingType::Uniform, has_dynamic_offset: false, min_binding_size: None }, count: None },
+        wgpu::BindGroupLayoutEntry { binding: 1, visibility: wgpu::ShaderStages::FRAGMENT, ty: wgpu::BindingType::Texture { sample_type: wgpu::TextureSampleType::Depth, view_dimension: wgpu::TextureViewDimension::D2Array, multisampled: false }, count: None },
+        wgpu::BindGroupLayoutEntry { binding: 2, visibility: wgpu::ShaderStages::FRAGMENT, ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Comparison), count: None },
+    ] });
+    // spots (8 × 16 floats), n (4), the shadow matrices (8 × 16).
+    let light_buf = d.create_buffer(&wgpu::BufferDescriptor { label: Some("lights"), size: ((crate::beams::MAX_SPOTS * crate::beams::SPOT_FLOATS + 4 + crate::beams::MAX_SPOTS * 16) * 4) as u64, usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST, mapped_at_creation: false });
+    // E4b: the spots' shadow maps — one layer each, SHADOW_SIZE² (the editor's 1024 at "high"), and a camera per spot.
+    let shadow_tex = d.create_texture(&wgpu::TextureDescriptor { label: Some("spot shadows"), size: wgpu::Extent3d { width: SHADOW_SIZE, height: SHADOW_SIZE, depth_or_array_layers: crate::beams::MAX_SPOTS as u32 },
+        mip_level_count: 1, sample_count: 1, dimension: wgpu::TextureDimension::D2, format: DEPTH, usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::TEXTURE_BINDING, view_formats: &[] });
+    let shadow_layers: Vec<wgpu::TextureView> = (0..crate::beams::MAX_SPOTS as u32).map(|k| shadow_tex.create_view(&wgpu::TextureViewDescriptor {
+        dimension: Some(wgpu::TextureViewDimension::D2), base_array_layer: k, array_layer_count: Some(1), ..Default::default() })).collect();
+    let shadow_all = shadow_tex.create_view(&wgpu::TextureViewDescriptor { dimension: Some(wgpu::TextureViewDimension::D2Array), ..Default::default() });
+    let shadow_cmp = d.create_sampler(&wgpu::SamplerDescriptor { compare: Some(wgpu::CompareFunction::LessEqual), mag_filter: wgpu::FilterMode::Linear, min_filter: wgpu::FilterMode::Linear,
+        address_mode_u: wgpu::AddressMode::ClampToEdge, address_mode_v: wgpu::AddressMode::ClampToEdge, ..Default::default() });
+    let light_bind = d.create_bind_group(&wgpu::BindGroupDescriptor { label: None, layout: &light_layout, entries: &[
+        wgpu::BindGroupEntry { binding: 0, resource: light_buf.as_entire_binding() },
+        wgpu::BindGroupEntry { binding: 1, resource: wgpu::BindingResource::TextureView(&shadow_all) },
+        wgpu::BindGroupEntry { binding: 2, resource: wgpu::BindingResource::Sampler(&shadow_cmp) },
+    ] });
+    let shadow_cams: Vec<(wgpu::Buffer, wgpu::BindGroup)> = (0..crate::beams::MAX_SPOTS).map(|_| {
+        let b = d.create_buffer(&wgpu::BufferDescriptor { label: Some("spot cam"), size: 96, usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST, mapped_at_creation: false });
+        let g = d.create_bind_group(&wgpu::BindGroupDescriptor { label: None, layout: &cam_layout, entries: &[wgpu::BindGroupEntry { binding: 0, resource: b.as_entire_binding() }] });
+        (b, g)
+    }).collect();
     let mesh_pl = d.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor { label: None, bind_group_layouts: &[Some(&cam_layout), Some(&obj_layout), Some(&depth_layout), Some(&light_layout)], immediate_size: 0 });
     let depth_pl = d.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor { label: None, bind_group_layouts: &[Some(&cam_layout), Some(&obj_layout)], immediate_size: 0 });
     let cam_pl = d.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor { label: None, bind_group_layouts: &[Some(&cam_layout)], immediate_size: 0 });
@@ -827,6 +874,15 @@ pub fn present(gpu: Arc<Gpu>, window: Arc<Window>, surface: wgpu::Surface<'stati
             format, blend: Some(additive), write_mask: wgpu::ColorWrites::ALL })], compilation_options: Default::default() }),
         primitive: wgpu::PrimitiveState { cull_mode: None, ..Default::default() },
         depth_stencil: ds(false), multisample: ms, multiview_mask: None, cache: None,
+    });
+    let shadow_pipe = d.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+        label: Some("spot shadow"), layout: Some(&depth_pl),
+        vertex: wgpu::VertexState { module: &module, entry_point: Some("vs_shadow"), compilation_options: Default::default(), buffers: &[Some(wgpu::VertexBufferLayout {
+            array_stride: 32, step_mode: wgpu::VertexStepMode::Vertex, attributes: &wgpu::vertex_attr_array![0 => Float32x3] })] },
+        fragment: None,
+        primitive: wgpu::PrimitiveState { cull_mode: None, ..Default::default() },
+        depth_stencil: Some(wgpu::DepthStencilState { format: DEPTH, depth_write_enabled: Some(true), depth_compare: Some(wgpu::CompareFunction::LessEqual), stencil: Default::default(), bias: Default::default() }),
+        multisample: Default::default(), multiview_mask: None, cache: None,
     });
     let depth_pipe = d.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
         label: Some("projector depth"), layout: Some(&depth_pl),
@@ -921,6 +977,9 @@ pub fn present(gpu: Arc<Gpu>, window: Arc<Window>, surface: wgpu::Surface<'stati
     let mut grid_key = (i64::MIN, i64::MIN, i64::MIN);
     let mut gnomon_buf: Option<wgpu::Buffer> = None;
     let mut handle_buf: Option<wgpu::Buffer> = None;
+    // E4b: how many spots cast shadows this frame (Rendered only, as in the editor).
+    #[allow(unused_assignments)]
+    let mut shadow_n = 0usize;
     // E4b: Rendered's matte stage floor (RenderedMode: 400 × 400 m, #1c1c1c, 3 mm under the grid), lit by the rig.
     let floor_ub = obj_ub();
     write_obj(&floor_ub, &[400., 0., 0., 0., 0., 0., -400., 0., 0., 1., 0., 0., 0., -0.003, 0., 1.], [0.0113, 0.0113, 0.0113, 1.0], [0.0; 4]);
@@ -1163,7 +1222,21 @@ pub fn present(gpu: Arc<Gpu>, window: Arc<Window>, surface: wgpu::Surface<'stati
         // The heads as lights, this frame (moved with a drag, as the beams are).
         {
             let (mut v, n) = scene.as_ref().map(|s| crate::beams::spots(moved_lights.as_deref().unwrap_or(&s.lights), &beam_states, s.look.light_gain)).unwrap_or((vec![0.0; crate::beams::MAX_SPOTS * crate::beams::SPOT_FLOATS], 0));
-            v.extend_from_slice(&[n as f32, look.rendered as u32 as f32, 0.0, 0.0]);
+            // Each spot's shadow camera: three's SpotLightShadow — fov twice the cone, square, near 0.5, far its range.
+            let mut mats = vec![0f32; crate::beams::MAX_SPOTS * 16];
+            for k in 0..n {
+                let o = k * crate::beams::SPOT_FLOATS;
+                let (p, dir) = ([v[o], v[o + 1], v[o + 2]], [v[o + 4], v[o + 5], v[o + 6]]);
+                let angle = v[o + 12].clamp(-1.0, 1.0).acos();
+                let m = mul(&perspective((2.0 * angle).to_degrees().clamp(1.0, 179.0), 1.0, 0.5, v[o + 3].max(1.0)), &look_at(p, add(p, dir)));
+                mats[k * 16..k * 16 + 16].copy_from_slice(&m);
+                let mut cv = m.to_vec();
+                cv.extend_from_slice(&[p[0], p[1], p[2], 1.0, 0.0, 0.0, 0.0, 0.0]);
+                gpu.queue.write_buffer(&shadow_cams[k].0, 0, &bytes(&cv));
+            }
+            shadow_n = if look.rendered { n } else { 0 };
+            v.extend_from_slice(&[n as f32, look.rendered as u32 as f32, (shadow_n > 0) as u32 as f32, 0.0]);
+            v.extend_from_slice(&mats);
             gpu.queue.write_buffer(&light_buf, 0, &bytes(&v));
         }
         let n_cones = (bf.cones.len() / crate::beams::CONE_FLOATS) as u32;
@@ -1303,6 +1376,41 @@ pub fn present(gpu: Arc<Gpu>, window: Arc<Window>, surface: wgpu::Surface<'stati
         let view = frame.texture.create_view(&Default::default());
         let (msaa, depth) = targets.as_ref().unwrap();
         let mut enc = d.create_command_encoder(&Default::default());
+
+        // E4b: the spots' shadow maps (Rendered): every caster seen from each spot — the venue meshes that wear their
+        // own material (a picture is a MeshBasic screen in the editor: no shadow), and the heads' housings.
+        if shadow_n > 0 {
+            if let Some(sc) = &scene {
+                for k in 0..shadow_n {
+                    let mut pass = enc.begin_render_pass(&wgpu::RenderPassDescriptor {
+                        label: Some("spot shadow"), color_attachments: &[],
+                        depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment { view: &shadow_layers[k], depth_ops: Some(wgpu::Operations { load: wgpu::LoadOp::Clear(1.0), store: wgpu::StoreOp::Store }), stencil_ops: None }),
+                        ..Default::default()
+                    });
+                    pass.set_pipeline(&shadow_pipe);
+                    pass.set_bind_group(0, &shadow_cams[k].1, &[]);
+                    for m in &sc.models {
+                        if let ModelKind::Glb(path) = &m.kind {
+                            if let (Some(Some(g)), Some(list)) = (glbs.get(path), insts.get(&m.id)) {
+                                for (p, inst) in g.prims.iter().zip(list) {
+                                    if p.unlit || inst.key.0 >= 0 { continue; }
+                                    pass.set_bind_group(1, &inst.bind, &[]);
+                                    pass.set_vertex_buffer(0, p.vb.slice(..));
+                                    pass.set_index_buffer(p.ib.slice(..), wgpu::IndexFormat::Uint32);
+                                    pass.draw_indexed(0..p.n, 0, 0..1);
+                                }
+                            }
+                        }
+                    }
+                    for (_, b) in &lights {
+                        pass.set_bind_group(1, b, &[]);
+                        pass.set_vertex_buffer(0, cube.0.slice(..));
+                        pass.set_index_buffer(cube.1.slice(..), wgpu::IndexFormat::Uint32);
+                        pass.draw_indexed(0..cube.2, 0, 0..1);
+                    }
+                }
+            }
+        }
 
         // The projectors' depth maps, before the view: every caster (venue files and screens, as the
         // editor's projectorDepth.ts registers them) seen from each projector. Only when something moved.
