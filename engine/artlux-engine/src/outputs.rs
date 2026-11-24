@@ -76,9 +76,12 @@ struct View {
     reported: Option<crate::view3d::Place>, normal: Option<(i32, i32, u32, u32)>, moved_at: Option<std::time::Instant>,
     /// E4b: a gizmo drag — the handle, the gizmo as grabbed, where along the axis the press was, the offset last
     /// sent and when (moves are sent at most every MOVE_EVERY).
-    grab: Option<(usize, crate::gizmo::Gizmo, f32, [f32; 3], std::time::Instant)>,
+    grab: Option<Grab>,
 }
 const MOVE_EVERY: Duration = Duration::from_millis(16);
+/// A held gizmo handle: which, the gizmo as grabbed, the reading at the press and the last one (a rotate's angle
+/// unwrapped across ±π), the gesture last sent and when.
+struct Grab { axis: usize, g: crate::gizmo::Gizmo, r0: f32, r_prev: f32, unwrapped: f32, last: crate::gizmo::Gesture, sent: std::time::Instant }
 const PLACE_SETTLE: Duration = Duration::from_millis(500);
 const CLICK_PX: f64 = 4.0;
 
@@ -237,28 +240,31 @@ impl ApplicationHandler<Cmd> for App {
                         let g = s.scene.as_ref().and_then(|(_, sc)| sc.gizmo);
                         if let (Some(g), Some(axis)) = (g, s.hover_axis) {
                             let (o, d) = s.cam.ray(cx as f32, cy as f32, size.width as f32, size.height as f32);
-                            if let Some(t0) = crate::gizmo::along(g.at, g.axes()[axis], o, d) {
+                            if let Some(r0) = crate::gizmo::reading(&g, axis, o, d) {
                                 let ids = s.scene.as_ref().map(|(_, sc)| sc.look.selected.clone()).unwrap_or_default();
-                                s.drag = Some(crate::gizmo::Drag { ids, delta: [0.0; 3], axis, ended_at_scene: None });
+                                s.drag = Some(crate::gizmo::Drag { ids, at: g.at, q: g.q, g: crate::gizmo::Gesture::NONE, axis, ended_at_scene: None });
                                 drop(s);
-                                v.grab = Some((axis, g, t0, [0.0; 3], std::time::Instant::now()));
+                                v.grab = Some(Grab { axis, g, r0, r_prev: r0, unwrapped: r0, last: crate::gizmo::Gesture::NONE, sent: std::time::Instant::now() });
                                 v.orbit = false;
                                 v.press = None;
-                                eprintln!("artlux-engine: 3D view gizmo: grabbed the {} handle", ["X", "Y", "Z"][axis]);
-                                (self.view_event)(r#"{"type":"view3dGizmo","phase":"start","delta":[0,0,0]}"#.to_string());
+                                eprintln!("artlux-engine: 3D view gizmo: grabbed the {} {} handle", ["X", "Y", "Z"][axis], match g.mode { crate::gizmo::Mode::Move => "move", crate::gizmo::Mode::Rotate => "rotate", crate::gizmo::Mode::Scale => "scale" });
+                                (self.view_event)(format!(r#"{{"type":"view3dGizmo","phase":"start",{}}}"#, crate::gizmo::Gesture::NONE.to_json()));
                                 return;
                             }
                         }
                     }
                 }
                 if button == MouseButton::Left && !down {
-                    if let Some((_, _, _, last, _)) = v.grab.take() {
+                    if let Some(gr) = v.grab.take() {
+                        let last = gr.last;
                         let mut s = self.view_shared.lock().unwrap();
                         let ver = s.scene.as_ref().map(|(ver, _)| *ver);
-                        if let Some(dg) = s.drag.as_mut() { dg.delta = last; dg.ended_at_scene = ver; }
+                        if let Some(dg) = s.drag.as_mut() { dg.g = last; dg.ended_at_scene = ver; }
                         drop(s);
-                        eprintln!("artlux-engine: 3D view gizmo: released at [{:.4}, {:.4}, {:.4}]", last[0], last[1], last[2]);
-                        (self.view_event)(format!(r#"{{"type":"view3dGizmo","phase":"end","delta":[{},{},{}]}}"#, last[0], last[1], last[2]));
+                        let turned = 2.0 * last.rot[3].clamp(-1.0, 1.0).acos().to_degrees();
+                        eprintln!("artlux-engine: 3D view gizmo: released at [{:.4}, {:.4}, {:.4}] turned {:.2} deg scaled [{:.3}, {:.3}, {:.3}]",
+                            last.delta[0], last.delta[1], last.delta[2], turned, last.scale[0], last.scale[1], last.scale[2]);
+                        (self.view_event)(format!(r#"{{"type":"view3dGizmo","phase":"end",{}}}"#, last.to_json()));
                         return;
                     }
                 }
@@ -286,19 +292,27 @@ impl ApplicationHandler<Cmd> for App {
                     let (dx, dy) = ((position.x - x) as f32, (position.y - y) as f32);
                     if v.press.is_some() { v.travel += ((dx * dx + dy * dy) as f64).sqrt(); }
                     // E4b: a gizmo drag — the pull along the held axis, read off the cursor's ray each move.
-                    if let Some((axis, g, t0, last, at)) = v.grab.as_mut() {
+                    if let Some(gr) = v.grab.as_mut() {
                         let size = v.window.inner_size();
                         let mut s = self.view_shared.lock().unwrap();
                         let (o, d) = s.cam.ray(position.x as f32, position.y as f32, size.width as f32, size.height as f32);
-                        if let Some(t) = crate::gizmo::along(g.at, g.axes()[*axis], o, d) {
-                            let off = crate::gizmo::offset(g, *axis, t - *t0);
-                            if let Some(dg) = s.drag.as_mut() { dg.delta = off; }
+                        if let Some(r) = crate::gizmo::reading(&gr.g, gr.axis, o, d) {
+                            // A rotate's angle is unwrapped: a drag past half a turn keeps counting.
+                            let r = if gr.g.mode == crate::gizmo::Mode::Rotate {
+                                let mut step = r - gr.r_prev;
+                                if step > std::f32::consts::PI { step -= std::f32::consts::TAU; } else if step < -std::f32::consts::PI { step += std::f32::consts::TAU; }
+                                gr.r_prev = r;
+                                gr.unwrapped += step;
+                                gr.unwrapped
+                            } else { r };
+                            let ge = crate::gizmo::gesture(&gr.g, gr.axis, gr.r0, r);
+                            if let Some(dg) = s.drag.as_mut() { dg.g = ge; }
                             drop(s);
-                            if off != *last && at.elapsed() >= MOVE_EVERY {
-                                *last = off; *at = std::time::Instant::now();
-                                (self.view_event)(format!(r#"{{"type":"view3dGizmo","phase":"move","delta":[{},{},{}]}}"#, off[0], off[1], off[2]));
-                            } else if off != *last {
-                                *last = off;   // the release sends the final offset whatever the throttle held back
+                            if ge != gr.last && gr.sent.elapsed() >= MOVE_EVERY {
+                                gr.last = ge; gr.sent = std::time::Instant::now();
+                                (self.view_event)(format!(r#"{{"type":"view3dGizmo","phase":"move",{}}}"#, ge.to_json()));
+                            } else if ge != gr.last {
+                                gr.last = ge;   // the release sends the final gesture whatever the throttle held back
                             }
                         }
                         v.cursor = Some((position.x, position.y));

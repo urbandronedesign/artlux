@@ -299,8 +299,9 @@ export const IPC = {
   /** E4b — main → renderer: a click in the engine's 3D view picked this fixture (null: empty space), `add` when
    *  Shift / Ctrl was held. The editor applies it to its own selection. */
   NATIVE_ENGINE_VIEW3D_PICK: 'native-engine:view3d-pick',
-  /** E4b — main → renderer: a drag on the engine window's move gizmo: phase start / move / end and the offset
-   *  (world metres) so far. The editor applies it as its own gizmo's translate. */
+  /** E4b — main → renderer: a drag on the engine window's gizmo: phase start / move / end and the gesture so far
+   *  (an offset in world metres, a world rotation about the anchor, a scale per handle axis). The editor applies
+   *  it as its own gizmo's. */
   NATIVE_ENGINE_VIEW3D_GIZMO: 'native-engine:view3d-gizmo',
   /**
    * Main → renderer: this window's end of a MessagePort to the Show Host (src/showhost, E5/W3), the
@@ -1632,6 +1633,9 @@ export interface SavedPanelWindow {
 /** E4b: where the engine's 3D view window was — the ENGINE's physical pixels (outer position, inner size), and
  *  maximised. Opaque to the app: written as the engine reports it, handed back on open, checked by the engine. */
 export interface EngineView3dPlace { x: number; y: number; w: number; h: number; max: boolean }
+/** E4b: a drag on the engine window's gizmo so far — an offset (world metres), a world rotation about the anchor
+ *  (x y z w) and a scale per handle axis. */
+export interface EngineGizmoGesture { delta: [number, number, number]; rot: [number, number, number, number]; scale: [number, number, number] }
 
 export interface Prefs {
   appSettings?: unknown;
@@ -1984,8 +1988,8 @@ export interface ArtluxApi {
   onNativeEngineView3dClosed?(cb: () => void): () => void;
   /** E4b: a click in the engine's 3D view window picked a fixture (null: empty space); `add` = Shift / Ctrl. */
   onNativeEngineView3dPick?(cb: (id: string | null, add: boolean) => void): () => void;
-  /** E4b: a drag on the engine window's move gizmo — `delta` is the offset so far, in world metres. */
-  onNativeEngineView3dGizmo?(cb: (phase: 'start' | 'move' | 'end', delta: [number, number, number]) => void): () => void;
+  /** E4b: a drag on the engine window's gizmo — the gesture so far. */
+  onNativeEngineView3dGizmo?(cb: (phase: 'start' | 'move' | 'end', gesture: EngineGizmoGesture) => void): () => void;
   /**
    * Renderer → main: an uncaught renderer error. ALWAYS audited (even with the watchdog disabled);
    * in an armed broadcast install a root/stage fault also triggers the relaunch ladder. Fire-and-

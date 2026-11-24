@@ -4,7 +4,7 @@ import {
     type ProjectData, type RigData, type Prefs, type UpdateEvent, type BlendWatchEntry, type BlendConvertResult,
     type DisplayInfo, type OscConfig, type OscMessage, type OscOutPacket,
     type WindowCommand, type RenderStats, type WatchdogEvent, type RendererFault,
-    type BootEntry, type BootReport, type LogRecord,
+    type BootEntry, type BootReport, type LogRecord, type EngineGizmoGesture,
 } from '../../shared/protocol';
 
 const api: ArtluxApi = {
@@ -40,8 +40,8 @@ const api: ArtluxApi = {
         ipcRenderer.on(IPC.NATIVE_ENGINE_VIEW3D_CLOSED, listener);
         return () => { ipcRenderer.removeListener(IPC.NATIVE_ENGINE_VIEW3D_CLOSED, listener); };
     },
-    onNativeEngineView3dGizmo: (cb: (phase: 'start' | 'move' | 'end', delta: [number, number, number]) => void) => {
-        const listener = (_e: unknown, phase: 'start' | 'move' | 'end', delta: [number, number, number]) => cb(phase, delta);
+    onNativeEngineView3dGizmo: (cb: (phase: 'start' | 'move' | 'end', gesture: EngineGizmoGesture) => void) => {
+        const listener = (_e: unknown, phase: 'start' | 'move' | 'end', gesture: EngineGizmoGesture) => cb(phase, gesture);
         ipcRenderer.on(IPC.NATIVE_ENGINE_VIEW3D_GIZMO, listener);
         return () => { ipcRenderer.removeListener(IPC.NATIVE_ENGINE_VIEW3D_GIZMO, listener); };
     },

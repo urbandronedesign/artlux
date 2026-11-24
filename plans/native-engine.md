@@ -2140,8 +2140,20 @@ fallback until a source/output is proven byte-identical — risk 2):
 >   object axes; the handle under the cursor); `test:engine-beams` DRAGS the X handle with OS mouse events on two
 >   selected heads: grabbed, released at +1.92 m on X only, the saved project has both heads moved by exactly
 >   that and nothing else, one Undo (Edit menu) puts them back. Rotate / Scale stay in the editor's view.
+> - ✅ **E4b-6 2026-11-24 — Rotate and Scale.** The gizmo now draws the editor's current tool: rings (Rotate) and
+>   square-ended shafts (Scale, always in the anchor's frame — three refuses to world-align scale handles). A ring's
+>   turn is the angle swept where the cursor's ray meets its plane, UNWRAPPED across ±π; a scale is the ratio along
+>   the axis now over at the grab; each snaps as three snaps (degrees, factor steps). The message grew from an offset
+>   to a GESTURE (offset, world rotation about the anchor, per-axis scale); `applyEngineGizmo` composes it onto the
+>   anchor exactly as TransformControls moves its object (position + offset, rotation · anchor quaternion, scale ×
+>   factor) and hands it to the same `gizmoDelta` in the tool held at the grab. The window previews with
+>   `Drag::apply` (scale in the handle frame about the anchor, turn, move) and turns the beams' bases with it.
+>   **Proof:** five unit tests (+ a quarter turn about Y and its snap; scale is the ratio and spreads about the
+>   anchor); `test:engine-beams` now also SCALES the two heads apart along X (×2.99 → saved at ∓2.99, undone) and
+>   TURNS one head on its Y ring (46.15° in the engine → saved yaw −46.15°, position unchanged, undone). It found the
+>   editor's own rule that a plain click on a group member keeps the group — the engine window follows it.
 > - **Not yet (E4b…):** the rest of the Rendered look (the lit room), the adaptive grid, picking venue models and
->   screens, the Rotate / Scale gizmo, sources the engine does not draw (timeline video clips, a tracking overlay…) on screens
+>   screens, sources the engine does not draw (timeline video clips, a tracking overlay…) on screens
 >   and venue meshes, the four-view layout, saving the window's place, macOS / Linux.
 
 ## 10. Open questions

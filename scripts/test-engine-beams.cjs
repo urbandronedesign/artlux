@@ -19,7 +19,9 @@
 //     a click on empty sky clears it (160 segments: rings only); Shift-click adds a second head (178);
 //   - THE MOVE GIZMO (E4b): with both heads selected, a real drag on the engine window's X handle (press, pull,
 //     release — OS mouse events) moves BOTH heads along X in the editor's document (read back from the saved
-//     project), and nothing else; the editor's Undo puts them back;
+//     project), and nothing else; the editor's Undo puts them back; then the SCALE tool spreads the two along X
+//     about their centre, and the ROTATE tool turns one head 45° about Y on its ring — each read back from the
+//     saved project and undone;
 //   - the Rendered look: solid shafts, no diagram.
 // Own processes only; nothing of the owner's is read or written.
 'use strict';
@@ -330,7 +332,7 @@ const segmentsNow = (logf) => { const l = beamLines(logf); const m = /(\d+) diag
     dragEngineWindow(grab, to);
     await sleep(1500);
     const glog = fs.readFileSync(logf, 'utf8');
-    note(/3D view gizmo: grabbed the X handle/.test(glog), 'the X handle is grabbed in the engine window');
+    note(/3D view gizmo: grabbed the X move handle/.test(glog), 'the X handle is grabbed in the engine window');
     const rel = /3D view gizmo: released at \[([-\d.]+), ([-\d.]+), ([-\d.]+)\]/.exec(glog);
     note(!!rel && +rel[1] > 0.3 && Math.abs(+rel[2]) < 1e-6 && Math.abs(+rel[3]) < 1e-6, 'pulled along X only', rel ? rel.slice(1).join(', ') : 'no release');
     captureEngineWindow(path.join(WORK, 'engine-gizmo.png'));
@@ -367,6 +369,59 @@ const segmentsNow = (logf) => { const l = beamLines(logf); const m = /(\d+) diag
     await sleep(800);
     const undone = await savedPos();
     note(near(undone.fx_m2.x, -1) && near(undone.fx_m3.x, 1), 'one Undo puts them back', `m2 ${JSON.stringify(undone.fx_m2)}, m3 ${JSON.stringify(undone.fx_m3)}`);
+
+    const tool = (name) => page.evaluate((n) => { const b = [...document.querySelectorAll('button')].find((x) => (x.getAttribute('title') || '').startsWith(n)); b?.click(); return !!b; }, name);
+    const lastRelease = () => {
+      const all = [...fs.readFileSync(logf, 'utf8').matchAll(/3D view gizmo: released at \[([-\d.]+), ([-\d.]+), ([-\d.]+)\] turned ([-\d.]+) deg scaled \[([-\d.]+), ([-\d.]+), ([-\d.]+)\]/g)];
+      return all.length ? all[all.length - 1].slice(1).map(Number) : null;
+    };
+
+    // SCALE: the two heads, the X handle (the anchor's frame — identity for a group), pulled outward.
+    note(await tool('Scale'), 'the editor\'s Scale tool');
+    await sleep(1200);
+    dragEngineWindow(grab, [grab[0] + dirX[0] * 110, grab[1] + dirX[1] * 110]);
+    await sleep(1500);
+    note(/grabbed the X scale handle/.test(fs.readFileSync(logf, 'utf8')), 'the X scale handle is grabbed');
+    const sr = lastRelease();
+    const f = sr ? sr[4] : 1;
+    note(!!sr && f > 1.2 && near(sr[5], 1) && near(sr[6], 1), 'scaled along X only', sr ? `×${f}` : 'no release');
+    const spread = await savedPos();
+    note(near(spread.fx_m2.x, -f) && near(spread.fx_m3.x, f) && near(spread.fx_m2.y, 5) && near(spread.fx_m3.z, -4),
+      'the editor spread both heads about their centre', `m2 ${JSON.stringify(spread.fx_m2)}, m3 ${JSON.stringify(spread.fx_m3)}`);
+    await menu('Edit', 'Undo'); await sleep(800);
+
+    // ROTATE: Mover 3 alone (a plain click picks it), its Y ring (world axes), swept from 135° to 90° in the ring's
+    // frame — a 45° turn; the test reads its size. Box select first: no handles, so the click lands on the head and
+    // not on the two-head gizmo drawn beside it.
+    // Empty sky first: a plain click on a member of a group keeps the group (the editor's rule —
+    // App.handleSelectFixture only makes it the active one).
+    await tool('Box select'); await sleep(1000);
+    clickEngineWindow([[w * 0.5, h * 0.06, false], [m3[0], m3[1], false]]);
+    await sleep(1200);
+    note(JSON.stringify(await inspector()) === '["Mover 3"]', 'Mover 3 alone', JSON.stringify(await inspector()));
+    note(await tool('Rotate'), 'the editor\'s Rotate tool');
+    await sleep(1200);
+    const A3 = [1, 5, -4];
+    const r = 90 * (2 * Math.tan((FOV * Math.PI / 180) / 2) / h) * Math.hypot(EYE[0] - A3[0], EYE[1] - A3[1], EYE[2] - A3[2]);
+    // view3d ring frame for n = +Y: a = (0,0,-1), b = (-1,0,0); a point at angle t is A + r(a cos t + b sin t).
+    const ringAt = (t) => at([A3[0] - r * Math.sin(t), A3[1], A3[2] - r * Math.cos(t)]);
+    dragEngineWindow(ringAt(Math.PI * 3 / 4), ringAt(Math.PI / 2));
+    await sleep(1500);
+    note(/grabbed the Y rotate handle/.test(fs.readFileSync(logf, 'utf8')), 'the Y ring is grabbed');
+    const rr = lastRelease();
+    note(!!rr && Math.abs(rr[3] - 45) < 2 && near(rr[0], 0) && near(rr[4], 1), 'turned 45° about Y', rr ? `${rr[3]}°` : 'no release');
+    const doc = await savedPos();
+    const rot3 = JSON.parse(fs.readFileSync(project, 'utf8')).fixtures.find((x) => x.id === 'fx_m3').rotation3D || {};
+    note(Math.abs(Math.abs(rot3.yaw ?? 0) - (rr ? rr[3] : 45)) < 0.5 && Math.abs(rot3.pitch ?? 0) < 0.5 && Math.abs(rot3.roll ?? 0) < 0.5 && near(doc.fx_m3.x, 1) && near(doc.fx_m3.z, -4),
+      'the editor turned Mover 3 in place', `rotation3D ${JSON.stringify(rot3)}, position ${JSON.stringify(doc.fx_m3)}`);
+    captureEngineWindow(path.join(WORK, 'engine-rotate.png'));
+    await menu('Edit', 'Undo'); await sleep(800);
+    const back = JSON.parse(fs.readFileSync(project, 'utf8'));
+    await savedPos();
+    const r3b = JSON.parse(fs.readFileSync(project, 'utf8')).fixtures.find((x) => x.id === 'fx_m3').rotation3D || {};
+    note(Math.abs(r3b.yaw ?? 0) < 0.01, 'and Undo turns it back', JSON.stringify(r3b));
+    void back;
+    await tool('Move');
     captureEngineWindow(path.join(WORK, 'engine-pick.png'));
 
     // THE RENDERED LOOK follows the editor's display mode: the button flips it, the scene (≤ 4 Hz) carries it, the

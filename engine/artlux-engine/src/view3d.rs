@@ -828,7 +828,7 @@ pub fn present(gpu: Arc<Gpu>, window: Arc<Window>, surface: wgpu::Surface<'stati
     let mut labels_logged = false;
     let mut handle_buf: Option<wgpu::Buffer> = None;
     // E4b: the drawing of a drag in progress — the selection's LEDs, housings and beams moved by the offset.
-    let mut drag_drawn: Option<[f32; 3]> = None;
+    let mut drag_drawn: Option<crate::gizmo::Gesture> = None;
 
     // The screen quad: 1 × 1 in XY facing +Z, scaled per plane (PlaneGeometry's UVs: v = 0 at the bottom,
     // and the picture's row 0 is its TOP, so the quad samples (u, 1 - v)).
@@ -993,12 +993,16 @@ pub fn present(gpu: Arc<Gpu>, window: Arc<Window>, surface: wgpu::Surface<'stati
         cu.extend_from_slice(&vp); cu.extend_from_slice(&[eye[0], eye[1], eye[2], 1.0]); cu.extend_from_slice(&[px, look.haze, look.rendered as u32 as f32, 0.0]);
 
         // The beams, from this tick's resolved states.
-        // A drag in progress moves the selection's drawing by its offset: the beams leave from the moved lenses.
+        // A drag in progress transforms the selection's drawing (gizmo.rs Drag::apply): the beams leave from the
+        // moved lenses, turned with their heads.
         let moved_lights: Option<Vec<LightFix>> = match (&drag, &scene) {
-            (Some(dg), Some(s)) => Some(s.lights.iter().map(|l| LightFix {
-                id: l.id.clone(),
-                pos: if dg.ids.contains(&l.id) { add(l.pos, dg.delta) } else { l.pos },
-                beam: l.beam.as_ref().map(|b| BeamFix { apex: if dg.ids.contains(&l.id) { add(b.apex, dg.delta) } else { b.apex }, ..*b }),
+            (Some(dg), Some(s)) => Some(s.lights.iter().map(|l| {
+                let mine = dg.ids.contains(&l.id);
+                LightFix {
+                    id: l.id.clone(),
+                    pos: if mine { dg.apply(l.pos) } else { l.pos },
+                    beam: l.beam.as_ref().map(|b| if mine { BeamFix { apex: dg.apply(b.apex), q: dg.turn(b.q), ..*b } } else { *b }),
+                }
             }).collect()),
             _ => None,
         };
@@ -1006,7 +1010,7 @@ pub fn present(gpu: Arc<Gpu>, window: Arc<Window>, surface: wgpu::Surface<'stati
         // The gizmo, at the anchor (moved with the drag), its held / hovered handle hot.
         let handle_verts = match scene.as_ref().and_then(|s| s.gizmo) {
             Some(mut g) => {
-                if let Some(dg) = &drag { g.at = add(g.at, dg.delta); }
+                if let Some(dg) = &drag { g.at = add(g.at, dg.g.delta); }
                 crate::gizmo::geometry(&g, eye, px, drag.as_ref().map(|d| d.axis).or(hover_axis))
             }
             None => Vec::new(),
@@ -1014,18 +1018,18 @@ pub fn present(gpu: Arc<Gpu>, window: Arc<Window>, surface: wgpu::Surface<'stati
         let n_handle_verts = (handle_verts.len() / 7) as u32;
         grow(&mut handle_buf, &handle_verts, "gizmo");
         // Housings and LED positions follow the drag (rewritten only while the offset changes).
-        let want_drawn = drag.as_ref().map(|d| d.delta);
+        let want_drawn = drag.as_ref().map(|d| d.g);
         if want_drawn != drag_drawn {
             if let Some(s) = &scene {
-                let off = |id: &str| -> [f32; 3] { drag.as_ref().filter(|d| d.ids.contains(id)).map_or([0.0; 3], |d| d.delta) };
+                let mv = |id: &str, p: [f32; 3]| -> [f32; 3] { match drag.as_ref().filter(|d| d.ids.contains(id)) { Some(d) => d.apply(p), None => p } };
                 for (l, (ub, _)) in s.lights.iter().zip(&lights) {
-                    let p = add(l.pos, off(&l.id));
+                    let p = mv(&l.id, l.pos);
                     let sel = s.look.selected.contains(&l.id);
                     let m = [0.3, 0., 0., 0., 0., 0.3, 0., 0., 0., 0., 0.3, 0., p[0], p[1], p[2], 1.];
                     write_obj(ub, &m, if sel { [ACCENT[0], ACCENT[1], ACCENT[2], 1.0] } else { [0.16, 0.16, 0.17, 1.0] }, [0.0; 4]);
                 }
                 if let Some((pb, _, _)) = &led_bufs {
-                    let pos: Vec<f32> = s.leds.iter().flat_map(|f| { let o = off(&f.id); f.pos.chunks_exact(3).flat_map(move |p| [p[0] + o[0], p[1] + o[1], p[2] + o[2]]).collect::<Vec<_>>() }).collect();
+                    let pos: Vec<f32> = s.leds.iter().flat_map(|f| f.pos.chunks_exact(3).flat_map(|p| mv(&f.id, [p[0], p[1], p[2]])).collect::<Vec<_>>()).collect();
                     gpu.queue.write_buffer(pb, 0, &bytes(&pos));
                 }
             }

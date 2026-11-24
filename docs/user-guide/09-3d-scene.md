@@ -130,10 +130,13 @@ machine, not the project. If that screen is no longer connected, it opens at its
   as if you had clicked it in the editor's own view. **Shift‑ or Ctrl‑click** adds a fixture to the
   selection or takes it out; a click on empty space clears it. A light is picked by its housing, an LED
   strip anywhere along its length. Selected fixtures show in the accent colour in both windows.
-- **Move the selection there.** With the **Move** tool chosen in the editor, the selection's move handles
-  appear in the engine window too: drag the red, green or blue arrow to slide the selection along X, Y or
-  Z. It follows the editor's **World / Object** axes and its **snap**, the editor's own view moves with
-  it, and it is one step to **Undo**, exactly as if you had dragged the handle in the editor.
+- **Move, turn and scale the selection there.** The handles of the tool chosen in the editor appear in
+  the engine window too: with **Move**, drag the red, green or blue arrow to slide the selection along X, Y
+  or Z; with **Rotate**, drag a ring to turn it about that axis; with **Scale**, drag a handle to stretch a
+  single fixture, or to spread a group apart or pull it together along that axis. It follows the editor's
+  **World / Object** axes and its **snap**, the editor's own view follows the drag, and each drag is one
+  step to **Undo** — exactly as if you had dragged the handle in the editor. (Clicking a fixture that is
+  part of a selected group keeps the group, as in the editor; click empty space first to start over.)
 - It shows the **venue models**, the **screens with their live pictures**, **every LED in its live
   colour**, the **light fixtures** (as housings) and the floor grid **with its numbers** (whole metres
   along both axes, where you are looking — turned on and off with the editor's own grid and number
@@ -151,8 +154,7 @@ machine, not the project. If that screen is no longer connected, it opens at its
   calibrated ones and the projectors placed in the model file.
 - Close it with its own close button or the same header button.
 
-Turning and scaling (the **Rotate** and **Scale** tools) are still done in the editor's view, and it does
-not yet draw the rest of the Rendered look (the lit room); content the engine
+It does not yet draw the rest of the Rendered look (the lit room); content the engine
 does not draw yet (a video in a format no ArtLux decoder plays, a tracking surface with its calibration overlay…) stays dark there — those stay in the editor's 3D
 view for now.
 

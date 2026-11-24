@@ -9,7 +9,7 @@ import { getLivePreview, type SnapSettings } from '../../services/scene3dQuality
 import { isResolvedLight } from '../../services/fixtureKind';
 import { rigMetrics, mountShift } from '../../services/profileRig';
 import { isLight } from '../../services/fixtureKind';
-import type { SceneModel } from '../../../../shared/protocol';
+import type { SceneModel, EngineGizmoGesture } from '../../../../shared/protocol';
 import { findScreens } from './modelScreens';
 import { usesProjectedUv, usesProjectedOcclusion, DEFAULT_BIAS_M } from './projectedMapping';
 
@@ -138,11 +138,17 @@ function buildScene(scene: THREE.Scene, fixtures: Fixture[], beams: EngineBeams)
     }
     return out;
   });
-  const g = beams.gizmo && beams.gizmo.mode === 'translate' ? gizmoAnchor(beams.gizmo.fixtures, beams.gizmo.space, beams.gizmo.activeId) : null;
+  const gz = beams.gizmo;
+  const tool = gz && (gz.mode === 'translate' || gz.mode === 'rotate' || gz.mode === 'scale') ? gz.mode : null;
+  const g = gz && tool ? gizmoAnchor(gz.fixtures, gz.space, gz.activeId) : null;
+  // THE HANDLES' AXES, as three's TransformControls orients them: Move and Rotate follow the space toggle (the
+  // anchor's rotation in Object, the room's in World); Scale is ALWAYS the anchor's own (three refuses to world-
+  // align scale handles — gizmoDelta's scale is read in that frame). The snap is the one for this tool.
+  const handleQ = g && (tool === 'scale' || g.space === 'local') ? [g.q.x, g.q.y, g.q.z, g.q.w] : [0, 0, 0, 1];
+  const snap = gz?.snap?.on ? (tool === 'rotate' ? gz.snap.rotate : tool === 'scale' ? gz.snap.scale : gz.snap.move) : null;
   return JSON.stringify({ models, leds, lights, lines, beams: { haze: r4(beams.haze), cones: beams.cones, rendered: beams.rendered, selected: beams.selected },
     grid: { visible: beams.grid, labels: beams.gridLabels },
-    gizmo: g ? { at: [r4(g.at.x), r4(g.at.y), r4(g.at.z)], q: (g.space === 'local' ? [g.q.x, g.q.y, g.q.z, g.q.w] : [0, 0, 0, 1]).map((x) => Math.round(x * 1e6) / 1e6),
-      snap: beams.gizmo!.snap?.on ? beams.gizmo!.snap.move : null } : null });
+    gizmo: g ? { mode: tool, at: [r4(g.at.x), r4(g.at.y), r4(g.at.z)], q: handleQ.map((x) => Math.round(x * 1e6) / 1e6), snap } : null });
 }
 
 /**
@@ -160,37 +166,42 @@ export function gizmoAnchor(fixtures: readonly Fixture[], space: 'world' | 'loca
   return { at, q: new THREE.Quaternion().setFromEuler(e), space };
 }
 
-// ── E4b: a drag on the ENGINE window's move gizmo, applied as the editor's own gizmo applies one ─────────────
+// ── E4b: a drag on the ENGINE window's gizmo, applied as the editor's own gizmo applies one ──────────────────
 // The same `gizmoDelta` as FixtureGizmo (the one definition of what a drag means), the same preview channel
 // (fixturePreview: the editor's views follow at pointer rate, no document write), undo recorded on the FIRST
-// movement, one commit on release. The engine sends only the offset; the anchor is re-derived here from the
-// selection as it was at the grab, so the commit is measured against exactly what the editor had.
-let engineGesture: { start: GizmoStart[]; basis: GizmoBasis; moved: boolean } | null = null;
+// movement, one commit on release. The engine sends the gesture (offset, world rotation, per-axis scale); the
+// anchor is re-derived here from the selection as it was at the grab and the gesture composed onto it exactly as
+// three's TransformControls moves its object — position + offset, rotation · anchor quaternion (world), scale ×
+// factor — so gizmoDelta reads it the way it reads the editor's own handles. The tool is the one at the grab.
+let engineGesture: { start: GizmoStart[]; basis: GizmoBasis; mode: 'translate' | 'rotate' | 'scale'; moved: boolean } | null = null;
 export function applyEngineGizmo(
-  phase: 'start' | 'move' | 'end', delta: [number, number, number],
-  ctx: { fixtures: readonly Fixture[]; space: 'world' | 'local'; activeId: string | null | undefined; onRecordHistory: () => void; onCommit: (u: Array<{ id: string } & FixtureTransform>) => void },
+  phase: 'start' | 'move' | 'end', gesture: EngineGizmoGesture,
+  ctx: { fixtures: readonly Fixture[]; mode: string; space: 'world' | 'local'; activeId: string | null | undefined; onRecordHistory: () => void; onCommit: (u: Array<{ id: string } & FixtureTransform>) => void },
 ): void {
   if (phase === 'start') {
     const a = gizmoAnchor(ctx.fixtures, ctx.space, ctx.activeId);
-    if (!a) { engineGesture = null; return; }
+    const mode = ctx.mode === 'rotate' || ctx.mode === 'scale' ? ctx.mode : ctx.mode === 'translate' ? 'translate' : null;
+    if (!a || !mode) { engineGesture = null; return; }
     engineGesture = {
       basis: { centroid: a.at.clone(), quat: a.q.clone(), scale: new THREE.Vector3(1, 1, 1) },
       start: ctx.fixtures.map((f) => ({ id: f.id, pos: effectivePos(f), rot: authoredRot(f), scale: effectiveScale(f) })),
-      moved: false,
+      mode, moved: false,
     };
     beginPreview(getLivePreview());
     return;
   }
   const g = engineGesture;
   if (!g) return;
+  const { delta, rot, scale } = gesture;
   const anchor = new THREE.Object3D();
   anchor.position.copy(g.basis.centroid).add(new THREE.Vector3(delta[0], delta[1], delta[2]));
-  anchor.quaternion.copy(g.basis.quat);
-  const moved = delta.some((x) => Math.abs(x) > 1e-9);
+  anchor.quaternion.set(rot[0], rot[1], rot[2], rot[3]).multiply(g.basis.quat);
+  anchor.scale.set(scale[0], scale[1], scale[2]);
+  const moved = delta.some((x) => Math.abs(x) > 1e-9) || Math.abs(rot[3]) < 1 - 1e-9 || scale.some((x) => Math.abs(x - 1) > 1e-9);
   if (phase === 'move') {
     if (!moved) return;
     if (!g.moved) { g.moved = true; ctx.onRecordHistory(); }
-    setPreview(gizmoDelta(g.start, g.basis, anchor, 'translate'), gestureSummary(g.start, g.basis, anchor, 'translate'));
+    setPreview(gizmoDelta(g.start, g.basis, anchor, g.mode), gestureSummary(g.start, g.basis, anchor, g.mode));
     return;
   }
   // end
@@ -198,7 +209,7 @@ export function applyEngineGizmo(
   clearPreview();
   if (!moved) return;   // grabbed and let go where it was: nothing to record or commit
   if (!g.moved) ctx.onRecordHistory();
-  ctx.onCommit(gizmoDelta(g.start, g.basis, anchor, 'translate'));
+  ctx.onCommit(gizmoDelta(g.start, g.basis, anchor, g.mode));
 }
 
 /** How the beams look, as the editor's Beams is told (Simulator3D): haze, the cone diagram, the Rendered look, and

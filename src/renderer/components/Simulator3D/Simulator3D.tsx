@@ -383,11 +383,11 @@ const Simulator3D: React.FC<Props> = ({
   // as onPointerMissed does).
   // E4b: a drag on the engine window's move gizmo — applied by engineView.applyEngineGizmo through this view's
   // own gizmo maths, preview, undo and commit. Refs, because the listener lives for the component's life.
-  const gizmoRef = useRef({ fixtures: [] as Fixture[], space: 'world' as 'world' | 'local', activeId: selectedFixtureId, onRecordHistory, onCommitFixture3D });
-  useEffect(() => window.artlux?.onNativeEngineView3dGizmo?.((phase, delta) => {
+  const gizmoRef = useRef({ fixtures: [] as Fixture[], mode: 'translate' as string, space: 'world' as 'world' | 'local', activeId: selectedFixtureId, onRecordHistory, onCommitFixture3D });
+  useEffect(() => window.artlux?.onNativeEngineView3dGizmo?.((phase, gesture) => {
     const g = gizmoRef.current;
     if (!g.onCommitFixture3D) return;
-    applyEngineGizmo(phase, delta, { fixtures: g.fixtures, space: g.space, activeId: g.activeId, onRecordHistory: g.onRecordHistory ?? (() => {}), onCommit: g.onCommitFixture3D });
+    applyEngineGizmo(phase, gesture, { fixtures: g.fixtures, mode: g.mode, space: g.space, activeId: g.activeId, onRecordHistory: g.onRecordHistory ?? (() => {}), onCommit: g.onCommitFixture3D });
   }), []);
   const pickRef = useRef({ selectedFixtureIds, onSelectFixture, onSelectFixtures, onSelectModel });
   pickRef.current = { selectedFixtureIds, onSelectFixture, onSelectFixtures, onSelectModel };
@@ -551,7 +551,7 @@ const Simulator3D: React.FC<Props> = ({
     [selectedModelId, fixtures, selectedFixtureIds, selectedFixtureId],
   );
   const selectionCount = gizmoFixtures.length;
-  gizmoRef.current = { fixtures: gizmoFixtures, space: gizmoSpace, activeId: selectedFixtureId, onRecordHistory, onCommitFixture3D };
+  gizmoRef.current = { fixtures: gizmoFixtures, mode, space: gizmoSpace, activeId: selectedFixtureId, onRecordHistory, onCommitFixture3D };
   // ⚠ InstancedLeds and FixtureLights still receive the FULL list: they index the canonical pixel
   // buffer by cumulative ledCount, so handing them a filtered array would silently misalign every
   // fixture after the first profiled one. Only the BODY is split.
