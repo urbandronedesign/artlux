@@ -896,6 +896,7 @@ interface LaneRT {
   clock: 'show' | 'scene';
 }
 let lanesRT: LaneRT[] = [];
+let lanesGen = 0;   // E3d: bumped per compile — every lane's change-detect restarts (last = NaN), in the engine too
 let ownedPaths = new Set<string>();
 let baseAutomation: AutomationLane[] = [];   // the GLOBAL timeline's lanes (the base layer)
 let frameEndProviders: AutomationTargetProvider[] = []; // cached at compile — registry.all() allocates
@@ -972,6 +973,7 @@ function compileAutomation(): void {
     automationTargetRegistry.get(p.split('.')[0])?.release(p);
   }
   lanesRT = next;
+  lanesGen++;
   ownedPaths = nextPaths;
   frameEndProviders = automationTargetRegistry.all().filter(p => !!p.frameEnd);
 }
@@ -2136,6 +2138,16 @@ export const timeline = {
    * layerAlpha), the clip-local time its content is drawn at, and the track's opacity and blend mode.
    * Main window only: a mirror cannot composite.
    */
+  /**
+   * E3d — THE AUTOMATION LANES THE NATIVE ENGINE EVALUATES ITSELF (plans/native-engine.md §4): the compiled
+   * lanes (keys clamped to the target's range and sorted, as sampled here) whose path `take` accepts, with
+   * their interpolation, change-detect epsilon and the clock each rides (`show` = the show time, `scene` =
+   * the playhead). `gen` restarts every lane's change-detect, as a compile does here. Main window only.
+   */
+  nativeLanes(take: (path: string) => boolean): { gen: number; lanes: { path: string; kfs: Keyframe[]; log: boolean; eps: number; clock: 'show' | 'scene' }[] } {
+    if (external) return { gen: lanesGen, lanes: [] };
+    return { gen: lanesGen, lanes: lanesRT.filter((l) => take(l.path)).map((l) => ({ path: l.path, kfs: l.kfs, log: l.log, eps: l.eps, clock: l.clock })) };
+  },
   nativeLayers(only: readonly string[] | null, single = false): { layerId: string; clip: VideoClip | null; alpha: number; time: number; opacity: number; blend: string; codec: { id: string; path: string; frame: unknown; gen: number | undefined } | null; element: boolean }[] {
     if (external) return [];
     const layers = single ? data.layers.filter((l) => only?.includes(l.id)) : contributingLayers(only ? new Set(only) : null);

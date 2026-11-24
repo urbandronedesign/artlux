@@ -53,6 +53,8 @@ struct Doc {
     port: u16,
     sources: HashMap<String, Source>,
     opacity: HashMap<String, f32>,
+    /// E3d: the AUTHORED opacities (the document's); `opacity` is these with the engine's lanes laid over.
+    base_opacity: HashMap<String, f32>,
     owns: bool,
     /// E1f-2: the fixtures the HOST says are lights (indices into pfix).
     lights: Vec<usize>,
@@ -127,7 +129,19 @@ pub struct Runtime {
     /// E3c: values the engine evaluated that differed from the app's (logged), and the document last announced.
     clock_diffs: u64,
     clock_rev: u64,
+    /// E3d: the automation lanes the engine evaluates, this tick's effect overrides (surface → speed,
+    /// intensity), and the check's counters.
+    lanes: Vec<LaneRt>,
+    auto_fx: HashMap<String, (Option<f64>, Option<f64>)>,
+    auto_diffs: u64,
+    auto_ticks: u64,
 }
+
+#[derive(Clone, Copy, PartialEq)]
+enum AutoLeaf { Opacity, Speed, Intensity }
+
+/// E3d: one automation lane as the engine samples it (timeline.ts LaneRT).
+struct LaneRt { path: String, sid: String, leaf: AutoLeaf, keys: Vec<crate::eval::Key>, log: bool, eps: f64, show: bool }
 
 impl Runtime {
     pub fn new(gpu: Arc<Gpu>) -> Self {
@@ -138,7 +152,7 @@ impl Runtime {
             #[cfg(feature = "ndi")] ndis: HashMap::new(),
             #[cfg(windows)] mp4s: HashMap::new(), conv: None,
             #[cfg(windows)] cams: HashMap::new(), resolved: HashMap::new(), pending_cams: HashMap::new(), last_doc: None, redo: false,
-            view: None, view_scene_ver: 0, view_published: HashMap::new(), view_colors_gen: 0, view_last_summary: String::new(), clock_diffs: 0, clock_rev: 0 }
+            view: None, view_scene_ver: 0, view_published: HashMap::new(), view_colors_gen: 0, view_last_summary: String::new(), clock_diffs: 0, clock_rev: 0, lanes: Vec::new(), auto_fx: HashMap::new(), auto_diffs: 0, auto_ticks: 0 }
     }
 
     /// E4a: the 3D view's shared state and its open flag (serve.rs makes them; the windows thread shares them).
@@ -430,7 +444,8 @@ impl Runtime {
         let summary = kinds.join(", ");
         if summary != self.sources_summary { eprintln!("artlux-engine: sources: {summary}"); self.sources_summary = summary; }
         let mut doc = Doc { rev, lfix, surfaces, pfix, controllers, defaults, lut: pack::gamma_lut(d["gamma"].as_f64().unwrap_or(1.0)),
-            port: d["port"].as_u64().unwrap_or(6454) as u16, sources, opacity, owns: false, lights: Vec::new() };
+            port: d["port"].as_u64().unwrap_or(6454) as u16, sources, base_opacity: opacity.clone(), opacity, owns: false, lights: Vec::new() };
+        self.load_lanes(&d["lanes"]);
         let light_ids: Vec<&str> = d["lights"].as_array().into_iter().flatten().filter_map(|v| v.as_str()).collect();
         doc.lights = doc.pfix.iter().enumerate().filter(|(_, f)| light_ids.contains(&f.id.as_str())).map(|(i, _)| i).collect();
         for &i in &doc.lights { doc.pfix[i].light = true; }
@@ -577,10 +592,68 @@ impl Runtime {
     /// One frame at show time `t`. Nothing is sent unless the engine owns the wire for document `rev`.
     pub fn tick(&mut self, v: &Value) -> Result<(), String> {
         let Some(mut doc) = self.doc.take() else { return Ok(()) };
+        self.evaluate_lanes(&mut doc, v);
         let ev = self.evaluate_clock(&doc, v);
         let r = self.tick_with(&mut doc, ev.as_ref().unwrap_or(v));
         self.doc = Some(doc);
         r
+    }
+
+    /// E3d: the document's automation lanes — the ones the engine evaluates (nativeLink.engineLane: a surface's
+    /// opacity, an effect's speed and intensity).
+    fn load_lanes(&mut self, l: &Value) {
+        let mut next = Vec::new();
+        for x in l["lanes"].as_array().into_iter().flatten() {
+            let path = x["path"].as_str().unwrap_or_default().to_string();
+            let parts: Vec<&str> = path.split('.').collect();
+            let leaf = match (parts.first(), parts.get(2), parts.get(3), parts.len()) {
+                (Some(&"surfaces"), Some(&"content"), Some(&"opacity"), 4) => AutoLeaf::Opacity,
+                (Some(&"surfaces"), Some(&"content"), Some(&"speed"), 4) => AutoLeaf::Speed,
+                (Some(&"surfaces"), Some(&"content"), Some(&"intensity"), 4) => AutoLeaf::Intensity,
+                _ => continue,
+            };
+            let keys: Vec<crate::eval::Key> = x["kfs"].as_array().into_iter().flatten().filter_map(crate::eval::Key::from_json).collect();
+            if keys.is_empty() { continue; }
+            next.push(LaneRt { sid: parts[1].to_string(), path, leaf, keys, log: x["log"].as_bool().unwrap_or(false), eps: x["eps"].as_f64().unwrap_or(0.0), show: x["clock"].as_str() == Some("show") });
+        }
+        if next.len() != self.lanes.len() || next.iter().zip(&self.lanes).any(|(a, b)| a.path != b.path) {
+            eprintln!("artlux-engine: automation: {} lane(s) evaluated by the engine{}", next.len(), if next.is_empty() { String::new() } else { format!(" ({})", next.iter().map(|l| l.path.as_str()).collect::<Vec<_>>().join(", ")) });
+        }
+        self.lanes = next;
+    }
+
+    /// E3d — THE ENGINE SAMPLES ITS AUTOMATION LANES (plans/native-engine.md §4), as timeline.ts
+    /// sampleAutomation does: each lane at its clock (the show time or the playhead), laid over the document's
+    /// authored values. EXACTLY — the app pushes a value only once it moved by the lane's epsilon (half a UI
+    /// step: a guard for the audio lock), so a slow ramp advances there every few frames, in a phase set by when
+    /// sampling began; no second copy can follow that phase, and none should. By construction the app's held
+    /// value is within epsilon of the exact sample — and that is what is CHECKED (`auto`, the app's value this
+    /// frame): further apart logs `automation: differs`.
+    fn evaluate_lanes(&mut self, doc: &mut Doc, v: &Value) {
+        self.auto_fx.clear();
+        if self.lanes.is_empty() {
+            if doc.opacity != doc.base_opacity { doc.opacity = doc.base_opacity.clone(); }
+            return;
+        }
+        let (Some(ph), Some(st)) = (v["ph"].as_f64(), v["t"].as_f64()) else { return };
+        let mut opacity = doc.base_opacity.clone();
+        for l in &self.lanes {
+            let val = crate::eval::sample_lane(&l.keys, if l.show { st } else { ph }, l.log);
+            if let Some(app) = v["auto"][&l.path].as_f64() {
+                if !((app - val).abs() < l.eps + 1e-9) {
+                    self.auto_diffs += 1;
+                    if self.auto_diffs <= 20 { eprintln!("artlux-engine: automation: differs — {} at playhead {ph} / show {st}: app {app}, engine {val} (eps {})", l.path, l.eps); }
+                }
+            }
+            match l.leaf {
+                AutoLeaf::Opacity => { opacity.insert(l.sid.clone(), val as f32); }
+                AutoLeaf::Speed => { self.auto_fx.entry(l.sid.clone()).or_default().0 = Some(val); }
+                AutoLeaf::Intensity => { self.auto_fx.entry(l.sid.clone()).or_default().1 = Some(val); }
+            }
+        }
+        doc.opacity = opacity;
+        self.auto_ticks += 1;
+        if self.auto_ticks % 120 == 1 { eprintln!("artlux-engine: automation: {} tick(s) sampled, {} difference(s) from the app so far (document {})", self.auto_ticks, self.auto_diffs, doc.rev); }
     }
 
     /// E3c — THE ENGINE EVALUATES THE TIMELINE'S TIME (plans/native-engine.md §4). From the playhead (`ph`) and
@@ -645,6 +718,10 @@ impl Runtime {
                     }
                 }
                 Source::Effect(params) => {
+                    // E3d: an automated speed / intensity, as the engine sampled it this tick.
+                    let mut params = *params;
+                    if let Some((s, i)) = self.auto_fx.get(sid) { if let Some(s) = s { params.speed = *s; } if let Some(i) = i { params.intensity = *i; } }
+                    let params = &params;
                     let e = self.effects.entry(sid.clone()).or_default();
                     // A timeline clip's effect runs at its CLIP-LOCAL time (the tick's `times`), as the app's does.
                     let rgba = e.render(*params, v["times"][sid].as_f64().unwrap_or(t), &mut self.rng).to_vec();

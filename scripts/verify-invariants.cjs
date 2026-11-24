@@ -4371,6 +4371,27 @@ check(
 );
 
 check(
+  'the automation lanes the native engine evaluates are exactly the ones it applies, and never under a scene fade',
+  'E3d: nativeLink.engineLane names the lanes the engine samples itself (a surface\'s content opacity, an effect\'s ' +
+  'speed and intensity); the document then carries the surfaces WITHOUT those values (overlay applyExcept). A path ' +
+  'named there that runtime.rs does not apply would freeze at its authored value on the wall while it moves in the ' +
+  'editor. And a scene fade runs AFTER the curve (it lands on it), so while one runs the engine must get the fully ' +
+  'resolved surfaces — frameEngine drops lanesView when a fade is sampled.',
+  () => {
+    const problems = [];
+    const N = 'src/renderer/engine/nativeLink.ts', R = 'engine/artlux-engine/src/runtime.rs', F = 'src/renderer/engine/frameEngine.ts';
+    if (![N, R, F].every(exists)) return 'nativeLink.ts / runtime.rs / frameEngine.ts is gone';
+    const m = read(N).match(/engineLane = \(path: string\): boolean => \/\^surfaces\\.\[\^\.\]\+\\.content\\.\(([a-z|]+)\)\$\//);
+    if (!m) problems.push('nativeLink.engineLane changed shape — update runtime.rs load_lanes and this check');
+    else for (const leaf of m[1].split('|')) if (!read(R).includes(`Some(&"${leaf}"), 4) => AutoLeaf::`)) problems.push(`runtime.rs does not apply the ${leaf} lane the app hands it`);
+    const f = read(F);
+    if (!/if \(fade\) lanesView = null;/.test(f)) problems.push('frameEngine no longer withholds the lanes while a scene fade runs');
+    if (!/nativeLink\.frame\([^)]*lanesView\)/.test(f)) problems.push('frameEngine no longer passes lanesView to nativeLink');
+    return problems.length ? problems.join('; ') : null;
+  },
+);
+
+check(
   'a 3-channel fixture keeps full RGB, in the app and in the engine',
   'The RGBW mode defaults to SUBTRACT (W = min(r,g,b), taken out of r, g and b) and the inspector shows the ' +
   'White control on 4-channel fixtures only. So an RGB strip whose mode was never set had the neutral part ' +
@@ -8834,7 +8855,7 @@ check(
     const fe = read('src/renderer/engine/frameEngine.ts');
     const pack = fe.indexOf('this.packAndPublish(rawBytes, effFixtures);'), link = fe.indexOf('nativeLink.frame(');
     if (pack < 0 || link < 0 || link < pack) problems.push('nativeLink.frame is no longer called AFTER packAndPublish (the tick would carry the previous frame\'s lights)');
-    if (!/nativeLink\.frame\(this\.inputs, effSurfaces, effFixtures, effBrightness, this\.lightBytes\)/.test(fe)) problems.push('the tick no longer carries the recorded light bytes');
+    if (!/nativeLink\.frame\(this\.inputs, effSurfaces, effFixtures, effBrightness, this\.lightBytes[,)]/.test(fe)) problems.push('the tick no longer carries the recorded light bytes');
     if (!/const writeCh = \(v: number\) => \{ rec\.push\(v\); writeChRaw\(v\); \};/.test(fe)) problems.push('packLight no longer records every value it writes');
     const nl = read('src/renderer/engine/nativeLink.ts');
     if (!/lights: fixtures\.filter\(\(f\) => isLight\(f\)\)/.test(nl)) problems.push('the document no longer lists the lights by services/fixtureKind');

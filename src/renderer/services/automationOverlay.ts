@@ -50,3 +50,17 @@ export function apply(base: StateView): StateView {
   for (const [path, val] of values) v = setByPath(v, path, val);
   return v;
 }
+
+/**
+ * E3d — the same, LEAVING OUT the paths `skip` names (the native engine evaluates those lanes itself, so its
+ * document carries the authored value and does not change every frame of a curve). Returns `base` itself —
+ * the same arrays — when every automated path is skipped, which is what keeps the document unsent.
+ */
+export function applyExcept(base: StateView, skip: (path: string) => boolean): StateView {
+  let v = base;
+  for (const [path, val] of values) if (!skip(path)) v = setByPath(v, path, val);
+  return v;
+}
+
+/** The value a lane holds on `path` right now (undefined when no lane owns it). */
+export function value(path: string): number | undefined { return values.get(path); }

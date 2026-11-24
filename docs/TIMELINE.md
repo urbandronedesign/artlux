@@ -311,6 +311,12 @@ blends). The result matches the editor's within one step in 255. While both stil
 fades and clip times against the editor's on every frame; if they ever disagree, the machine log says
 `clock: differs`.
 
+**Automation lanes** on a surface's **Opacity**, or an effect's **FX Speed** and **FX Intensity**, are played
+by the engine too: it reads the curve and follows it exactly, every frame. The editor moves a slow curve
+in steps of half a slider step, so the two can sit that far apart, never more; the engine checks it, and
+the machine log says `automation: differs` if they ever drift further. Every other lane (text, fixture
+channels, the master brightness, audio) is still played by the editor, which passes the result to the engine.
+
 Tracks can carry **content clips** (a still image, a shader, text or an effect) and **video clips** played
 through the HAP or MP4 decoders — the engine shows exactly the frame the editor shows. A video the editor plays
 through a plain browser video element (a format no ArtLux decoder claims) keeps that surface in the editor, and

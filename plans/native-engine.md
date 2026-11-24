@@ -1912,6 +1912,30 @@ fallback until a source/output is proven byte-identical — risk 2):
 >   ported and proven; the app's automation writes surface params the engine reads through the document —
 >   moving that to a per-tick evaluation is the next step), and the playhead itself from the audio clock (JUCE
 >   in the engine process).
+>
+> ✅ **E3d done 2026-11-24 — AUTOMATION LANES SAMPLED BY THE ENGINE.** Before, an automated opacity changed the
+> app's effective surfaces every frame, so nativeLink RE-SENT THE WHOLE DOCUMENT every frame of a curve. Now:
+> - **App:** `nativeLink.engineLane` names the lanes the engine owns — `surfaces.<id>.content.{opacity, speed,
+>   intensity}`, the leaves the engine reads off the surface (compose.rs opacity, effects.rs Params). The
+>   document carries the surfaces WITHOUT those values (`automationOverlay.applyExcept` — the same arrays when
+>   only engine lanes run, so nothing is re-sent) plus the compiled lanes (`timeline.nativeLanes`: keys clamped
+>   and sorted as sampled, log, eps, which clock). The tick carries the app's value per lane (`auto`). While a
+>   scene FADE runs (it lands on the curve, after it) the engine gets the fully resolved surfaces, as before.
+>   Text, fixture, global and audio lanes stay the app's (text shapes a raster the app draws; lights and the
+>   master reach the engine resolved).
+> - **Engine:** `evaluate_lanes` samples each lane at its clock (show time or playhead) with eval.rs and lays it
+>   over the authored opacity / effect params — EXACTLY. Found on the way: the app pushes a lane only once it
+>   moved by eps (half a UI step — a guard for the audio lock), so a slow ramp advances there every few frames
+>   in a phase set by when sampling began; a copy of that hysteresis cannot follow the phase (the first run
+>   differed on every lane by up to eps). By construction the app's held value is within eps of the exact
+>   sample, so THAT is the check: further apart logs `automation: differs`.
+> - **Proof:** `test:automation-parity` — a looping show plays itself for 24 s with an image's opacity on
+>   eased / bezier / hold / bounce keys and an effect's speed and intensity: 0 differences over 600+ ticks, the
+>   DOCUMENT SENT ONCE for the whole run, the curve on the wire; a 50 ms clock skew is caught (mutation).
+>   `verify:invariants`: every leaf engineLane names is applied by runtime.rs, the lanes are withheld under a
+>   fade. Clock / timeline / video / shader / text wire, eval parity and the runtime test unchanged.
+> - **Not yet:** a scene-fade-over-a-lane run on the wire, colour lanes and lighting takes in the engine, and
+>   the playhead from the audio clock.
 
 ## 9d. E4 started early — the 3D view in the engine (owner, 2026-11-24)
 

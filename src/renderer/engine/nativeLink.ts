@@ -4,6 +4,7 @@ import * as surfaceMedia from '../services/surfaceMedia';
 import { isLight } from '../services/fixtureKind';
 import * as contentSource from '../services/contentSource';
 import { timeline } from '../services/timeline';
+import * as automationOverlay from '../services/automationOverlay';
 
 // E1f — THE NATIVE ENGINE'S LIVE LINK, renderer half (plans/native-engine.md; main half src/main/engineHost.ts,
 // engine half engine/artlux-engine/src/runtime.rs).
@@ -35,6 +36,18 @@ export interface LinkInputs {
 }
 
 let enabled = false;
+export const isEnabled = (): boolean => enabled;
+
+/**
+ * E3d — THE AUTOMATION LANES THE ENGINE EVALUATES ITSELF: a surface's opacity, and an effect's speed and
+ * intensity — the leaves the engine reads straight off the surface (compose.rs, effects.rs). The others stay
+ * the app's: text leaves shape a raster the app draws, fixture and global leaves reach the engine already
+ * resolved (light bytes, brightness), and geometry is not automatable.
+ */
+export const engineLane = (path: string): boolean => /^surfaces\.[^.]+\.content\.(opacity|speed|intensity)$/.test(path);
+let lanePaths: string[] = [];
+let lastLanes = '';
+
 try {
   void window.artlux?.nativeEngineEnabled?.().then((v) => {
     enabled = !!v;
@@ -136,8 +149,13 @@ function projectorEntry(o: ProjectorOutput, surfaces: Surface[], sources: Record
 }
 
 /** One frame. Cheap when nothing changed: a reference compare, one small string, one IPC send. */
-export function frame(inputs: LinkInputs, surfaces: Surface[], fixtures: Fixture[], brightness: number, lightBytes: Record<string, number[]> = {}): void {
+export function frame(inputs: LinkInputs, surfaces: Surface[], fixtures: Fixture[], brightness: number, lightBytes: Record<string, number[]> = {}, lanesView: Surface[] | null = null): void {
   if (!enabled) return;
+  // E3d: `lanesView` — the surfaces WITHOUT the values of the lanes the engine evaluates (frameEngine; null
+  // while a scene fade runs over them, or nothing is automated). The document carries the authored values and
+  // the lanes; the engine samples them per tick, so a curve no longer re-sends the document every frame.
+  if (lanesView) surfaces = lanesView;
+  const lanesKey = lanesView ? `on ${timeline.nativeLanes(engineLane).gen}` : 'off';
   const sources: Record<string, contentSource.NativeSource> = {};
   for (const s of surfaces) sources[s.id] = surfaceMedia.nativeSource(s);
   // ⚠ THE APP HAS ONE SPOUT RECEIVER for every Spout surface, and the most recently attached sender wins
@@ -168,12 +186,14 @@ export function frame(inputs: LinkInputs, surfaces: Surface[], fixtures: Fixture
   for (const [key, content] of layerContent) if (sources[key]?.kind === 'raster') shipRaster(key, contentSource.nativeRaster(key, content));
   const sourcesKey = JSON.stringify(sources);
   const refs = [surfaces, fixtures, inputs.controllers, inputs.protocol, inputs.targetIp, inputs.broadcast, inputs.gamma, inputs.artNetPort, inputs.outputEnabled, projOutputs, bakedSeq];
-  if (sourcesKey !== lastSources || refs.length !== lastRefs.length || refs.some((r, i) => r !== lastRefs[i])) {
-    lastRefs = refs; lastSources = sourcesKey; rev++;
+  if (sourcesKey !== lastSources || lanesKey !== lastLanes || refs.length !== lastRefs.length || refs.some((r, i) => r !== lastRefs[i])) {
+    lastRefs = refs; lastSources = sourcesKey; lastLanes = lanesKey; rev++;
+    const ln = lanesView ? timeline.nativeLanes(engineLane) : { gen: 0, lanes: [] };
+    lanePaths = ln.lanes.map((l) => l.path);
     const doc = {
       rev, fixtures, surfaces, controllers: inputs.controllers,
       defaults: { protocol: inputs.protocol, ip: inputs.targetIp, broadcast: inputs.broadcast },
-      gamma: inputs.gamma, port: inputs.artNetPort, outputEnabled: inputs.outputEnabled, sources,
+      gamma: inputs.gamma, port: inputs.artNetPort, outputEnabled: inputs.outputEnabled, sources, lanes: ln,
       lights: fixtures.filter((f) => isLight(f)).map((f) => f.id),
       // E1f-3: main adds each output's display as PHYSICAL bounds (engineHost.ts) — it owns the screen.
       projectors: projOutputs.filter((o) => o.enabled).map((o) => projectorEntry(o, surfaces, sources)),
@@ -252,5 +272,8 @@ export function frame(inputs: LinkInputs, surfaces: Surface[], fixtures: Fixture
   const lights: Record<string, number[]> = {};
   for (const id in lightBytes) lights[id] = lightBytes[id].map((v) => { const t = Math.trunc(Number(v)); return Number.isFinite(t) ? ((t % 256) + 256) % 256 : 0; });
   // E3c: `ph` — the PLAYHEAD the tracks above were evaluated at; the engine evaluates their clips from it.
-  window.artlux?.nativeEngineTick?.(JSON.stringify({ rev, t: timeline.getShowTime(), ph: timeline.getPlayhead(), brightness, hap, mp4, ndi, camfp, shader, blobs, comp, times, lights, proj: { brightness: projBrightness, booting: projBooting } }));
+  // E3d: `auto` — the value each engine-evaluated lane holds in the app this frame, for the engine to CHECK.
+  const auto: Record<string, number> = {};
+  for (const p of lanePaths) { const v = automationOverlay.value(p); if (v !== undefined) auto[p] = v; }
+  window.artlux?.nativeEngineTick?.(JSON.stringify({ rev, t: timeline.getShowTime(), ph: timeline.getPlayhead(), auto, brightness, hap, mp4, ndi, camfp, shader, blobs, comp, times, lights, proj: { brightness: projBrightness, booting: projBooting } }));
 }

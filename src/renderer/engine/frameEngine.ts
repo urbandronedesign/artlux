@@ -520,11 +520,18 @@ class FrameEngine {
     let geomDirty = automationOverlay.geometryAnimating() || fitted;
     const paramsDirty = automationOverlay.paramsAnimating();
     automationOverlay.consumeDirty();
+    // E3d: the native engine evaluates some lanes itself (nativeLink.engineLane) — its document gets the
+    // surfaces WITHOUT those values, so a running curve does not re-send it every frame.
+    let lanesView: Surface[] | null = null;
     if (automationOverlay.isActive()) {
+      if (nativeLink.isEnabled()) lanesView = automationOverlay.applyExcept({ surfaces: effSurfaces, fixtures: effFixtures, globalBrightness: effBrightness }, nativeLink.engineLane).surfaces;
       const v = automationOverlay.apply({ surfaces: effSurfaces, fixtures: effFixtures, globalBrightness: effBrightness });
       effSurfaces = v.surfaces; effFixtures = v.fixtures; effBrightness = v.globalBrightness;
     }
     const fade = transitions.sample(renderClock.now());
+    // A scene fade lands ON the curve (it runs after it): while one runs the engine gets the fully resolved
+    // surfaces, as before E3d.
+    if (fade) lanesView = null;
     if (fade) {
       const v = fade.apply({ surfaces: effSurfaces, fixtures: effFixtures, globalBrightness: effBrightness });
       effSurfaces = v.surfaces; effFixtures = v.fixtures; effBrightness = v.globalBrightness;
@@ -623,7 +630,7 @@ class FrameEngine {
       }
       // E1f: the native engine (when on) gets this frame's EFFECTIVE document and a tick — AFTER packing,
       // so the tick carries the light fixtures' channels THIS frame's precedence stack resolved (E1f-2).
-      nativeLink.frame(this.inputs, effSurfaces, effFixtures, effBrightness, this.lightBytes);
+      nativeLink.frame(this.inputs, effSurfaces, effFixtures, effBrightness, this.lightBytes, lanesView);
     }
 
     perfMonitor.endFrame();
