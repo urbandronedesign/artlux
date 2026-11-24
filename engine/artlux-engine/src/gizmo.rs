@@ -24,7 +24,7 @@ pub enum Mode { Move, Rotate, Scale }
 /// What the editor asks for: the tool, the anchor, the handles' orientation (x y z w), and the snap for this tool
 /// (metres, degrees or a factor step), if on.
 #[derive(Clone, Copy, Debug)]
-pub struct Gizmo { pub mode: Mode, pub at: [f32; 3], pub q: [f32; 4], pub snap: Option<f32> }
+pub struct Gizmo { pub mode: Mode, pub at: [f32; 3], pub q: [f32; 4], pub snap: Option<f32>, pub model: bool }
 
 impl Gizmo {
     pub fn from_json(v: &serde_json::Value) -> Option<Gizmo> {
@@ -32,7 +32,9 @@ impl Gizmo {
         let at = a("at", 3)?;
         let q = a("q", 4).unwrap_or(vec![0.0, 0.0, 0.0, 1.0]);
         let mode = match v["mode"].as_str().unwrap_or("translate") { "rotate" => Mode::Rotate, "scale" => Mode::Scale, _ => Mode::Move };
-        Some(Gizmo { mode, at: [at[0], at[1], at[2]], q: [q[0], q[1], q[2], q[3]], snap: v["snap"].as_f64().filter(|s| *s > 0.0).map(|s| s as f32) })
+        Some(Gizmo { mode, at: [at[0], at[1], at[2]], q: [q[0], q[1], q[2], q[3]], snap: v["snap"].as_f64().filter(|s| *s > 0.0).map(|s| s as f32),
+            // A VENUE MODEL's handles (the editor's ModelObject / PlaneObject TransformControls), not the fixtures'.
+            model: v["model"].as_bool().unwrap_or(false) })
     }
     /// The three handle directions (unit, world).
     pub fn axes(&self) -> [[f32; 3]; 3] { [[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]].map(|v| rot(self.q, v)) }
@@ -63,6 +65,13 @@ impl Drag {
     }
     /// A body's orientation turned by the gesture (a beam's base rotation).
     pub fn turn(&self, q: [f32; 4]) -> [f32; 4] { qmul(self.g.rot, q) }
+    /// The gesture as a matrix (column-major), for a venue model's world matrix: M' = this · M.
+    pub fn matrix(&self) -> [f32; 16] {
+        let o = self.apply([0.0; 3]);
+        let col = |e: [f32; 3]| sub(self.apply(e), o);
+        let (x, y, z) = (col([1.0, 0.0, 0.0]), col([0.0, 1.0, 0.0]), col([0.0, 0.0, 1.0]));
+        [x[0], x[1], x[2], 0.0, y[0], y[1], y[2], 0.0, z[0], z[1], z[2], 0.0, o[0], o[1], o[2], 1.0]
+    }
 }
 
 pub const GIZMO_PX: f32 = 90.0;
@@ -257,7 +266,7 @@ mod tests {
     fn ray_to(eye: [f32; 3], p: [f32; 3]) -> ([f32; 3], [f32; 3]) { (eye, norm(sub(p, eye))) }
     #[test]
     fn a_pull_along_x_reads_as_the_distance_pulled() {
-        let g = Gizmo { mode: Mode::Move, at: [1.0, 2.0, 0.0], q: ID, snap: None };
+        let g = Gizmo { mode: Mode::Move, at: [1.0, 2.0, 0.0], q: ID, snap: None, model: false };
         let eye = [1.0, 2.0, 10.0];
         let (o0, d0) = ray_to(eye, [1.2, 2.0, 0.0]);
         let (o1, d1) = ray_to(eye, [1.7, 2.0, 0.0]);
@@ -267,7 +276,7 @@ mod tests {
     }
     #[test]
     fn snapping_lands_the_anchor_on_the_step() {
-        let g = Gizmo { mode: Mode::Move, at: [1.03, 2.0, 0.0], q: ID, snap: Some(0.25) };
+        let g = Gizmo { mode: Mode::Move, at: [1.03, 2.0, 0.0], q: ID, snap: Some(0.25), model: false };
         let o = gesture(&g, 0, 0.0, 0.4).delta;
         assert!(((g.at[0] + o[0]) - 1.5).abs() < 1e-5, "{o:?}");
         let s = std::f32::consts::FRAC_1_SQRT_2;
@@ -276,7 +285,7 @@ mod tests {
     }
     #[test]
     fn a_quarter_turn_about_y_and_its_snap() {
-        let g = Gizmo { mode: Mode::Rotate, at: [0.0; 3], q: ID, snap: None };
+        let g = Gizmo { mode: Mode::Rotate, at: [0.0; 3], q: ID, snap: None, model: false };
         // Looking down from above: the ray meets the floor-plane ring; a quarter turn of the cursor about Y.
         let eye = [0.0, 10.0, 0.0];
         let (o0, d0) = ray_to(eye, [1.0, 0.0, 0.0]);
@@ -291,19 +300,23 @@ mod tests {
     }
     #[test]
     fn scale_is_the_ratio_along_the_axis_and_apply_spreads_about_the_anchor() {
-        let g = Gizmo { mode: Mode::Scale, at: [0.0; 3], q: ID, snap: Some(0.1) };
+        let g = Gizmo { mode: Mode::Scale, at: [0.0; 3], q: ID, snap: Some(0.1), model: false };
         let ge = gesture(&g, 0, 0.5, 1.04);   // ×2.08 → snapped to ×2.1
         assert!((ge.scale[0] - 2.1).abs() < 1e-5 && ge.scale[1] == 1.0);
         let dr = Drag { ids: Default::default(), at: [1.0, 0.0, 0.0], q: ID, g: ge, axis: 0, ended_at_scene: None };
         let p = dr.apply([2.0, 3.0, 0.0]);
         assert!(len(sub(p, [3.1, 3.0, 0.0])) < 1e-5, "{p:?}");
+        // The same transform as a matrix (a venue model's).
+        let m = dr.matrix();
+        let q = [m[0] * 2.0 + m[4] * 3.0 + m[12], m[1] * 2.0 + m[5] * 3.0 + m[13], m[2] * 2.0 + m[6] * 3.0 + m[14]];
+        assert!(len(sub(q, p)) < 1e-5, "{q:?}");
     }
     #[test]
     fn the_handle_under_the_cursor_is_found_in_screen_space() {
         let cam = crate::view3d::Cam::from_pose([0.0, 0.0, 10.0], [0.0, 0.0, 0.0], 50.0);
         let (vp, _, _) = crate::view3d::camera_frame(&cam, 1.0);
         let px = 2.0 * (25f32).to_radians().tan() / 800.0;
-        let g = Gizmo { mode: Mode::Move, at: [0.0; 3], q: ID, snap: None };
+        let g = Gizmo { mode: Mode::Move, at: [0.0; 3], q: ID, snap: None, model: false };
         assert_eq!(hit(&g, &vp, cam.eye(), px, 800.0, 800.0, 460.0, 400.0), Some(0));
         assert_eq!(hit(&g, &vp, cam.eye(), px, 800.0, 800.0, 400.0, 340.0), Some(1));
         assert_eq!(hit(&g, &vp, cam.eye(), px, 800.0, 800.0, 460.0, 460.0), None);

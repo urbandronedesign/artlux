@@ -9,7 +9,7 @@ import { getLivePreview, type SnapSettings } from '../../services/scene3dQuality
 import { isResolvedLight } from '../../services/fixtureKind';
 import { rigMetrics, mountShift } from '../../services/profileRig';
 import { isLight } from '../../services/fixtureKind';
-import type { SceneModel, EngineGizmoGesture } from '../../../../shared/protocol';
+import { modelScaleXYZ, type SceneModel, type EngineGizmoGesture } from '../../../../shared/protocol';
 import { findScreens } from './modelScreens';
 import { usesProjectedUv, usesProjectedOcclusion, DEFAULT_BIAS_M } from './projectedMapping';
 
@@ -141,6 +141,9 @@ function buildScene(scene: THREE.Scene, fixtures: Fixture[], beams: EngineBeams)
   const gz = beams.gizmo;
   const tool = gz && (gz.mode === 'translate' || gz.mode === 'rotate' || gz.mode === 'scale') ? gz.mode : null;
   const g = gz && tool ? gizmoAnchor(gz.fixtures, gz.space, gz.activeId) : null;
+  // A selected VENUE MODEL has its own handles (ModelObject / PlaneObject's TransformControls: world space, no snap,
+  // Move even in Box select) — the engine draws those instead; the fixture gizmo is empty then anyway.
+  const mg = beams.model ? modelGizmo(beams.model, beams.modelMode ?? 'translate') : null;
   // THE HANDLES' AXES, as three's TransformControls orients them: Move and Rotate follow the space toggle (the
   // anchor's rotation in Object, the room's in World); Scale is ALWAYS the anchor's own (three refuses to world-
   // align scale handles — gizmoDelta's scale is read in that frame). The snap is the one for this tool.
@@ -148,9 +151,18 @@ function buildScene(scene: THREE.Scene, fixtures: Fixture[], beams: EngineBeams)
   const snap = gz?.snap?.on ? (tool === 'rotate' ? gz.snap.rotate : tool === 'scale' ? gz.snap.scale : gz.snap.move) : null;
   return JSON.stringify({ models, leds, lights, lines, beams: { haze: r4(beams.haze), cones: beams.cones, rendered: beams.rendered, selected: beams.selected },
     grid: { visible: beams.grid, labels: beams.gridLabels },
-    gizmo: g ? { mode: tool, at: [r4(g.at.x), r4(g.at.y), r4(g.at.z)], q: handleQ.map((x) => Math.round(x * 1e6) / 1e6), snap } : null,
+    gizmo: mg ?? (g ? { mode: tool, at: [r4(g.at.x), r4(g.at.y), r4(g.at.z)], q: handleQ.map((x) => Math.round(x * 1e6) / 1e6), snap } : null),
     selectedModel: beams.selectedModel ?? null });
 }
+
+/** E4b: a venue model's handles, as its TransformControls draws them — at the model's position; room axes for Move
+ *  and Rotate (the default 'world' space), the model's own for Scale; no snap. */
+function modelGizmo(m: SceneModel, mode: 'translate' | 'rotate' | 'scale') {
+  const q = new THREE.Quaternion().setFromEuler(new THREE.Euler(m.rotation.x * DEG, m.rotation.y * DEG, m.rotation.z * DEG));
+  return { mode, model: true, at: [r4(m.position.x), r4(m.position.y), r4(m.position.z)],
+    q: (mode === 'scale' ? [q.x, q.y, q.z, q.w] : [0, 0, 0, 1]).map((x) => Math.round(x * 1e6) / 1e6), snap: null };
+}
+const DEG = Math.PI / 180;
 
 /**
  * E4b — WHERE THE GIZMO SITS, exactly as FixtureGizmo parks its anchor: the selection's centroid; oriented to the
@@ -175,6 +187,35 @@ export function gizmoAnchor(fixtures: readonly Fixture[], space: 'world' | 'loca
 // three's TransformControls moves its object — position + offset, rotation · anchor quaternion (world), scale ×
 // factor — so gizmoDelta reads it the way it reads the editor's own handles. The tool is the one at the grab.
 let engineGesture: { start: GizmoStart[]; basis: GizmoBasis; mode: 'translate' | 'rotate' | 'scale'; moved: boolean } | null = null;
+// A VENUE MODEL's drag: the model as it was at the grab. The gesture is composed onto it as its TransformControls
+// moves its group (position + offset, rotation · quaternion in world, scale × factor in its own frame) and
+// committed once through the model's own commit (onCommitModel), one undo step.
+let engineModelGesture: { model: SceneModel; moved: boolean } | null = null;
+export function applyEngineModelGizmo(
+  phase: 'start' | 'move' | 'end', gesture: EngineGizmoGesture,
+  ctx: { model: SceneModel | null | undefined; onRecordHistory: () => void; onCommit: (id: string, t: { position: { x: number; y: number; z: number }; rotation: { x: number; y: number; z: number }; scaleXYZ: [number, number, number] }) => void },
+): boolean {
+  if (phase === 'start') { engineModelGesture = ctx.model ? { model: ctx.model, moved: false } : null; return !!ctx.model; }
+  const g = engineModelGesture;
+  if (!g) return false;
+  const { delta, rot, scale } = gesture;
+  const moved = delta.some((x) => Math.abs(x) > 1e-9) || Math.abs(rot[3]) < 1 - 1e-9 || scale.some((x) => Math.abs(x - 1) > 1e-9);
+  if (phase === 'move') { if (moved && !g.moved) { g.moved = true; ctx.onRecordHistory(); } return true; }
+  engineModelGesture = null;
+  if (!moved) return true;
+  if (!g.moved) ctx.onRecordHistory();
+  const m = g.model;
+  const q = new THREE.Quaternion(rot[0], rot[1], rot[2], rot[3]).multiply(new THREE.Quaternion().setFromEuler(new THREE.Euler(m.rotation.x * DEG, m.rotation.y * DEG, m.rotation.z * DEG)));
+  const e = new THREE.Euler().setFromQuaternion(q, 'XYZ');
+  const [sx, sy, sz] = modelScaleXYZ(m);
+  ctx.onCommit(m.id, {
+    position: { x: m.position.x + delta[0], y: m.position.y + delta[1], z: m.position.z + delta[2] },
+    rotation: { x: e.x / DEG, y: e.y / DEG, z: e.z / DEG },
+    scaleXYZ: [Math.max(0.0001, sx * scale[0]), Math.max(0.0001, sy * scale[1]), Math.max(0.0001, sz * scale[2])],
+  });
+  return true;
+}
+
 export function applyEngineGizmo(
   phase: 'start' | 'move' | 'end', gesture: EngineGizmoGesture,
   ctx: { fixtures: readonly Fixture[]; mode: string; space: 'world' | 'local'; activeId: string | null | undefined; onRecordHistory: () => void; onCommit: (u: Array<{ id: string } & FixtureTransform>) => void },
@@ -218,8 +259,10 @@ export function applyEngineGizmo(
 export interface EngineBeams { profiles: ReadonlyMap<string, FixtureProfile>; haze: number; cones: boolean; rendered: boolean; selected: readonly string[];
   /** The editor's fixture gizmo: the selection it drives, its tool and axes, the snap — the engine draws Move. */
   gizmo?: { fixtures: readonly Fixture[]; mode: string; space: 'world' | 'local'; activeId: string | null | undefined; snap?: SnapSettings };
-  /** The venue model / screen selected in the editor — outlined in the engine window. */
+  /** The venue model / screen selected in the editor — outlined in the engine window, with its own handles. */
   selectedModel?: string | null;
+  model?: SceneModel | null;
+  modelMode?: 'translate' | 'rotate' | 'scale';
   /** The editor's floor grid and its numbers (scene3D.gridVisible / gridLabels) — the engine view follows them. */
   grid: boolean; gridLabels: boolean }
 

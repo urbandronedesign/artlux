@@ -2160,7 +2160,17 @@ fallback until a source/output is proven byte-identical — risk 2):
 >   only, microseconds for a venue of tens of thousands of triangles. **Proof:** a unit test (a strip on a screen wins;
 >   the screen above it is the model; past its edge nothing; its bounds); `test:engine-beams` clicks the screen
 >   behind the rig → `pick: model scr` and the editor's objects list shows Back screen selected, no fixture.
-> - **Not yet (E4b…):** the rest of the Rendered look (the lit room), the adaptive grid, a model's own gizmo, sources the engine does not draw (timeline video clips, a tracking overlay…) on screens
+> - ✅ **E4b-8 2026-11-24 — a venue model's own handles.** With a model or screen selected, the engine draws ITS
+>   handles (ModelObject / PlaneObject's TransformControls: at its position, world axes for Move / Rotate, its own
+>   for Scale, no snap, Move even in Box select). The drag moves the model's drawing in the window (`Drag::matrix`
+>   on its world matrix, its outline too); `applyEngineModelGizmo` composes the gesture onto the model as its
+>   group would move (position + offset, rotation · quaternion, scale × factor) and commits once through
+>   onCommitModel, one undo step. The editor's own view of the model follows on release (its models have no
+>   pointer-rate preview channel). **Proof:** a unit test (the gesture as a matrix = the gesture on points);
+>   `test:engine-beams` raises the selected screen with its Y handle (+1.66 m in the engine → saved y = 4.66, x / z
+>   unchanged; undone). The test now waits for every engine log line it judges (`settle`, and each grab paired
+>   with its release) — two runs had read a line that landed a moment late.
+> - **Not yet (E4b…):** the rest of the Rendered look (the lit room), the adaptive grid, sources the engine does not draw (timeline video clips, a tracking overlay…) on screens
 >   and venue meshes, the four-view layout, saving the window's place, macOS / Linux.
 
 ## 10. Open questions

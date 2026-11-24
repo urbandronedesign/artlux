@@ -241,7 +241,8 @@ impl ApplicationHandler<Cmd> for App {
                         if let (Some(g), Some(axis)) = (g, s.hover_axis) {
                             let (o, d) = s.cam.ray(cx as f32, cy as f32, size.width as f32, size.height as f32);
                             if let Some(r0) = crate::gizmo::reading(&g, axis, o, d) {
-                                let ids = s.scene.as_ref().map(|(_, sc)| sc.look.selected.clone()).unwrap_or_default();
+                                // Whose drawing the drag moves: the selected venue model's (a model gizmo), else the fixtures'.
+                                let ids = s.scene.as_ref().map(|(_, sc)| if g.model { sc.selected_model.iter().cloned().collect() } else { sc.look.selected.clone() }).unwrap_or_default();
                                 s.drag = Some(crate::gizmo::Drag { ids, at: g.at, q: g.q, g: crate::gizmo::Gesture::NONE, axis, ended_at_scene: None });
                                 drop(s);
                                 v.grab = Some(Grab { axis, g, r0, r_prev: r0, unwrapped: r0, last: crate::gizmo::Gesture::NONE, sent: std::time::Instant::now() });

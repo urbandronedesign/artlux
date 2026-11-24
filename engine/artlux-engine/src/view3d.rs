@@ -1083,14 +1083,15 @@ pub fn present(gpu: Arc<Gpu>, window: Arc<Window>, surface: wgpu::Surface<'stati
 
         // The beams, from this tick's resolved states.
         // The selected model's outline: the twelve edges of its world bounds, in the accent.
-        let want_key = scene.as_ref().and_then(|s| s.selected_model.clone().map(|m| format!("{m}@{scene_ver}"))).unwrap_or_default();
+        let want_key = scene.as_ref().and_then(|s| s.selected_model.clone().map(|m| format!("{m}@{scene_ver}@{:?}", drag.as_ref().map(|d| d.g)))).unwrap_or_default();
         if want_key != model_outline_key {
             model_outline_key = want_key;
             model_outline = scene.as_ref().and_then(|s| {
                 let id = s.selected_model.as_ref()?;
-                let m = s.models.iter().find(|m| &m.id == id)?;
+                let m0 = s.models.iter().find(|m| &m.id == id)?;
                 let meshes = shared.lock().unwrap().meshes.clone();
-                let (lo, hi) = model_bounds(m, &meshes)?;
+                let moved = drag.as_ref().filter(|d| d.ids.contains(id)).map(|d| Model { id: m0.id.clone(), kind: match &m0.kind { ModelKind::Glb(p) => ModelKind::Glb(p.clone()), ModelKind::Plane { surface, w, h } => ModelKind::Plane { surface: surface.clone(), w: *w, h: *h } }, matrix: mul(&d.matrix(), &m0.matrix), content: None });
+                let (lo, hi) = model_bounds(moved.as_ref().unwrap_or(m0), &meshes)?;
                 let c = |i: u32| [if i & 1 == 0 { lo[0] } else { hi[0] }, if i & 2 == 0 { lo[1] } else { hi[1] }, if i & 4 == 0 { lo[2] } else { hi[2] }];
                 let mut v: Vec<f32> = Vec::new();
                 for (a, b) in [(0, 1), (2, 3), (4, 5), (6, 7), (0, 2), (1, 3), (4, 6), (5, 7), (0, 4), (1, 5), (2, 6), (3, 7)] {
@@ -1195,14 +1196,16 @@ pub fn present(gpu: Arc<Gpu>, window: Arc<Window>, surface: wgpu::Surface<'stati
             }
         }
 
-        // Placements (cheap: a uniform write per primitive; scenes are tens to hundreds of them).
+        // Placements (cheap: a uniform write per primitive; scenes are tens to hundreds of them). A venue model under
+        // a gizmo drag (E4b) is drawn moved by it (gizmo.rs Drag::matrix) until the committed scene arrives.
         if let Some(sc) = &scene {
             for m in &sc.models {
+                let mm = drag.as_ref().filter(|d| d.ids.contains(&m.id)).map_or(m.matrix, |d| mul(&d.matrix(), &m.matrix));
                 match &m.kind {
                     ModelKind::Glb(path) => if let Some(Some(g)) = glbs.get(path) {
                         let list = insts.entry(m.id.clone()).or_insert_with(|| g.prims.iter().map(|_| { let ub = obj_ub(); let bind = obj_bind(&ub, &white_view); PrimInst { ub, bind, key: (i32::MIN, 0) } }).collect());
                         for (p, inst) in g.prims.iter().zip(list.iter_mut()) {
-                            let world = mul(&m.matrix, &p.local);
+                            let world = mul(&mm, &p.local);
                             // Which source this mesh shows (the editor's choice), or its own material.
                             let src = m.content.as_ref().and_then(|c| {
                                 let k = *c.mesh.get(p.slot)?;
@@ -1243,7 +1246,7 @@ pub fn present(gpu: Arc<Gpu>, window: Arc<Window>, surface: wgpu::Surface<'stati
                             let view = match (gen, surface) { (Some(_), Some(sid)) => plane_tex[sid].1.create_view(&Default::default()), _ => white.create_view(&Default::default()) };
                             entry.bind = obj_bind(&entry.ub, &view);
                         }
-                        let sm = mul(&m.matrix, &[*w, 0., 0., 0., 0., *h, 0., 0., 0., 0., 1., 0., 0., 0., 0., 1.]);
+                        let sm = mul(&mm, &[*w, 0., 0., 0., 0., *h, 0., 0., 0., 0., 1., 0., 0., 0., 0., 1.]);
                         // Unlit, like the editor's MeshBasicMaterial: content shows at the colour it is sent.
                         let has = gen.is_some();
                         // No picture: the editor's #161616, in LINEAR (the target is sRGB — 0.086 came out mid-grey).

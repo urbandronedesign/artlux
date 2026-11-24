@@ -9406,6 +9406,7 @@ check(
     const fn = e.slice(e.indexOf('export function applyEngineGizmo'));
     if (!/ctx\.onCommit\(gizmoDelta\(/.test(fn) || !/setPreview\(gizmoDelta\(/.test(fn)) problems.push('applyEngineGizmo no longer previews and commits through gizmoDelta');
     if (!/onRecordHistory\(\)/.test(fn)) problems.push('applyEngineGizmo no longer records undo');
+    if (!s.includes('applyEngineModelGizmo(phase, gesture,') || !/export function applyEngineModelGizmo[\s\S]{0,2500}ctx\.onCommit\(m\.id,/.test(e)) problems.push('a venue model dragged in the engine window no longer commits through the model own commit');
     return problems.length ? problems.join('; ') : null;
   },
 );

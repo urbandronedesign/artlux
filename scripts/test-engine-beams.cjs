@@ -23,7 +23,8 @@
 //     about their centre, and the ROTATE tool turns one head 45° about Y on its ring — each read back from the
 //     saved project and undone;
 //   - a click on the screen behind the rig selects that MODEL in the editor (its row in the 3D objects list) and
-//     clears the fixtures; a fixture in front of a screen still wins (unit-tested in view3d.rs);
+//     clears the fixtures; a fixture in front of a screen still wins (unit-tested in view3d.rs); its own Move
+//     handle then raises it (read back from the saved project; undone);
 //   - the Rendered look: solid shafts, no diagram.
 // Own processes only; nothing of the owner's is read or written.
 'use strict';
@@ -204,6 +205,14 @@ function toClient(eye, target, fov, p, w, h) {
 const beamLines = (logf) => fs.readFileSync(logf, 'utf8').split(/\r?\n/).filter((l) => /3D view beams:/.test(l));
 const segmentsNow = (logf) => { const l = beamLines(logf); const m = /(\d+) diagram segment/.exec(l[l.length - 1] || ''); return m ? +m[1] : -1; };
 
+/** Poll `fn` until it is truthy (or `ms` pass) and return its last value. The engine's log reaches the file
+ *  through main, so a line can land a moment after the thing it reports — judging a log on one read is a flake. */
+async function settle(fn, ms = 4000) {
+  let v = fn();
+  for (let t = 0; !v && t < ms; t += 100) { await new Promise((r) => setTimeout(r, 100)); v = fn(); }
+  return v;
+}
+
 (async () => {
   for (let i = 0; ; i++) { try { fs.rmSync(WORK, { recursive: true, force: true }); break; } catch (e) { if (i >= 20) throw e; await sleep(500); } }
   fs.mkdirSync(PROFILE, { recursive: true });
@@ -257,6 +266,7 @@ const segmentsNow = (logf) => { const l = beamLines(logf); const m = /(\d+) diag
     const cap = captureEngineWindow(shot);
     note(cap.startsWith('OK'), 'captured the engine window', cap);
 
+    await settle(() => /3D view beams:/.test(fs.readFileSync(logf, 'utf8')));
     const lines = fs.readFileSync(logf, 'utf8').split(/\r?\n/);
     const beamLine = lines.find((l) => /3D view beams:/.test(l));
     console.log(`   engine: ${beamLine ? beamLine.replace(/^.*artlux-engine: /, '') : '(no beam line)'}`);
@@ -284,7 +294,7 @@ const segmentsNow = (logf) => { const l = beamLines(logf); const m = /(\d+) diag
     await page.evaluate(() => window.artlux.nativeEngineView3d(true, { position: [0, 5, 7], target: [0, 0, 0], fov: 50 }));
     await sleep(2000);
     captureEngineWindow(path.join(WORK, 'engine-floor.png'));
-    const gl = /floor numbers: (\d+) glyph/.exec(fs.readFileSync(logf, 'utf8'));
+    const gl = await settle(() => /floor numbers: (\d+) glyph/.exec(fs.readFileSync(logf, 'utf8')));
     note(!!gl && +gl[1] > 20, 'the floor is numbered', gl ? `${gl[1]} glyphs` : 'no glyphs logged');
 
     // PICKING (E4b): the engine camera looks along the row of movers, so the three clicks are well apart.
@@ -300,16 +310,18 @@ const segmentsNow = (logf) => { const l = beamLines(logf); const m = /(\d+) diag
       .map((d) => (d.textContent || '').trim()).filter((t) => /^(Mover|Wash) \d$/.test(t)));
     clickEngineWindow([[m3[0], m3[1], false]]);
     await sleep(1200);
+    await settle(() => /3D view pick: fx_m3\b/.test(fs.readFileSync(logf, 'utf8')));
     let logNow = fs.readFileSync(logf, 'utf8');
     note(/3D view pick: fx_m3\b/.test(logNow), 'a click on Mover 3 in the engine window picks it');
     note(JSON.stringify(await inspector()) === '["Mover 3"]', 'the editor\'s selection follows: Mover 3', JSON.stringify(await inspector()));
-    note(segmentsNow(logf) === 169, 'the full diagram moved to the picked head', `${segmentsNow(logf)} segments`);
+    await settle(() => segmentsNow(logf) === 169); note(segmentsNow(logf) === 169, 'the full diagram moved to the picked head', `${segmentsNow(logf)} segments`);
     clickEngineWindow([[w * 0.5, h * 0.06, false]]);
     await sleep(1200);
+    await settle(() => /3D view pick: \(nothing\)/.test(fs.readFileSync(logf, 'utf8')));
     logNow = fs.readFileSync(logf, 'utf8');
     note(/3D view pick: \(nothing\)/.test(logNow), 'a click on empty sky picks nothing');
     note(JSON.stringify(await inspector()) === '[]', 'the editor\'s selection is cleared', JSON.stringify(await inspector()));
-    note(segmentsNow(logf) === 160, 'rings only, no head aimed', `${segmentsNow(logf)} segments`);
+    await settle(() => segmentsNow(logf) === 160); note(segmentsNow(logf) === 160, 'rings only, no head aimed', `${segmentsNow(logf)} segments`);
     clickEngineWindow([[m3[0], m3[1], false], [m2[0], m2[1], true]]);
     await sleep(1200);
     // An INJECTED Shift-click is occasionally dropped by Windows before it reaches the window (1 run in 3 on the
@@ -322,7 +334,7 @@ const segmentsNow = (logf) => { const l = beamLines(logf); const m = /(\d+) diag
     }
     note(/3D view pick: fx_m2 \(add\)/.test(fs.readFileSync(logf, 'utf8')), 'Shift-click adds Mover 2');
     note(JSON.stringify((await inspector()).sort()) === '["Mover 2","Mover 3"]', 'the editor holds both', JSON.stringify(await inspector()));
-    note(segmentsNow(logf) === 178, 'both heads get the full diagram', `${segmentsNow(logf)} segments`);
+    await settle(() => segmentsNow(logf) === 178); note(segmentsNow(logf) === 178, 'both heads get the full diagram', `${segmentsNow(logf)} segments`);
 
     // THE MOVE GIZMO: both heads selected → the handles sit at their centroid (0, 5, -4). Grab X 60 % along its
     // drawn shaft (GIZMO_PX = 90 on screen) and pull 160 px further along it on screen.
@@ -374,6 +386,14 @@ const segmentsNow = (logf) => { const l = beamLines(logf); const m = /(\d+) diag
     note(near(undone.fx_m2.x, -1) && near(undone.fx_m3.x, 1), 'one Undo puts them back', `m2 ${JSON.stringify(undone.fx_m2)}, m3 ${JSON.stringify(undone.fx_m3)}`);
 
     const tool = (name) => page.evaluate((n) => { const b = [...document.querySelectorAll('button')].find((x) => (x.getAttribute('title') || '').startsWith(n)); b?.click(); return !!b; }, name);
+    // The engine's log reaches the file through main, a moment after the release, and an EARLIER drag's line can
+    // land late too (seen once: the scale check read the move's release). So wait until every grab in the log has
+    // its release, then read the last one.
+    const count = (re) => [...fs.readFileSync(logf, 'utf8').matchAll(re)].length;
+    const nextRelease = async () => {
+      for (let i = 0; i < 40 && count(/3D view gizmo: released at/g) < count(/3D view gizmo: grabbed the/g); i++) await sleep(100);
+      return lastRelease();
+    };
     const lastRelease = () => {
       const all = [...fs.readFileSync(logf, 'utf8').matchAll(/3D view gizmo: released at \[([-\d.]+), ([-\d.]+), ([-\d.]+)\] turned ([-\d.]+) deg scaled \[([-\d.]+), ([-\d.]+), ([-\d.]+)\]/g)];
       return all.length ? all[all.length - 1].slice(1).map(Number) : null;
@@ -385,7 +405,7 @@ const segmentsNow = (logf) => { const l = beamLines(logf); const m = /(\d+) diag
     dragEngineWindow(grab, [grab[0] + dirX[0] * 110, grab[1] + dirX[1] * 110]);
     await sleep(1500);
     note(/grabbed the X scale handle/.test(fs.readFileSync(logf, 'utf8')), 'the X scale handle is grabbed');
-    const sr = lastRelease();
+    const sr = await nextRelease();
     const f = sr ? sr[4] : 1;
     note(!!sr && f > 1.2 && near(sr[5], 1) && near(sr[6], 1), 'scaled along X only', sr ? `×${f}` : 'no release');
     const spread = await savedPos();
@@ -411,7 +431,7 @@ const segmentsNow = (logf) => { const l = beamLines(logf); const m = /(\d+) diag
     dragEngineWindow(ringAt(Math.PI * 3 / 4), ringAt(Math.PI / 2));
     await sleep(1500);
     note(/grabbed the Y rotate handle/.test(fs.readFileSync(logf, 'utf8')), 'the Y ring is grabbed');
-    const rr = lastRelease();
+    const rr = await nextRelease();
     note(!!rr && Math.abs(rr[3] - 45) < 2 && near(rr[0], 0) && near(rr[4], 1), 'turned 45° about Y', rr ? `${rr[3]}°` : 'no release');
     const doc = await savedPos();
     const rot3 = JSON.parse(fs.readFileSync(project, 'utf8')).fixtures.find((x) => x.id === 'fx_m3').rotation3D || {};
@@ -429,11 +449,32 @@ const segmentsNow = (logf) => { const l = beamLines(logf); const m = /(\d+) diag
     // A VENUE MODEL: the empty part of the screen behind the rig, low and to the left.
     clickEngineWindow([[...at([-2.6, 1.8, -7]), false]]);
     await sleep(1500);
+    await settle(() => /3D view pick: model scr$/m.test(fs.readFileSync(logf, 'utf8')));
     note(/3D view pick: model scr$/m.test(fs.readFileSync(logf, 'utf8')), 'a click on the screen picks the model');
     const modelRow = await page.evaluate(() => [...document.querySelectorAll('div[role="button"]')].filter((d) => /bg-accent/.test(d.className)).map((d) => (d.textContent || '').trim()));
     note(modelRow.some((t) => t.includes('Back screen')) && !modelRow.some((t) => /^(Mover|Wash) \d$/.test(t)), 'the editor selects the screen, not a fixture', JSON.stringify(modelRow));
     await sleep(800);
     captureEngineWindow(path.join(WORK, 'engine-model.png'));
+
+    // THE MODEL'S OWN HANDLES (E4b): the screen is selected and the Move tool is on, so the engine draws its
+    // handles at its position (room axes). Pull Y up; the saved project has the screen raised by exactly the
+    // engine's offset, and one Undo puts it back.
+    const s0 = at([0, 3, -7]), s1 = at([0, 3.5, -7]);
+    const uy = [s1[0] - s0[0], s1[1] - s0[1]], uyl = Math.hypot(uy[0], uy[1]);
+    const dy = [uy[0] / uyl, uy[1] / uyl];
+    const g0 = [s0[0] + dy[0] * 54, s0[1] + dy[1] * 54];
+    dragEngineWindow(g0, [g0[0] + dy[0] * 100, g0[1] + dy[1] * 100]);
+    await sleep(1500);
+    const mrel = await nextRelease();
+    note(/grabbed the Y move handle/.test(fs.readFileSync(logf, 'utf8').split('pick: model scr').pop()), 'the Y handle of the screen is grabbed');
+    note(!!mrel && mrel[1] > 0.2 && near(mrel[0], 0) && near(mrel[2], 0), 'pulled up along Y', mrel ? mrel.slice(0, 3).join(', ') : 'no release');
+    await savedPos();
+    const scr = (JSON.parse(fs.readFileSync(project, 'utf8')).scene3D.models || []).find((m) => m.id === 'scr');
+    note(!!scr && !!mrel && near(scr.position.y, 3 + mrel[1]) && near(scr.position.x, 0) && near(scr.position.z, -7), 'the editor raised the screen by the engine offset', JSON.stringify(scr?.position));
+    await menu('Edit', 'Undo'); await sleep(800);
+    await savedPos();
+    const scrBack = (JSON.parse(fs.readFileSync(project, 'utf8')).scene3D.models || []).find((m) => m.id === 'scr');
+    note(!!scrBack && near(scrBack.position.y, 3), 'and Undo puts it back', JSON.stringify(scrBack?.position));
     captureEngineWindow(path.join(WORK, 'engine-pick.png'));
 
     // THE RENDERED LOOK follows the editor's display mode: the button flips it, the scene (≤ 4 Hz) carries it, the
