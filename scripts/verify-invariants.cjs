@@ -9456,6 +9456,10 @@ check(
     if (!/l\.shadow\.mapSize\.set\(quality === 'high' \? 1024/.test(rm) || !/const SHADOW_SIZE: u32 = 1024;/.test(V)) problems.push('the shadow map size differs');
     if (!/l\.shadow\.bias = -0\.0005;/.test(rm) || !/p\.z - 0\.0005\)/.test(V)) problems.push('the shadow bias differs');
     if (!/l\.shadow\.normalBias = 0\.02;/.test(rm) || !/w \+ n \* 0\.02/.test(V)) problems.push('the shadow normal bias differs');
+    // Ambient occlusion: half resolution, multiplied in BEFORE the bloom (the editor's `lit = color · ao`, then bloom(lit)).
+    const AO = read('engine/artlux-engine/src/ao.rs');
+    if (!/aoPass\.resolutionScale = 0\.5;/.test(rm) || !/width: \(w \/ 2\)\.max\(1\)/.test(AO)) problems.push('the occlusion resolution differs (half in the editor)');
+    if (!/const glow = bloom\(lit/.test(rm) || !/down_binds\.push\(bind\(if i == 0 \{ &lit \}/.test(p)) problems.push('the occlusion is no longer laid in before the bloom');
     return problems.length ? problems.join('; ') : null;
   },
 );

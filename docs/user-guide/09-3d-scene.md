@@ -149,8 +149,8 @@ machine, not the project. If that screen is no longer connected, it opens at its
   the editor's own grid and number settings turn them on and off — and follows every change you make in the editor within a quarter of a second.
 - **Every lit head throws its beam**, the way the editor draws it: the haze cone in the head's live colour
   (the same **Haze** setting; the **Rendered** look when the editor's 3D view is in Rendered — solid shafts to
-  a dark stage floor, the brightest eight heads lighting the floor and the venue and casting shadows, a glow
-  on what is bright,
+  a dark stage floor, the brightest eight heads lighting the floor and the venue and casting shadows, corners
+  and contacts darkened, a glow on what is bright,
   and the same tone curve as the editor, so colours there are for looking, not for judging content), and the **cone outline** where the beam meets the floor. The heads selected in the editor
   get the whole outline — the beam's axis and its edges — so you can aim on the editor's channel strip and
   watch the beam swing on the other screen. A head that is dark, or whose shutter is closed, throws nothing;
@@ -162,7 +162,7 @@ machine, not the project. If that screen is no longer connected, it opens at its
   calibrated ones and the projectors placed in the model file.
 - Close it with its own close button or the same header button.
 
-In Rendered it does not yet darken corners (ambient occlusion) as the editor does; content the engine
+Content the engine
 does not draw yet (a video in a format no ArtLux decoder plays, a tracking surface with its calibration overlay…) stays dark there — those stay in the editor's 3D
 view for now.
 

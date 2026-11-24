@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 // E4b — SHADOWS IN THE ENGINE'S RENDERED LOOK (plans/native-engine.md E4b; engine view3d.rs spot shadows).
 //
-//   node scripts/test-engine-shadows.cjs --packaged <ArtLux.exe> [--keep]
+//   node scripts/test-engine-shadows.cjs --packaged <ArtLux.exe> [--keep]      (shadows)
+//   node scripts/test-engine-shadows.cjs --packaged <ArtLux.exe> --ao           (ambient occlusion)
 //
 // One wide wash (ADJ Flat Par QA12, 40° lens) hung 5 m up and turned to point straight down, a 0.5 m box hanging
 // under it at 3 m (a tiny glTF written by this test), the editor in Rendered, the engine's 3D view open looking down
@@ -11,6 +12,11 @@
 // nearly black, so the shadow is judged as a DIFFERENCE: the same ring of floor just outside the box's silhouette,
 // captured with the box and again with it hidden (the editor's own Hide) — the shadow must lift when the box goes,
 // and the order of that ring and one further out must flip. Packaged app, SCRATCH profile, own processes only.
+//
+// --ao: AMBIENT OCCLUSION (ao.rs). Under Rendered's bloom a box's lit top swamps the contact darkening, so this run
+// starts the engine with ARTLUX_VIEW3D_AO_ONLY=1 (the window shows the occlusion term alone), shows a box RESTING on
+// the floor instead of the hanging one, and judges the floor along its base against open floor the same distance
+// from the pool's centre on the other side.
 'use strict';
 const { spawn, execSync } = require('node:child_process');
 const fs = require('node:fs');
@@ -24,8 +30,9 @@ const pk = process.argv.indexOf('--packaged');
 const EXE = pk > 0 ? path.resolve(process.argv[pk + 1]) : null;
 if (!EXE) { console.error('usage: node scripts/test-engine-shadows.cjs --packaged <ArtLux.exe>'); process.exit(2); }
 const KEEP = process.argv.includes('--keep');
+const AO = process.argv.includes('--ao');
 const CDP_PORT = '9379';
-const WORK = path.join(os.tmpdir(), 'artlux-engine-shadows');
+const WORK = path.join(os.tmpdir(), AO ? 'artlux-engine-ao' : 'artlux-engine-shadows');
 const PROFILE = path.join(WORK, 'profile');
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const get = (u) => new Promise((res, rej) => { http.get(u, (r) => { let b = ''; r.on('data', (d) => (b += d)); r.on('end', () => res(b)); }).on('error', rej); });
@@ -72,7 +79,10 @@ function buildProject() {
       position3D: { x: 0, y: 5, z: 0 }, rotation3D: { pitch: -90, yaw: 0, roll: 0 }, controllerId: 'ctl' }],
     controllers: [{ id: 'ctl', name: 'Lighting interface', protocol: 'artnet', ip: '127.0.0.1', broadcast: false, startUniverse: 0, drives: 'light' }],
     globalBrightness: 1, groups: [], scenes: [], cueBanks: [],
-    scene3D: { models: [{ id: 'box', name: 'Box', kind: 'mesh', path: box, position: { x: 0, y: 3, z: 0 }, rotation: { x: 0, y: 0, z: 0 }, scale: 0.5, visible: true }],
+    // 'base' rests ON the floor inside the pool, hidden at first: showing it must darken the floor along its lit side
+    // (ambient occlusion — ao.rs), where its shadow does not fall.
+    scene3D: { models: [{ id: 'box', name: 'Box', kind: 'mesh', path: box, position: { x: 0, y: 3, z: 0 }, rotation: { x: 0, y: 0, z: 0 }, scale: 0.5, visible: !AO },
+      { id: 'base', name: 'Base', kind: 'mesh', path: box, position: { x: -1.0, y: 0.25, z: 0 }, rotation: { x: 0, y: 0, z: 0 }, scale: 0.5, visible: AO }],
       lightIntensity: 1, environment: true, exposure: 1, gridVisible: false, reflectiveFloor: false, trackingViz: false, augmentaViz: false, trackingSmoothing: 0.6, trackingPredictMs: 50, hazeDensity: 0.35 },
     timeline: { layers: [], clips: [], duration: 60, fps: 30, markers: [], inPoint: null, outPoint: null, loop: false, trackingTakes: [], lightingTakes: [], lightingSequences: [] },
     schedule: [], assets: [], projectorOutputs: [], projectorFpsCap: 0, projectorBrightness: 1,
@@ -127,7 +137,7 @@ function toClient(eye, target, fov, p, w, h) {
   const project = buildProject();
   const logf = path.join(WORK, 'app.log');
   const log = fs.openSync(logf, 'w');
-  const env = { ...process.env, ARTLUX_CDP_PORT: CDP_PORT }; delete env.ELECTRON_RUN_AS_NODE;
+  const env = { ...process.env, ARTLUX_CDP_PORT: CDP_PORT, ...(AO ? { ARTLUX_VIEW3D_AO_ONLY: '1' } : {}) }; delete env.ELECTRON_RUN_AS_NODE;
   const child = spawn(EXE, [`--user-data-dir=${PROFILE}`, '--native-engine', `--project=${project}`], { env, stdio: ['ignore', log, log] });
   const failures = [];
   const note = (ok, label, detail) => { console.log(`   ${ok ? 'PASS' : 'FAIL'}  ${label}${detail ? ' — ' + detail : ''}`); if (!ok) failures.push(label); };
@@ -157,7 +167,26 @@ function toClient(eye, target, fov, p, w, h) {
     const cap = capture(shot);
     note(cap.startsWith('OK'), 'captured the engine window', cap);
     await page.screenshot({ path: path.join(WORK, 'editor-shadow.png') });
-    if (cap.startsWith('OK')) {
+    if (cap.startsWith('OK') && AO) {
+      const img = PNG.sync.read(fs.readFileSync(shot));
+      const { width: w, height: h } = img;
+      // The occlusion term on the floor: along Base's face toward the centre (x −0.72…−0.66, the face at −0.75)
+      // against open floor at the same distance on the other side (x +0.66…+0.72).
+      const strip = (x0, x1) => {
+        let sum = 0, n = 0;
+        for (let x = x0; x <= x1; x += 0.01) for (let z = -0.18; z <= 0.18; z += 0.02) {
+          const [u, v] = toClient(EYE, TARGET, FOV, [x, 0, z], w, h).map(Math.round);
+          const k = (v * w + u) * 4;
+          sum += 0.2126 * img.data[k] + 0.7152 * img.data[k + 1] + 0.0722 * img.data[k + 2]; n++;
+        }
+        return sum / n;
+      };
+      const contact = strip(-0.72, -0.66), open = strip(0.66, 0.72);
+      console.log(`   occlusion term: at the box's base ${contact.toFixed(1)}, open floor ${open.toFixed(1)}`);
+      note(open > 100, 'open floor is unoccluded', open.toFixed(1));
+      note(contact < open - 5, 'AMBIENT OCCLUSION darkens the floor where the box meets it', `${contact.toFixed(1)} vs ${open.toFixed(1)}`);
+      console.log(`   screenshot: ${shot}`);
+    } else if (cap.startsWith('OK')) {
       const img = PNG.sync.read(fs.readFileSync(shot));
       const { width: w, height: h } = img;
       // Mean luma of the floor between radii r0 and r1 (metres from the pool's centre), sampled on a polar grid and

@@ -2199,7 +2199,19 @@ fallback until a source/output is proven byte-identical — risk 2):
 >   down in Rendered; the ring of floor around the box's foot brightens 131.6 → 137.3 when the editor hides the box,
 >   and the order of that ring against a lit ring further out flips (darker only while the box is there) — judged as a
 >   difference because Rendered's solid shaft lies over the whole pool. A guard compares the copied shadow numbers.
-> - **Not yet (E4b…):** Rendered's ambient occlusion (GTAO) and SMAA, sources the engine does not draw (timeline video clips, a tracking overlay…) on screens
+> - ✅ **E4b-12 2026-11-24 — Rendered's ambient occlusion.** `ao.rs`: screen-space occlusion from the main pass's
+>   own MSAA depth (sample 0; the depth target is now kept and bindable — no second geometry pass), at half
+>   resolution as the editor's GTAO is, 16 hemisphere samples (golden-angle azimuth, golden-ratio heights, reach
+>   growing with k; radius 0.35 m, power 3), a 4 × 4 blur, laid into the frame BEFORE bloom (`lit = color · ao`, the
+>   editor's order) — post.rs blooms and tone-maps from that. NOT three's GTAO line for line (a horizon search): the
+>   same idea in the same place, its strength tuned by eye. Two artifacts found and fixed on the way: false
+>   occlusion in horizontal BANDS on a grazing floor (x / y rebuilt from the raw uv while z came from the whole pixel
+>   → rebuilt at the pixel centre; and a bias growing with distance), and a too-weak term (heights had grown with the
+>   reach, so every long sample pointed straight up). `ARTLUX_VIEW3D_AO_ONLY=1` shows the term alone,
+>   `ARTLUX_VIEW3D_AO_RADIUS` overrides the radius. **Proof:** `test:engine-ao` (= test:engine-shadows --ao):
+>   a box resting on the floor, the term alone — 222.9 along its base against 234.0 on open floor at the same
+>   distance; the beams test's Rendered capture is clean of bands. SMAA is not ported: the window is 4× MSAA.
+> - **Not yet (E4b…):** sources the engine does not draw (timeline video clips, a tracking overlay…) on screens
 >   and venue meshes, the four-view layout, saving the window's place, macOS / Linux.
 
 ## 10. Open questions

@@ -767,6 +767,8 @@ pub fn present(gpu: Arc<Gpu>, window: Arc<Window>, surface: wgpu::Surface<'stati
     // Rendered) — so every scene pipeline below targets the HDR format, and only the last pass the surface's.
     let format = crate::post::HDR;
     let mut post = crate::post::Post::new(d, surf_format);
+    let mut ao = crate::ao::Ao::new(d);
+    let mut depth_gen = 0usize;
     let module = d.create_shader_module(wgpu::ShaderModuleDescriptor { label: Some("view3d"), source: wgpu::ShaderSource::Wgsl(SHADER.into()) });
 
     let cam_layout = d.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor { label: Some("cam"), entries: &[wgpu::BindGroupLayoutEntry {
@@ -1036,8 +1038,10 @@ pub fn present(gpu: Arc<Gpu>, window: Arc<Window>, surface: wgpu::Surface<'stati
                 present_mode: wgpu::PresentMode::Fifo, desired_maximum_frame_latency: 2, alpha_mode: caps.alpha_modes[0],
                 view_formats: vec![], color_space: wgpu::SurfaceColorSpace::Auto,
             });
+            // The depth is also READ (ao.rs, Rendered's ambient occlusion), so it is a binding too.
             let mk = |f: wgpu::TextureFormat| d.create_texture(&wgpu::TextureDescriptor { label: None, size: wgpu::Extent3d { width: size.width, height: size.height, depth_or_array_layers: 1 },
-                mip_level_count: 1, sample_count: SAMPLES, dimension: wgpu::TextureDimension::D2, format: f, usage: wgpu::TextureUsages::RENDER_ATTACHMENT, view_formats: &[] }).create_view(&Default::default());
+                mip_level_count: 1, sample_count: SAMPLES, dimension: wgpu::TextureDimension::D2, format: f, usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::TEXTURE_BINDING, view_formats: &[] }).create_view(&Default::default());
+            depth_gen += 1;
             targets = Some((mk(format), mk(DEPTH)));
             post.ensure(d, size.width, size.height);
             configured = Some(size);
@@ -1454,7 +1458,7 @@ pub fn present(gpu: Arc<Gpu>, window: Arc<Window>, surface: wgpu::Surface<'stati
                 label: Some("view3d"),
                 color_attachments: &[Some(wgpu::RenderPassColorAttachment { view: msaa, depth_slice: None, resolve_target: post.hdr(),
                     ops: wgpu::Operations { load: wgpu::LoadOp::Clear(wgpu::Color { r: bg, g: bg, b: bg, a: 1.0 }), store: wgpu::StoreOp::Discard } })],
-                depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment { view: depth, depth_ops: Some(wgpu::Operations { load: wgpu::LoadOp::Clear(1.0), store: wgpu::StoreOp::Discard }), stencil_ops: None }),
+                depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment { view: depth, depth_ops: Some(wgpu::Operations { load: wgpu::LoadOp::Clear(1.0), store: wgpu::StoreOp::Store }), stencil_ops: None }),
                 ..Default::default()
             });
             pass.set_bind_group(0, &cam_bind, &[]);
@@ -1546,6 +1550,12 @@ pub fn present(gpu: Arc<Gpu>, window: Arc<Window>, surface: wgpu::Surface<'stati
                 pass.set_pipeline(&handle_pipe);
                 pass.set_vertex_buffer(0, hb.slice(..));
                 pass.draw(0..n_handle_verts, 0..1);
+            }
+        }
+        // Rendered: ambient occlusion from the pass's own depth, laid into the frame before the bloom (ao.rs).
+        if look.rendered {
+            if let (Some(hdr), Some(lit)) = (post.hdr(), post.lit()) {
+                ao.run(d, &gpu.queue, &mut enc, depth, depth_gen, hdr, lit, size.width, size.height, cam.fov, 0.03, 4000.0);
             }
         }
         // The last step: bloom + AgX in Rendered, a straight copy in Shaded (post.rs).

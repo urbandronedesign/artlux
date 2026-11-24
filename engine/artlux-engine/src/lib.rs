@@ -40,6 +40,7 @@ pub mod labels;
 pub mod gizmo;
 pub mod grid;
 pub mod post;
+pub mod ao;
 pub mod shader;
 pub mod blobs;
 pub mod comp;

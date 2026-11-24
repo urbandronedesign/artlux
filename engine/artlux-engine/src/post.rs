@@ -113,11 +113,14 @@ pub struct Post {
 struct Sized {
     size: (u32, u32),
     hdr: wgpu::TextureView,
+    /// Rendered: the frame with ambient occlusion laid in (ao.rs writes it) — what the bloom and the tone map read.
+    lit: wgpu::TextureView,
     levels: Vec<wgpu::TextureView>,
     /// Down: level 0 reads the HDR (thresholded), level i reads level i-1. Up: level i reads level i+1.
     down_binds: Vec<wgpu::BindGroup>,
     up_binds: Vec<wgpu::BindGroup>,
     final_bind: wgpu::BindGroup,
+    final_lit: wgpu::BindGroup,
     final_bloom: wgpu::BindGroup,
     ubufs: Vec<wgpu::Buffer>,
 }
@@ -162,6 +165,7 @@ impl Post {
                 mip_level_count: 1, sample_count: 1, dimension: wgpu::TextureDimension::D2, format: HDR,
                 usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::TEXTURE_BINDING, view_formats: &[] }).create_view(&Default::default());
             let hdr = tex("view3d hdr", w, h);
+            let lit = tex("view3d lit", w, h);
             let levels: Vec<wgpu::TextureView> = (0..LEVELS).map(|i| tex("bloom", w >> (i + 1), h >> (i + 1))).collect();
             let ubuf = |v: [f32; 4]| {
                 let b = d.create_buffer(&wgpu::BufferDescriptor { label: Some("post params"), size: 16, usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST, mapped_at_creation: true });
@@ -178,7 +182,7 @@ impl Post {
             let mut down_binds = Vec::new();
             for i in 0..LEVELS {
                 let u = ubuf([0.0, if i == 0 { THRESHOLD } else { 0.0 }, 0.0, 0.0]);
-                down_binds.push(bind(if i == 0 { &hdr } else { &levels[i - 1] }, &u));
+                down_binds.push(bind(if i == 0 { &lit } else { &levels[i - 1] }, &u));
                 ubufs.push(u);
             }
             // UnrealBloom's bloomFactors (1, 0.8, 0.6, 0.4, 0.2) lerped toward their mirror by the radius: the wider
@@ -192,13 +196,16 @@ impl Post {
             }
             let uf = ubuf([0.0, 0.0, STRENGTH, EXPOSURE]);
             let final_bind = bind(&hdr, &uf);
+            let final_lit = bind(&lit, &uf);
             ubufs.push(uf);
             let final_bloom = d.create_bind_group(&wgpu::BindGroupDescriptor { label: None, layout: &self.bloom_layout, entries: &[wgpu::BindGroupEntry { binding: 0, resource: wgpu::BindingResource::TextureView(&levels[0]) }] });
-            self.sized = Some(Sized { size: (w, h), hdr, levels, down_binds, up_binds, final_bind, final_bloom, ubufs });
+            self.sized = Some(Sized { size: (w, h), hdr, lit, levels, down_binds, up_binds, final_bind, final_lit, final_bloom, ubufs });
         }
     }
     /// The single-sample HDR target the scene's MSAA pass resolves into (after `ensure`).
     pub fn hdr(&self) -> Option<&wgpu::TextureView> { self.sized.as_ref().map(|s| &s.hdr) }
+    /// The Rendered frame with ambient occlusion in it (written by ao.rs before `finish`).
+    pub fn lit(&self) -> Option<&wgpu::TextureView> { self.sized.as_ref().map(|s| &s.lit) }
 
     /// The frame's last passes into `out`: bloom (Rendered only) and the final copy / tone map.
     pub fn finish(&self, q: &wgpu::Queue, enc: &mut wgpu::CommandEncoder, out: &wgpu::TextureView, rendered: bool) {
@@ -218,6 +225,6 @@ impl Post {
             for i in 0..LEVELS { pass(enc, &s.levels[i], wgpu::LoadOp::Clear(wgpu::Color::BLACK), &self.down, &s.down_binds[i], None); }
             for i in (0..LEVELS - 1).rev() { pass(enc, &s.levels[i], wgpu::LoadOp::Load, &self.up, &s.up_binds[i], None); }
         }
-        pass(enc, out, wgpu::LoadOp::Clear(wgpu::Color::BLACK), &self.fin, &s.final_bind, Some(if rendered { &s.final_bloom } else { &self.dummy_bloom }));
+        pass(enc, out, wgpu::LoadOp::Clear(wgpu::Color::BLACK), &self.fin, if rendered { &s.final_lit } else { &s.final_bind }, Some(if rendered { &s.final_bloom } else { &self.dummy_bloom }));
     }
 }
