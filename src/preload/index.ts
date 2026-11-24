@@ -31,6 +31,13 @@ const api: ArtluxApi = {
     nativeEngineTick: (json: string) => ipcRenderer.send(IPC.NATIVE_ENGINE_TICK, json),
     nativeEngineBakedMap: (key: string, w: number, h: number, uv: Float32Array, alpha: { w: number; h: number; data: Uint8Array } | null) =>
         ipcRenderer.send(IPC.NATIVE_ENGINE_BAKED_MAP, key, w, h, uv, alpha),
+    nativeEngineScene3d: (json: string) => ipcRenderer.send(IPC.NATIVE_ENGINE_SCENE3D, json),
+    nativeEngineView3d: (open: boolean, camera: { position: number[]; target: number[]; fov: number } | null) => ipcRenderer.send(IPC.NATIVE_ENGINE_VIEW3D, !!open, camera),
+    onNativeEngineView3dClosed: (cb: () => void) => {
+        const listener = () => cb();
+        ipcRenderer.on(IPC.NATIVE_ENGINE_VIEW3D_CLOSED, listener);
+        return () => { ipcRenderer.removeListener(IPC.NATIVE_ENGINE_VIEW3D_CLOSED, listener); };
+    },
     // The white-screen channel. Deliberately `send` and not `invoke`: the reporter is called from a
     // React error boundary and from window.onerror, i.e. from a tree that is already failing — an
     // awaited round-trip there is one more thing that can throw.

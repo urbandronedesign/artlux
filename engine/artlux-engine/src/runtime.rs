@@ -96,6 +96,14 @@ pub struct Runtime {
     /// The last document, to answer it AGAIN once a pending camera is resolved (`redo`).
     pub last_doc: Option<Value>,
     pub redo: bool,
+    // ── E4a: the engine's 3D view (view3d.rs) ──
+    /// What the view's presenter reads, and whether a view is open (set by the windows thread too: closing
+    /// the window from its title bar clears it).
+    view: Option<(Arc<std::sync::Mutex<crate::view3d::Shared>>, Arc<std::sync::atomic::AtomicBool>)>,
+    view_scene_ver: u64,
+    view_published: HashMap<String, u64>,
+    view_colors_gen: u64,
+    view_last_summary: String,
 }
 
 impl Runtime {
@@ -106,7 +114,76 @@ impl Runtime {
             #[cfg(windows)] spouts: HashMap::new(),
             #[cfg(feature = "ndi")] ndis: HashMap::new(),
             #[cfg(windows)] mp4s: HashMap::new(), conv: None,
-            #[cfg(windows)] cams: HashMap::new(), resolved: HashMap::new(), pending_cams: HashMap::new(), last_doc: None, redo: false }
+            #[cfg(windows)] cams: HashMap::new(), resolved: HashMap::new(), pending_cams: HashMap::new(), last_doc: None, redo: false,
+            view: None, view_scene_ver: 0, view_published: HashMap::new(), view_colors_gen: 0, view_last_summary: String::new() }
+    }
+
+    /// E4a: the 3D view's shared state and its open flag (serve.rs makes them; the windows thread shares them).
+    pub fn set_view(&mut self, shared: Arc<std::sync::Mutex<crate::view3d::Shared>>, open: Arc<std::sync::atomic::AtomicBool>) {
+        self.view = Some((shared, open));
+    }
+    fn view_open(&self) -> bool { self.view.as_ref().is_some_and(|(_, o)| o.load(std::sync::atomic::Ordering::SeqCst)) }
+
+    /// E4a: `{"type":"scene3d", models, leds, lights}` — what the 3D view draws, from the editor's own scene.
+    pub fn scene3d(&mut self, v: &Value) {
+        let Some((shared, _)) = &self.view else { return };
+        self.view_scene_ver += 1;
+        let sc = crate::view3d::Scene::parse(v);
+        let leds: usize = sc.leds.iter().map(|f| f.pos.len() / 3).sum();
+        let summary = format!("{} models, {} pixel fixtures ({} LEDs), {} lights", sc.models.len(), sc.leds.len(), leds, sc.lights.len());
+        if summary != self.view_last_summary { eprintln!("artlux-engine: 3D view scene: {summary}"); self.view_last_summary = summary; }
+        shared.lock().unwrap().scene = Some((self.view_scene_ver, Arc::new(sc)));
+    }
+    /// E4a: `{"type":"view3d","open":b,"camera":{position,target,fov}}` — open (where the editor looks
+    /// from) or close the 3D view window.
+    pub fn view3d(&mut self, v: &Value) {
+        let Some((shared, open)) = &self.view else { eprintln!("artlux-engine: no window system — no 3D view"); return };
+        let want = v["open"].as_bool().unwrap_or(false);
+        if want && v["camera"].is_null() { eprintln!("artlux-engine: 3D view: opened with no camera"); }
+        if want {
+            let c = &v["camera"];
+            let p = |k: &str| -> Option<[f32; 3]> { let a = c[k].as_array()?; Some([a.first()?.as_f64()? as f32, a.get(1)?.as_f64()? as f32, a.get(2)?.as_f64()? as f32]) };
+            if let (Some(eye), Some(t)) = (p("position"), p("target")) {
+                let mut s = shared.lock().unwrap();
+                s.cam = crate::view3d::Cam::from_pose(eye, t, c["fov"].as_f64().unwrap_or(50.0) as f32);
+                eprintln!("artlux-engine: 3D view camera: eye {eye:?} target {t:?} fov {}", c["fov"]);
+                s.cam_set += 1;
+            }
+            // Everything is republished to a fresh view.
+            self.view_published.clear();
+            self.view_colors_gen = 0;
+        }
+        open.store(want, std::sync::atomic::Ordering::SeqCst);
+        eprintln!("artlux-engine: 3D view {} (asked by the host)", if want { "open" } else { "close" });
+        match &self.outputs {
+            Some((proxy, _)) => { if let Err(e) = proxy.send_event(crate::outputs::Cmd::View3d(want)) { eprintln!("artlux-engine: 3D view: the windows thread is gone ({e})"); } }
+            None => eprintln!("artlux-engine: 3D view: no windows thread"),
+        }
+    }
+
+    /// E4a: the live state the 3D view draws — every surface's picture (the screens show them) and the
+    /// composed LED buffer with each pixel fixture's offset in it (the packer's walk, pack.rs).
+    fn publish_view(&mut self, doc: &Doc, raw: &[u8]) {
+        let Some((shared, _)) = &self.view else { return };
+        let mut sh = shared.lock().unwrap();
+        for (sid, p) in &self.pictures {
+            let Some(&g) = self.gens.get(sid) else { continue };
+            if self.view_published.get(sid) != Some(&g) {
+                sh.pictures.insert(sid.clone(), (g, Arc::new(Picture { w: p.w, h: p.h, rgba: p.rgba.clone(), mips: p.mips, crop: p.crop, tex: p.tex.clone() })));
+                self.view_published.insert(sid.clone(), g);
+            }
+        }
+        sh.pictures.retain(|sid, _| self.pictures.contains_key(sid));
+        self.view_published.retain(|sid, _| self.pictures.contains_key(sid));
+        let mut bases = HashMap::new();
+        let mut off = 0usize;
+        for f in &doc.pfix { bases.insert(f.id.clone(), off); off += f.led_count.max(0) as usize; }
+        if self.view_colors_gen == 0 {
+            let lit = raw.chunks_exact(4).filter(|p| p[0] > 0 || p[1] > 0 || p[2] > 0).count();
+            eprintln!("artlux-engine: 3D view colours: {} LEDs, {} lit (doc owns the wire: {})", raw.len() / 4, lit, doc.owns);
+        }
+        self.view_colors_gen += 1;
+        sh.colors = Some((self.view_colors_gen, Arc::new(raw.to_vec()), Arc::new(bases)));
     }
 
     /// E1f-3: the windows thread the projector outputs live on (serve.rs starts it).
@@ -334,7 +411,9 @@ impl Runtime {
 
     fn tick_with(&mut self, doc: &mut Doc, v: &Value) -> Result<(), String> {
         // The pictures are needed by the wire AND by the projectors, each owned on its own (E1f-3).
-        if (!doc.owns && self.projectors.is_empty()) || v["rev"].as_u64() != Some(doc.rev) { return Ok(()); }
+        // E4a: an open 3D view needs the pictures and the LED colours too, owned wire or not.
+        let viewing = self.view_open();
+        if (!doc.owns && self.projectors.is_empty() && !viewing) || v["rev"].as_u64() != Some(doc.rev) { return Ok(()); }
         let t = v["t"].as_f64().unwrap_or(0.0);
         let brightness = v["brightness"].as_f64().unwrap_or(1.0) as f32;
         for (sid, src) in &doc.sources {
@@ -474,7 +553,7 @@ impl Runtime {
             }
         }
         self.publish_projectors(doc, v);
-        if !doc.owns { return Ok(()); }
+        if !doc.owns && !viewing { return Ok(()); }
         // E1f-2: each light's channels as THIS frame's precedence stack wrote them on the host (none sent = a
         // light the host could not describe, which writes nothing — exactly as packUniverses does).
         for &i in &doc.lights {
@@ -484,6 +563,8 @@ impl Runtime {
         }
         let fd = compose::FrameDoc { fixtures: &doc.lfix, surfaces: &doc.surfaces, pictures: &self.pictures, opacity: &doc.opacity, brightness };
         let raw = compose::frame_cached(&self.gpu, &fd, Some((&mut self.cache, &self.gens))).map_err(|e| e.to_string())?;
+        if viewing { self.publish_view(doc, &raw); }
+        if !doc.owns { return Ok(()); }
         let dests = pack::pack(&raw, &doc.pfix, &doc.controllers, &doc.defaults, &doc.lut);
         let frame = wire::encode_frame(&dests, doc.port);
         self.send(&frame);

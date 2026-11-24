@@ -1758,6 +1758,45 @@ fallback until a source/output is proven byte-identical — risk 2):
 > - **Next:** a dev-only hook in the app that writes its own camera frames, to measure the engine's MJPEG decode
 >   against them; then the camera takeover.
 
+## 9d. E4 started early — the 3D view in the engine (owner, 2026-11-24)
+
+> **Owner, 2026-11-24: "start E4's 3D now"** — for the detachable 3D view (plans/3d-workbench.md §5/Phase 4),
+> ahead of E1's remaining items and E2–E3.
+>
+> ✅ **E4a done 2026-11-24 — the 3D view in its own ENGINE window.** `engine/artlux-engine/src/view3d.rs`:
+> - **The split, as everywhere else.** The HOST describes (`Simulator3D/engineView.tsx` → `scene3d`): each
+>   venue GLB's file and the world matrix of its recentred root (ModelObject tags it `enginePath`), each
+>   screen's quad and surface (PlaneObject `enginePlane`), every pixel fixture's LED world positions
+>   (`computeLedPositions`, in texel order), each light's position — read off the editor's own three.js
+>   scene, so no transform is re-derived; at most 4 Hz and only on change. The RENDER THREAD publishes the
+>   live state into `view3d::Shared`: every surface's picture (as for the projectors) and the composed LED
+>   buffer with each pixel fixture's offset (the packer's walk). It now composes while a view is open EVEN
+>   WHEN THE ENGINE DOES NOT OWN THE WIRE (guarded) — otherwise the view would go dark on any show with a
+>   source the engine cannot draw. ONE PRESENTER thread draws: glTF (the `gltf` crate, loaded off the
+>   presenter; base colour + texture, sRGB-decoded), screens unlit with their live pictures, LEDs as
+>   camera-facing discs (12 mm, never under ~3 px), lights as housings, a distance-faded grid and the axes;
+>   4× MSAA, depth, FIFO at the display's refresh.
+> - **The window** is an ordinary decorated winit window on the existing windows thread (outputs.rs
+>   `Cmd::View3d`), opened at the editor's camera (`view3d` message: position, target, fov). Its mouse
+>   drives an orbit camera there (left orbit, right/middle pan, wheel dolly). Closing it from its title bar
+>   comes back to main (`{"type":"view3d","open":false}`) and to the editor's button. Main keeps the scene
+>   and the open state, so a restarted engine reopens it.
+> - **Proof** (packaged Show, scratch profile, `--native-engine`; the engine window captured from the
+>   screen): opened at exactly the editor's camera (eye/target logged on both sides); vik-voice's two strips
+>   in their LIVE effect colours (120 of 120 LEDs lit); a still on both screens of a test copy of the
+>   interactive show, the right way round; its venue GLB loaded and placed 7 m behind; the lighting
+>   example's six lights where they hang; orbit and wheel change the picture; title-bar close → the
+>   editor's button follows; reopen; close from the editor → the window is gone. `test:engine-runtime`
+>   still OK.
+> - **Found on the way:** `test:native-projectors` fails here with 25 406 pixels differing — it is the
+>   **NVIDIA overlay's "Alt+Z" toast** drawn over the engine's fullscreen window during the capture (the
+>   same with the committed engine and with the pre-E4 build): this PC's environment, not a regression.
+>   Turn the NVIDIA app's in-game overlay notifications off on a test box.
+> - **Not yet (E4b…):** beams and the Rendered look, labels, selection / picking (the GPU id buffer, body
+>   before LEDs) and the gizmo, screens named inside a GLB showing their surface (they show the GLB's
+>   material), sources the engine does not draw (layers, shaders, tracking…) on screens, the four-view
+>   layout, saving the window's place, macOS / Linux.
+
 ## 10. Open questions
 
 1. ~~Which first?~~ **Decided: E5** (multi-window UI, no performance drop).

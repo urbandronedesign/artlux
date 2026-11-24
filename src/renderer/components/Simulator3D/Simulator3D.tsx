@@ -2,7 +2,7 @@ import React, { Suspense, useState, useMemo, useCallback, useEffect, useLayoutEf
 import { Canvas, useThree, useFrame } from '@react-three/fiber';
 import { OrbitControls, GizmoHelper, GizmoViewport } from '@react-three/drei';
 import type * as THREE from 'three';
-import { Move3d, Rotate3d, Maximize, BoxSelect, Video, Globe, Box, Magnet, Scan, Cuboid, LayoutGrid, Crosshair, ChevronDown, Sparkles, Ruler } from 'lucide-react';
+import { Move3d, Rotate3d, Maximize, BoxSelect, Video, Globe, Box, Magnet, Scan, Cuboid, LayoutGrid, Crosshair, ChevronDown, Sparkles, Ruler, AppWindow } from 'lucide-react';
 import { Fixture, Vec3, Euler3, FixtureProfile } from '../../types';
 
 // One shared empty map, so a scene with no profiled fixtures allocates nothing per render.
@@ -40,6 +40,7 @@ import { GizmoOrbitGuard } from './GizmoOrbitGuard';
 import { ObjectDrag, FixtureDragTarget } from './ObjectDrag';
 import { RenderedMode, RENDERED_LIGHT_GAIN } from './RenderedMode';
 import { MeasureTool } from './MeasureTool';
+import { EngineViewLink, EngineCameraBridge, currentEditorCamera } from './engineView';
 import { getOsnap, setOsnap, subscribeOsnap, toggleOsnapKind, OSNAP_KINDS, OSNAP_LABEL, OSNAP_HINT } from '../../services/snap3d';
 import { MultiView, multiViewEvents } from './MultiView';
 import { htmlPosition } from './htmlPosition';
@@ -365,6 +366,23 @@ const Simulator3D: React.FC<Props> = ({
   // The MEASURE tool (Phase 3) — a mode beside the transform tools: it changes what a click does and
   // leaves the selection, the gizmo and the camera alone. See MeasureTool.tsx.
   const [measuring, setMeasuring] = useState(false);
+  // E4a: the 3D view in its own ENGINE window (engineView.tsx / engine view3d.rs). Only with the native
+  // engine running (`--native-engine`); closing the window from its title bar comes back as an event.
+  const [engineView, setEngineView] = useState(false);
+  const [engineAvailable, setEngineAvailable] = useState(false);
+  useEffect(() => {
+    let alive = true;
+    void window.artlux?.nativeEngineEnabled?.().then((v) => { if (alive) setEngineAvailable(!!v); }, () => {});
+    const off = window.artlux?.onNativeEngineView3dClosed?.(() => setEngineView(false));
+    return () => { alive = false; off?.(); };
+  }, []);
+  const toggleEngineView = useCallback(() => {
+    setEngineView((on) => {
+      const next = !on;
+      window.artlux?.nativeEngineView3d?.(next, next ? currentEditorCamera() : null);
+      return next;
+    });
+  }, []);
   // ── TOOL KEYS ─────────────────────────────────────────────────────────────────────────────
   // W/E/R/Q, scoped to this viewport by HOVER — the same gate the timeline uses, and the only one
   // available here: the canvas is not a focusable element and clicking it is a selection gesture, so
@@ -665,6 +683,10 @@ const Simulator3D: React.FC<Props> = ({
         {/* OBJECT SNAPS (Phase 3) — on/off, and a menu of which ones. A popover, not a second strip:
             the header must not grow. */}
         <OsnapControl />
+        <ToolBtn active={engineView} title={engineAvailable
+            ? `${engineView ? 'Close' : 'Open'} the 3D view in its own window — drawn by the native engine, so it can go on any screen at full speed; orbit / pan / zoom with the mouse in that window`
+            : 'The 3D view in its own window needs the native engine — start ArtLux with --native-engine'}
+          helpId="scene3d.engine-view" onClick={() => { if (engineAvailable) toggleEngineView(); }}><AppWindow size={14} /></ToolBtn>
         <ToolBtn active={measuring} title={`Measure${keyHint('scene3d.measure')} — click two points: distance, X / Y / Z and the angle from level. Snaps to corners, edges, surfaces and fixture ends; Esc clears`} helpId="scene3d.measure" onClick={() => setMeasuring((m) => !m)}><Ruler size={14} /></ToolBtn>
         <div className="w-px h-4 bg-line-1 mx-1" />
         <ToolBtn active={mode === 'select'} title={`Box select${keyHint('scene3d.modeSelect')} — drag to select fixtures; hold Shift to add; right-drag orbits`} helpId="scene3d.gizmo-select" onClick={() => setMode('select')}><BoxSelect size={14} /></ToolBtn>
@@ -965,6 +987,8 @@ const Simulator3D: React.FC<Props> = ({
         <OrbitControls makeDefault enabled={dragPick == null && !viewFrom} enableRotate={!ortho}
           mouseButtons={mode === 'select' ? (ortho ? SELECT_MOUSE_FLAT : SELECT_MOUSE) : TOOL_MOUSE} />
         <GizmoOrbitGuard />
+        <EngineCameraBridge />
+        {engineView && <EngineViewLink fixtures={fixtures} />}
         {/* Press-and-drag the selection itself, with object snaps — after the guard, whose window
             listener must decide "gizmo handle?" first. Not while picking calibration anchors or looking
             through a projector. */}

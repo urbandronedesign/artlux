@@ -376,6 +376,11 @@ stays off React state; BVH built off the frame.
 
 ### Phase 4 — A detachable 3D view · decision first (§5)
 
+> **Owner, 2026-11-24: "Start E4's 3D now."** The detached view is the ENGINE's window, as §5 option A
+> said — started now rather than after E1–E3. **E4a built 2026-11-24** (plans/native-engine.md, E4a): the
+> header's window button opens `engine/artlux-engine/src/view3d.rs` in its own native window; details,
+> proof and limits are recorded there.
+
 ---
 
 ## 4. Order and sizes

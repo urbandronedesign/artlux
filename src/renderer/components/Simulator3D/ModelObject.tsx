@@ -57,6 +57,9 @@ export const ModelObject: React.FC<Props> = ({ model, url, selected, mode, onSel
   // SceneModel.origin). Shared with the calibration render + raycast paths — see venuePlacement.ts
   // for why a private copy here would be a silent metric error.
   const cloned = useMemo(() => recenterClone(scene, model.origin), [scene, model.origin]);
+  // E4a: the engine's 3D view loads the SAME file and places its root by this object's world matrix
+  // (Simulator3D/engineView.ts), so the recentre and every transform match by construction.
+  useEffect(() => { cloned.userData.enginePath = model.path; }, [cloned, model.path]);
 
   // Optional timeline-layer texturing: when model.layerId is set, override every mesh's material
   // with one shared MeshBasicMaterial fed by the layer's live frame (UV-mapped via the GLB's own

@@ -4277,6 +4277,27 @@ check(
 );
 
 check(
+  'the engine\'s 3D view keeps drawing when the engine does not own the wire',
+  'E4a: the engine draws the 3D view window from the pictures and the composed LED buffer its render ' +
+  'thread makes — but that thread used to compose ONLY while the engine owned the wire or a projector. ' +
+  'Ownership is all or nothing per show (one layer surface, one shader → the app keeps the wire), so on ' +
+  'most real shows the 3D window would have shown every screen dark and every LED black, with nothing ' +
+  'thrown. The runtime therefore treats an open view as a consumer of its own (`viewing`), and the view ' +
+  'reads the editor\'s own world matrices (engineView.tsx sends matrixWorld) rather than re-deriving any.',
+  () => {
+    const problems = [];
+    const rt = 'engine/artlux-engine/src/runtime.rs', ev = 'src/renderer/components/Simulator3D/engineView.tsx';
+    if (!exists(rt) || !exists(ev)) return 'runtime.rs / engineView.tsx is gone';
+    const r = read(rt);
+    if (!/let viewing = self\.view_open\(\);/.test(r)) problems.push('runtime.rs no longer asks whether a 3D view is open before deciding to compose');
+    if (!/!doc\.owns && self\.projectors\.is_empty\(\) && !viewing/.test(r)) problems.push('runtime.rs composes only for the wire / projectors again — an open 3D view would go dark on a show the engine does not own');
+    if (!/if viewing \{ self\.publish_view\(doc, &raw\); \}/.test(r)) problems.push('runtime.rs no longer publishes the LED colours to the 3D view');
+    if (!/matrixWorld/.test(read(ev))) problems.push('engineView.tsx no longer sends the editor\'s world matrices');
+    return problems.length ? problems.join('; ') : null;
+  },
+);
+
+check(
   'the floor grid scales in X and Z only',
   'Every vertex of the grid sits at y = 0.001 — a 1 mm lift, because the beams draw their ' +
   'illumination boundary AT y = 0 and a coincident line pair z-fights into a dashed mess as the ' +

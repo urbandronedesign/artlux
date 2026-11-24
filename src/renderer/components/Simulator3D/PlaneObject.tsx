@@ -33,6 +33,9 @@ export const PlaneObject: React.FC<Props> = ({ model, selected, mode, onSelect, 
   const size = useThree((s) => s.size); // css pixels — the snap gate is a SCREEN distance
   // Tagged with the model id so the view's "zoom to selected" can find it in the scene (FrameController).
   const group = useMemo(() => { const g = new THREE.Group(); g.userData.modelId = model.id; return g; }, [model.id]);
+  // E4a: what the engine's 3D view shows on this screen — the surface's picture (a timeline-layer binding
+  // is the editor's own; the engine shows such a screen dark). Simulator3D/engineView.ts.
+  useEffect(() => { group.userData.enginePlane = { surfaceId: model.layerId ? null : (model.surfaceId ?? null) }; }, [group, model.layerId, model.surfaceId]);
   const matRef = useRef<THREE.MeshBasicMaterial>(null);
   const controls = useRef<any>(null);
 

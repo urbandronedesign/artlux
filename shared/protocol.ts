@@ -284,6 +284,15 @@ export const IPC = {
    *  file the engine reads; the document names it by key). Item 3, engine/nativeLink.ts. */
   NATIVE_ENGINE_BAKED_MAP: 'native-engine:baked-map',
   /**
+   * E4a — THE ENGINE'S 3D VIEW WINDOW (engine/artlux-engine/src/view3d.rs). Renderer → main: the scene the
+   * view draws (models with their world matrices, LED positions, lights — from the editor's own three.js
+   * scene) whenever it changes, and open / close (with the editor camera to open at). Main → renderer:
+   * the operator closed the window from its title bar.
+   */
+  NATIVE_ENGINE_SCENE3D: 'native-engine:scene3d',
+  NATIVE_ENGINE_VIEW3D: 'native-engine:view3d',
+  NATIVE_ENGINE_VIEW3D_CLOSED: 'native-engine:view3d-closed',
+  /**
    * Main → renderer: this window's end of a MessagePort to the Show Host (src/showhost, E5/W3), the
    * process that holds the authoritative project document. Sent on every load; the preload relays it
    * into the page (state/hostLink.ts) exactly as it relays ENGINE_PORT.
@@ -1947,6 +1956,12 @@ export interface ArtluxApi {
   nativeEngineTick?(json: string): void;
   /** Item 3: an output's calibration map for the native engine (once per map). */
   nativeEngineBakedMap?(key: string, w: number, h: number, uv: Float32Array, alpha: { w: number; h: number; data: Uint8Array } | null): void;
+  /** E4a: the scene the engine's 3D view draws, as JSON (Simulator3D/engineView.ts). */
+  nativeEngineScene3d?(json: string): void;
+  /** E4a: open the engine's 3D view window at this camera (`{position,target,fov}`), or close it. */
+  nativeEngineView3d?(open: boolean, camera: { position: number[]; target: number[]; fov: number } | null): void;
+  /** E4a: the operator closed the engine's 3D view window from its title bar. */
+  onNativeEngineView3dClosed?(cb: () => void): () => void;
   /**
    * Renderer → main: an uncaught renderer error. ALWAYS audited (even with the watchdog disabled);
    * in an armed broadcast install a root/stage fault also triggers the relaunch ladder. Fire-and-

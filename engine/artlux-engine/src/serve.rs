@@ -89,7 +89,16 @@ pub fn run(policy: AdapterPolicy) -> ExitCode {
                     let mut o = std::io::stdout().lock();
                     let _ = writeln!(o, r#"{{"type":"projOwns","rev":{rev},"owns":{owns},"why":{},"open":{}}}"#, json_str(&why), open.len()).and_then(|_| o.flush());
                 });
-                if let Some(proxy) = windows.and_then(|w| w.attach(shared.clone(), report)) { rt.set_outputs(proxy, shared); }
+                // E4a: the 3D view's state, shared by this thread (it publishes), the windows thread (the window,
+                // the mouse) and its presenter. Closing the window from its title bar tells main.
+                let view = std::sync::Arc::new(std::sync::Mutex::new(crate::view3d::Shared::default()));
+                let view_open = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
+                let closed = Box::new(|| {
+                    let mut o = std::io::stdout().lock();
+                    let _ = writeln!(o, r#"{{"type":"view3d","open":false}}"#).and_then(|_| o.flush());
+                });
+                if let Some(proxy) = windows.and_then(|w| w.attach(shared.clone(), report, view.clone(), view_open.clone(), closed)) { rt.set_outputs(proxy, shared); }
+                rt.set_view(view, view_open);
             }
             let mut warned = false;
             // Ticks REPLACED by a newer one before they were drawn (the coalescing above). Reported with each
@@ -114,6 +123,8 @@ pub fn run(policy: AdapterPolicy) -> ExitCode {
                         *tick = None;   // a tick for the old document is not this document's frame
                     }
                     Some("output") => rt.output(&m),
+                    Some("scene3d") => rt.scene3d(&m),
+                    Some("view3d") => rt.view3d(&m),
                     _ => {}
                 };
                 handle(&mut rt, first, &mut tick, &mut dropped);

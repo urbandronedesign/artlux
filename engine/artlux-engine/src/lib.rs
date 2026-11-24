@@ -34,6 +34,7 @@ pub mod effects;
 pub mod projector;
 pub mod runtime;
 pub mod outputs;
+pub mod view3d;
 #[cfg(feature = "ndi")]
 pub mod ndi;
 pub mod windows;

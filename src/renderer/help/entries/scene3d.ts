@@ -52,6 +52,14 @@ export const scene3dHelp: HelpEntry[] = [
   },
 
   {
+    id: 'scene3d.engine-view',
+    title: '3D view in its own window',
+    short: 'The 3D view in a separate window you can put on any screen, drawn by the native engine.',
+    body: 'Opens a window that shows the 3D scene — the venue models, the screens with their live pictures, every LED in its live colour, the light fixtures and the floor grid — drawn by the native engine rather than by the editor. It is an ordinary window: drag it to another screen, resize it, maximise it. Left-drag orbits, right- or middle-drag pans, the wheel zooms; it opens looking from where the editor’s 3D view looks. Moving or resizing it costs the editor nothing. It needs ArtLux started with the native engine (--native-engine). This first version draws the scene and the light housings; beams, the Rendered look, selection and the gizmo stay in the editor’s 3D view for now. Close it with its own close button or this button again.',
+    group: '3D Scene',
+    keywords: ['detach', 'window', 'second screen', 'monitor', 'engine', 'native', 'separate', 'pop out', 'undock'],
+  },
+  {
     id: 'scene3d.measure',
     title: 'Measure',
     short: 'Click two points: the distance between them, its X / Y / Z parts and the angle from level.',

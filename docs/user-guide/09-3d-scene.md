@@ -117,10 +117,26 @@ Both keep the direction you are looking from; only the distance (or the zoom, in
 
 ### The 3D view on its own screen
 
-The 3D view cannot leave the editor window yet (a window of its own arrives with the new rendering
-engine). Until then, put the **editor window** on the screen where you want the 3D view, open the **3D**
-workbench so the view fills it, and send the panels you need on the other screen there with **Open in new
-window** — the outliner's sections, the fixture panels, the Media Library and the timeline can all go.
+**With the native engine** (ArtLux started with `--native-engine`), the **window** button in the 3D header
+opens the 3D view in **a window of its own**, drawn by the engine rather than by the editor. It is an
+ordinary window: drag it to any screen, resize it, maximise it — moving it costs the editor nothing.
+
+- It opens looking from where the editor's 3D view looks. In it, **left‑drag** orbits, **right‑ or
+  middle‑drag** pans and the **wheel** zooms; its camera is its own from then on.
+- It shows the **venue models**, the **screens with their live pictures**, **every LED in its live
+  colour**, the **light fixtures** (as housings) and the floor grid, and follows every change you make in
+  the editor within a quarter of a second.
+- Close it with its own close button or the same header button.
+
+This first version does not draw beams, the Rendered look, labels or the gizmo, and a screen whose content
+the engine does not draw yet (a timeline layer, a shader, tracking…) stays dark there — those stay in the
+editor's 3D view for now. A screen named inside a Blender model shows the model's own material, not the
+surface's picture.
+
+**Without the native engine**, the 3D view stays in the editor window: put the **editor window** on the
+screen where you want the 3D view, open the **3D** workbench so the view fills it, and send the panels you
+need on the other screen there with **Open in new window** — the outliner's sections, the fixture panels,
+the Media Library and the timeline can all go.
 
 ---
 

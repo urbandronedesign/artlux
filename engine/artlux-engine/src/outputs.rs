@@ -58,7 +58,15 @@ pub struct Shared {
     pub booting: bool,
 }
 
-pub enum Cmd { Set(Vec<Spec>), Quit }
+/// E4a: `View3d(true)` opens the engine's 3D view window (view3d.rs), `false` closes it.
+pub enum Cmd { Set(Vec<Spec>), View3d(bool), Quit }
+
+/// E4a: the open 3D view — an ordinary window (decorated, movable to any screen, resizable), its presenter,
+/// and the mouse state that drives its camera.
+struct View {
+    window: Arc<Window>, stop: Arc<AtomicBool>, thread: Option<std::thread::JoinHandle<()>>,
+    cursor: Option<(f64, f64)>, orbit: bool, pan: bool,
+}
 
 struct Out { spec: Spec, window: Arc<Window>, stop: Arc<AtomicBool>, thread: Option<std::thread::JoinHandle<()>> }
 
@@ -69,6 +77,14 @@ struct App {
     closing: Vec<Out>,
     /// Called with the ids actually open, and the reason for each one that is not.
     report: Box<dyn Fn(Vec<String>, Vec<(String, String)>) + Send>,
+    // ── E4a ──
+    view: Option<View>,
+    view_shared: Arc<Mutex<crate::view3d::Shared>>,
+    view_open: Arc<AtomicBool>,
+    /// Called when the operator closes the view from its title bar (main relays it to the editor).
+    view_closed: Box<dyn Fn() + Send>,
+    /// Presenters of closed views, reaped like the outputs'.
+    view_closing: Vec<View>,
 }
 
 impl App {
@@ -104,12 +120,36 @@ impl App {
         (self.report)(self.outs.keys().cloned().collect(), refused);
     }
 
+    fn open_view(&mut self, el: &ActiveEventLoop) {
+        if self.view.is_some() { if let Some(v) = &self.view { v.window.focus_window(); } return; }
+        let attrs = Window::default_attributes()
+            .with_title("ArtLux — 3D view (engine)")
+            .with_inner_size(winit::dpi::LogicalSize::new(1280.0, 760.0))
+            .with_visible(true);
+        let window = match el.create_window(attrs) { Ok(w) => Arc::new(w), Err(e) => { eprintln!("artlux-engine: 3D view window: {e}"); return; } };
+        let surface = match self.gpu.instance.create_surface(window.clone()) { Ok(s) => s, Err(e) => { eprintln!("artlux-engine: 3D view surface: {e}"); return; } };
+        let stop = Arc::new(AtomicBool::new(false));
+        let (gpu, w2, st, sh) = (self.gpu.clone(), window.clone(), stop.clone(), self.view_shared.clone());
+        let thread = std::thread::Builder::new().name("present:view3d".into()).spawn(move || crate::view3d::present(gpu, w2, surface, st, sh)).ok();
+        eprintln!("artlux-engine: 3D view open");
+        self.view_open.store(true, Ordering::SeqCst);
+        self.view = Some(View { window, stop, thread, cursor: None, orbit: false, pan: false });
+    }
+    fn close_view(&mut self) {
+        if self.view.is_some() { eprintln!("artlux-engine: 3D view closed"); }
+        if let Some(v) = self.view.take() { v.window.set_visible(false); v.stop.store(true, Ordering::SeqCst); self.view_closing.push(v); }
+        self.view_open.store(false, Ordering::SeqCst);
+    }
+
     // Never join from the window thread (windows.rs close()): hide, stop, reap later.
     fn close(&mut self, id: &str) {
         if let Some(o) = self.outs.remove(id) { o.window.set_visible(false); o.stop.store(true, Ordering::SeqCst); self.closing.push(o); }
     }
     fn reap(&mut self) {
         self.closing.retain_mut(|o| {
+            if o.thread.as_ref().is_none_or(|t| t.is_finished()) { if let Some(t) = o.thread.take() { let _ = t.join(); } false } else { true }
+        });
+        self.view_closing.retain_mut(|o| {
             if o.thread.as_ref().is_none_or(|t| t.is_finished()) { if let Some(t) = o.thread.take() { let _ = t.join(); } false } else { true }
         });
     }
@@ -120,18 +160,52 @@ impl ApplicationHandler<Cmd> for App {
     fn user_event(&mut self, el: &ActiveEventLoop, cmd: Cmd) {
         match cmd {
             Cmd::Set(specs) => self.set(el, specs),
-            Cmd::Quit => { for id in self.outs.keys().cloned().collect::<Vec<_>>() { self.close(&id); } el.exit(); }
+            Cmd::View3d(true) => self.open_view(el),
+            Cmd::View3d(false) => self.close_view(),
+            Cmd::Quit => { for id in self.outs.keys().cloned().collect::<Vec<_>>() { self.close(&id); } self.close_view(); el.exit(); }
         }
     }
-    fn window_event(&mut self, _el: &ActiveEventLoop, _id: WindowId, _e: WindowEvent) {
+    fn window_event(&mut self, _el: &ActiveEventLoop, id: WindowId, e: WindowEvent) {
         // An OUTPUT is not closed from the wall: the host decides what is open (an Alt-F4 on a projector
-        // would otherwise silently hand the display back to nobody).
+        // would otherwise silently hand the display back to nobody). The 3D VIEW is the operator's own
+        // window: its title bar closes it, and its mouse drives its camera.
+        let Some(v) = self.view.as_mut().filter(|v| v.window.id() == id) else { return };
+        use winit::event::{ElementState, MouseButton, MouseScrollDelta};
+        match e {
+            WindowEvent::CloseRequested => { self.close_view(); (self.view_closed)(); }
+            WindowEvent::MouseInput { state, button, .. } => {
+                let down = state == ElementState::Pressed;
+                match button { MouseButton::Left => v.orbit = down, MouseButton::Right | MouseButton::Middle => v.pan = down, _ => {} }
+            }
+            WindowEvent::CursorMoved { position, .. } => {
+                if let Some((x, y)) = v.cursor {
+                    let (dx, dy) = ((position.x - x) as f32, (position.y - y) as f32);
+                    if v.orbit || v.pan {
+                        let h = v.window.inner_size().height as f32;
+                        let mut s = self.view_shared.lock().unwrap();
+                        if v.orbit { s.cam.orbit(dx, dy); } else { s.cam.pan(dx, dy, h); }
+                    }
+                }
+                v.cursor = Some((position.x, position.y));
+            }
+            WindowEvent::CursorLeft { .. } => { v.cursor = None; }
+            WindowEvent::MouseWheel { delta, .. } => {
+                let n = match delta { MouseScrollDelta::LineDelta(_, y) => y, MouseScrollDelta::PixelDelta(p) => (p.y / 60.0) as f32 };
+                self.view_shared.lock().unwrap().cam.zoom(n);
+            }
+            _ => {}
+        }
     }
     fn about_to_wait(&mut self, el: &ActiveEventLoop) {
         self.reap();
         el.set_control_flow(if self.closing.is_empty() { ControlFlow::Wait } else { ControlFlow::WaitUntil(std::time::Instant::now() + Duration::from_millis(5)) });
     }
 }
+
+/// What the render thread hands the windows thread once it is ready: the outputs' shared state and report,
+/// and (E4a) the 3D view's shared state, its open flag and the "closed from its title bar" callback.
+type Go = (Arc<Mutex<Shared>>, Box<dyn Fn(Vec<String>, Vec<(String, String)>) + Send>,
+           Arc<Mutex<crate::view3d::Shared>>, Arc<AtomicBool>, Box<dyn Fn() + Send>);
 
 /// The windows thread OPENS THE GPU. Measured: a device opened on another thread (the stdin thread) made
 /// surfaces that were valid when created and "Invalid surface" when the presenter configured them — the
@@ -140,14 +214,14 @@ impl ApplicationHandler<Cmd> for App {
 pub struct Pending {
     pub gpu: Arc<Gpu>,
     proxy: Option<EventLoopProxy<Cmd>>,
-    go: std::sync::mpsc::Sender<(Arc<Mutex<Shared>>, Box<dyn Fn(Vec<String>, Vec<(String, String)>) + Send>)>,
+    go: std::sync::mpsc::Sender<Go>,
 }
 
 /// Start the windows thread and open the GPU on it. Err(None): no window system (open the GPU without
 /// windows); Err(Some(e)): the GPU itself refused (no usable adapter — the engine exits 2).
 pub fn prepare(policy: crate::AdapterPolicy) -> Result<Pending, Option<crate::EngineError>> {
     let (tx, rx) = std::sync::mpsc::channel::<Result<(EventLoopProxy<Cmd>, Arc<Gpu>), Option<crate::EngineError>>>();
-    let (go_tx, go_rx) = std::sync::mpsc::channel::<(Arc<Mutex<Shared>>, Box<dyn Fn(Vec<String>, Vec<(String, String)>) + Send>)>();
+    let (go_tx, go_rx) = std::sync::mpsc::channel::<Go>();
     std::thread::Builder::new().name("windows".into()).spawn(move || {
         let mut b = EventLoop::<Cmd>::with_user_event();
         #[cfg(windows)]
@@ -156,8 +230,9 @@ pub fn prepare(policy: crate::AdapterPolicy) -> Result<Pending, Option<crate::En
         let display: crate::Display = Box::new(el.owned_display_handle());
         let gpu = match Gpu::open_with(policy, Some(display)) { Ok(g) => Arc::new(g), Err(e) => { let _ = tx.send(Err(Some(e))); return; } };
         let _ = tx.send(Ok((el.create_proxy(), gpu.clone())));
-        let Ok((shared, report)) = go_rx.recv() else { return };
-        let mut app = App { gpu, shared, outs: HashMap::new(), closing: Vec::new(), report };
+        let Ok((shared, report, view_shared, view_open, view_closed)) = go_rx.recv() else { return };
+        let mut app = App { gpu, shared, outs: HashMap::new(), closing: Vec::new(), report,
+            view: None, view_shared, view_open, view_closed, view_closing: Vec::new() };
         let _ = el.run_app(&mut app);
     }).map_err(|_| None)?;
     let (proxy, gpu) = rx.recv().map_err(|_| None)??;
@@ -166,8 +241,9 @@ pub fn prepare(policy: crate::AdapterPolicy) -> Result<Pending, Option<crate::En
 
 impl Pending {
     /// Start the outputs; returns the proxy the render thread sends `Cmd`s through.
-    pub fn attach(mut self, shared: Arc<Mutex<Shared>>, report: Box<dyn Fn(Vec<String>, Vec<(String, String)>) + Send>) -> Option<EventLoopProxy<Cmd>> {
-        self.go.send((shared, report)).ok()?;
+    pub fn attach(mut self, shared: Arc<Mutex<Shared>>, report: Box<dyn Fn(Vec<String>, Vec<(String, String)>) + Send>,
+                  view: Arc<Mutex<crate::view3d::Shared>>, view_open: Arc<AtomicBool>, view_closed: Box<dyn Fn() + Send>) -> Option<EventLoopProxy<Cmd>> {
+        self.go.send((shared, report, view, view_open, view_closed)).ok()?;
         self.proxy.take()
     }
 }

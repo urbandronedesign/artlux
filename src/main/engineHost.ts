@@ -1,4 +1,5 @@
-import { app } from 'electron';
+import { app, BrowserWindow } from 'electron';
+import { IPC } from '../../shared/protocol';
 import { spawn, type ChildProcess } from 'node:child_process';
 import { existsSync, writeFileSync, mkdirSync, unlinkSync } from 'node:fs';
 import { join } from 'node:path';
@@ -206,6 +207,29 @@ export function noteTick(json: string): void {
   write(`{"type":"tick",${json.slice(1)}`);
 }
 
+// ── E4a: the engine's 3D view window ───────────────────────────────────────────────────────────────
+// The scene and the open state are KEPT, like the document: a restarted engine gets both back and the
+// window reappears where the operator had it (on its default size/place — the engine owns the window).
+let lastScene3d: string | null = null;
+let view3dOpen: string | null = null;   // the open message, while the view is open
+/** The scene the engine's 3D view draws (renderer: Simulator3D/engineView.ts). */
+export function noteScene3d(json: string): void {
+  if (!FLAG) return;
+  lastScene3d = json;
+  if (status.state === 'up') write(`{"type":"scene3d",${json.slice(1)}`);
+}
+/** Open the engine's 3D view at the editor's camera, or close it. */
+export function noteView3d(open: boolean, camera: unknown): void {
+  if (!FLAG) return;
+  const msg = JSON.stringify({ type: 'view3d', open, camera: camera ?? null });
+  view3dOpen = open ? msg : null;
+  if (status.state === 'up') write(msg);
+}
+function view3dClosedByOperator(): void {
+  view3dOpen = null;
+  for (const w of BrowserWindow.getAllWindows()) if (!w.isDestroyed()) w.webContents.send(IPC.NATIVE_ENGINE_VIEW3D_CLOSED);
+}
+
 export function engineEnabled(): boolean { return FLAG; }
 export function engineStatus(): EngineStatus { return { ...status }; }
 
@@ -265,6 +289,9 @@ function spawnEngine(): void {
         // A (re)started engine knows nothing: the settings, then the document, before any tick.
         if (lastOutput) write(lastOutput);
         if (lastDoc) write(`{"type":"doc","doc":${lastDoc}}`);
+        // E4a: the 3D view's scene, and the window if it was open.
+        if (lastScene3d) write(`{"type":"scene3d",${lastScene3d.slice(1)}`);
+        if (view3dOpen) write(view3dOpen);
         let lastTick = Date.now();
         pingTimer = setInterval(() => {
           // A LATE TICK MEANS MAIN WAS STALLED, NOT THE ENGINE. Main's event loop is busy for seconds at
@@ -286,6 +313,9 @@ function spawnEngine(): void {
           }
           try { proc.stdin?.write(`{"ping":${++pingN}}\n`); } catch { /* the exit handler takes it */ }
         }, PING_MS);
+      } else if (m.type === 'view3d') {
+        // The operator closed the engine's 3D view from its title bar: tell the editor (its button state).
+        view3dClosedByOperator();
       } else if (m.type === 'pong') {
         lastPong = Date.now();
       } else if (m.type === 'sent') {
