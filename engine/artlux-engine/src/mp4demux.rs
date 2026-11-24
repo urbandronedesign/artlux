@@ -170,7 +170,13 @@ fn parse_track(mdia: &[u8]) -> Result<Track, String> {
         for e in 0..be(&c[4..8]) as usize {
             let n = be(&c[8 + e * 8..12 + e * 8]);
             let raw = be(&c[12 + e * 8..16 + e * 8]) as u32;
-            let off = if v1 { raw as i32 as i64 } else { raw as i64 };
+            // SIGNED IN BOTH VERSIONS. Version 0 is unsigned on paper, but encoders write negative offsets into it
+            // (a B-frame presented before it decodes, no edit list) and mp4box — the app's parser — reads them as
+            // the small negatives they are. Read as unsigned they put two frames of every three ~4 × 10⁹ ticks in
+            // the future: measured on a 1080p25 H.264 film (E3j), where the engine's frame table held every third
+            // frame only.
+            let _ = v1;
+            let off = raw as i32 as i64;
             for _ in 0..n { if k < count { ctts[k] = off; } k += 1; }
         }
     }

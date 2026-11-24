@@ -5,8 +5,9 @@
 //! when it does not. Those rules re-anchor the origin, but only to values the same rules reproduce, so
 //! they are a function of (now, origin, region) — and this module runs them. What it cannot derive are the
 //! EVENTS (play / pause, a seek, a recall's swap, a region edit, the underrun clamp, the render-clock
-//! flip): the app records an anchor at each (timeline.ts `markAnchor`) and the tick carries it when it
-//! changes. Between events nothing about time is sent.
+//! flip): the app records an anchor at each (timeline.ts `markAnchor`). Every tick carries the latest one,
+//! because main drops a tick the engine is too busy for and an anchor must not be lost with it; the engine
+//! re-anchors only when its revision changes, so between events the clock is still the engine's own.
 //!
 //! Stage 1 (this): the engine runs the transport from the anchors and CHECKS its playhead and show time
 //! against the app's at the frame time the app computed them for (`fm`) — the same instant, so they must
@@ -95,6 +96,7 @@ pub struct Transport {
     lead: (u64, f64, f64),
     last_report: u64,
     anchors: u64,
+    unreadable: u64,
 }
 
 static SKEW: std::sync::OnceLock<f64> = std::sync::OnceLock::new();
@@ -107,7 +109,12 @@ pub const TOLERANCE_SEC: f64 = 1e-6;
 impl Transport {
     /// A tick's `tp`: a new anchor replaces the old one (a repeat of the same rev changes nothing).
     pub fn set(&mut self, tp: &Value) {
-        let Some(a) = Anchor::from_json(tp) else { return };
+        let Some(a) = Anchor::from_json(tp) else {
+            // Never silently: an anchor the engine cannot read leaves it on the previous one.
+            self.unreadable += 1;
+            if self.unreadable <= 5 { eprintln!("artlux-engine: transport: unreadable anchor {tp}"); }
+            return;
+        };
         if self.anchor.as_ref().is_some_and(|x| x.rev == a.rev) { return; }
         // The mutation the test needs (scripts/test-transport-clock.cjs): the engine's clock off by a few ms.
         let skew = *SKEW.get_or_init(|| std::env::var("ARTLUX_TRANSPORT_SKEW_MS").ok().and_then(|x| x.parse().ok()).unwrap_or(0.0));

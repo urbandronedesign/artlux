@@ -2089,6 +2089,36 @@ fallback until a source/output is proven byte-identical — risk 2):
 >   in activeClip's order (mutation-tested: the rule removed).
 > - **Not yet:** the picture itself across a boundary (the next clip's source and, for video, its frame) — that is
 >   the engine owning the decode of every clip, not only the active one; then JUCE in the engine process.
+>
+> ✅ **E3j done 2026-11-24 — THE ENGINE CHOOSES A VIDEO TRACK'S FRAME.** Until now the frame a HAP / MP4 track drew
+> was the app's (its decoded index / VideoFrame timestamp on the tick). eval.rs `VidTable` ports the app's two rules
+> — hapCodec.layerFrame `clamp(Math.round(t · fps), 0, frames − 1)` and mp4Decoder `frame(t, loop = false)`: the
+> last presentation time at or before the clamped time + PRESENT_EPS_US (1 ms), else the first — over each file's
+> frame table, read once (the HAP container parser is the app's own mov.rs; the MP4 one is mp4demux). The engine
+> chooses the frame at the clip time it DRAWS (its own clock, E3i) and checks its choice at the app's instant against
+> the frame the app showed.
+> - **Found on the way — the engine's MP4 demux dropped two frames of every three on a real film.** A version-0
+>   `ctts` is unsigned on paper, but encoders write negative offsets into it (B-frames presented before they decode,
+>   no edit list); mp4box reads them signed, the engine read them as ~4 × 10⁹ ticks. Measured on a 1080p25 H.264
+>   film: the engine's table held every third frame. Fixed (signed in both versions); `test:mp4-parity` and
+>   `test:native-takeover` unchanged by it (the former's colour failures — at most 1 level, every file — predate it:
+>   the same run on the old demux fails identically).
+> - **Also found — an anchor can be lost.** Main drops a tick the engine is too busy for, and a transport anchor sent
+>   only on the tick that changed it went with it: the engine ran 0.3 s off for two seconds at a show's start. The
+>   anchor now rides every tick (the engine re-anchors only on a new revision); guarded. And the engine now logs an
+>   anchor it cannot read instead of dropping it.
+> - **Proof:** `test:video-frame-clock` (`--hap <mov> --mp4 <film>`; run on the owner's choice of a real film —
+>   "use a film already on the computer in full HD or 4K" — `venice_alley.mp4`, 1920×1080 H.264 25 fps with
+>   B-frames, cut in two on its track so a video clip boundary is crossed): a looping 10 s show for ~24 s, the engine
+>   owning the wire — **0 clock differences, the engine's frame the app's on 1204 of 1206 ticks** (the two: the loop
+>   wrap, where the app still showed the film's last frame while its decoder sought back), the film on the wire (229
+>   distinct levels, 298 changes). The only 4K film on the machine is HEVC BT.2020 HLG, which the engine does not draw
+>   (BT.709 only), so the 4K case is not covered. test:timeline-video-wire, clock-parity, light-bytes,
+>   transport-clock, automation-parity and native-takeover unchanged.
+> - `verify:invariants`: the HAP rule, the MP4 tolerance and present rule, and signed ctts (mutation-tested: the HAP
+>   round changed to floor).
+> - **Next:** the picture across a boundary — every clip of a track in the document with its source, decoded by the
+>   engine ahead of the cut — then JUCE in the engine process.
 
 ## 9d. E4 started early — the 3D view in the engine (owner, 2026-11-24)
 

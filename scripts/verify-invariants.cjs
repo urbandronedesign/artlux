@@ -4373,7 +4373,7 @@ check(
 check(
   'every transport EVENT records an anchor for the native engine\'s clock, and the engine runs the app\'s wrap and park',
   'E3 (§4, the clock): the engine runs the playhead and the show clock ITSELF from the latest transport anchor ' +
-  '(timeline.ts markAnchor → nativeLink `tp` → transport.rs), applying runFrame\'s underrun / loop-wrap / end-park ' +
+  '(timeline.ts markAnchor → nativeLink `tp`, on every tick → transport.rs), applying runFrame\'s underrun / loop-wrap / end-park ' +
   'rules on its own. An event that moves a clock\'s origin without recording an anchor (a new seek path, a new ' +
   'resume) leaves the engine on the old one — the playhead it will draw from is then wrong by the whole jump. ' +
   'test:transport-clock catches it on the show; this catches it in the source: every function that re-anchors on ' +
@@ -4397,6 +4397,8 @@ check(
     if (!/t = a \+ \(\(t - a\) % \(b - a\)\);/.test(t) || !/t = a \+ \(\(t - a\) % \(b - a\)\);/.test(r)) problems.push('the loop wrap is no longer the same formula in timeline.ts and transport.rs');
     if (!/t = Math\.max\(a, b - eps\);/.test(t) || !/t = js_max\(a, b - f\);/.test(r)) problems.push('the end park is no longer the same in timeline.ts and transport.rs');
     if (!/fm: timeline\.getFrameTimeMs\(\), tp,/.test(n)) problems.push('the tick no longer carries the frame time and the anchor');
+    // Main DROPS ticks the engine is too busy for, so an anchor sent only on the tick that changed it can be lost.
+    if (!/const tp = timeline\.transportAnchor\(\) \?\? undefined;/.test(n)) problems.push('the anchor must ride EVERY tick (main drops ticks; an anchor sent once can be lost with one)');
     // E3h: lanes and lights are DRAWN at the engine's own clock and CHECKED at the app's instant; the composite stays
     // on the app's playhead (the document carries each track's ACTIVE clip only, and the app decodes the frames).
     const rt = exists('engine/artlux-engine/src/runtime.rs') ? read('engine/artlux-engine/src/runtime.rs') : '';
@@ -4409,6 +4411,16 @@ check(
     const ev = exists('engine/artlux-engine/src/eval.rs') ? read('engine/artlux-engine/src/eval.rs') : '';
     if (!/if \(c\.layerId === layerId && t >= c\.start && t < c\.start \+ c\.duration\) found = c;/.test(t) || !/if t >= \*start && t < start \+ duration \{ found = Some\(id\.as_str\(\)\); \}/.test(ev)) problems.push('activeClip changed — re-port it to eval.rs active_clip');
     if (!/spans: data\.clips\.filter\(\(x\) => x\.layerId === l\.id\)/.test(t)) problems.push("the composite document no longer carries each track's clip spans in activeClip's order");
+    // E3j: the engine CHOOSES a video track's frame as the app's codecs do.
+    const hc = exists('plugins/hap/src/hapCodec.ts') ? read('plugins/hap/src/hapCodec.ts') : '';
+    const md = exists('plugins/mp4/src/mp4Decoder.ts') ? read('plugins/mp4/src/mp4Decoder.ts') : '';
+    const dm = exists('engine/artlux-engine/src/mp4demux.rs') ? read('engine/artlux-engine/src/mp4demux.rs') : '';
+    if (!/layerFrame: \(layerKey, path, clipTimeSec\) => \{[\s\S]{0,200}Math\.max\(0, Math\.min\(Math\.round\(clipTimeSec \* info\.fps\), info\.frameCount - 1\)\)/.test(hc) || !/let i = \(t \* fps \+ 0\.5\)\.floor\(\);/.test(ev)) problems.push("the HAP layer frame rule changed — re-port it to eval.rs VidTable");
+    const epsApp = (md.match(/const PRESENT_EPS_US = ([\d_]+);/) ?? [])[1]?.replace(/_/g, '');
+    const epsEng = (ev.match(/pub const PRESENT_EPS_US: f64 = ([\d.]+);/) ?? [])[1];
+    if (!epsApp || !epsEng || Number(epsApp) !== Number(epsEng)) problems.push(`the MP4 present tolerance differs (app ${epsApp}, engine ${epsEng})`);
+    if (!/f\.timestamp <= this\.wantUs \+ PRESENT_EPS_US/.test(md)) problems.push("the MP4 decoder no longer shows the last frame at or before the playhead + PRESENT_EPS_US — re-port it to eval.rs VidTable");
+    if (!/let off = raw as i32 as i64;/.test(dm)) problems.push("mp4demux reads ctts offsets as unsigned again — a version-0 box with negative offsets loses two frames of three (E3j)");
     return problems.length ? problems.join('; ') : null;
   },
 );

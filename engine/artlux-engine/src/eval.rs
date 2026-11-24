@@ -198,6 +198,39 @@ pub fn active_clip(spans: &[(String, f64, f64)], t: f64) -> Option<&str> {
     found
 }
 
+/// E3j: what the engine needs of a video file to choose a timeline track's frame, as the app's codecs do.
+#[derive(Clone, Debug, PartialEq)]
+pub enum VidTable {
+    /// hapCodec.layerFrame: `clamp(Math.round(t · fps), 0, frames − 1)` — the frame index.
+    Hap { fps: f64, frames: usize },
+    /// mp4Decoder FileDecoder.frame(t, loop = false): the presentation timestamps (µs, truncated as an
+    /// EncodedVideoChunk's, ascending) and the file's duration; the frame shown is the LAST at or before the
+    /// clamped time + PRESENT_EPS_US, else the first.
+    Mp4 { ts: Vec<i64>, dur_us: f64 },
+}
+
+/// mp4Decoder.ts PRESENT_EPS_US.
+pub const PRESENT_EPS_US: f64 = 1000.0;
+
+impl VidTable {
+    pub fn is_hap(&self) -> bool { matches!(self, VidTable::Hap { .. }) }
+    /// The frame at clip-local time `t` (seconds): a HAP index, or an MP4 timestamp in µs.
+    pub fn frame(&self, t: f64) -> i64 {
+        match self {
+            VidTable::Hap { fps, frames } => {
+                let i = (t * fps + 0.5).floor();   // Math.round
+                i.min(*frames as f64 - 1.0).max(0.0) as i64
+            }
+            VidTable::Mp4 { ts, dur_us } => {
+                let us = t * 1e6;
+                let want = if *dur_us > 0.0 { us.max(0.0).min(*dur_us) } else { us.max(0.0) };
+                let i = ts.partition_point(|&x| (x as f64) <= want + PRESENT_EPS_US);
+                if i > 0 { ts[i - 1] } else { ts.first().copied().unwrap_or(0) }
+            }
+        }
+    }
+}
+
 /// What the engine needs of a timeline clip to evaluate it in time.
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct ClipTime { pub start: f64, pub in_point: f64, pub duration: f64, pub fade_in: f64, pub fade_out: f64, pub opacity: f64 }
@@ -257,6 +290,17 @@ pub fn run_cases(cases: &serde_json::Value) -> serde_json::Value {
 #[cfg(test)]
 mod track_tests {
     use super::*;
+    #[test]
+    fn video_frames_as_the_codecs_choose_them() {
+        let h = VidTable::Hap { fps: 30.0, frames: 90 };
+        assert_eq!(h.frame(0.0), 0);
+        assert_eq!(h.frame(1.0 / 60.0), 1);      // half a frame rounds up, as Math.round
+        assert_eq!(h.frame(10.0), 89);          // clamped to the last
+        let m = VidTable::Mp4 { ts: vec![0, 33366, 66733, 100100], dur_us: 133466.0 };
+        assert_eq!(m.frame(0.0333), 33366);    // within PRESENT_EPS of the next frame
+        assert_eq!(m.frame(0.0320), 0);
+        assert_eq!(m.frame(5.0), 100100);        // clamped to the duration, then the last frame
+    }
     #[test]
     fn the_later_clip_wins_an_overlap_and_the_end_is_open() {
         let s = vec![("a".to_string(), 0.0, 3.0), ("b".to_string(), 2.0, 2.0)];

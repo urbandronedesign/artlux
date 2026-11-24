@@ -139,6 +139,12 @@ pub struct Runtime {
     draw_max_step: u8,
     /// E3i: composite tracks drawn at the engine's own clock / held at the app's playhead across a clip boundary.
     comp_draw: (u64, u64),
+    /// E3j: each video file's frame table, read once (the engine CHOOSES a video track's frame from its clip time).
+    vids: HashMap<String, Option<crate::eval::VidTable>>,
+    /// E3j: video-track frames at the app's instant — the engine's choice equal to the frame the app showed, or not
+    /// (the app shows what its decoder has READY, so a frame it has not decoded yet is a different one).
+    frame_agree: (u64, u64),
+    clock_ticks: u64,
     clock_rev: u64,
     /// E3d: the automation lanes the engine evaluates, this tick's effect overrides (surface → speed,
     /// intensity), and the check's counters.
@@ -178,7 +184,7 @@ impl Runtime {
             #[cfg(feature = "ndi")] ndis: HashMap::new(),
             #[cfg(windows)] mp4s: HashMap::new(), conv: None,
             #[cfg(windows)] cams: HashMap::new(), resolved: HashMap::new(), pending_cams: HashMap::new(), last_doc: None, redo: false,
-            view: None, view_scene_ver: 0, view_published: HashMap::new(), view_colors_gen: 0, view_last_summary: String::new(), clock_diffs: 0, transport: Default::default(), draw_at: None, draw_stats: (0, 0, 0), draw_max_step: 0, comp_draw: (0, 0), clock_rev: 0, lanes: Vec::new(), auto_fx: HashMap::new(), auto_diffs: 0, auto_ticks: 0, show: Default::default(), light_diffs: 0, light_ticks: 0, rig: None, light_fix: HashMap::new(), byte_diffs: 0, byte_ticks: 0, light_solved: HashMap::new(), light_beams: HashMap::new() }
+            view: None, view_scene_ver: 0, view_published: HashMap::new(), view_colors_gen: 0, view_last_summary: String::new(), clock_diffs: 0, transport: Default::default(), draw_at: None, draw_stats: (0, 0, 0), draw_max_step: 0, comp_draw: (0, 0), vids: HashMap::new(), frame_agree: (0, 0), clock_ticks: 0, clock_rev: 0, lanes: Vec::new(), auto_fx: HashMap::new(), auto_diffs: 0, auto_ticks: 0, show: Default::default(), light_diffs: 0, light_ticks: 0, rig: None, light_fix: HashMap::new(), byte_diffs: 0, byte_ticks: 0, light_solved: HashMap::new(), light_beams: HashMap::new() }
     }
 
     /// E4a: the 3D view's shared state and its open flag (serve.rs makes them; the windows thread shares them).
@@ -885,6 +891,7 @@ impl Runtime {
                 // E3i: DRAWN at the engine's own clock while the clip under it is still the one the document
                 // describes; across a boundary the app has not reached yet (the document holds the outgoing clip's
                 // picture and timing) the track is drawn at the app's playhead, for that tick.
+                let t_app = t;
                 let (a, t) = match self.draw_at {
                     Some((dph, _)) if dph != ph => {
                         if track.id.is_some() && crate::eval::active_clip(&track.spans, dph) == track.id.as_deref() {
@@ -896,14 +903,48 @@ impl Runtime {
                 };
                 w["comp"][sid][key] = a.into();
                 w["times"][key] = t.into();
+                // E3j: a VIDEO track's frame, chosen by the engine from the clip time as the app's codec does
+                // (eval.rs VidTable::frame) — checked at the app's instant against the frame the app showed, and
+                // drawn at the clip time above (the engine's clock). Before, the frame was the app's.
+                if let Some(table) = self.vid_table(doc.sources.get(key)) {
+                    let (want, ours) = (table.frame(t_app), table.frame(t));
+                    let app = if table.is_hap() { v["hap"][key].as_i64() } else { v["mp4"][key].as_i64() };
+                    if let Some(app) = app {
+                        if app == want { self.frame_agree.0 += 1; } else {
+                            self.frame_agree.1 += 1;
+                            if self.frame_agree.1 <= 12 { eprintln!("artlux-engine: clock: frame — {key} at clip time {t_app:.4}: the clip time names {want}, the app showed {app}"); }
+                        }
+                    }
+                    w[if table.is_hap() { "hap" } else { "mp4" }][key] = ours.into();
+                }
                 n += 1;
             }
         }
-        if n > 0 && self.clock_rev != doc.rev {
+        if n > 0 { self.clock_ticks += 1; }
+        if n > 0 && (self.clock_rev != doc.rev || self.clock_ticks % 300 == 0) {
             self.clock_rev = doc.rev;
-            eprintln!("artlux-engine: clock: {n} track(s) evaluated from the playhead (document {}; {} difference(s) from the app so far; drawn at the engine's own clock {} time(s), held at the app's playhead across a clip boundary {} time(s))", doc.rev, self.clock_diffs, self.comp_draw.0, self.comp_draw.1);
+            eprintln!("artlux-engine: clock: {n} track(s) evaluated from the playhead (document {}; {} difference(s) from the app so far; drawn at the engine's own clock {} time(s), held at the app's playhead across a clip boundary {} time(s); video frames chosen by the engine: {} the app's, {} not the app's)", doc.rev, self.clock_diffs, self.comp_draw.0, self.comp_draw.1, self.frame_agree.0, self.frame_agree.1);
         }
         Some(w)
+    }
+
+    /// E3j: a video source's frame table, read once per file (None: not a video, or unreadable — the app's frame
+    /// is then drawn, as before).
+    fn vid_table(&mut self, src: Option<&Source>) -> Option<crate::eval::VidTable> {
+        let (path, hap, dur) = match src? { Source::Hap(p) => (p.clone(), true, 0), Source::Mp4(p, d) => (p.clone(), false, *d), _ => return None };
+        self.vids.entry(path.clone()).or_insert_with(|| {
+            let t = if hap {
+                crate::hapimport::mov::parse(&path).ok().map(|m| crate::eval::VidTable::Hap { fps: m.fps, frames: m.frames.len() })
+            } else {
+                crate::mp4demux::open(&path).ok().map(|(tr, _)| {
+                    let mut ts: Vec<i64> = tr.samples.iter().map(|s| tr.ts_us(s)).collect();
+                    ts.sort_unstable();
+                    crate::eval::VidTable::Mp4 { ts, dur_us: dur as f64 }
+                })
+            };
+            if t.is_none() { eprintln!("artlux-engine: clock: {path} has no frame table — its frames stay the app's"); }
+            t
+        }).clone()
     }
 
     fn tick_with(&mut self, doc: &mut Doc, v: &Value) -> Result<(), String> {
