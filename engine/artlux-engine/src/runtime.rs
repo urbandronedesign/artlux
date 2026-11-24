@@ -261,6 +261,8 @@ impl Runtime {
                 eprintln!("artlux-engine: 3D view camera: eye {eye:?} target {t:?} fov {}", c["fov"]);
                 s.cam_set += 1;
             }
+            // E4b: where it was last (main's prefs), applied by the windows thread when it creates the window.
+            shared.lock().unwrap().place = crate::view3d::Place::from_json(&v["place"]);
             // Everything is republished to a fresh view.
             self.view_published.clear();
             self.view_colors_gen = 0;

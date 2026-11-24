@@ -4,10 +4,11 @@ import { spawn, type ChildProcess } from 'node:child_process';
 import { existsSync, writeFileSync, mkdirSync, unlinkSync } from 'node:fs';
 import { join } from 'node:path';
 import * as logger from './logger';
+import { getPrefs, setPrefs } from './persistence';
 import * as output from './transport/outputManager';
 import { screen } from 'electron';
 import { setProjectorsCovered } from './projector';
-import type { OutputConfig } from '../../shared/protocol';
+import type { OutputConfig, EngineView3dPlace } from '../../shared/protocol';
 
 // THE NATIVE ENGINE AS ARTLUX'S CHILD (plans/native-engine.md §9c, E1a). Behind a flag until it carries
 // output: `--native-engine` on the command line, or ARTLUX_NATIVE_ENGINE=1. Without it nothing here runs
@@ -236,7 +237,7 @@ export function noteTick(json: string): void {
 // The scene and the open state are KEPT, like the document: a restarted engine gets both back and the
 // window reappears where the operator had it (on its default size/place — the engine owns the window).
 let lastScene3d: string | null = null;
-let view3dOpen: string | null = null;   // the open message, while the view is open
+let view3dOpen: { camera: unknown } | null = null;   // while the view is open: the camera it was opened at
 /** The scene the engine's 3D view draws (renderer: Simulator3D/engineView.ts). */
 export function noteScene3d(json: string): void {
   if (!FLAG) return;
@@ -246,9 +247,14 @@ export function noteScene3d(json: string): void {
 /** Open the engine's 3D view at the editor's camera, or close it. */
 export function noteView3d(open: boolean, camera: unknown): void {
   if (!FLAG) return;
-  const msg = JSON.stringify({ type: 'view3d', open, camera: camera ?? null });
-  view3dOpen = open ? msg : null;
-  if (status.state === 'up') write(msg);
+  view3dOpen = open ? { camera: camera ?? null } : null;
+  if (status.state === 'up') write(view3dMessage(open, camera ?? null));
+}
+/** The open / close message. An open carries the window's last PLACE (machine prefs, E4b): the engine's own
+ *  physical pixels, stored as it reported them and never read here — the engine checks it against the screens
+ *  that exist when it opens. Built at send time, so a restarted engine reopens where the window was LAST. */
+function view3dMessage(open: boolean, camera: unknown): string {
+  return JSON.stringify({ type: 'view3d', open, camera, place: open ? getPrefs().engineView3dPlace ?? null : null });
 }
 function view3dClosedByOperator(): void {
   view3dOpen = null;
@@ -301,7 +307,7 @@ function spawnEngine(): void {
       const line = buf.slice(0, i).trim();
       buf = buf.slice(i + 1);
       if (!line) continue;
-      let m: { type?: string; adapter?: string; version?: string; backend?: string; pid?: number; n?: number; u?: number; d?: number; pps?: number; fps?: number; rev?: number; owns?: boolean; why?: string; id?: string | null; add?: boolean };
+      let m: { type?: string; adapter?: string; version?: string; backend?: string; pid?: number; n?: number; u?: number; d?: number; pps?: number; fps?: number; rev?: number; owns?: boolean; why?: string; id?: string | null; add?: boolean; place?: EngineView3dPlace };
       try { m = JSON.parse(line); } catch { console.log(`[engine] ${line}`); continue; }
       if (m.type === 'hello') {
         if (helloTimer) { clearTimeout(helloTimer); helloTimer = null; }
@@ -317,7 +323,7 @@ function spawnEngine(): void {
         if (lastDoc) write(`{"type":"doc","doc":${lastDoc}}`);
         // E4a: the 3D view's scene, and the window if it was open.
         if (lastScene3d) write(`{"type":"scene3d",${lastScene3d.slice(1)}`);
-        if (view3dOpen) write(view3dOpen);
+        if (view3dOpen) write(view3dMessage(true, view3dOpen.camera));
         let lastTick = Date.now();
         pingTimer = setInterval(() => {
           // A LATE TICK MEANS MAIN WAS STALLED, NOT THE ENGINE. Main's event loop is busy for seconds at
@@ -342,6 +348,9 @@ function spawnEngine(): void {
       } else if (m.type === 'view3d') {
         // The operator closed the engine's 3D view from its title bar: tell the editor (its button state).
         view3dClosedByOperator();
+      } else if (m.type === 'view3dPlace') {
+        // E4b: the operator moved / resized the window (reported once it settles). Per MACHINE — screens are.
+        if (m.place && typeof m.place === 'object') setPrefs({ engineView3dPlace: m.place });
       } else if (m.type === 'view3dPick') {
         // E4b: a click in the engine's 3D view. The EDITOR owns the selection, so it is only relayed: every
         // window gets it, and the one whose 3D view opened the engine's window applies it.

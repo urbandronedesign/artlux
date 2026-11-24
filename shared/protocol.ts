@@ -1626,8 +1626,14 @@ export interface SavedPanelWindow {
   displaySize?: { width: number; height: number };
 }
 
+/** E4b: where the engine's 3D view window was — the ENGINE's physical pixels (outer position, inner size), and
+ *  maximised. Opaque to the app: written as the engine reports it, handed back on open, checked by the engine. */
+export interface EngineView3dPlace { x: number; y: number; w: number; h: number; max: boolean }
+
 export interface Prefs {
   appSettings?: unknown;
+  /** E4b: the engine's 3D view window's last place on this machine. */
+  engineView3dPlace?: EngineView3dPlace;
   /** Panel windows' last positions, by panel (E5/W5). */
   panelWindows?: SavedPanelWindow[];
   /** The panel windows that were open when the editor last closed — reopened with it. */

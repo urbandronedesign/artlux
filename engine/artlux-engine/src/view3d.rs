@@ -175,6 +175,39 @@ impl Cam {
     }
 }
 
+// ── The window's place (E4b) ────────────────────────────────────────────────────────────────────────
+//
+// The operator puts the 3D view on a screen and sizes it; the next open (this session, after an engine restart,
+// or the next day) puts it back. In the ENGINE's own physical pixels end to end — main stores the blob and never
+// reads it — because Electron speaks DIPs and winit physical pixels, and converting between them on a mixed-DPI
+// rig is exactly the bug that would land a window half off a screen. The engine checks a saved place against the
+// monitors that exist NOW (`on_screen`), so an unplugged screen means the default place, never an invisible window.
+
+/// Outer position and inner size in physical pixels, and whether it was maximised (then x / y / w / h are the
+/// place it had before, which is where it goes when un-maximised).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Place { pub x: i32, pub y: i32, pub w: u32, pub h: u32, pub max: bool }
+impl Place {
+    pub fn from_json(v: &serde_json::Value) -> Option<Place> {
+        let i = |k: &str| v[k].as_f64().filter(|x| x.is_finite());
+        let (w, h) = (i("w")?, i("h")?);
+        if w < 200.0 || h < 150.0 { return None; }
+        Some(Place { x: i("x")? as i32, y: i("y")? as i32, w: w as u32, h: h as u32, max: v["max"].as_bool().unwrap_or(false) })
+    }
+    pub fn to_json(&self) -> String {
+        format!(r#"{{"x":{},"y":{},"w":{},"h":{},"max":{}}}"#, self.x, self.y, self.w, self.h, self.max)
+    }
+    /// Is enough of it on one of these monitors (x, y, w, h) to grab? Its title strip — the top 40 px of its
+    /// middle half — must lie on a screen, or the operator could not move it back.
+    pub fn on_screen(&self, monitors: &[(i32, i32, u32, u32)]) -> bool {
+        let (cx0, cx1, ty) = (self.x + self.w as i32 / 4, self.x + 3 * self.w as i32 / 4, self.y + 20);
+        monitors.iter().any(|&(mx, my, mw, mh)| {
+            let (mx1, my1) = (mx + mw as i32, my + mh as i32);
+            ty >= my && ty < my1 && cx1 > mx && cx0 < mx1
+        })
+    }
+}
+
 // ── Picking (E4b) ───────────────────────────────────────────────────────────────────────────────────
 //
 // A click in the engine window SELECTS IN THE EDITOR: the engine finds the fixture under the cursor and tells
@@ -250,6 +283,8 @@ pub struct Shared {
     pub cam: Cam,
     /// Bumped when the camera is set from OUTSIDE the window (the host's "open here"), not by its mouse.
     pub cam_set: u64,
+    /// E4b: where the operator last had the window, as main saved it (machine prefs) — None: the default.
+    pub place: Option<Place>,
 }
 
 // ── Math (column-major, three.js / WGSL order) ──────────────────────────────────────────────────────
@@ -1152,5 +1187,24 @@ mod pick_tests {
         let (o, d) = cam.ray(400.0, 300.0, 800.0, 600.0);
         let f = norm(sub([0.0, 1.0, 0.0], cam.eye()));
         assert!(len(sub(o, cam.eye())) < 1e-5 && len(sub(d, f)) < 1e-5);
+    }
+}
+
+#[cfg(test)]
+mod place_tests {
+    use super::*;
+    #[test]
+    fn a_saved_place_is_used_only_while_its_screen_exists() {
+        let two = [(0, 0, 2560, 1440), (2560, 0, 1920, 1080)];
+        let on_second = Place { x: 2700, y: 100, w: 1280, h: 760, max: false };
+        assert!(on_second.on_screen(&two));
+        assert!(!on_second.on_screen(&two[..1]), "the second screen unplugged: back to the default");
+        // Mostly off the left edge, but its title strip's middle still on screen: kept.
+        assert!(Place { x: -500, y: 10, w: 1280, h: 760, max: false }.on_screen(&two[..1]));
+        // Its title bar above every screen: not grabbable.
+        assert!(!Place { x: 100, y: -300, w: 1280, h: 760, max: false }.on_screen(&two));
+        let back = Place::from_json(&serde_json::from_str(&on_second.to_json()).unwrap()).unwrap();
+        assert_eq!(back, on_second);
+        assert!(Place::from_json(&serde_json::json!({"x": 0, "y": 0, "w": 10, "h": 10})).is_none(), "a degenerate size is refused");
     }
 }

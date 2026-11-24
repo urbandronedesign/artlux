@@ -120,6 +120,9 @@ Both keep the direction you are looking from; only the distance (or the zoom, in
 **With the native engine** (ArtLux started with `--native-engine`), the **window** button in the 3D header
 opens the 3D view in **a window of its own**, drawn by the engine rather than by the editor. It is an
 ordinary window: drag it to any screen, resize it, maximise it — moving it costs the editor nothing.
+**It comes back where you left it**: the next time it opens — later in the session, or after ArtLux is
+restarted — it is on the same screen at the same size, maximised if it was. The place belongs to the
+machine, not the project. If that screen is no longer connected, it opens at its default place instead.
 
 - It opens looking from where the editor's 3D view looks. In it, **left‑drag** orbits, **right‑ or
   middle‑drag** pans and the **wheel** zooms; its camera is its own from then on.

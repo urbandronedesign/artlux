@@ -71,7 +71,11 @@ struct View {
     press: Option<(f64, f64)>, travel: f64,
     /// Shift or Ctrl held: a click ADDS to (or takes from) the editor's selection.
     additive: bool,
+    /// E4b: the place last reported, its un-maximised rect, and when it last changed — reported to main
+    /// PLACE_SETTLE after the last move / resize (a drag is hundreds of events; main writes a prefs file).
+    reported: Option<crate::view3d::Place>, normal: Option<(i32, i32, u32, u32)>, moved_at: Option<std::time::Instant>,
 }
+const PLACE_SETTLE: Duration = Duration::from_millis(500);
 const CLICK_PX: f64 = 4.0;
 
 struct Out { spec: Spec, window: Arc<Window>, stop: Arc<AtomicBool>, thread: Option<std::thread::JoinHandle<()>> }
@@ -129,10 +133,21 @@ impl App {
 
     fn open_view(&mut self, el: &ActiveEventLoop) {
         if self.view.is_some() { if let Some(v) = &self.view { v.window.focus_window(); } return; }
-        let attrs = Window::default_attributes()
+        let mut attrs = Window::default_attributes()
             .with_title("ArtLux — 3D view (engine)")
             .with_inner_size(winit::dpi::LogicalSize::new(1280.0, 760.0))
             .with_visible(true);
+        // E4b: where the operator had it, if that screen is still here (view3d.rs Place).
+        let place = self.view_shared.lock().unwrap().place;
+        let monitors: Vec<(i32, i32, u32, u32)> = el.available_monitors().map(|m| (m.position().x, m.position().y, m.size().width, m.size().height)).collect();
+        match place {
+            Some(p) if p.on_screen(&monitors) => {
+                attrs = attrs.with_position(winit::dpi::PhysicalPosition::new(p.x, p.y)).with_inner_size(PhysicalSize::new(p.w, p.h)).with_maximized(p.max);
+                eprintln!("artlux-engine: 3D view placed where it was: {}", p.to_json());
+            }
+            Some(p) => eprintln!("artlux-engine: 3D view: its saved place {} is on no screen now — opened at the default", p.to_json()),
+            None => {}
+        }
         let window = match el.create_window(attrs) { Ok(w) => Arc::new(w), Err(e) => { eprintln!("artlux-engine: 3D view window: {e}"); return; } };
         let surface = match self.gpu.instance.create_surface(window.clone()) { Ok(s) => s, Err(e) => { eprintln!("artlux-engine: 3D view surface: {e}"); return; } };
         let stop = Arc::new(AtomicBool::new(false));
@@ -140,9 +155,34 @@ impl App {
         let thread = std::thread::Builder::new().name("present:view3d".into()).spawn(move || crate::view3d::present(gpu, w2, surface, st, sh)).ok();
         eprintln!("artlux-engine: 3D view open");
         self.view_open.store(true, Ordering::SeqCst);
-        self.view = Some(View { window, stop, thread, cursor: None, orbit: false, pan: false, press: None, travel: 0.0, additive: false });
+        let reported = place.filter(|p| p.on_screen(&monitors));
+        self.view = Some(View { window, stop, thread, cursor: None, orbit: false, pan: false, press: None, travel: 0.0, additive: false,
+            reported, normal: reported.map(|p| (p.x, p.y, p.w, p.h)), moved_at: None });
+    }
+    /// E4b: the window's place now — its un-maximised rect while maximised.
+    fn place_now(v: &mut View) -> Option<crate::view3d::Place> {
+        let max = v.window.is_maximized();
+        if !max && !v.window.is_minimized().unwrap_or(false) {
+            let (p, s) = (v.window.outer_position().ok()?, v.window.inner_size());
+            v.normal = Some((p.x, p.y, s.width, s.height));
+        }
+        let (x, y, w, h) = v.normal?;
+        Some(crate::view3d::Place { x, y, w, h, max })
+    }
+    /// Report the place if it changed (`force`: now, else once it has settled).
+    fn report_place(&mut self, force: bool) {
+        let Some(v) = self.view.as_mut() else { return };
+        let Some(at) = v.moved_at else { return };
+        if !force && at.elapsed() < PLACE_SETTLE { return; }
+        v.moved_at = None;
+        let Some(p) = Self::place_now(v) else { return };
+        if v.reported == Some(p) { return; }
+        v.reported = Some(p);
+        eprintln!("artlux-engine: 3D view place: {}", p.to_json());
+        (self.view_event)(format!(r#"{{"type":"view3dPlace","place":{}}}"#, p.to_json()));
     }
     fn close_view(&mut self) {
+        self.report_place(true);
         if self.view.is_some() { eprintln!("artlux-engine: 3D view closed"); }
         if let Some(v) = self.view.take() { v.window.set_visible(false); v.stop.store(true, Ordering::SeqCst); self.view_closing.push(v); }
         self.view_open.store(false, Ordering::SeqCst);
@@ -181,6 +221,7 @@ impl ApplicationHandler<Cmd> for App {
         match e {
             WindowEvent::CloseRequested => { self.close_view(); (self.view_event)(r#"{"type":"view3d","open":false}"#.to_string()); }
             WindowEvent::ModifiersChanged(m) => { v.additive = m.state().shift_key() || m.state().control_key(); }
+            WindowEvent::Moved(_) | WindowEvent::Resized(_) => { v.moved_at = Some(std::time::Instant::now()); }
             WindowEvent::MouseInput { state, button, .. } => {
                 let down = state == ElementState::Pressed;
                 match button { MouseButton::Left => v.orbit = down, MouseButton::Right | MouseButton::Middle => v.pan = down, _ => {} }
@@ -225,7 +266,10 @@ impl ApplicationHandler<Cmd> for App {
     }
     fn about_to_wait(&mut self, el: &ActiveEventLoop) {
         self.reap();
-        el.set_control_flow(if self.closing.is_empty() { ControlFlow::Wait } else { ControlFlow::WaitUntil(std::time::Instant::now() + Duration::from_millis(5)) });
+        self.report_place(false);
+        let settle = self.view.as_ref().and_then(|v| v.moved_at).map(|t| t + PLACE_SETTLE);
+        el.set_control_flow(if !self.closing.is_empty() { ControlFlow::WaitUntil(std::time::Instant::now() + Duration::from_millis(5)) }
+            else if let Some(t) = settle { ControlFlow::WaitUntil(t) } else { ControlFlow::Wait });
     }
 }
 

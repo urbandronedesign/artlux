@@ -2102,6 +2102,18 @@ fallback until a source/output is proven byte-identical — risk 2):
 >   now CLICKS the engine window (real OS mouse events at the housings' projected pixels): Mover 3 → engine log
 >   and the editor's 3D list both say Mover 3, the diagram follows (169 segments); empty sky → nothing selected
 >   (160); Shift-click Mover 2 → both (178). A pixel strip's pick is covered by the unit test only.
+> - ✅ **E4b-3 2026-11-24 — the window comes back where it was.** The engine reports the window's place
+>   (outer position, inner size, maximised — with the rect under a maximise) 500 ms after a move / resize
+>   settles, and on close: `{"type":"view3dPlace"}`; main saves it in the machine's prefs (`engineView3dPlace`)
+>   and puts it on every open message, built at send time so a restarted engine reopens where the window was
+>   LAST. In the engine's physical pixels end to end — main never reads it — because Electron's DIPs and winit's
+>   physical pixels disagree on a mixed-DPI rig. The engine checks a saved place against the monitors that exist
+>   when it opens (`Place::on_screen`: the middle of its title strip must be on one) and otherwise opens at the
+>   default and says so. **Proof:** a unit test (unplugged screen, half off an edge, title above every screen,
+>   round trip); `test:engine-view-place` (packaged, scratch profile, the window moved from outside with
+>   SetWindowPos): saved once settled; close / reopen → the exact rect; maximised saved over its rect and
+>   reopened maximised; a restarted app opens it there; a place far off every screen → the default, with the
+>   reason logged.
 > - **Not yet (E4b…):** the rest of the Rendered look (the lit room), labels, picking venue models and screens,
 >   the gizmo, sources the engine does not draw (timeline video clips, a tracking overlay…) on screens
 >   and venue meshes, the four-view layout, saving the window's place, macOS / Linux.
