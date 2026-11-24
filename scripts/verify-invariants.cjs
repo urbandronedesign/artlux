@@ -9313,6 +9313,36 @@ check(
   },
 );
 
+check(
+  'the engine\'s 3D view draws the beams the editor draws',
+  'E4b: the engine window throws every lit head\'s beam (engine beams.rs) from the light state the ENGINE ' +
+  'resolves (lightpack.rs Head::resolve, held to fixtureSignal.resolveFixture by test:light-pack-parity) and ' +
+  'each light\'s fixed half the editor sends (engineView.tsx: lens apex, base rotation, pan / tilt mid-points, ' +
+  'lens half-angle). What is COPIED from Beams.tsx, not computed: the beam length, the 48-cone fill-rate budget, ' +
+  'the ring / ray counts, the throw limits — change one in Beams.tsx and the two windows draw different beams ' +
+  'with nothing failing. They are compared here. The editor must also keep sending the look (haze, cones, ' +
+  'Rendered, the selection), or the engine window silently falls back to its defaults.',
+  () => {
+    const problems = [];
+    const B = 'src/renderer/components/Simulator3D/Beams.tsx', R = 'engine/artlux-engine/src/beams.rs';
+    const E = 'src/renderer/components/Simulator3D/engineView.tsx', S = 'src/renderer/components/Simulator3D/Simulator3D.tsx';
+    const L = 'engine/artlux-engine/src/lightpack.rs', T = 'engine/artlux-engine/src/runtime.rs';
+    for (const f of [B, R, E, S, L, T]) if (!exists(f)) return `${f} is gone`;
+    const b = read(B), r = read(R), e = read(E), s = read(S);
+    for (const k of ['BEAM_LENGTH', 'MAX_BEAMS', 'RING', 'RAYS', 'MAX_THROW', 'FLARE', 'RENDERED_THROW']) {
+      const ts = new RegExp('const ' + k + ' = ([0-9.]+);').exec(b), rs = new RegExp('const ' + k + ': [a-z0-9]+ = ([0-9.]+);').exec(r);
+      if (!ts || !rs) { problems.push(`${k} not found in ${ts ? R : B}`); continue; }
+      if (Number(ts[1]) !== Number(rs[1])) problems.push(`${k}: Beams.tsx ${ts[1]}, beams.rs ${rs[1]}`);
+    }
+    if (!/RENDERED_STRENGTH = 2\.2;/.test(b) || !read('engine/artlux-engine/src/view3d.rs').includes('mix(1.0, 2.2, solid)')) problems.push('the Rendered strength (2.2) no longer matches between Beams.tsx and view3d.rs');
+    if (!read(L).includes('pub fn resolve(&self, dmx: &Value, o: &Over) -> Beam')) problems.push('lightpack.rs no longer resolves a light\'s state');
+    if (!read(T).includes('sh.beams = Arc::new(self.light_beams.clone());')) problems.push('runtime.rs no longer publishes the resolved states to the 3D view');
+    if (!/beams: \{ haze: r4\(beams\.haze\), cones: beams\.cones, rendered: beams\.rendered, selected: beams\.selected \}/.test(e)) problems.push('engineView no longer sends the beams\' look');
+    if (!/<EngineViewLink fixtures=\{fixtures\} beams=\{\{/.test(s)) problems.push('Simulator3D no longer hands the engine view the beams\' look');
+    return problems.length ? problems.join('; ') : null;
+  },
+);
+
 const ok = (m) => console.log(`\x1b[32m✓\x1b[0m ${m}`);
 const bad = (m) => console.error(`\x1b[31m✗\x1b[0m ${m}`);
 

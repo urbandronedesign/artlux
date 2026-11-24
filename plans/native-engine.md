@@ -2071,7 +2071,25 @@ fallback until a source/output is proven byte-identical — risk 2):
 >   curved screen shadowing its own lower band). Proven with a TL/TR/BL/BR test card on the multi-projector
 >   example: named screen; projected from a frozen view; a panel between projector and screen — engine,
 >   editor WebGPU and editor WebGL (forced) all identical. Guarded in verify:invariants.
-> - **Not yet (E4b…):** beams and the Rendered look, labels, selection / picking (the GPU id buffer, body
+> - ✅ **E4b-1 2026-11-24 — the BEAMS.** Every lit head throws its beam in the engine window, as the editor's
+>   Beams.tsx draws it: the additive haze cone (Shaded, or Rendered's solid shaft to the floor), the 48 brightest
+>   only (the fill-rate budget), and the cone diagram — every lit head's floor boundary (an ellipse on a tilted
+>   beam, each rim ray intersected on its own), plus the axis and eight edge rays for the heads SELECTED in the
+>   editor. **The split:** the editor sends each light's FIXED half in the scene (engineView.tsx: lens apex in
+>   world space, base rotation, pan / tilt mid-points, lens half-angle — Beams.tsx's own maths) and the look
+>   (haze, cones, Rendered, selection); the ENGINE resolves the MOVING half every tick — lightpack.rs
+>   `Head::resolve`, the port of fixtureSignal.resolveFixture (intensity × shutter band, emitters summed or a
+>   wheel slot's colour, CMY flags on a subtractive head, pan / tilt / zoom through the physical range), run on
+>   the same stack the light's bytes are packed with, only while a view is open. `beams.rs` turns the two into
+>   instance and line data (pure; two unit tests). **Proof:** `test:light-pack-parity` now also resolves every
+>   case — 6 732 states identical to the app's (28 611 cases); `test:engine-beams` (packaged, scratch profile):
+>   six heads, one dark → 5 volumes and 169 diagram segments logged, light bytes never differing, the captured
+>   window holding the red and blue beams, side by side with the editor's view of the same rig (identical
+>   diagram); then the editor's Rendered button → the engine logs `5 volume(s), 0 diagram segment(s) … Rendered`
+>   and its window shows the solid shafts. A guard compares Beams.tsx's constants with beams.rs's. **Trap found on
+>   the way:** a plain `cargo build` drops the `ndi` feature, and `test:native-takeover` (an NDI surface) then fails
+>   6 checks with "this engine build has no NDI" — build with `npm run build:engine`, which turns it on.
+> - **Not yet (E4b…):** the rest of the Rendered look (the lit room), labels, selection / picking (the GPU id buffer, body
 >   before LEDs) and the gizmo, sources the engine does not draw (timeline video clips, a tracking overlay…) on screens
 >   and venue meshes, the four-view layout, saving the window's place, macOS / Linux.
 

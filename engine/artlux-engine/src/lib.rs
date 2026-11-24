@@ -35,6 +35,7 @@ pub mod projector;
 pub mod runtime;
 pub mod outputs;
 pub mod view3d;
+pub mod beams;
 pub mod shader;
 pub mod blobs;
 pub mod comp;

@@ -11,10 +11,12 @@
 //   - lighting-clip role values (pan / tilt in DEGREES, through the channel's physical range; dimmer; colour
 //     roles — on a subtractive head the RGB→CMY bridge), a fired pose cue over them, a colour (rgb / cct) realised
 //     through the head (mix / temperature / wheel / none), automation-owned channels, live faders;
-// and every mixing / temperature / wheel mode realises a fixed set of colours on its own.
+// and every mixing / temperature / wheel mode realises a fixed set of colours on its own. Each pack case is also
+// RESOLVED (fixtureSignal.resolveFixture → lightpack.rs Head::resolve): intensity, colour, pan / tilt, zoom, shutter —
+// what the engine's 3D view draws the beams from (E4b).
 // The override is composed the way engine/frameEngine.ts packAndPublish composes it (live > owned lane > colour >
 // cue > clip > CMY bridge > authored > default); the per-frame check on a playing show (test:light-bytes) holds
-// frameEngine itself to the same answer. Gate: every byte identical, every realised role within 1e-12.
+// frameEngine itself to the same answer. Gate: every byte identical, every realised role and resolved state within 1e-12.
 'use strict';
 const fs = require('fs');
 const os = require('os');
@@ -32,7 +34,7 @@ const entry = path.join(WORK, 'entry.ts');
 fs.writeFileSync(entry, `
 export { packProfiled, modeOf } from ${src('profilePack.ts')};
 export { realiseColor } from ${src('colorEngine.ts')};
-export { colorModel } from ${src('fixtureSignal.ts')};
+export { colorModel, resolveFixture } from ${src('fixtureSignal.ts')};
 `);
 const bundle = path.join(WORK, 'pack.cjs');
 require('esbuild').buildSync({ entryPoints: [entry], bundle: true, platform: 'node', format: 'cjs', outfile: bundle, logLevel: 'error', external: ['electron'] });
@@ -57,7 +59,7 @@ const randomColor = () => (rnd() < 0.6 ? pick(COLORS) : rnd() < 0.8 ? { kind: 'r
 const roleValue = (c) => (c.min !== undefined && c.max !== undefined ? c.min + (c.max - c.min) * (rnd() * 1.2 - 0.1) : rnd() * 1.2 - 0.1);
 
 // frameEngine.ts packAndPublish's roleOverride and liveOverride, composed over the case's inputs.
-function tsPack(profile, fixture, o) {
+function tsPack(profile, fixture, o, resolve = false) {
   const mode = ts.modeOf(profile, fixture.profileMode);
   if (!mode) return null;
   const out = [];
@@ -77,6 +79,11 @@ function tsPack(profile, fixture, o) {
     return rgb === undefined ? undefined : 1 - rgb;
   };
   const live = o.live ? (_f, channel) => o.live[channel.key] : undefined;
+  if (resolve) {
+    // fixtureSignal.resolveFixture with the override the packer used — what the 3D view's beams are drawn from (E4b).
+    const st = ts.resolveFixture({ id: 'fx', ...fixture }, profile, override, live);
+    return { intensity: st.intensity, r: st.r, g: st.g, b: st.b, pan: st.pan, tilt: st.tilt, zoomDeg: st.zoomDeg, blackout: st.blackout };
+  }
   ts.packProfiled({ id: 'fx', ...fixture }, profile, mode, (v) => out.push(v), override, live);
   return out.map((v) => { const t = Math.trunc(Number(v)); return Number.isFinite(t) ? ((t % 256) + 256) % 256 : 0; });   // nativeLink's ToUint8
 }
@@ -100,6 +107,7 @@ for (const profile of profiles) {
       if (rnd() < 0.25) o.owned = chans.filter(() => rnd() < 0.3).map((c) => c.key);
       if (rnd() < 0.2) { o.live = {}; for (const c of chans) if (rnd() < 0.2) o.live[c.key] = rnd() * 1.2 - 0.1; }
       cases.push({ pack: { profile, fixture, ...o } }); label.push(`${profile.id} / ${mode.key} #${n}`); expect.push(tsPack(profile, fixture, o));
+      cases.push({ resolve: { profile, fixture, ...o } }); label.push(`${profile.id} / ${mode.key} #${n} resolve`); expect.push(tsPack(profile, fixture, o, true));
     }
     for (const value of COLORS) {
       realises++;
@@ -117,7 +125,7 @@ const t0 = Date.now();
 const got = JSON.parse(execFileSync(ENGINE, ['--pack-cases', inp], { maxBuffer: 1 << 30 }).toString());
 console.log(`${cases.length} cases (${modes} modes of ${profiles.length} profiles, ${realises} colour realisations) in ${Date.now() - t0} ms`);
 
-let failed = 0, worst = 0, bytes = 0;
+let failed = 0, worst = 0, bytes = 0, resolves = 0;
 const fail = (i, why) => { if (++failed <= 15) console.log(`FAIL ${label[i]}: ${why}`); };
 for (let i = 0; i < cases.length; i++) {
   const e = expect[i], g = got[i];
@@ -125,6 +133,14 @@ for (let i = 0; i < cases.length; i++) {
     if (e === null || g === null) { if (e !== g) fail(i, `ts ${JSON.stringify(e)}, engine ${JSON.stringify(g)}`); continue; }
     bytes += e.length;
     if (e.length !== g.length || e.some((v, j) => v !== g[j])) fail(i, `\n  ts     ${JSON.stringify(e)}\n  engine ${JSON.stringify(g)}`);
+  } else if (cases[i].resolve) {
+    if (e === null || g === null) { if (e !== g) fail(i, `ts ${JSON.stringify(e)}, engine ${JSON.stringify(g)}`); continue; }
+    resolves++;
+    // JSON carries a NaN as null and drops an undefined zoom; both sides are compared through that.
+    const same = (a, b) => (a === undefined || a === null || Number.isNaN(a)) ? (b === undefined || b === null) : typeof a === 'boolean' ? a === b : Math.abs(a - b) <= 1e-12;
+    for (const k of ['intensity', 'r', 'g', 'b', 'pan', 'tilt', 'zoomDeg', 'blackout']) {
+      if (!same(e[k], g[k])) { fail(i, `${k}: ts ${e[k]}, engine ${g[k]}`); break; }
+    }
   } else {
     const ek = Object.keys(e).sort(), gk = Object.keys(g ?? {}).sort();
     if (ek.join() !== gk.join()) { fail(i, `roles ts ${ek}, engine ${gk}`); continue; }
@@ -135,7 +151,7 @@ for (let i = 0; i < cases.length; i++) {
     }
   }
 }
-console.log(`${bytes} bytes compared; worst realised-role difference ${worst.toExponential(2)}`);
+console.log(`${bytes} bytes compared; ${resolves} light states resolved; worst realised-role difference ${worst.toExponential(2)}`);
 console.log(failed ? `\nlight pack parity: ${failed} FAILED` : '\nlight pack parity OK');
 fs.rmSync(WORK, { recursive: true, force: true });
 process.exit(failed ? 1 : 0);

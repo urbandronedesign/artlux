@@ -147,6 +147,9 @@ pub struct Runtime {
     byte_ticks: u64,
     /// E3f: this tick's bytes for each light as the ENGINE solved them — the ones placed on the wire.
     light_solved: HashMap<String, Vec<u8>>,
+    /// E4b: what every light is doing this tick (lightpack Head::resolve), for the 3D view's beams — resolved only
+    /// while a view is open, from the same stack its bytes were packed with.
+    light_beams: HashMap<String, crate::lightpack::Beam>,
 }
 
 #[derive(Clone, Copy, PartialEq)]
@@ -164,7 +167,7 @@ impl Runtime {
             #[cfg(feature = "ndi")] ndis: HashMap::new(),
             #[cfg(windows)] mp4s: HashMap::new(), conv: None,
             #[cfg(windows)] cams: HashMap::new(), resolved: HashMap::new(), pending_cams: HashMap::new(), last_doc: None, redo: false,
-            view: None, view_scene_ver: 0, view_published: HashMap::new(), view_colors_gen: 0, view_last_summary: String::new(), clock_diffs: 0, clock_rev: 0, lanes: Vec::new(), auto_fx: HashMap::new(), auto_diffs: 0, auto_ticks: 0, show: Default::default(), light_diffs: 0, light_ticks: 0, rig: None, light_fix: HashMap::new(), byte_diffs: 0, byte_ticks: 0, light_solved: HashMap::new() }
+            view: None, view_scene_ver: 0, view_published: HashMap::new(), view_colors_gen: 0, view_last_summary: String::new(), clock_diffs: 0, clock_rev: 0, lanes: Vec::new(), auto_fx: HashMap::new(), auto_diffs: 0, auto_ticks: 0, show: Default::default(), light_diffs: 0, light_ticks: 0, rig: None, light_fix: HashMap::new(), byte_diffs: 0, byte_ticks: 0, light_solved: HashMap::new(), light_beams: HashMap::new() }
     }
 
     /// E4a: the 3D view's shared state and its open flag (serve.rs makes them; the windows thread shares them).
@@ -293,6 +296,7 @@ impl Runtime {
         }
         self.view_colors_gen += 1;
         sh.colors = Some((self.view_colors_gen, Arc::new(raw.to_vec()), Arc::new(bases)));
+        sh.beams = Arc::new(self.light_beams.clone());
     }
 
     /// E1f-3: the windows thread the projector outputs live on (serve.rs starts it).
@@ -614,6 +618,7 @@ impl Runtime {
         let Some(mut doc) = self.doc.take() else { return Ok(()) };
         self.evaluate_lanes(&mut doc, v);
         self.light_solved.clear();
+        self.light_beams.clear();
         if v["rev"].as_u64() == Some(doc.rev) { self.evaluate_lighting(v); }   // the app's overlays are THIS document's
         let ev = self.evaluate_clock(&doc, v);
         let r = self.tick_with(&mut doc, ev.as_ref().unwrap_or(v));
@@ -756,6 +761,7 @@ impl Runtime {
         let owned: HashMap<String, std::collections::HashSet<String>> = v["lown"].as_object().into_iter().flatten().map(|(k, a)| (k.clone(), a.as_array().into_iter().flatten().filter_map(|x| x.as_str().map(str::to_string)).collect())).collect();
         let mut why: Vec<String> = Vec::new();
         let mut nbytes = 0usize;
+        let view_open = self.view.as_ref().is_some_and(|(_, o)| o.load(std::sync::atomic::Ordering::Relaxed));
         for (id, bytes) in app {
             let want: Vec<u64> = bytes.as_array().into_iter().flatten().map(|b| b.as_u64().unwrap_or(0)).collect();
             let got: Vec<u8> = match self.light_fix.get(id) {
@@ -765,6 +771,12 @@ impl Runtime {
                 },
                 None => { why.push(format!("{id}: not a light in the document")); continue; }
             };
+            if view_open {
+                if let (Some(f), Some(head)) = (self.light_fix.get(id), rig.head(&self.light_fix[id])) {
+                    let o = crate::lightpack::Over { owned: owned.get(id), color: colors.get(id), cue: cue.get(id), roles: roles.get(id), live: live.get(id) };
+                    self.light_beams.insert(id.clone(), head.resolve(&f["dmx"], &o));
+                }
+            }
             nbytes += got.len();
             let differs = got.len() != want.len() || got.iter().zip(&want).any(|(a, b)| *a as u64 != *b);
             self.light_solved.insert(id.clone(), got.clone());

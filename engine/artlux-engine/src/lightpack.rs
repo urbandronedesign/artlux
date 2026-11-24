@@ -55,7 +55,7 @@ fn cmy_from_rgb(role: &str) -> Option<&'static str> {
 // ── The profile ────────────────────────────────────────────────────────────────────────────────────────
 
 #[derive(Clone, Debug)]
-pub struct Range { pub from: f64, pub to: f64, pub color: Option<String> }
+pub struct Range { pub from: f64, pub to: f64, pub color: Option<String>, pub label: String }
 
 #[derive(Clone, Debug)]
 pub struct Channel {
@@ -93,6 +93,7 @@ impl Profile {
                 ranges: c["ranges"].as_array().into_iter().flatten().map(|r| Range {
                     from: f(&r["from"]).unwrap_or(f64::NAN), to: f(&r["to"]).unwrap_or(f64::NAN),
                     color: r["color"].as_str().map(str::to_string),
+                    label: r["label"].as_str().unwrap_or_default().to_string(),
                 }).collect(),
             }).collect(),
             modes: p["modes"].as_array().into_iter().flatten().map(|m| Mode {
@@ -130,6 +131,8 @@ pub struct Head {
     emitters: Vec<String>,
     cct: bool,
     wheel: Option<usize>,
+    /// Per profile channel: does this mode address it (colorModel's `inMode`).
+    in_mode: Vec<bool>,
 }
 
 impl Head {
@@ -164,7 +167,8 @@ impl Head {
         let mixable = (has("red") && has("green") && has("blue")) || subtractive;
         let temperature = !mixable && (cct || (has("coldWhite") && has("warmWhite")));
         let control = if mixable { Control::Mix } else if temperature { Control::Temperature } else if wheel.is_some() { Control::Wheel } else { Control::None };
-        Head { plan, channels: profile.channels.clone(), subtractive, control, emitters, cct, wheel }
+        let in_mode = profile.channels.iter().map(|c| in_mode.contains(c.key.as_str())).collect();
+        Head { plan, channels: profile.channels.clone(), subtractive, control, emitters, cct, wheel, in_mode }
     }
 
     /// colorEngine.ts realiseColor — one authored colour as role values this head can take (empty: it can't).
@@ -332,6 +336,75 @@ impl Head {
     }
 }
 
+/// E4b — WHAT A LIGHT IS DOING, for the 3D view's beams: fixtureSignal.ts `FixtureState` (no gobo, no `emit` —
+/// the beam reads neither).
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+pub struct Beam { pub intensity: f64, pub r: f64, pub g: f64, pub b: f64, pub pan: f64, pub tilt: f64, pub zoom: Option<f64>, pub blackout: bool }
+
+/// profilePack.ts selectedRange — the range a discrete channel's value selects.
+fn selected_range(c: &Channel, value: f64) -> Option<&Range> {
+    if c.ranges.is_empty() { return None; }
+    let byte = jround(jmax(0.0, jmin(1.0, value)) * 255.0);
+    c.ranges.iter().find(|r| byte >= r.from && byte <= r.to)
+}
+/// profilePack.ts physicalValue.
+fn physical(c: &Channel, value: f64) -> Option<f64> {
+    let (lo, hi) = (c.min?, c.max?);
+    Some(lo + (hi - lo) * jmax(0.0, jmin(1.0, value)))
+}
+/// fixtureSignal.ts hexToRgb: `/^#?([0-9a-f]{6})$/i` on the trimmed string.
+fn hex_rgb(hex: &str) -> Option<[f64; 3]> {
+    let h = hex.trim();
+    let h = h.strip_prefix('#').unwrap_or(h);
+    if h.len() != 6 || !h.bytes().all(|b| b.is_ascii_hexdigit()) { return None; }
+    let n = u32::from_str_radix(h, 16).ok()?;
+    Some([((n >> 16) & 255) as f64 / 255.0, ((n >> 8) & 255) as f64 / 255.0, (n & 255) as f64 / 255.0])
+}
+
+impl Head {
+    /// fixtureSignal.ts resolveFixture, through the same stack `pack` writes with (frameEngine resolves every
+    /// light with the override it packed it with). `npm run test:light-pack-parity` holds it to the app's.
+    pub fn resolve(&self, dmx: &Value, o: &Over) -> Beam {
+        let realised = o.color.map(|c| self.realise(c));
+        let mut out = Beam { intensity: 1.0, ..Default::default() };
+        let (mut dimmer, mut has_emitter, mut shutter_open) = (1.0f64, false, true);
+        let mut cmy = [0.0f64; 3];
+        for (i, c) in self.channels.iter().enumerate() {
+            if !self.in_mode[i] { continue; }
+            let v = self.channel_value(c, dmx, o, &realised);
+            if self.subtractive {
+                if let Some(axis) = SUBTRACTIVE.iter().position(|r| *r == c.role) { cmy[axis] = v; continue; }
+            }
+            if let Some(e) = emitter(&c.role) {
+                out.r += e[0] * v; out.g += e[1] * v; out.b += e[2] * v;
+                has_emitter = true;
+                continue;
+            }
+            match c.role.as_str() {
+                "dimmer" => dimmer = v,
+                "pan" => out.pan = physical(c, v).unwrap_or(v * 540.0),
+                "tilt" => out.tilt = physical(c, v).unwrap_or(v * 270.0),
+                "zoom" => if let Some(z) = physical(c, v) { out.zoom = Some(z); },
+                "shutter" | "strobe" => if let Some(r) = selected_range(c, v) {
+                    let l = r.label.to_lowercase();
+                    if l.contains("closed") || l.contains("blackout") { shutter_open = false; }
+                },
+                "colorWheel" => if let Some(col) = selected_range(c, v).and_then(|r| r.color.as_deref()).and_then(hex_rgb) {
+                    out.r = col[0]; out.g = col[1]; out.b = col[2]; has_emitter = true;
+                },
+                _ => {}
+            }
+        }
+        if !has_emitter { out.r = 1.0; out.g = 1.0; out.b = 1.0; }
+        if self.subtractive { out.r *= 1.0 - cmy[0]; out.g *= 1.0 - cmy[1]; out.b *= 1.0 - cmy[2]; }
+        let peak = jmax(jmax(out.r, out.g), out.b);
+        if peak > 1.0 { out.r /= peak; out.g /= peak; out.b /= peak; }
+        out.intensity = if shutter_open { dimmer } else { 0.0 };
+        out.blackout = !shutter_open || dimmer <= 0.0;
+        out
+    }
+}
+
 /// A rig's heads, prepared once per document: (profile id, mode key as the fixture names it) → Head.
 #[derive(Default)]
 pub struct Rig { profiles: HashMap<String, Profile>, heads: HashMap<(String, String), Option<Head>> }
@@ -355,12 +428,13 @@ impl Rig {
 
 /// The parity harness's engine half (`--pack-cases`): each case → its value, in order.
 ///   {"pack": {profile, fixture: {profileMode?, dmx?}, owned?: [key], color?, cue?, roles?, live?}} → [byte…] | null
+///   {"resolve": {…as pack}}                                                                          → fixtureSignal FixtureState (no emit / gobo)
 ///   {"realise": {profile, mode?, value}}                                                            → {role: v} | null
 pub fn run_cases(cases: &Value) -> Value {
     use serde_json::json;
     let map = |v: &Value| -> Option<HashMap<String, f64>> { v.as_object().map(|o| o.iter().map(|(k, x)| (k.clone(), x.as_f64().unwrap_or(f64::NAN))).collect()) };
     let out: Vec<Value> = cases.as_array().into_iter().flatten().map(|c| {
-        if let Some(p) = c.get("pack") {
+        if let Some(p) = c.get("pack").or_else(|| c.get("resolve")) {
             let prof = Profile::from_json(&p["profile"]);
             let Some(mode) = prof.mode_of(p["fixture"]["profileMode"].as_str()) else { return Value::Null };
             let head = Head::new(&prof, mode);
@@ -368,7 +442,12 @@ pub fn run_cases(cases: &Value) -> Value {
             let color = p.get("color").and_then(Color::from_json);
             let (cue, roles, live) = (map(&p["cue"]), map(&p["roles"]), map(&p["live"]));
             let o = Over { owned: owned.as_ref(), color: color.as_ref(), cue: cue.as_ref(), roles: roles.as_ref(), live: live.as_ref() };
-            json!(head.pack(p["fixture"].get("dmx").unwrap_or(&Value::Null), &o))
+            let dmx = p["fixture"].get("dmx").unwrap_or(&Value::Null);
+            if c.get("pack").is_some() { return json!(head.pack(dmx, &o)); }
+            let b = head.resolve(dmx, &o);
+            // NaN as null, as JSON.stringify writes it.
+            let n = |x: f64| if x.is_finite() { json!(x) } else { Value::Null };
+            json!({ "intensity": n(b.intensity), "r": n(b.r), "g": n(b.g), "b": n(b.b), "pan": n(b.pan), "tilt": n(b.tilt), "zoomDeg": b.zoom.map(n), "blackout": b.blackout })
         } else if let Some(r) = c.get("realise") {
             let prof = Profile::from_json(&r["profile"]);
             let Some(mode) = prof.mode_of(r["mode"].as_str()) else { return Value::Null };

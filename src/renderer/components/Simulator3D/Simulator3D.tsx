@@ -988,7 +988,14 @@ const Simulator3D: React.FC<Props> = ({
           mouseButtons={mode === 'select' ? (ortho ? SELECT_MOUSE_FLAT : SELECT_MOUSE) : TOOL_MOUSE} />
         <GizmoOrbitGuard />
         <EngineCameraBridge />
-        {engineView && <EngineViewLink fixtures={fixtures} />}
+        {engineView && <EngineViewLink fixtures={fixtures} beams={{
+          profiles: fixtureProfiles,
+          // The same look Beams is given above, so the engine's window draws what the editor does.
+          haze: renderedLook ? Math.max(scene3D.hazeDensity ?? 0.35, 0.35) : (scene3D.hazeDensity ?? 0.35),
+          cones: scene3D.beamCones !== false && !renderedLook,
+          rendered: !!renderedLook,
+          selected: selectedFixtureIds,
+        }} />}
         {/* Press-and-drag the selection itself, with object snaps — after the guard, whose window
             listener must decide "gizmo handle?" first. Not while picking calibration anchors or looking
             through a projector. */}

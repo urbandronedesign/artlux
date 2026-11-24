@@ -126,6 +126,12 @@ ordinary window: drag it to any screen, resize it, maximise it — moving it cos
 - It shows the **venue models**, the **screens with their live pictures**, **every LED in its live
   colour**, the **light fixtures** (as housings) and the floor grid, and follows every change you make in
   the editor within a quarter of a second.
+- **Every lit head throws its beam**, the way the editor draws it: the haze cone in the head's live colour
+  (the same **Haze** setting; the **Rendered** look's solid shafts to the floor when the editor's 3D view is
+  in Rendered), and the **cone outline** where the beam meets the floor. The heads selected in the editor
+  get the whole outline — the beam's axis and its edges — so you can aim on the editor's channel strip and
+  watch the beam swing on the other screen. A head that is dark, or whose shutter is closed, throws nothing;
+  only the 48 brightest cones are drawn as haze, as in the editor.
 - **The projection preview comes with it.** Content on a venue model shows the way the editor shows it:
   a **screen named inside a Blender model** shows the picture you bound to it, a whole model shows its
   surface through its **Mesh UVs** or **projected** (from view or from a calibrated projector, with the
@@ -133,7 +139,7 @@ ordinary window: drag it to any screen, resize it, maximise it — moving it cos
   calibrated ones and the projectors placed in the model file.
 - Close it with its own close button or the same header button.
 
-This first version does not draw beams, the Rendered look, labels or the gizmo, and content the engine
+It does not yet draw labels, the gizmo or the rest of the Rendered look (the lit room), and content the engine
 does not draw yet (a video in a format no ArtLux decoder plays, a tracking surface with its calibration overlay…) stays dark there — those stay in the editor's 3D
 view for now.
 

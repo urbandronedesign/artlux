@@ -1,8 +1,10 @@
 import { useEffect, useRef } from 'react';
 import * as THREE from 'three';
 import { useThree } from '@react-three/fiber';
-import type { Fixture } from '../../types';
-import { computeLedPositions, effectivePos } from '../../services/led3dLayout';
+import type { Fixture, FixtureProfile } from '../../types';
+import { computeLedPositions, effectivePos, effectiveRot, meanScale } from '../../services/led3dLayout';
+import { isResolvedLight } from '../../services/fixtureKind';
+import { rigMetrics, mountShift } from '../../services/profileRig';
 import { isLight } from '../../services/fixtureKind';
 import type { SceneModel } from '../../../../shared/protocol';
 import { findScreens } from './modelScreens';
@@ -21,7 +23,11 @@ import { usesProjectedUv, usesProjectedOcclusion, DEFAULT_BIAS_M } from './proje
 //     `userData.enginePath`), each screen's quad and the surface it shows (PlaneObject `enginePlane`);
 //   - leds: every pixel fixture's LED world positions (led3dLayout.computeLedPositions — the editor's
 //     InstancedLeds positions), in the order of their texels in the engine's composed buffer;
-//   - lights: each light fixture's position (a housing; beams come later);
+//   - lights: each light fixture's housing position and, for a light whose profile resolves, its BEAM's fixed
+//     half — the lens apex in world space (effectivePos + the rig's lens offset turned by the fixture's rotation +
+//     the mounting lift, exactly Beams.tsx), that base rotation, the pan / tilt mid-points and the lens half-angle.
+//     The moving half (intensity, colour, pan, tilt, zoom) the ENGINE resolves itself each tick (E4b,
+//     lightpack.rs Head::resolve); `beams` carries the look (haze, diagram cones, Rendered) and the selection;
 //   - content: what every mesh of a venue file WEARS — a named screen's surface, the whole model's
 //     surface through its UVs or PROJECTED from a projector (engineContent below);
 //   - lines: the projector frustums (anything tagged `userData.engineLine`), in world space.
@@ -76,7 +82,7 @@ export function engineContent(root: THREE.Object3D, model: SceneModel): { src: E
   return { src, mesh };
 }
 
-function buildScene(scene: THREE.Scene, fixtures: Fixture[]): string {
+function buildScene(scene: THREE.Scene, fixtures: Fixture[], beams: EngineBeams): string {
   const models: unknown[] = [];
   scene.updateMatrixWorld();
   scene.traverse((o) => {
@@ -115,18 +121,36 @@ function buildScene(scene: THREE.Scene, fixtures: Fixture[]): string {
     }
   });
   const leds = fixtures.filter((f) => !isLight(f) && (f.ledCount | 0) > 0).map((f) => ({ id: f.id, pos: Array.from(computeLedPositions(f), r4) }));
-  const lights = fixtures.filter((f) => isLight(f)).map((f) => { const p = effectivePos(f); return [r4(p.x), r4(p.y), r4(p.z)]; });
-  return JSON.stringify({ models, leds, lights, lines });
+  const lights = fixtures.filter((f) => isLight(f)).map((f) => {
+    const p = effectivePos(f);
+    const out: Record<string, unknown> = { id: f.id, pos: [r4(p.x), r4(p.y), r4(p.z)] };
+    if (isResolvedLight(f, beams.profiles)) {
+      // Beams.tsx, the fixed half: the beam leaves the LENS, turned with the fixture, lifted by its mount.
+      const rm = rigMetrics(beams.profiles.get(`${f.profileId}`)!);
+      const scale = meanScale(f);
+      const q = new THREE.Quaternion().setFromEuler(effectiveRot(f));
+      const apex = new THREE.Vector3(rm.lens.x * scale, rm.lens.y * scale, rm.lens.z * scale).applyQuaternion(q).add(p);
+      apex.y += mountShift(f.mount, rm, scale);
+      Object.assign(out, { apex: [r4(apex.x), r4(apex.y), r4(apex.z)], q: [q.x, q.y, q.z, q.w].map((x) => Math.round(x * 1e6) / 1e6), panMid: rm.panMid, tiltMid: rm.tiltMid, lensHalf: rm.lensHalf });
+    }
+    return out;
+  });
+  return JSON.stringify({ models, leds, lights, lines, beams: { haze: r4(beams.haze), cones: beams.cones, rendered: beams.rendered, selected: beams.selected } });
 }
 
+/** How the beams look, as the editor's Beams is told (Simulator3D): haze, the cone diagram, the Rendered look, and
+ *  the heads being aimed (they get the whole diagram). */
+export interface EngineBeams { profiles: ReadonlyMap<string, FixtureProfile>; haze: number; cones: boolean; rendered: boolean; selected: readonly string[] }
+
 /** Mounted inside the Canvas while the engine's 3D view is open: keeps the engine's scene current. */
-export const EngineViewLink: React.FC<{ fixtures: Fixture[] }> = ({ fixtures }) => {
+export const EngineViewLink: React.FC<{ fixtures: Fixture[]; beams: EngineBeams }> = ({ fixtures, beams }) => {
   const get = useThree((s) => s.get);
   const fx = useRef(fixtures); fx.current = fixtures;
+  const bm = useRef(beams); bm.current = beams;
   useEffect(() => {
     let last = '';
     const send = () => {
-      const json = buildScene(get().scene, fx.current);
+      const json = buildScene(get().scene, fx.current, bm.current);
       if (json !== last) { last = json; window.artlux?.nativeEngineScene3d?.(json); }
     };
     send();

@@ -12,7 +12,8 @@
 //! the world matrices the editor computed — so the recentre and every transform match by construction),
 //! the screens with their LIVE pictures, every pixel fixture's LEDs in their LIVE colours, light fixtures
 //! as housings, and the floor grid with the world axes. Orbit / pan / zoom with the mouse, in the window.
-//! WHAT IT DOES NOT DRAW YET: beams, the Rendered look, labels, gizmos and picking (E4b…).
+//! E4b: every lit head's BEAM (beams.rs: the volume and the cone diagram, Shaded or Rendered) from the light
+//! states the engine resolves itself. WHAT IT DOES NOT DRAW YET: labels, gizmos and picking (E4b…).
 //!
 //! THE SPLIT, as everywhere in the engine: the HOST describes (the scene message — what is where, from
 //! the editor's own three.js scene, so nothing here re-derives a transform), the RENDER THREAD publishes
@@ -39,7 +40,18 @@ pub enum ModelKind {
 pub struct Model { pub id: String, pub kind: ModelKind, pub matrix: [f32; 16], pub content: Option<Content> }
 /// One pixel fixture: its LED world positions, in the same order as its texels in the composed buffer.
 pub struct LedFix { pub id: String, pub pos: Vec<f32> }
-pub struct Scene { pub models: Vec<Model>, pub leds: Vec<LedFix>, pub lights: Vec<[f32; 3]>, pub lines: Vec<f32> }
+pub struct Scene { pub models: Vec<Model>, pub leds: Vec<LedFix>, pub lights: Vec<LightFix>, pub lines: Vec<f32>, pub look: BeamLook }
+/// E4b: one light fixture — its housing, and (when its profile resolves) its beam's FIXED half, as the editor
+/// computed it (engineView.tsx; Beams.tsx's maths): the lens apex in world space, the fixture's base rotation
+/// (a quaternion, x y z w), the pan / tilt mid-points and the lens half-angle, in degrees. The MOVING half is
+/// resolved by the engine every tick (`Shared::beams`).
+pub struct LightFix { pub id: String, pub pos: [f32; 3], pub beam: Option<BeamFix> }
+pub struct BeamFix { pub apex: [f32; 3], pub q: [f32; 4], pub pan_mid: f32, pub tilt_mid: f32, pub lens_half: f32 }
+/// How the beams look — what Simulator3D hands its Beams: room haze, the cone diagram, the Rendered look, and
+/// the heads being aimed (they get the whole diagram: axis and edge rays).
+#[derive(Clone)]
+pub struct BeamLook { pub haze: f32, pub cones: bool, pub rendered: bool, pub selected: std::collections::HashSet<String> }
+impl Default for BeamLook { fn default() -> Self { BeamLook { haze: 0.35, cones: true, rendered: false, selected: Default::default() } } }
 
 /// E4a+: WHAT A VENUE GLB WEARS, as the editor decided it (engineView.tsx `engineContent`, which reads
 /// the same precedence modelScreens.assignContentMaterials applies): a list of content sources, and for
@@ -92,10 +104,27 @@ impl Scene {
             id: f["id"].as_str().unwrap_or("").to_string(),
             pos: f["pos"].as_array().into_iter().flatten().map(|x| x.as_f64().unwrap_or(0.0) as f32).collect(),
         }).collect();
-        let lights = v["lights"].as_array().into_iter().flatten().filter_map(|p| {
-            let a = p.as_array()?; Some([a.first()?.as_f64()? as f32, a.get(1)?.as_f64()? as f32, a.get(2)?.as_f64()? as f32])
+        let v3 = |a: &serde_json::Value| -> Option<[f32; 3]> { let a = a.as_array()?; Some([a.first()?.as_f64()? as f32, a.get(1)?.as_f64()? as f32, a.get(2)?.as_f64()? as f32]) };
+        let lights = v["lights"].as_array().into_iter().flatten().filter_map(|l| {
+            // E4a sent a bare position; E4b an object.
+            if let Some(p) = v3(l) { return Some(LightFix { id: String::new(), pos: p, beam: None }); }
+            let beam = (|| {
+                let q = l["q"].as_array()?;
+                let g = |i: usize| q.get(i).and_then(|x| x.as_f64()).unwrap_or(0.0) as f32;
+                Some(BeamFix { apex: v3(&l["apex"])?, q: [g(0), g(1), g(2), g(3)],
+                    pan_mid: l["panMid"].as_f64().unwrap_or(0.0) as f32, tilt_mid: l["tiltMid"].as_f64().unwrap_or(0.0) as f32,
+                    lens_half: l["lensHalf"].as_f64().unwrap_or(7.0) as f32 })
+            })();
+            Some(LightFix { id: l["id"].as_str().unwrap_or("").to_string(), pos: v3(&l["pos"])?, beam })
         }).collect();
-        Scene { models, leds, lights, lines }
+        let b = &v["beams"];
+        let look = BeamLook {
+            haze: b["haze"].as_f64().unwrap_or(0.35) as f32,
+            cones: b["cones"].as_bool().unwrap_or(true),
+            rendered: b["rendered"].as_bool().unwrap_or(false),
+            selected: b["selected"].as_array().into_iter().flatten().filter_map(|x| x.as_str().map(str::to_string)).collect(),
+        };
+        Scene { models, leds, lights, lines, look }
     }
 }
 
@@ -147,6 +176,8 @@ pub struct Shared {
     pub colors: Option<(u64, Arc<Vec<u8>>, Arc<HashMap<String, usize>>)>,
     /// surface id → (generation, picture), for the screens.
     pub pictures: HashMap<String, (u64, Arc<Picture>)>,
+    /// E4b: what every light is doing this tick (lightpack Head::resolve), by fixture id.
+    pub beams: Arc<HashMap<String, crate::lightpack::Beam>>,
     pub cam: Cam,
     /// Bumped when the camera is set from OUTSIDE the window (the host's "open here"), not by its mouse.
     pub cam_set: u64,
@@ -288,7 +319,7 @@ fn load_glb(path: &str) -> Result<CpuGlb, String> {
 // ── The presenter ───────────────────────────────────────────────────────────────────────────────────
 
 const SHADER: &str = r#"
-struct Cam { vp: mat4x4<f32>, eye: vec4<f32>, px: vec4<f32> };   // px.x = world units per pixel at 1 m
+struct Cam { vp: mat4x4<f32>, eye: vec4<f32>, px: vec4<f32> };   // px.x = world units per pixel at 1 m; px.y = haze, px.z = 1 for the Rendered look
 @group(0) @binding(0) var<uniform> cam: Cam;
 
 // flags: textured, unlit, srgb-texture. PROJECTED content (projectedMapping.ts, the same maths):
@@ -392,6 +423,37 @@ struct GOut { @builtin(position) pos: vec4<f32>, @location(0) c: vec4<f32>, @loc
 // Overlay lines (projector frustums) keep their colour at any distance — they reach across the venue.
 @fragment fn fs_line_flat(i: GOut) -> @location(0) vec4<f32> { return i.c; }
 
+// E4b - A BEAM'S VOLUME (Beams.tsx VERT / FRAG and its node build): an additive cone of haze, apex at the lens.
+// The instance scale is non-uniform (thin in x / y, long in z), so the normal takes the inverse scale first.
+// Brightness is the CHORD through the haze, approximated by how squarely the shell faces the eye.
+struct BOut { @builtin(position) pos: vec4<f32>, @location(0) local: vec3<f32>, @location(1) n: vec3<f32>, @location(2) w: vec3<f32>, @location(3) tint: vec3<f32> };
+@vertex fn vs_beam(@location(0) p: vec3<f32>, @location(1) n: vec3<f32>,
+                   @location(2) c0: vec4<f32>, @location(3) c1: vec4<f32>, @location(4) c2: vec4<f32>, @location(5) c3: vec4<f32>, @location(6) tint: vec4<f32>) -> BOut {
+  let m = mat4x4<f32>(c0, c1, c2, c3);
+  let w = m * vec4<f32>(p, 1.0);
+  let sc = max(vec3<f32>(length(c0.xyz), length(c1.xyz), length(c2.xyz)), vec3<f32>(1e-6));
+  let rot = mat3x3<f32>(c0.xyz / sc.x, c1.xyz / sc.y, c2.xyz / sc.z);
+  var o: BOut;
+  o.pos = cam.vp * w;
+  o.local = p;
+  o.n = rot * (n / sc);
+  o.w = w.xyz;
+  o.tint = tint.rgb;
+  return o;
+}
+@fragment fn fs_beam(i: BOut) -> @location(0) vec4<f32> {
+  let t = clamp(-i.local.z, 0.0, 1.0);
+  let solid = cam.px.z;
+  let facing0 = abs(dot(normalize(i.n), normalize(cam.eye.xyz - i.w)));
+  // Rendered: a softer edge and ~45 % left at the floor instead of (1 - t)^2.
+  let facing = mix(facing0, pow(facing0, 0.6), solid);
+  let fall = mix((1.0 - t) * (1.0 - t), 1.0 - t * 0.55, solid);
+  let throat = smoothstep(0.0, 0.05, t);
+  let a = facing * fall * throat * cam.px.y * mix(1.0, 2.2, solid);
+  if (a <= 0.002) { discard; }
+  return vec4<f32>(i.tint * a, a);
+}
+
 // A projector's depth map: the venue seen from the projector, distance along its view axis per texel.
 struct DOut { @builtin(position) pos: vec4<f32>, @location(0) d: f32 };
 @vertex fn vs_depth(@location(0) p: vec3<f32>) -> DOut {
@@ -481,6 +543,23 @@ pub fn present(gpu: Arc<Gpu>, window: Arc<Window>, surface: wgpu::Surface<'stati
         primitive: wgpu::PrimitiveState { topology: wgpu::PrimitiveTopology::LineList, ..Default::default() },
         depth_stencil: ds(false), multisample: ms, multiview_mask: None, cache: None,
     });
+    // The beams' volume: additive (three's AdditiveBlending: src x alpha + dst), depth-tested, never written.
+    let additive = wgpu::BlendState {
+        color: wgpu::BlendComponent { src_factor: wgpu::BlendFactor::SrcAlpha, dst_factor: wgpu::BlendFactor::One, operation: wgpu::BlendOperation::Add },
+        alpha: wgpu::BlendComponent { src_factor: wgpu::BlendFactor::SrcAlpha, dst_factor: wgpu::BlendFactor::One, operation: wgpu::BlendOperation::Add },
+    };
+    let beam_pipe = d.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+        label: Some("beams"), layout: Some(&cam_pl),
+        vertex: wgpu::VertexState { module: &module, entry_point: Some("vs_beam"), compilation_options: Default::default(), buffers: &[
+            Some(wgpu::VertexBufferLayout { array_stride: 24, step_mode: wgpu::VertexStepMode::Vertex, attributes: &wgpu::vertex_attr_array![0 => Float32x3, 1 => Float32x3] }),
+            Some(wgpu::VertexBufferLayout { array_stride: (crate::beams::CONE_FLOATS * 4) as u64, step_mode: wgpu::VertexStepMode::Instance,
+                attributes: &wgpu::vertex_attr_array![2 => Float32x4, 3 => Float32x4, 4 => Float32x4, 5 => Float32x4, 6 => Float32x4] }),
+        ] },
+        fragment: Some(wgpu::FragmentState { module: &module, entry_point: Some("fs_beam"), targets: &[Some(wgpu::ColorTargetState {
+            format, blend: Some(additive), write_mask: wgpu::ColorWrites::ALL })], compilation_options: Default::default() }),
+        primitive: wgpu::PrimitiveState { cull_mode: None, ..Default::default() },
+        depth_stencil: ds(false), multisample: ms, multiview_mask: None, cache: None,
+    });
     let depth_pipe = d.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
         label: Some("projector depth"), layout: Some(&depth_pl),
         vertex: wgpu::VertexState { module: &module, entry_point: Some("vs_depth"), compilation_options: Default::default(), buffers: &[Some(wgpu::VertexBufferLayout {
@@ -558,6 +637,24 @@ pub fn present(gpu: Arc<Gpu>, window: Arc<Window>, surface: wgpu::Surface<'stati
         let ib = buf_init(&gpu, "cube ib", &idx.iter().flat_map(|x| x.to_le_bytes()).collect::<Vec<u8>>(), wgpu::BufferUsages::INDEX);
         (vb, ib, idx.len() as u32)
     };
+    // The beams: one unit cone (instanced), and per-frame buffers for the instances and the diagram's lines,
+    // grown when a frame needs more (never shrunk: a rig's size is stable).
+    let cone = {
+        let (v, idx) = crate::beams::unit_cone();
+        (buf_init(&gpu, "cone vb", &bytes(&v), wgpu::BufferUsages::VERTEX), buf_init(&gpu, "cone ib", &idx.iter().flat_map(|x| x.to_le_bytes()).collect::<Vec<u8>>(), wgpu::BufferUsages::INDEX), idx.len() as u32)
+    };
+    let mut cone_inst: Option<wgpu::Buffer> = None;
+    let mut beam_lines: Option<wgpu::Buffer> = None;
+    let grow = |slot: &mut Option<wgpu::Buffer>, data: &[f32], label: &str| {
+        let need = (data.len() * 4) as u64;
+        if need == 0 { return; }
+        if slot.as_ref().is_none_or(|b| b.size() < need) {
+            *slot = Some(d.create_buffer(&wgpu::BufferDescriptor { label: Some(label), size: need.next_power_of_two().max(256), usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST, mapped_at_creation: false }));
+        }
+        gpu.queue.write_buffer(slot.as_ref().unwrap(), 0, &bytes(data));
+    };
+    let mut beams_logged = (0u32, 0u32, false);
+
     // The screen quad: 1 × 1 in XY facing +Z, scaled per plane (PlaneGeometry's UVs: v = 0 at the bottom,
     // and the picture's row 0 is its TOP, so the quad samples (u, 1 - v)).
     let quad = {
@@ -611,9 +708,9 @@ pub fn present(gpu: Arc<Gpu>, window: Arc<Window>, surface: wgpu::Surface<'stati
         }
 
         // What the render thread and the window published.
-        let (sc, colors, pics, cam) = {
+        let (sc, colors, pics, cam, beam_states) = {
             let s = shared.lock().unwrap();
-            (s.scene.clone(), s.colors.clone(), s.pictures.clone(), s.cam)
+            (s.scene.clone(), s.colors.clone(), s.pictures.clone(), s.cam, s.beams.clone())
         };
 
         // A new scene: start loading files never seen, (re)write every placement.
@@ -630,7 +727,7 @@ pub fn present(gpu: Arc<Gpu>, window: Arc<Window>, surface: wgpu::Surface<'stati
                     }
                 }
                 // Light housings: 0.3 m boxes at each light.
-                lights = sc.lights.iter().map(|p| {
+                lights = sc.lights.iter().map(|l| l.pos).map(|p| {
                     let ub = obj_ub();
                     let m = [0.3, 0., 0., 0., 0., 0.3, 0., 0., 0., 0., 0.3, 0., p[0], p[1], p[2], 1.];
                     write_obj(&ub, &m, [0.16, 0.16, 0.17, 1.0], [0.0; 4]);
@@ -700,7 +797,21 @@ pub fn present(gpu: Arc<Gpu>, window: Arc<Window>, surface: wgpu::Surface<'stati
         let vp = mul(&perspective(cam.fov, aspect, 0.03, 4000.0), &look_at(eye, cam.target));
         let px = 2.0 * (cam.fov.to_radians() / 2.0).tan() / size.height as f32;
         let mut cu = Vec::with_capacity(24);
-        cu.extend_from_slice(&vp); cu.extend_from_slice(&[eye[0], eye[1], eye[2], 1.0]); cu.extend_from_slice(&[px, 0.0, 0.0, 0.0]);
+        let look = scene.as_ref().map(|s| s.look.clone()).unwrap_or_default();
+        cu.extend_from_slice(&vp); cu.extend_from_slice(&[eye[0], eye[1], eye[2], 1.0]); cu.extend_from_slice(&[px, look.haze, look.rendered as u32 as f32, 0.0]);
+
+        // The beams, from this tick's resolved states.
+        let bf = scene.as_ref().map(|s| crate::beams::build(&s.lights, &beam_states, &s.look)).unwrap_or(crate::beams::Frame { cones: Vec::new(), lines: Vec::new() });
+        let n_cones = (bf.cones.len() / crate::beams::CONE_FLOATS) as u32;
+        let n_beam_verts = (bf.lines.len() / crate::beams::LINE_FLOATS) as u32;
+        grow(&mut cone_inst, &bf.cones, "beam instances");
+        grow(&mut beam_lines, &bf.lines, "beam lines");
+        // Logged on the first beams and again whenever the look or the count changes (a test reads it).
+        let beams_key = (n_cones, n_beam_verts, look.rendered);
+        if beams_key != beams_logged && (n_cones > 0 || n_beam_verts > 0) {
+            beams_logged = beams_key;
+            eprintln!("artlux-engine: 3D view beams: {} volume(s), {} diagram segment(s) (haze {}, {})", n_cones, n_beam_verts / 2, look.haze, if look.rendered { "Rendered" } else { "Shaded" });
+        }
         gpu.queue.write_buffer(&cam_buf, 0, &bytes(&cu));
 
         // Depth maps: one per model projecting with occlusion on, keyed by its projector matrix (a
@@ -882,6 +993,18 @@ pub fn present(gpu: Arc<Gpu>, window: Arc<Window>, surface: wgpu::Surface<'stati
                 pass.set_vertex_buffer(0, pb.slice(..));
                 pass.set_vertex_buffer(1, cb.slice(..));
                 pass.draw(0..6, 0..*n);
+            }
+            if let (Some(ib), true) = (&cone_inst, n_cones > 0) {
+                pass.set_pipeline(&beam_pipe);
+                pass.set_vertex_buffer(0, cone.0.slice(..));
+                pass.set_vertex_buffer(1, ib.slice(..));
+                pass.set_index_buffer(cone.1.slice(..), wgpu::IndexFormat::Uint32);
+                pass.draw_indexed(0..cone.2, 0, 0..n_cones);
+            }
+            if let (Some(lb), true) = (&beam_lines, n_beam_verts > 0) {
+                pass.set_pipeline(&flat_line_pipe);
+                pass.set_vertex_buffer(0, lb.slice(..));
+                pass.draw(0..n_beam_verts, 0..1);
             }
             pass.set_pipeline(&line_pipe);
             pass.set_vertex_buffer(0, grid.0.slice(..));
