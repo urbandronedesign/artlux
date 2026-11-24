@@ -240,6 +240,17 @@ function activeClip(layerId: string, t: number): VideoClip | null {
   return found;
 }
 
+// E3k — the clip a track cuts to when `c` ends (activeClip at its end: none across a gap, the later of two
+// overlapping clips as everywhere), and the codec playing it when it is a probed video (else null).
+function nextOf(layerId: string, c: VideoClip | null): { clip: VideoClip; codec: string | null } | null {
+  if (!c) return null;
+  const n = activeClip(layerId, c.start + c.duration);
+  if (!n || n.id === c.id) return null;
+  if (isContentClip(n)) return { clip: n, codec: null };
+  const codec = videoCodecRegistry.forPath(n.path);
+  return { clip: n, codec: codec && codec.probed(n.path) === true ? codec.id : null };
+}
+
 // Stop holding any generalized-content source this layer had live (clip ended / changed away).
 function releaseContent(lv: LayerVid, layerId: string): void {
   if (lv.mode === 'content' || lv.content) contentSource.release(layerKey(layerId));
@@ -2185,7 +2196,7 @@ export const timeline = {
     if (external) return { gen: lanesGen, lanes: [] };
     return { gen: lanesGen, lanes: lanesRT.filter((l) => take(l.path)).map((l) => ({ path: l.path, kfs: l.kfs, log: l.log, eps: l.eps, clock: l.clock })) };
   },
-  nativeLayers(only: readonly string[] | null, single = false): { layerId: string; clip: VideoClip | null; spans: { id: string; start: number; duration: number }[]; alpha: number; time: number; opacity: number; blend: string; codec: { id: string; path: string; frame: unknown; gen: number | undefined } | null; element: boolean }[] {
+  nativeLayers(only: readonly string[] | null, single = false): { layerId: string; clip: VideoClip | null; next: { clip: VideoClip; codec: string | null } | null; spans: { id: string; start: number; duration: number }[]; alpha: number; time: number; opacity: number; blend: string; codec: { id: string; path: string; frame: unknown; gen: number | undefined } | null; element: boolean }[] {
     if (external) return [];
     const layers = single ? data.layers.filter((l) => only?.includes(l.id)) : contributingLayers(only ? new Set(only) : null);
     return layers.map((l) => {
@@ -2199,6 +2210,9 @@ export const timeline = {
       return {
         // E3i: every clip of the track in activeClip's order (data.clips), for the engine to choose from.
         spans: data.clips.filter((x) => x.layerId === l.id).map((x) => ({ id: x.id, start: x.start, duration: x.duration })),
+        // E3k: the clip the track CUTS TO when this one ends (activeClip at its end — none across a gap), with
+        // the codec that plays it when it is a video the codec has probed, so the engine can decode it ahead.
+        next: nextOf(l.id, c),
         layerId: l.id, clip: c, alpha: layerAlpha(l.id), time: c ? playhead - c.start + c.inPoint : 0,
         opacity: single ? 1 : Math.max(0, Math.min(1, l.opacity ?? 1)), blend: single ? 'normal' : (l.blendMode ?? 'normal'),
         codec, element: !!(c && lv && lv.clipId === c.id && lv.mode === 'video'),

@@ -267,7 +267,12 @@ export function compositeNativeSource(s: Surface): contentSource.NativeSource {
   // E3i: and the track's clip SPANS (id, start, duration — every clip of the track, in document order), so the
   // engine chooses the clip itself (activeClip) and knows when its own clock has crossed into a clip this document
   // does not describe yet. Stable: they change only when a clip of the track is edited.
-  const layers: { key: string; opacity: number; blend: string; clip: { id: string; start: number; inPoint: number; duration: number; fadeIn?: number; fadeOut?: number; opacity?: number }; spans: { id: string; start: number; duration: number }[] }[] = [];
+  // E3k: and the clip the track CUTS TO (`next`, a hidden source `clip:<id>`) when the engine can draw it on its
+  // own — a still, an effect, a HAP or an MP4 — so it decodes it ahead and shows it the moment ITS clock crosses
+  // the cut, before this document is replaced by the one the app sends when IT crosses.
+  type ClipT = { id: string; start: number; inPoint: number; duration: number; fadeIn?: number; fadeOut?: number; opacity?: number };
+  const clipT = (c: NonNullable<(typeof entries)[number]['clip']>): ClipT => ({ id: c.id, start: c.start, inPoint: c.inPoint, duration: c.duration, fadeIn: c.fadeIn, fadeOut: c.fadeOut, opacity: c.content?.opacity });
+  const layers: { key: string; opacity: number; blend: string; clip: ClipT; spans: { id: string; start: number; duration: number }[]; next?: { key: string; clip: ClipT } }[] = [];
   const sources: Record<string, { src: contentSource.NativeSource; content: unknown }> = {};
   for (const e of entries) {
     if (!e.clip) continue;   // nothing under the playhead: the track contributes nothing (as in the app)
@@ -276,10 +281,23 @@ export function compositeNativeSource(s: Surface): contentSource.NativeSource {
     if (isContentClip(e.clip)) src = contentSource.nativeSource(key, e.clip.content!);
     // E3b: a video clip — through the codec playing it (HAP / MP4); a <video> element has no exact frame.
     else if (e.codec) src = contentSource.codecClipNativeSource(e.codec.id, e.codec.path, e.codec.frame);
-    else return { kind: 'unsupported', why: e.element ? 'a timeline track playing a video through a <video> element (no exact frame to hand the engine)' : 'a timeline video clip that is not decoding yet' };
+    else if (e.element) return { kind: 'unsupported', why: 'a timeline track playing a video through a <video> element (no exact frame to hand the engine)' };
+    else src = { kind: 'unsupported', why: 'a timeline video clip that is not decoding yet' };
+    // E3k: A CUT THE APP'S DECODER HAS NOT CAUGHT UP WITH. The engine chooses a video track's frame itself (E3j) and
+    // judges an MP4's colour space from its own decoder, so a HAP / MP4 the codec has probed is drawable by the
+    // engine whether or not THIS window has decoded a frame of it yet. Without this, every cut on an MP4 track
+    // made the document unsupported for a moment and the wire went back to the app and came back (measured: at
+    // each cut of a two-film track).
+    if (src.kind === 'unsupported' && !e.element) src = contentSource.nextClipNativeSource(key, e.clip, undefined) ?? src;
     if (src.kind === 'unsupported') return { kind: 'unsupported', why: `a timeline clip: ${src.why}` };
     const c = e.clip;
-    layers.push({ key, opacity: e.opacity, blend: e.blend, clip: { id: c.id, start: c.start, inPoint: c.inPoint, duration: c.duration, fadeIn: c.fadeIn, fadeOut: c.fadeOut, opacity: c.content?.opacity }, spans: e.spans });
+    let next: { key: string; clip: ClipT } | undefined;
+    if (e.next) {
+      const nkey = `clip:${e.next.clip.id}`;
+      const nsrc = contentSource.nextClipNativeSource(nkey, e.next.clip, e.next.codec);
+      if (nsrc) { next = { key: nkey, clip: clipT(e.next.clip) }; sources[nkey] = { src: nsrc, content: e.next.clip.content }; }
+    }
+    layers.push({ key, opacity: e.opacity, blend: e.blend, clip: clipT(c), spans: e.spans, ...(next ? { next } : {}) });
     sources[key] = { src, content: e.clip.content };
   }
   return { kind: 'comp', w, h, single, layers, sources };

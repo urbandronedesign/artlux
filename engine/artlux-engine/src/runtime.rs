@@ -145,6 +145,17 @@ pub struct Runtime {
     /// (the app shows what its decoder has READY, so a frame it has not decoded yet is a different one).
     frame_agree: (u64, u64),
     clock_ticks: u64,
+    /// E3k: this tick, a track drawn from the clip it cuts to: layer key → that clip's source key.
+    comp_sub: HashMap<String, String>,
+    /// E3k: tracks drawn from the next clip across a cut; decoders handed from a next clip to its track; next
+    /// clips the engine could not draw (logged once each).
+    next_drawn: u64,
+    handovers: u64,
+    clip_bad: std::collections::HashSet<String>,
+    /// The file each picture key was last given (E3k: a track's key outlives its clip).
+    src_paths: HashMap<String, String>,
+    /// E3k: hidden MP4 sources whose colour space the ENGINE judges (the app had no decoded frame to judge).
+    judge: std::collections::HashSet<String>,
     clock_rev: u64,
     /// E3d: the automation lanes the engine evaluates, this tick's effect overrides (surface → speed,
     /// intensity), and the check's counters.
@@ -184,7 +195,7 @@ impl Runtime {
             #[cfg(feature = "ndi")] ndis: HashMap::new(),
             #[cfg(windows)] mp4s: HashMap::new(), conv: None,
             #[cfg(windows)] cams: HashMap::new(), resolved: HashMap::new(), pending_cams: HashMap::new(), last_doc: None, redo: false,
-            view: None, view_scene_ver: 0, view_published: HashMap::new(), view_colors_gen: 0, view_last_summary: String::new(), clock_diffs: 0, transport: Default::default(), draw_at: None, draw_stats: (0, 0, 0), draw_max_step: 0, comp_draw: (0, 0), vids: HashMap::new(), frame_agree: (0, 0), clock_ticks: 0, clock_rev: 0, lanes: Vec::new(), auto_fx: HashMap::new(), auto_diffs: 0, auto_ticks: 0, show: Default::default(), light_diffs: 0, light_ticks: 0, rig: None, light_fix: HashMap::new(), byte_diffs: 0, byte_ticks: 0, light_solved: HashMap::new(), light_beams: HashMap::new() }
+            view: None, view_scene_ver: 0, view_published: HashMap::new(), view_colors_gen: 0, view_last_summary: String::new(), clock_diffs: 0, transport: Default::default(), draw_at: None, draw_stats: (0, 0, 0), draw_max_step: 0, comp_draw: (0, 0), vids: HashMap::new(), frame_agree: (0, 0), clock_ticks: 0, comp_sub: HashMap::new(), next_drawn: 0, handovers: 0, clip_bad: Default::default(), src_paths: HashMap::new(), judge: Default::default(), clock_rev: 0, lanes: Vec::new(), auto_fx: HashMap::new(), auto_diffs: 0, auto_ticks: 0, show: Default::default(), light_diffs: 0, light_ticks: 0, rig: None, light_fix: HashMap::new(), byte_diffs: 0, byte_ticks: 0, light_solved: HashMap::new(), light_beams: HashMap::new() }
     }
 
     /// E4a: the 3D view's shared state and its open flag (serve.rs makes them; the windows thread shares them).
@@ -202,9 +213,12 @@ impl Runtime {
         // Each track's picture as a texture: a GPU picture copied from its visible rect, a CPU one uploaded
         // once per generation.
         let mut texs: Vec<(wgpu::Texture, f32, f32, String, u32, u32)> = Vec::new();
-        for (key, opacity, blend, _, _) in &spec.layers {
+        for (layer, opacity, blend, _, _) in &spec.layers {
+            let alpha = v["comp"][sid][layer].as_f64().unwrap_or(1.0) as f32;
+            // E3k: across a cut the engine's clock reached first, the track's picture is the NEXT clip's.
+            let key = self.comp_sub.get(layer).cloned().unwrap_or_else(|| layer.clone());
+            let key = &key;
             let Some(p) = self.pictures.get(key) else { continue };   // not ready this frame: skipped, as the app does
-            let alpha = v["comp"][sid][key].as_f64().unwrap_or(1.0) as f32;
             let gen = self.gens.get(key).copied().unwrap_or(0);
             let tex = match &p.tex {
                 Some(t) => crate::projector::content_texture_from(&self.gpu, t, p.crop.unwrap_or([0, 0, p.w, p.h])),
@@ -461,7 +475,7 @@ impl Runtime {
         // E3a: a composite's tracks — hidden sources `layer:<id>`, sampled by no fixture, drawn only to be
         // composited. Same kinds as a surface's; an effect clip carries its own content.
         for (key, src) in d["sources"].as_object().into_iter().flatten() {
-            if !key.starts_with("layer:") { continue; }
+            if !key.starts_with("layer:") && !key.starts_with("clip:") { continue; }   // E3k: a next clip is `clip:<id>`
             let source = match src["kind"].as_str().unwrap_or("none") {
                 "image" => Source::Image(src["path"].as_str().unwrap_or_default().to_string()),
                 "effect" => Source::Effect(Params::from_json(&src["content"])),
@@ -472,6 +486,8 @@ impl Runtime {
                 "mp4" => Source::Mp4(src["path"].as_str().unwrap_or_default().to_string(), src["durUs"].as_f64().unwrap_or(0.0).round() as i64),
                 _ => Source::None,
             };
+            // E3k: an MP4 the app has decoded no frame of — the engine judges its colour space itself.
+            if src["judge"] == "engine" { self.judge.insert(key.clone()); } else { self.judge.remove(key); }
             sources.insert(key.clone(), source);
         }
         // What each surface's source resolved to, once per change (diagnostic: which kinds the engine was given).
@@ -507,6 +523,41 @@ impl Runtime {
         self.spouts.retain(|k, _| matches!(doc.sources.get(k), Some(Source::Spout(_))));
         #[cfg(feature = "ndi")]
         self.ndis.retain(|k, _| matches!(doc.sources.get(k), Some(Source::Ndi(_))));
+        // E3k: THE DECODER THAT DECODED A NEXT CLIP AHEAD IS HANDED TO ITS TRACK. When the app crosses the cut its
+        // document names that clip's file under the track (`layer:<id>`), and the `clip:<id>` key is gone; without
+        // this the retain below would close the warm decoder and the track would open a cold one at the cut.
+        #[cfg(windows)]
+        {
+            let wanted: Vec<(String, String)> = doc.sources.iter().filter_map(|(k, s)| match s {
+                Source::Mp4(p, _) if self.mp4s.get(k).is_none_or(|(q, _)| q != p) => Some((k.clone(), p.clone())),
+                _ => None,
+            }).collect();
+            for (k, p) in wanted {
+                let from = self.mp4s.iter().find(|(f, (q, _))| f.starts_with("clip:") && *q == p && !doc.sources.contains_key(*f)).map(|(f, _)| f.clone());
+                if let Some(from) = from {
+                    let e = self.mp4s.remove(&from).unwrap();
+                    self.mp4s.insert(k.clone(), e);
+                    // …with the frame it decoded: the picture and its generation are that file's.
+                    if let Some(pic) = self.pictures.remove(&from) { self.pictures.insert(k.clone(), pic); }
+                    if let Some(g) = self.gens.remove(&from) { self.gens.insert(k.clone(), g); }
+                    self.handovers += 1;
+                    if self.handovers <= 20 { eprintln!("artlux-engine: clock: {from}'s decoder handed to {k} at the cut ({} so far)", self.handovers); }
+                }
+            }
+        }
+        // A key whose FILE changed (a track cutting to another clip) must not keep the old file's frame: its
+        // generation is a frame number, which the new file can share.
+        for (k, s) in &doc.sources {
+            let p = match s { Source::Hap(p) | Source::Mp4(p, _) | Source::Image(p) => p, _ => continue };
+            #[cfg(windows)]
+            let handed = self.mp4s.get(k).is_some_and(|(q, _)| q == p);   // a decoder handed over at the cut brought its frame
+            #[cfg(not(windows))]
+            let handed = false;
+            if self.src_paths.get(k).is_some_and(|q| q != p) && !handed { self.gens.remove(k); self.pictures.remove(k); }
+            self.src_paths.insert(k.clone(), p.clone());
+        }
+        self.src_paths.retain(|k, _| doc.sources.contains_key(k));
+        self.clip_bad.retain(|k| doc.sources.contains_key(k));
         #[cfg(windows)]
         self.mp4s.retain(|k, (p, _)| matches!(doc.sources.get(k), Some(Source::Mp4(q, _)) if q == p));
         #[cfg(windows)]
@@ -865,6 +916,7 @@ impl Runtime {
     /// (`clock: differs`), which is the parity harness running on the show itself. The engine's values are the
     /// ones drawn. None when the tick carries no playhead (an older host) — the app's values are then used.
     fn evaluate_clock(&mut self, doc: &Doc, v: &Value) -> Option<Value> {
+        self.comp_sub.clear();
         let ph = v["ph"].as_f64()?;
         let mut w = v.clone();
         let mut n = 0usize;
@@ -892,21 +944,35 @@ impl Runtime {
                 // describes; across a boundary the app has not reached yet (the document holds the outgoing clip's
                 // picture and timing) the track is drawn at the app's playhead, for that tick.
                 let t_app = t;
+                let mut across = false;
                 let (a, t) = match self.draw_at {
                     Some((dph, _)) if dph != ph => {
-                        if track.id.is_some() && crate::eval::active_clip(&track.spans, dph) == track.id.as_deref() {
+                        let under = crate::eval::active_clip(&track.spans, dph);
+                        if track.id.is_some() && under == track.id.as_deref() {
                             self.comp_draw.0 += 1;
                             (crate::eval::clip_alpha(c, dph), crate::eval::clip_time(c, dph))
+                        } else if let Some((nk, nc, _)) = track.next.as_ref().filter(|(nk, _, nid)| under == Some(nid.as_str()) && self.pictures.contains_key(nk) && !self.clip_bad.contains(nk)) {
+                            // E3k: the engine's clock is past the cut and the next clip is decoded: draw IT.
+                            self.next_drawn += 1;
+                            across = true;
+                            self.comp_sub.insert(key.clone(), nk.clone());
+                            (crate::eval::clip_alpha(nc, dph), crate::eval::clip_time(nc, dph))
                         } else { self.comp_draw.1 += 1; (a, t) }
                     }
                     _ => (a, t),
                 };
                 w["comp"][sid][key] = a.into();
                 w["times"][key] = t.into();
+                // E3k: the next clip — its time (drawn across the cut, else its first frame, decoded AHEAD).
+                if let Some((nk, nc, _)) = &track.next {
+                    let nt = if across { t } else { crate::eval::clip_time(nc, nc.start) };
+                    w["times"][nk] = nt.into();
+                    if let Some(table) = self.vid_table(doc.sources.get(nk)) { w[if table.is_hap() { "hap" } else { "mp4" }][nk] = table.frame(nt).into(); }
+                }
                 // E3j: a VIDEO track's frame, chosen by the engine from the clip time as the app's codec does
                 // (eval.rs VidTable::frame) — checked at the app's instant against the frame the app showed, and
                 // drawn at the clip time above (the engine's clock). Before, the frame was the app's.
-                if let Some(table) = self.vid_table(doc.sources.get(key)) {
+                if let Some(table) = self.vid_table(doc.sources.get(key)).filter(|_| !across) {
                     let (want, ours) = (table.frame(t_app), table.frame(t));
                     let app = if table.is_hap() { v["hap"][key].as_i64() } else { v["mp4"][key].as_i64() };
                     if let Some(app) = app {
@@ -921,6 +987,9 @@ impl Runtime {
             }
         }
         if n > 0 { self.clock_ticks += 1; }
+        if self.next_drawn > 0 && n > 0 && self.clock_ticks % 300 == 0 {
+            eprintln!("artlux-engine: clock: the next clip drawn across a cut {} time(s); {} decoder(s) handed over", self.next_drawn, self.handovers);
+        }
         if n > 0 && (self.clock_rev != doc.rev || self.clock_ticks % 300 == 0) {
             self.clock_rev = doc.rev;
             eprintln!("artlux-engine: clock: {n} track(s) evaluated from the playhead (document {}; {} difference(s) from the app so far; drawn at the engine's own clock {} time(s), held at the app's playhead across a clip boundary {} time(s); video frames chosen by the engine: {} the app's, {} not the app's)", doc.rev, self.clock_diffs, self.comp_draw.0, self.comp_draw.1, self.frame_agree.0, self.frame_agree.1);
@@ -989,9 +1058,14 @@ impl Runtime {
                     let idx = v["hap"][sid].as_u64().unwrap_or(0) as usize;
                     let key = ((idx as u64) << 2) | 1;
                     if self.gens.get(sid) != Some(&key) || !self.pictures.contains_key(sid) {
-                        let (w, h, fmt, blocks, _) = crate::hapimport::read_frame(p, idx)?;
-                        self.pictures.insert(sid.clone(), compose::hap_picture(&self.gpu, fmt, w, h, &blocks)?);
-                        self.gens.insert(sid.clone(), key);
+                        if self.clip_bad.contains(sid) { continue; }
+                        let pic = crate::hapimport::read_frame(p, idx).and_then(|(w, h, fmt, blocks, _)| compose::hap_picture(&self.gpu, fmt, w, h, &blocks).map_err(|e| e.to_string()));
+                        match pic {
+                            Ok(pic) => { self.pictures.insert(sid.clone(), pic); self.gens.insert(sid.clone(), key); }
+                            // E3k: a next clip the engine cannot draw holds its track; it never fails the tick.
+                            Err(e) if sid.starts_with("clip:") => { eprintln!("artlux-engine: clock: {sid} not drawn ahead: {e}"); self.clip_bad.insert(sid.clone()); }
+                            Err(e) => return Err(e),
+                        }
                     }
                 }
                 Source::Spout(name) => {
@@ -1042,15 +1116,36 @@ impl Runtime {
                             let local = if *dur_us > 0 { abs - abs.div_euclid(*dur_us) * dur_us } else { abs };
                             // The verdict opens the decoders of the surfaces the LEDS sample; a surface only a
                             // PROJECTOR shows is opened on first use (as stills are loaded on first use above).
+                            let ahead = sid.starts_with("clip:");
+                            if ahead && self.clip_bad.contains(sid) { continue; }
                             if self.mp4s.get(sid).is_none_or(|(q, _)| q != _path) {
-                                let rx = crate::mf::Mp4In::open_with(_path, Some(&self.gpu)).map_err(|e| format!("surface {sid}: MP4 {e}"))?;
-                                self.mp4s.insert(sid.clone(), (_path.clone(), rx));
+                                match crate::mf::Mp4In::open_with(_path, Some(&self.gpu)) {
+                                    Ok(rx) => {
+                                        // E3k: a next clip's colour space is judged HERE — the app has decoded no frame
+                                        // of it yet. The engine draws BT.709 limited range (unspecified counts as it).
+                                        let c = rx.colour();
+                                        let ok = matches!(c.matrix, "bt709" | "?") && matches!(c.primaries, "bt709" | "?") && c.full_range != Some(true) && matches!(c.transfer, "bt709" | "iec61966-2-1" | "?");
+                                        if ahead && !ok {
+                                            eprintln!("artlux-engine: clock: {sid} not drawn ahead: colour {}/{}/{}/{:?} (the engine draws BT.709 limited only)", c.matrix, c.primaries, c.transfer, c.full_range);
+                                            self.clip_bad.insert(sid.clone());
+                                            continue;
+                                        }
+                                        if !ok && self.judge.contains(sid) {
+                                            return Err(format!("track {sid}: an MP4 in colour space {}/{}/{}/{:?} (the engine draws BT.709 limited range only)", c.matrix, c.primaries, c.transfer, c.full_range));
+                                        }
+                                        self.mp4s.insert(sid.clone(), (_path.clone(), rx));
+                                    }
+                                    Err(e) if ahead => { eprintln!("artlux-engine: clock: {sid} not drawn ahead: MP4 {e}"); self.clip_bad.insert(sid.clone()); continue; }
+                                    Err(e) => return Err(format!("surface {sid}: MP4 {e}")),
+                                }
                             }
                             let conv = self.conv.get_or_insert_with(|| crate::yuv::GpuConvert::new(&self.gpu));
                             if let Some((_, rx)) = self.mp4s.get_mut(sid) {
-                                let pic = rx.picture(&self.gpu, conv, local).map_err(|e| format!("surface {sid}: {e}"))?;
-                                self.pictures.insert(sid.clone(), pic);
-                                self.gens.insert(sid.clone(), key);
+                                match rx.picture(&self.gpu, conv, local) {
+                                    Ok(pic) => { self.pictures.insert(sid.clone(), pic); self.gens.insert(sid.clone(), key); }
+                                    Err(e) if ahead => { eprintln!("artlux-engine: clock: {sid} not drawn ahead: {e}"); self.clip_bad.insert(sid.clone()); }
+                                    Err(e) => return Err(format!("surface {sid}: {e}")),
+                                }
                             }
                         }
                     }

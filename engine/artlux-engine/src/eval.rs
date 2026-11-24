@@ -175,7 +175,12 @@ pub fn sample_lane(keys: &[Key], t: f64, log: bool) -> f64 {
 /// E3i: a track's clips as the engine needs them to choose one — (clip id, start, duration), in the document's
 /// clip order (timeline.ts `data.clips`, filtered to the track).
 #[derive(Clone, Debug, Default, PartialEq)]
-pub struct Track { pub id: Option<String>, pub spans: Vec<(String, f64, f64)> }
+pub struct Track {
+    pub id: Option<String>,
+    pub spans: Vec<(String, f64, f64)>,
+    /// E3k: the clip the track cuts to — its hidden source key (`clip:<id>`), its timing and its id.
+    pub next: Option<(String, ClipTime, String)>,
+}
 
 impl Track {
     /// `l` is one composite layer of the document: the clip it describes (`clip.id`) and its track's spans.
@@ -184,6 +189,7 @@ impl Track {
             id: l["clip"]["id"].as_str().map(str::to_string),
             spans: l["spans"].as_array().into_iter().flatten()
                 .filter_map(|s| Some((s["id"].as_str()?.to_string(), s["start"].as_f64()?, s["duration"].as_f64()?))).collect(),
+            next: (|| Some((l["next"]["key"].as_str()?.to_string(), ClipTime::from_json(&l["next"]["clip"])?, l["next"]["clip"]["id"].as_str()?.to_string())))(),
         }
     }
 }

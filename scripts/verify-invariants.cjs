@@ -4407,7 +4407,7 @@ check(
     if (!/at_app = crate::eval::sample_lane\(&l\.keys, if l\.show \{ st \} else \{ ph \}/.test(body('evaluate_lanes'))) problems.push("the lane check is no longer at the app's instant");
     if (!/self\.show\.roles\(dph\)/.test(body('evaluate_lighting')) || !/self\.show\.roles\(ph\)/.test(body('evaluate_lighting'))) problems.push("the light show is no longer checked at the app's instant and drawn at the engine's clock");
     // E3i: a track is drawn at the engine's clock ONLY while the clip under it is the one the document describes.
-    if (!/active_clip\(&track\.spans, dph\) == track\.id\.as_deref\(\)/.test(body('evaluate_clock'))) problems.push("the composite is drawn at the engine's clock without the clip-boundary rule (the document only describes the clip active at the app's playhead)");
+    if (!/let under = crate::eval::active_clip\(&track\.spans, dph\);[\s\S]{0,120}under == track\.id\.as_deref\(\)/.test(body('evaluate_clock'))) problems.push("the composite is drawn at the engine's clock without the clip-boundary rule (the document only describes the clip active at the app's playhead)");
     const ev = exists('engine/artlux-engine/src/eval.rs') ? read('engine/artlux-engine/src/eval.rs') : '';
     if (!/if \(c\.layerId === layerId && t >= c\.start && t < c\.start \+ c\.duration\) found = c;/.test(t) || !/if t >= \*start && t < start \+ duration \{ found = Some\(id\.as_str\(\)\); \}/.test(ev)) problems.push('activeClip changed — re-port it to eval.rs active_clip');
     if (!/spans: data\.clips\.filter\(\(x\) => x\.layerId === l\.id\)/.test(t)) problems.push("the composite document no longer carries each track's clip spans in activeClip's order");
@@ -4421,6 +4421,12 @@ check(
     if (!epsApp || !epsEng || Number(epsApp) !== Number(epsEng)) problems.push(`the MP4 present tolerance differs (app ${epsApp}, engine ${epsEng})`);
     if (!/f\.timestamp <= this\.wantUs \+ PRESENT_EPS_US/.test(md)) problems.push("the MP4 decoder no longer shows the last frame at or before the playhead + PRESENT_EPS_US — re-port it to eval.rs VidTable");
     if (!/let off = raw as i32 as i64;/.test(dm)) problems.push("mp4demux reads ctts offsets as unsigned again — a version-0 box with negative offsets loses two frames of three (E3j)");
+    // E3k: the picture across a cut.
+    const hand = rt.indexOf("decoder handed to"), keep = rt.indexOf("self.mp4s.retain(|k, (p, _)| matches!(doc.sources.get(k), Some(Source::Mp4(q, _)) if q == p));");
+    if (hand < 0 || keep < 0 || hand > keep) problems.push("the next clip's decoder is no longer handed to its track BEFORE the retain closes it — every cut would open a cold decoder");
+    if (!/self\.comp_sub\.get\(layer\)/.test(body('composite'))) problems.push("the composite no longer draws the next clip's picture across a cut the engine's clock reached first");
+    const sm = exists('src/renderer/services/surfaceMedia.ts') ? read('src/renderer/services/surfaceMedia.ts') : '';
+    if (!/if \(src\.kind === 'unsupported' && !e\.element\) src = contentSource\.nextClipNativeSource\(key, e\.clip, undefined\) \?\? src;/.test(sm)) problems.push("a cut the app's decoder has not caught up with makes the document unsupported again — the wire would go back to the app at every video cut");
     return problems.length ? problems.join('; ') : null;
   },
 );

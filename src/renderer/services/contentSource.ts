@@ -748,7 +748,7 @@ export type NativeSource = { kind: 'image' | 'hap'; path: string } | { kind: 'mp
   | { kind: 'blobs'; w: number; h: number }
   // E3a: a timeline surface (LAYER / stack / PROGRAM) composited by the engine — surfaceMedia.compositeNativeSource.
   // `sources` are the tracks' clips as hidden sources (`layer:<id>`), with the clip content they are drawn from.
-  | { kind: 'comp'; w: number; h: number; single: boolean; layers: { key: string; opacity: number; blend: string; clip?: { id?: string; start: number; inPoint: number; duration: number; fadeIn?: number; fadeOut?: number; opacity?: number }; spans?: { id: string; start: number; duration: number }[] }[]; sources: Record<string, { src: NativeSource; content: unknown }> };
+  | { kind: 'comp'; w: number; h: number; single: boolean; layers: { key: string; opacity: number; blend: string; clip?: { id?: string; start: number; inPoint: number; duration: number; fadeIn?: number; fadeOut?: number; opacity?: number }; spans?: { id: string; start: number; duration: number }[]; next?: { key: string; clip: { id: string; start: number; inPoint: number; duration: number; fadeIn?: number; fadeOut?: number; opacity?: number } } }[]; sources: Record<string, { src: NativeSource; content: unknown }> };
 
 // Item 2d step 5 (plans/native-engine.md): a CAMERA surface. The app keeps its camera (owner's decision); the
 // engine reads the same device SHARED and draws it as this app does (engine cam.rs — proven by
@@ -827,6 +827,28 @@ function mp4NativeSource(path: string, frame?: unknown): NativeSource {
  * must be one the engine was measured on — and the frame timestamp rides the tick). Anything else stays the
  * app's, with the reason.
  */
+/**
+ * E3k — THE CLIP A TRACK CUTS TO, as a source the engine draws ON ITS OWN, before the app has reached it: a still,
+ * an effect, a HAP (the file), an MP4 (the file and its duration — the engine judges its colour space itself, from
+ * its decoder, because no frame of it has been decoded here yet). Null for anything else (a shader, text, a
+ * live source, an unprobed video): the engine then holds the outgoing clip until the app's document arrives.
+ */
+export function nextClipNativeSource(key: string, clip: { path: string; content?: SurfaceContent }, codecId: string | null | undefined): NativeSource | null {
+  // undefined: resolve the codec here, as timeline.syncLayer does (forPath, and only once it has probed the file).
+  if (codecId === undefined && !clip.content) { const c = videoCodecRegistry.forPath(clip.path); codecId = c && c.probed(clip.path) === true ? c.id : null; }
+  if (clip.content) {
+    if (clip.content.type !== SourceType.IMAGE && clip.content.type !== 'EFFECT') return null;
+    const s = nativeSource(key, clip.content);
+    return s.kind === 'image' || s.kind === 'effect' ? s : null;
+  }
+  if (codecId === 'hap') return { kind: 'hap', path: filePathOf(clip.path) };
+  if (codecId === 'mp4-webcodecs') {
+    const info = videoCodecRegistry.get('mp4-webcodecs')?.sourceInfo?.(clip.path);
+    return info && info.durationSec > 0 ? { kind: 'mp4', path: filePathOf(clip.path), durUs: info.durationSec * 1e6, judge: 'engine' } as NativeSource : null;
+  }
+  return null;
+}
+
 export function codecClipNativeSource(codecId: string, path: string, frame: unknown): NativeSource {
   if (codecId === 'hap') return { kind: 'hap', path: filePathOf(path) };
   if (codecId === 'mp4-webcodecs') return mp4NativeSource(path, frame);

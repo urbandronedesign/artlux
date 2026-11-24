@@ -2118,7 +2118,35 @@ fallback until a source/output is proven byte-identical — risk 2):
 > - `verify:invariants`: the HAP rule, the MP4 tolerance and present rule, and signed ctts (mutation-tested: the HAP
 >   round changed to floor).
 > - **Next:** the picture across a boundary — every clip of a track in the document with its source, decoded by the
->   engine ahead of the cut — then JUCE in the engine process.
+>   engine ahead of the cut — then JUCE in the engine process. → **done in E3k, below.**
+>
+> ✅ **E3k done 2026-11-24 — THE PICTURE ACROSS A CUT.** Each composite layer now carries the clip its track CUTS
+> TO (`next`: activeClip at the current clip's end — none across a gap) as a hidden source `clip:<id>`, when the
+> engine can draw it on its own: a still, an effect, a HAP or an MP4 (contentSource `nextClipNativeSource`). The
+> engine decodes it AHEAD (its first frame, every tick until the cut) and, when its own clock crosses the cut before
+> the app's document does, draws the track FROM THAT CLIP (`comp_sub`: the track's picture key for the tick) at
+> the next clip's alpha and time — instead of holding the outgoing clip. When the app crosses and names the new
+> file under the track, the decoder that decoded it ahead is HANDED to the track (with its picture), before the
+> retain would have closed it. A next clip the engine cannot draw (an MP4 not in BT.709 limited range, judged from
+> the engine's own decoder since the app has decoded no frame of it; an unreadable file) is logged once and holds
+> its track — it never fails the tick. A key whose file changes drops its cached frame (a generation is a frame
+> number, which two files share).
+> - **Found on the way — the wire went back to the app at every cut on an MP4 track.** The app's per-track decoder
+>   had not decoded the new file yet, so its document said "an MP4 with no decoded frame yet", the engine refused
+>   it and the app took the wire for a moment — at every cut, in every show with two films on a track. Since E3j
+>   the engine chooses frames itself and only needed the app's frame to judge the colour space, which it now judges
+>   from its own decoder for such a source (`judge: "engine"`); the app describes a probed HAP / MP4 by its file
+>   when its decoder has not caught up. Guarded.
+> - **Proof:** `test:video-frame-clock --mp4b` — the MP4 track cuts from one film (venice_alley, 1080p25) to another
+>   (src_4437, 1080p25) at 5 s. Run A: 0 clock differences, 894 of 895 frames the app's, **0 hand-backs of the
+>   wire** (there was one at every cut before). Run B, the engine's clock 100 ms ahead: the next film drawn across
+>   the cuts, **2 decoder hand-overs** (one per cut), nothing held, 0 clock differences. test:timeline-video-wire,
+>   timeline-wire, clock-parity, light-bytes, transport-clock, automation-parity, native-takeover unchanged.
+> - `verify:invariants`: the hand-over comes before the retain, the composite reads the substituted picture, the
+>   app falls back to the file at an uncaught cut (mutation-tested: the fallback removed).
+> - **Not covered:** a shader / text / live source as the next clip (held until the app's document arrives), and a
+>   4K film (none on this machine in BT.709). **Next: JUCE in the engine process** — the clock it runs is then the
+>   audio clock.
 
 ## 9d. E4 started early — the 3D view in the engine (owner, 2026-11-24)
 
