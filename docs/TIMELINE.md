@@ -308,9 +308,10 @@ and its 3D view. ArtLux still decides which clip plays, its fades and which trac
 engine draws each track's clip and layers them the way the editor does (track opacity, and the **Normal**,
 **Add**, **Screen** and **Multiply** blends). The result matches the editor's within one step in 255.
 
-This first step covers tracks whose clips are **content clips** — a still image, a shader, text or an effect.
-A track playing a **video clip** keeps that surface in the editor for now, and the engine leaves the outputs to
-the editor, as for any source it does not draw yet; the machine log says why.
+Tracks can carry **content clips** (a still image, a shader, text or an effect) and **video clips** played
+through the HAP or MP4 decoders — the engine shows exactly the frame the editor shows. A video the editor plays
+through a plain browser video element (a format no ArtLux decoder claims) keeps that surface in the editor, and
+the engine leaves the outputs to it, as for any source it does not draw yet; the machine log says why.
 
 ## Infinite navigation, looping & the end-stop (v0.12.0; clock bounded again in Wave A)
 

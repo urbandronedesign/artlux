@@ -414,6 +414,9 @@ impl Runtime {
                 "effect" => Source::Effect(Params::from_json(&src["content"])),
                 "shader" => Source::Shader(crate::shader::Spec::from_json(src)),
                 "raster" => Source::Raster,
+                // E3b: a track's video clip — the same sources as a surface's, keyed by the track.
+                "hap" => Source::Hap(src["path"].as_str().unwrap_or_default().to_string()),
+                "mp4" => Source::Mp4(src["path"].as_str().unwrap_or_default().to_string(), src["durUs"].as_f64().unwrap_or(0.0).round() as i64),
                 _ => Source::None,
             };
             sources.insert(key.clone(), source);
@@ -486,6 +489,25 @@ impl Runtime {
                                 }
                             }
                             Some("effect") | Some("raster") | Some("none") => {}
+                            // E3b: a track's video — HAP read once to prove the file, an MP4 decoder opened per
+                            // TRACK (as per surface), so a file the engine cannot read leaves the show to the app.
+                            Some("hap") => {
+                                let p = ks["path"].as_str().unwrap_or_default();
+                                crate::hapimport::read_frame(p, 0).map_err(|e| format!("surface '{}': timeline HAP clip: {e}", name_of(d, sid)))?;
+                            }
+                            Some("mp4") => {
+                                #[cfg(windows)]
+                                {
+                                    let Some(Source::Mp4(p, _)) = doc.sources.get(key) else { unreachable!() };
+                                    if self.mp4s.get(key).is_none_or(|(q, _)| q != p) {
+                                        let rx = crate::mf::Mp4In::open_with(p, Some(&self.gpu)).map_err(|e| format!("surface '{}': timeline MP4 clip: {e}", name_of(d, sid)))?;
+                                        if let Some(why) = &rx.software_why { eprintln!("artlux-engine: timeline track {key}: MP4 decoded in software ({why})"); }
+                                        self.mp4s.insert(key.to_string(), (p.clone(), rx));
+                                    }
+                                }
+                                #[cfg(not(windows))]
+                                return Err(format!("surface '{}': the engine decodes MP4 on Windows only so far", name_of(d, sid)));
+                            }
                             Some("shader") => {
                                 let Some(Source::Shader(spec)) = doc.sources.get(key) else { unreachable!() };
                                 if self.shaders.get(key).is_none_or(|r| !r.fits(spec)) {

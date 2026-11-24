@@ -807,9 +807,10 @@ export function filePathOf(url: string): string {
 // Decided on THE APP'S OWN current VideoFrame, which knows the stream's colour (the decoder's VUI), so
 // anything else — 10-bit, BT.601, full range, HDR — stays the app's with the reason. Before the app has a
 // frame there is nothing to judge: the app keeps it, and the next document (once a frame exists) asks again.
-function mp4NativeSource(path: string): NativeSource {
+function mp4NativeSource(path: string, frame?: unknown): NativeSource {
   const codec = videoCodecRegistry.get('mp4-webcodecs');
-  const vf = codec?.surfaceFrame(path) as VideoFrame | null | undefined;
+  // E3b: a timeline track's frame is the track's own (its decoder is per track), handed in by the caller.
+  const vf = (frame !== undefined ? frame : codec?.surfaceFrame(path)) as VideoFrame | null | undefined;
   if (!vf || typeof (vf as VideoFrame).format === 'undefined') return { kind: 'unsupported', why: 'an MP4 with no decoded frame yet' };
   if (vf.format !== 'NV12') return { kind: 'unsupported', why: `an MP4 decoded as ${vf.format} (the engine draws 8-bit NV12 only)` };
   const cs = vf.colorSpace;
@@ -818,6 +819,18 @@ function mp4NativeSource(path: string): NativeSource {
   const info = codec?.sourceInfo?.(path);
   if (!info || !(info.durationSec > 0)) return { kind: 'unsupported', why: 'an MP4 whose duration is not known yet' };
   return { kind: 'mp4', path: filePathOf(path), durUs: info.durationSec * 1e6 };
+}
+
+/**
+ * E3b — a VIDEO clip on a timeline track, as the engine draws it: HAP (the engine reads the same file and is
+ * told the frame index the app shows) or MP4 (the same judgement as a surface's — the frame the app decoded
+ * must be one the engine was measured on — and the frame timestamp rides the tick). Anything else stays the
+ * app's, with the reason.
+ */
+export function codecClipNativeSource(codecId: string, path: string, frame: unknown): NativeSource {
+  if (codecId === 'hap') return { kind: 'hap', path: filePathOf(path) };
+  if (codecId === 'mp4-webcodecs') return mp4NativeSource(path, frame);
+  return { kind: 'unsupported', why: `a ${codecId} video is decoded in the browser` };
 }
 
 export function nativeSource(key: string, content: SurfaceContent): NativeSource {

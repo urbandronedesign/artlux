@@ -232,6 +232,9 @@ export function frame(inputs: LinkInputs, surfaces: Surface[], fixtures: Fixture
     for (const e of timeline.nativeLayers(program ? null : ids ?? (s.content.layerId ? [s.content.layerId] : []), !program && !ids)) {
       const key = `layer:${e.layerId}`;
       a[key] = e.alpha; times[key] = e.time;
+      // E3b: a video track's frame — HAP its index, MP4 its VideoFrame timestamp — as for a surface (hap / mp4).
+      if (e.codec && e.codec.gen !== undefined && sources[key]?.kind === 'hap') hap[key] = e.codec.gen;
+      if (e.codec && e.codec.gen !== undefined && sources[key]?.kind === 'mp4') mp4[key] = e.codec.gen;
       const content = layerContent.get(key);
       if (content && sources[key]?.kind === 'shader') { const u = contentSource.nativeTick(key, content, e.time); if (u) shader[key] = u; }
     }

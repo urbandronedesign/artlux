@@ -2136,14 +2136,21 @@ export const timeline = {
    * layerAlpha), the clip-local time its content is drawn at, and the track's opacity and blend mode.
    * Main window only: a mirror cannot composite.
    */
-  nativeLayers(only: readonly string[] | null, single = false): { layerId: string; clip: VideoClip | null; alpha: number; time: number; opacity: number; blend: string }[] {
+  nativeLayers(only: readonly string[] | null, single = false): { layerId: string; clip: VideoClip | null; alpha: number; time: number; opacity: number; blend: string; codec: { id: string; path: string; frame: unknown; gen: number | undefined } | null; element: boolean }[] {
     if (external) return [];
     const layers = single ? data.layers.filter((l) => only?.includes(l.id)) : contributingLayers(only ? new Set(only) : null);
     return layers.map((l) => {
       const c = activeClip(l.id, playhead);
+      // E3b: a VIDEO clip on this track — played by a codec plugin (HAP / MP4: the frame it shows and that
+      // frame's identity, the codec's own layerGeneration) or by a <video> element (`element`: no exact frame).
+      const lv = layerVideos.get(l.id);
+      const codec = c && lv && lv.clipId === c.id && lv.mode === 'codec' && lv.codec
+        ? { id: lv.codec.codecId, path: lv.codec.path, frame: lv.codec.canvas, gen: videoCodecRegistry.get(lv.codec.codecId)?.layerGeneration?.(l.id) }
+        : null;
       return {
         layerId: l.id, clip: c, alpha: layerAlpha(l.id), time: c ? playhead - c.start + c.inPoint : 0,
         opacity: single ? 1 : Math.max(0, Math.min(1, l.opacity ?? 1)), blend: single ? 'normal' : (l.blendMode ?? 'normal'),
+        codec, element: !!(c && lv && lv.clipId === c.id && lv.mode === 'video'),
       };
     });
   },

@@ -25,7 +25,9 @@ struct V { @builtin(position) p: vec4<f32> };
 @fragment fn fs(v: V) -> @location(0) vec4<f32> {
   // drawImage(d, 0, 0, w, h): the destination pixel's centre maps to the same fraction of the source.
   let uv = v.p.xy / vec2<f32>(u.w, u.h);
-  let s = textureSampleLevel(src, samp, uv, 0.0) * u.alpha;   // premultiplied × globalAlpha
+  // premultiplied × globalAlpha, held in 8 bits before it is blended — measured: Chromium rounds the modulated
+  // source first (an Add at 0.5 went from 288 channels apart, up to 2, to 12 within 1 once this was modelled).
+  let s = round(textureSampleLevel(src, samp, uv, 0.0) * u.alpha * 255.0) / 255.0;
   let d = textureLoad(dst, vec2<i32>(v.p.xy), 0);
   var o: vec4<f32>;
   if (u.mode == 1u) {          // lighter: plus, clamped

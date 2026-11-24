@@ -266,9 +266,12 @@ export function compositeNativeSource(s: Surface): contentSource.NativeSource {
   const sources: Record<string, { src: contentSource.NativeSource; content: unknown }> = {};
   for (const e of entries) {
     if (!e.clip) continue;   // nothing under the playhead: the track contributes nothing (as in the app)
-    if (!isContentClip(e.clip)) return { kind: 'unsupported', why: 'a timeline track playing a video clip (timeline video in the engine is E3b)' };
     const key = `layer:${e.layerId}`;
-    const src = contentSource.nativeSource(key, e.clip.content!);
+    let src: contentSource.NativeSource;
+    if (isContentClip(e.clip)) src = contentSource.nativeSource(key, e.clip.content!);
+    // E3b: a video clip — through the codec playing it (HAP / MP4); a <video> element has no exact frame.
+    else if (e.codec) src = contentSource.codecClipNativeSource(e.codec.id, e.codec.path, e.codec.frame);
+    else return { kind: 'unsupported', why: e.element ? 'a timeline track playing a video through a <video> element (no exact frame to hand the engine)' : 'a timeline video clip that is not decoding yet' };
     if (src.kind === 'unsupported') return { kind: 'unsupported', why: `a timeline clip: ${src.why}` };
     layers.push({ key, opacity: e.opacity, blend: e.blend });
     sources[key] = { src, content: e.clip.content };

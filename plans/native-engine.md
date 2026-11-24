@@ -1868,10 +1868,26 @@ fallback until a source/output is proven byte-identical — risk 2):
 >   8-bit intermediates — the fade scratch, the composite canvas — that the engine does not; ±1 rounding).
 >   `verify:invariants`: nativeLayers and compositeLayers read the one list; comp.rs maps the blend modes as
 >   blendOp does (mutation-tested). Shader / text / tracking / runtime tests unchanged.
-> - **Next — E3b:** VIDEO clips on tracks (the app plays them as `<video>` elements free-running with the
->   transport, or through the HAP / MP4 codec plugins frame-exactly; the engine already decodes HAP and MP4 for
->   surfaces — a track needs the frame the app shows, as 2c-4 does for a surface). Then the CLOCK (§4: time
->   evaluated in Rust on the audio clock), JUCE in the engine process, and lighting evaluation.
+> - **Measured on the way — Chromium rounds the MODULATED source to 8 bits before it blends.** With the source ×
+>   globalAlpha kept in float, an Add at 0.5 was 288 channels apart (up to 2); rounding it first (comp.rs) took
+>   that to 12–22 within 1, and the E3a test from 146 / 177 / 243 / 201 / 283 channels apart to 8 / 15 / 9 / 0 / 3.
+>
+> ✅ **E3b done 2026-11-24 — VIDEO clips on tracks**, through the codec playing them. `timeline.nativeLayers`
+> reports a track's codec (HAP / MP4), file, the frame it shows and the codec's own `layerGeneration` (HAP: the
+> frame index; MP4: the VideoFrame timestamp of the track's own decoder) — the same identities a surface's
+> HAP / MP4 already ride the tick with (2c-4), so a track is a hidden `layer:<id>` HAP / MP4 source and the
+> engine shows the frame the app shows. An MP4 track's frame is judged as a surface's (8-bit NV12, BT.709
+> limited); the engine opens an MP4 decoder per TRACK. A track playing through a `<video>` element (no codec
+> plugin claims the file) has no exact frame to hand over and stays the app's, with the reason.
+> - **Proof:** `test:timeline-video-wire --hap <clip.mov>` — the still MP4 test clip alone on a track, a HAP clip
+>   alone on a track, and the PROGRAM with the HAP track ADDed at 0.5 over the MP4 track (the MP4 stretched to the
+>   app's 1920-wide program canvas): identical on both single tracks (one matrix channel within 1), the program
+>   within 1 (22 of 512 channels), every universe lit, the engine owning the wire. Muting the HAP track makes the
+>   program identical — the stretch is exact; the residue is the blend's rounding.
+> - **Not covered:** a MOVING video track measured on the wire (the tests rest the playhead so the bytes can be
+>   compared; a surface's MP4 was proven moving in 2c-4 with the same frame identity), crossing a clip boundary.
+> - **Next:** the CLOCK (§4: time evaluated in Rust on the audio clock), JUCE in the engine process, and
+>   lighting evaluation — each needs the parity harness §4 asks for before the TypeScript path goes.
 
 ## 9d. E4 started early — the 3D view in the engine (owner, 2026-11-24)
 
