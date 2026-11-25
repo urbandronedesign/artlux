@@ -8843,7 +8843,7 @@ check(
     if (!/export function startEngine\(\): void \{\s*if \(!flag\(\)\) \{ logger\.log\('info', 'engine', 'off', \{ why: nativeEngineWhy\(\) \}\); return; \}/.test(eh)) problems.push('engineHost: startEngine no longer returns early (and logs why) when the engine is off');
     if (!/if \(code === EXIT_REFUSED\) \{[\s\S]{0,400}?return;\s*\}\s*onDeath\(/.test(eh)) problems.push('engineHost: a refusing engine (exit 2) is no longer left stopped');
     if (!/if \(now - lastPong > PONG_TIMEOUT_MS\) \{[\s\S]{0,700}?proc\.kill\(\);/.test(eh)) problems.push('engineHost: a hung engine (no pong) is no longer killed');
-    if (!/const late = now - lastTick > 2 \* PING_MS;\s*lastTick = now;\s*if \(late\) lastPong = now;/.test(eh)) problems.push('engineHost: a late ping tick (main stalled) would judge the engine hung — it must restart the clock instead');
+    if (!/const late = now - lastTick > 2 \* PING_MS;\s*lastTick = now;\s*if \(late\) (?:lastPong = now;|\{ lastPong = now;[^}]*\})/.test(eh)) problems.push('engineHost: a late ping tick (main stalled) would judge the engine hung — it must restart the clock instead');
     if (!/if \(deaths\.length > RESTART_LIMIT\) \{[\s\S]{0,300}?return;/.test(eh)) problems.push('engineHost: no give-up after RESTART_LIMIT deaths in a minute');
     if (!/setTimeout\(\(\) => \{ if \(!stopping && !child\) spawnEngine\(\); \}, RESTART_DELAY_MS\);/.test(eh)) problems.push('engineHost: a dead engine is no longer restarted');
     const idx = read('src/main/index.ts');
@@ -9964,7 +9964,10 @@ check(
   'frameCodec bytes its sender was given) in a file main names — two slots, header last, checksummed — and main puts ' +
   'it on the wire through its own sender the moment an engine that OWNED the wire dies or is killed as hung, and lets ' +
   'go (an empty frame) the moment a restarted engine owns it again: one sender, never two. test:engine-hold (with ' +
-  'ARTLUX_NO_APP_WIRE=1): held within 146 ms, byte-identical to the engine\'s last frame, released on the restart.',
+  'ARTLUX_NO_APP_WIRE=1): held within 146 ms, byte-identical to the engine\'s last frame, released on the restart. A ' +
+  'STALLED render thread (ticks in, no frame out for 3 s — the stdin thread still answers pings) is the same: seen in ' +
+  '3.7 s, held byte-identical, killed, restarted, released; the wire never silent more than 80 ms (the engine\'s own ' +
+  'keep-alive covers the stall itself).',
   () => {
     const problems = [];
     const h = raw('engine/artlux-engine/src/hold.rs');
@@ -9980,6 +9983,11 @@ check(
     const om = read('src/main/transport/outputManager.ts');
     if (!/export function releaseHold\(\): void \{\s*if \(!holding\) return;\s*holding = false;\s*muted = true;\s*if \(native\) native\.pushFrame\(toBuffer\(new Uint8Array\(4\)\)\);/.test(om)) problems.push('outputManager.releaseHold no longer stops the keep-alive with an empty frame');
     if (!/const NO_APP_WIRE = process\.env\.ARTLUX_NO_APP_WIRE === '1';/.test(om)) problems.push('the ARTLUX_NO_APP_WIRE test hook is gone (test:engine-hold needs it)');
+    // A STALLED render thread (ticks in, no frame out) is a hang too — held, killed, restarted.
+    if (!/if \(owns && drewThisEngine && now - lastTickAt < 2 \* PING_MS && now - lastSentAt > STALL_MS && bakePending\.size === 0 && now - lastBakeAt > 10_000\) \{[\s\S]{0,500}holdWire\('the render thread stalled'\);[\s\S]{0,200}proc\.kill\(\);/.test(eh)) problems.push('engineHost no longer treats a stalled render thread (ticks in, no frame out — not during a bake, not before its first frame) as a hang: hold, kill, restart');
+    if (!/if \(late\) \{ lastPong = now; lastSentAt = Math\.max\(lastSentAt, now\); \}/.test(eh)) problems.push('engineHost judges a stall on a LATE ping tick (main itself was stalled — it would kill a healthy engine)');
+    if (!/lastTickAt = Date\.now\(\);/.test(eh) || !/drewThisEngine = false;\s*let proc: ChildProcess;/.test(eh)) problems.push('engineHost no longer tracks the ticks it relays / whether THIS engine has drawn');
+    if (!/ARTLUX_ENGINE_TEST_STALL_FILE/.test(raw('engine/artlux-engine/src/serve.rs'))) problems.push('the engine\'s render-stall test hook is gone (test:engine-hold needs it)');
     return problems.length ? problems.join('; ') : null;
   },
 );

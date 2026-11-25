@@ -117,7 +117,9 @@ unwarped calibrated output (the app sends nothing there) — that keeps every ou
 names (`ARTLUX_ENGINE_HOLD`, engine `hold.rs` — two slots, header last, checksummed, written only on change); when an
 engine that owned the wire dies or hangs, main reads it and puts it on the wire through its own sender
 (`outputManager.hold`, its keep-alive repeats it) until a restarted engine owns the wire again (`releaseHold` — an
-empty frame, one sender never two) or the app's own next frame replaces it. `node scripts/test-engine-hold.cjs
+empty frame, one sender never two) or the app's own next frame replaces it. A **stalled render thread** is treated
+as a hang: ticks relayed for 3 s with no `sent` back (after this engine has drawn once, never during a bake, never on
+a late ping tick) → hold, kill, restart (`ARTLUX_ENGINE_TEST_STALL_FILE` is the engine's hook to cause one). `node scripts/test-engine-hold.cjs
 [--packaged <ArtLux.exe>]` proves it with `ARTLUX_NO_APP_WIRE=1` (a TEST HOOK: the app's frames never reach the wire,
 as with no browser engine).
 Proof: `node scripts/test-engine-runtime.cjs` (the engine alone, over stdio) and

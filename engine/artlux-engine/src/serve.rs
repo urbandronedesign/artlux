@@ -50,6 +50,9 @@ pub fn run(policy: AdapterPolicy) -> ExitCode {
             Err(e) => { eprintln!("artlux-engine: {e}"); return ExitCode::from(2); }
         },
     };
+    // E6h TEST HOOK: the RENDER thread stalls (forever) on the first tick after this file appears, while the stdin
+    // thread goes on answering pings — the failure only main's "ticks in, no frames out" watch can see.
+    let stall_file = std::env::var_os("ARTLUX_ENGINE_TEST_STALL_FILE").map(std::path::PathBuf::from);
     let hang = std::env::var_os("ARTLUX_ENGINE_TEST_HANG_FILE")
         .map(std::path::PathBuf::from)
         .filter(|p| p.exists())
@@ -160,6 +163,11 @@ pub fn run(policy: AdapterPolicy) -> ExitCode {
                     if let Some(d) = rt.last_doc.clone() { handle(&mut rt, serde_json::json!({ "type": "doc", "doc": d }), &mut tick, &mut dropped); }
                 }
                 if let Some(t) = tick {
+                    if stall_file.as_ref().is_some_and(|p| p.exists()) {
+                        if let Some(p) = &stall_file { let _ = std::fs::remove_file(p); }
+                        eprintln!("artlux-engine: TEST — the render thread stalls");
+                        loop { std::thread::sleep(Duration::from_secs(3600)); }
+                    }
                     let before = rt.frames;
                     match rt.tick(&t) {
                         // "I PUT A FRAME ON THE WIRE" — from the RENDER thread, per frame. Main mutes the app

@@ -13,6 +13,9 @@
 //      and a MOVING video strip — the frame it was showing when it died);
 //   3. the restarted engine takes the wire back, and main LETS GO (releaseHold): after it, only the engine sends;
 //   4. main says so ([engine] holding its last frame on the wire).
+// Then the same for a RENDER-THREAD STALL (the engine's ARTLUX_ENGINE_TEST_STALL_FILE hook: its render thread stops
+// while its stdin thread still answers pings — only main's "ticks in, no frame out" watch can see it): main holds,
+// kills, restarts, lets go — and the engine's own keep-alive covered the stall itself, so the wire never went dark.
 // Own scratch profile, own process tree only (never by name — the owner's session may be open beside it).
 
 const { spawn, execSync, execFile } = require('node:child_process');
@@ -56,6 +59,8 @@ fs.writeFileSync(project, JSON.stringify({
   controllers: [], groups: [], scenes: [], cueBanks: [],
 }, null, 2));
 const UNIVERSES = [0, 1, 2];
+const STALL_FILE = path.join(WORK, 'stall-now');
+try { fs.unlinkSync(STALL_FILE); } catch { /* none */ }
 
 // ── the wire, with WHO sent each packet (an async poll of the UDP endpoints' owning processes) ──────────
 const portOwner = new Map();
@@ -83,7 +88,7 @@ async function waitUntil(pred, ms) { const t0 = Date.now(); while (Date.now() - 
 
 let running = null;
 function launch() {
-  const env = { ...process.env, ARTLUX_NO_APP_WIRE: '1' }; delete env.ELECTRON_RUN_AS_NODE;
+  const env = { ...process.env, ARTLUX_NO_APP_WIRE: '1', ARTLUX_ENGINE_TEST_STALL_FILE: STALL_FILE }; delete env.ELECTRON_RUN_AS_NODE;
   const args = [`--user-data-dir=${PROFILE}`, '--headless', `--project=${project}`, '--native-engine'];
   const child = PACKAGED
     ? spawn(PACKAGED, args, { env, stdio: ['ignore', 'pipe', 'pipe'] })
@@ -142,6 +147,36 @@ function launch() {
     ok(gap < 250, `the longest silence on the wire across the death and the restart: ${gap} ms`);
     const said = app.lines.find((x) => x.at > killedAt && /\[engine\] holding its last frame on the wire/.test(x.l));
     ok(!!said, `4. main said so (${said ? said.l : 'nothing'})`);
+
+    // ── the stall ───────────────────────────────────────────────────────────────────────────────────────
+    await sleep(2000);
+    packets.length = 0;
+    await sleep(300);
+    const stalledAt = Date.now();
+    fs.writeFileSync(STALL_FILE, '1');
+    const noticed = await waitUntil(() => app.lines.some((x) => x.at > stalledAt && /\[engine\] the render thread stalled/.test(x.l)), 10000);
+    const n = app.lines.find((x) => x.at > stalledAt && /\[engine\] the render thread stalled/.test(x.l));
+    ok(noticed, `S1. main sees the stalled render thread (${n ? `${n.at - stalledAt} ms after the stall: ${n.l}` : 'never'})`);
+    const killAt = n ? n.at : Date.now();
+    // The engine's last payload per universe before main took over (its keep-alive repeated it through the stall).
+    const lastE = {};
+    for (const q of packets) if (q.at <= killAt && who(q) === 'engine') lastE[q.u] = q.data;
+    const sHeld = await waitUntil(() => UNIVERSES.every((u) => packets.some((q) => q.at > stalledAt && q.u === u && who(q) === 'app')), 5000);
+    ok(sHeld, 'S2. main holds the wire');
+    const sBack = await waitUntil(() => packets.some((q) => q.at > killAt + 200 && who(q) === 'engine'), 15000);
+    const eBack = packets.find((q) => q.at > killAt + 200 && who(q) === 'engine');
+    ok(sBack, `S3. a restarted engine takes the wire back (${eBack ? `${eBack.at - killAt} ms after main saw the stall` : 'never'})`);
+    const sHeldPk = packets.filter((q) => q.at > stalledAt && who(q) === 'app');
+    for (const u of UNIVERSES) {
+      const mine = sHeldPk.filter((q) => q.u === u);
+      ok(lastE[u] && mine.length > 0 && mine.every((q) => q.data.equals(lastE[u])), `S2. universe ${u}: what main held is the engine's last frame, byte for byte (${mine.length} packets)`);
+    }
+    await sleep(3000);
+    const sTail = packets.filter((q) => eBack && q.at > eBack.at + 300);
+    ok(sTail.length > 50 && sTail.every((q) => who(q) === 'engine'), `S3. ...and main let go (${sTail.length} packets after: ${[...new Set(sTail.map(who))].join(', ')})`);
+    let sGap = 0; const sAround = packets.filter((q) => q.at >= stalledAt);
+    for (let i = 1; i < sAround.length; i++) sGap = Math.max(sGap, sAround[i].at - sAround[i - 1].at);
+    ok(sGap < 250, `S4. the longest silence on the wire across the stall, the kill and the restart: ${sGap} ms`);
   } finally {
     polling = false;
     if (running) { try { execSync(`taskkill /PID ${running.pid} /F /T`, { stdio: 'ignore' }); } catch { /* gone */ } }

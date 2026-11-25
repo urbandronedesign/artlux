@@ -107,6 +107,16 @@ let lastWhy = '';
 // engine's synchronous start-up — see plans/native-engine.md E1f-1.)
 const SENT_FRESH_MS = 250;
 let lastSentAt = 0;
+// E6h — A STALLED RENDER THREAD. The engine draws a frame per tick main relays; ticks going IN while no `sent`
+// comes OUT means its render thread is stuck (the stdin thread still answers pings, so the hang watch cannot see
+// it). Today the app's own frames cover that within SENT_FRESH_MS; with no browser engine (E6i) nothing would, so
+// main treats it as a hang: hold the last frame, kill, restart. Judged only for an engine that has drawn at least
+// once (a first frame may legitimately open decoders, cameras…), never while a bake runs (the render thread is busy
+// encoding on purpose), and never on a late ping tick (main itself was stalled — the clock restarts instead).
+const STALL_MS = 3000;
+let lastTickAt = 0;
+let lastBakeAt = 0;
+let drewThisEngine = false;
 // WHAT THE ENGINE PUT ON THE WIRE, for the operator. While the engine owns the wire the app's own sender is
 // muted, so its stats (the status bar's LIVE, the Prometheus pps gauge) read zero packets on a show that is
 // running perfectly — the bar said READY, which an operator reads as "no output". Each `sent` carries the
@@ -339,6 +349,7 @@ export function engineBake(op: string, body: string): Promise<{ ok: boolean; val
   if (!flag() || status.state !== 'up' || !child) return Promise.resolve({ ok: false, error: 'the native engine is not running' });
   if (!/^bake(Begin|Frame|End|Cancel)$/.test(op) || !body.startsWith('{')) return Promise.resolve({ ok: false, error: `not a bake message: ${op}` });
   const req = ++bakeReq;
+  lastBakeAt = Date.now();
   const p = new Promise<{ ok: boolean; value?: unknown; error?: string }>((resolve) => bakePending.set(req, resolve));
   write(`{"type":${JSON.stringify(op)},"req":${req}${body === '{}' ? '' : ',' + body.slice(1, -1)}}`);
   return p;
@@ -351,6 +362,7 @@ function failBakes(why: string): void {
 /** One frame. Sent only while the engine is up; a tick is never queued for a future engine. */
 export function noteTick(json: string): void {
   if (!flag() || status.state !== 'up') return;
+  lastTickAt = Date.now();
   write(`{"type":"tick",${json.slice(1)}`);
 }
 
@@ -410,6 +422,7 @@ function spawnEngine(): void {
   }
   status.state = status.starts === 0 ? 'starting' : 'restarting';
   status.starts++;
+  drewThisEngine = false;
   let proc: ChildProcess;
   try {
     proc = spawn(exe, ['--serve'], { stdio: ['pipe', 'pipe', 'pipe'], windowsHide: true, env: { ...process.env, ARTLUX_ENGINE_HOLD: holdFile() } });
@@ -455,13 +468,23 @@ function spawnEngine(): void {
           const now = Date.now();
           const late = now - lastTick > 2 * PING_MS;
           lastTick = now;
-          if (late) lastPong = now;
+          if (late) { lastPong = now; lastSentAt = Math.max(lastSentAt, now); }
           if (now - lastPong > PONG_TIMEOUT_MS) {
             logger.log('warn', 'engine', 'hung', { pid: proc.pid, silentMs: Date.now() - lastPong });
             console.warn(`[engine] hung (no answer for ${Date.now() - lastPong} ms) — killing pid ${proc.pid}`);
             clearTimers();
             if (owns) { holdWire('the engine hung'); setOwns(null, 'the engine hung'); }
             if (projOwns) setProjOwns(null, 'the engine hung');
+            proc.kill();
+            return;
+          }
+          if (owns && drewThisEngine && now - lastTickAt < 2 * PING_MS && now - lastSentAt > STALL_MS && bakePending.size === 0 && now - lastBakeAt > 10_000) {
+            logger.log('warn', 'engine', 'stalled', { pid: proc.pid, noFrameMs: now - lastSentAt });
+            console.warn(`[engine] the render thread stalled (ticks in, no frame out for ${now - lastSentAt} ms) — killing pid ${proc.pid}`);
+            clearTimers();
+            holdWire('the render thread stalled');
+            setOwns(null, 'the render thread stalled');
+            if (projOwns) setProjOwns(null, 'the render thread stalled');
             proc.kill();
             return;
           }
@@ -499,6 +522,7 @@ function spawnEngine(): void {
         lastPong = Date.now();
       } else if (m.type === 'sent') {
         lastSentAt = Date.now();
+        drewThisEngine = true;
         if (typeof m.n === 'number') sentFrames = m.n;
         if (typeof m.d === 'number') sentDropped = m.d;
         if (typeof m.pps === 'number') sentWire = { pps: m.pps, fps: m.fps ?? 0, universes: m.u ?? 0 };

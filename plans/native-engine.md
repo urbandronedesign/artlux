@@ -2684,6 +2684,19 @@ fallback until a source/output is proven byte-identical — risk 2):
 > - **Not covered by the hold:** a render thread that STALLS while the process lives (`sent` goes stale; today the
 >   app's frames cover it — after E6i main must hold there too), and PROJECTOR outputs (the engine's windows die with
 >   it; main uncovers the app's windows — after E6i they need a picture of their own). Both belong to E6i's design.
+>
+> ✅ **E6h (2) done 2026-11-25 — A STALLED RENDER THREAD IS A HANG.** The engine draws one frame per tick main relays,
+> so "ticks going in, no `sent` coming out" is the engine's render thread stuck — while its stdin thread still answers
+> pings, which the hang watch can never see. Main now judges it on the ping clock: an owning engine that has drawn
+> at least once (a first frame may open decoders / cameras), ticks relayed within two ping periods, no frame for
+> `STALL_MS` 3 s, no bake running or started in the last 10 s (the render thread is busy encoding on purpose), and
+> not on a LATE ping tick (main itself stalled — that tick restarts the clock, as it does for pongs) → `holdWire`,
+> kill, the watchdog restarts it. Today the app's frames still cover the 250 ms before that; after E6i the hold does.
+> The engine's test hook `ARTLUX_ENGINE_TEST_STALL_FILE` stalls its render thread on the next tick. `test:engine-hold`
+> phase S: the stall seen in **3.7 s**, every universe held **byte-identical**, a restarted engine back **0.9 s**
+> later, main let go; the longest silence on the wire **80 ms** (the engine's own sender keeps repeating its last
+> frame through the stall itself). No false stall in `test-native-takeover` or `test-native-projectors`.
+> - **Left of E6h:** projector outputs across an engine death (E6i's design).
 
 ## 9d. E4 started early — the 3D view in the engine (owner, 2026-11-24)
 
