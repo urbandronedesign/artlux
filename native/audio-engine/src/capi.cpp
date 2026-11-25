@@ -279,6 +279,30 @@ ARTLUX_AUDIO_API int artlux_audio_call(const char* json, char* out, int cap) {
       return answer(out, cap, juce::JSON::toString(juce::var(b64)), 0);
     });
   }
+  // E3p — the engine holds each sounding clip to ITS clock (audio.rs Locks): where the clips really are, each at a
+  // mix sample and that sample's wall time; and a seek that lands at a given mix sample.
+  if (op == "clipPositions") {
+    const juce::var ids = a[0];
+    return runSync([&]() -> int {
+      auto* r = new juce::DynamicObject();
+      if (auto* arr = ids.getArray())
+        for (auto& v : *arr) {
+          const std::string id = v.toString().toStdString();
+          double pos = 0, len = 0, wall = 0; bool playing = false; int64_t at = 0;
+          if (!ensureEngine().clipPosition(id, pos, playing, len, at, wall)) continue;
+          auto* c = new juce::DynamicObject();
+          c->setProperty("pos", pos); c->setProperty("playing", playing); c->setProperty("len", len);
+          c->setProperty("at", (juce::int64) at); c->setProperty("wall", wall);
+          r->setProperty(juce::Identifier(juce::String(id)), juce::var(c));
+        }
+      return answer(out, cap, juce::JSON::toString(juce::var(r), true), 0);
+    });
+  }
+  if (op == "seekClipAt") {
+    const std::string id = s(0); const double pos = d(1, 0.0); const int64_t at = (int64_t) d(2, 0.0);
+    runAsync([id, pos, at] { ensureEngine().seekClipAt(id, pos, at); });
+    return none();
+  }
   if (op == "offlineEnd") { runSync([]() -> int { ensureEngine().offlineEnd(); return 0; }); return none(); }
   return answer(out, cap, "audio engine: no such call '" + op + "'", 1);
 }

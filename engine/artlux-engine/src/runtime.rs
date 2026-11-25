@@ -692,6 +692,7 @@ impl Runtime {
             None => if self.transport.audio.measured() > 0.0 { self.transport.audio.clear(); },
         }
         self.transport.tick(v);   // E3: the engine's own clock, before anything needs a document
+        self.transport.publish(); // E3p: …and the audio thread holds the sound to it
         self.draw_at = self.draw_clock(v);
         let Some(mut doc) = self.doc.take() else { return Ok(()) };
         self.evaluate_lanes(&mut doc, v);

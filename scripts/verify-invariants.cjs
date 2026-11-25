@@ -4464,7 +4464,19 @@ check(
     const am = read('plugins/audio/src/audioManager.ts');
     const ops = [...am.matchAll(/(?:tell|ask<[^>]*>)\('(\w+)'/g)].map((x) => x[1]);
     if (ops.length < 15) problems.push(`useEngineAudio no longer relays the addon's calls (${ops.length} found)`);
-    for (const op of ops) if (!a.includes(`op == "${op}"`)) problems.push(`the relay sends '${op}' but artlux_audio_call has no case for it`);
+    // …except the ops the ENGINE answers itself (audio.rs ENGINE_OPS — E3p's lockClip), which never reach the library.
+    const engineOps = new Set([...((r.match(/pub const ENGINE_OPS: &\[&str\] = &\[([^\]]*)\]/) ?? [])[1] ?? '').matchAll(/"(\w+)"/g)].map((x) => x[1]));
+    for (const op of engineOps) if (!new RegExp(`if op == "${op}" \{`).test(r)) problems.push(`audio.rs names '${op}' as its own but serve() does not answer it`);
+    for (const op of ops) if (!engineOps.has(op) && !a.includes(`op == "${op}"`)) problems.push(`the relay sends '${op}' but artlux_audio_call has no case for it`);
+    // E3p: THE SOUND HELD TO THE ENGINE'S CLOCK — the driver tells each sounding clip's lock (bed → show clock, the
+    // playhead's containers → scene clock), the engine reads where the clip REALLY is and seeks it at a mix sample.
+    const dr = read('plugins/audio/src/plugin.renderer.ts');
+    if (!/startClip\(clip, clip\.inPoint \+ tLocal, tLocal, nowMs\);\s*lockClip\(clip, clockName\);/.test(dr)) problems.push('the driver no longer tells the engine what a clip it starts is held to');
+    if (!/reconcileContainer\(bed\.clips, bed\.tracks, showTime, 'show', nowMs\)/.test(dr) || (dr.match(/reconcileContainer\(\w+\.clips, \w+\.tracks, playhead, 'scene', nowMs\)/g) ?? []).length !== 2) problems.push('a container is held to the wrong clock (the bed is the show clock; the playhead\'s containers the scene clock)');
+    if (!/crate::transport::clocks_at_wall\(wall\)/.test(r) || !/"op": "seekClipAt", "args": \[id, want, at\]/.test(r)) problems.push('the engine no longer holds a clip to its own clock at the mix sample it read');
+    if (!/pos \+ \(double\) \(mixed - at\) \/ sampleRate/.test(read('native/audio-engine/src/core.h'))) problems.push('seekClipAt no longer lands at the mix sample the decision was made for');
+    if (!/self\.transport\.publish\(\);/.test(RT)) problems.push('the render thread no longer hands its clock to the audio thread');
+    if (!/if \(c\.playing && c\.lock\) send\('lockClip'/.test(read('src/main/engineHost.ts'))) problems.push('a restarted engine is no longer told what its clips are held to');
     if (!/if \(ctx\.engineAudio\) engine\.useEngineAudio\(ctx\.engineAudio\);/.test(read('plugins/audio/src/plugin.main.ts'))) problems.push('the audio plugin no longer switches to the engine when the app asks');
     const eh = read('src/main/engineHost.ts');
     if (!/failAudio\('the engine exited'\)/.test(eh)) problems.push('an audio call pending when the engine dies would never settle');

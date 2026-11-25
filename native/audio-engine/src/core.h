@@ -302,6 +302,13 @@ public:
     if (n <= 0 || info.buffer == nullptr) return;
 
     const juce::ScopedLock sl(lock);
+    // E3p: THE MIX COUNTER — samples mixed so far and the wall time the device plays the next one (this block's
+    // start + its length). Under the lock, so a reader holding it gets every clip's position at exactly `mixed`.
+    {
+      const double wall = std::chrono::duration<double>(std::chrono::system_clock::now().time_since_epoch()).count();
+      mixed += n;
+      mixedWall = wall + (sampleRate > 0.0 ? n / sampleRate : 0.0);
+    }
     const int outCh = info.buffer->getNumChannels();
     observedCh.store(outCh); // so a chain built for the wrong channel count can't hide (see getMeters)
     bool anySpatial = false;
@@ -529,6 +536,26 @@ public:
     auto it = clips.find(id);
     return it == clips.end() ? nullptr : it->second.get();
   }
+  // E3p — WHERE A CLIP REALLY IS. Its source position (seconds) at mix sample `at`, and the wall time (epoch
+  // seconds) the device starts playing that sample. Read under the lock, so the position and the counter are one
+  // instant: the audio callback mixes only while holding it. False for a clip not loaded.
+  bool clipPosition(const std::string& id, double& pos, bool& playing, double& len, int64_t& at, double& wall) {
+    const juce::ScopedLock sl(lock);
+    Clip* c = find(id);
+    if (c == nullptr || !c->transport) return false;
+    pos = c->transport->getCurrentPosition(); playing = c->transport->isPlaying(); len = c->lengthSec;
+    at = mixed; wall = mixedWall;
+    return true;
+  }
+  // E3p — PUT A SOUNDING CLIP WHERE IT SHOULD BE: `pos` was right at mix sample `at`; by the time this runs the mix
+  // has moved on, so it lands at pos + what was mixed since — exact, however long the call waited in the queue.
+  // A stopped clip is left alone (a stop the driver sent after the decision wins).
+  void seekClipAt(const std::string& id, double pos, int64_t at) {
+    const juce::ScopedLock sl(lock);
+    Clip* c = find(id);
+    if (c == nullptr || !c->transport || !c->transport->isPlaying() || sampleRate <= 0.0) return;
+    c->transport->setPosition(juce::jmax(0.0, pos + (double) (mixed - at) / sampleRate));
+  }
   // First enable builds the encoder OUTSIDE the lock — same shape as applyEffects/setMode (decide under
   // the lock, build outside it, swap under it again): AmbisonicEncoder::Configure() allocates, and dragging
   // a source in the positioner UI can flip a clip's `spatial` on as a routine gesture, not a one-off. A
@@ -699,6 +726,9 @@ public:
   }
 
   double sampleRate = 48000.0;
+  // E3p: samples mixed since the bus was made, and the wall time of the next one (both under `lock`).
+  int64_t mixed = 0;
+  double mixedWall = 0.0;
 
 private:
   // The pure builder behind setSpatial's first-enable path (see that function). Takes no lock and touches
@@ -1299,6 +1329,9 @@ public:
   int64_t renderedSamples() const { return metering.rendered.load(std::memory_order_relaxed); }
   // E3o: the last callback's (sample index, wall seconds) — false before the first callback.
   bool clockStamp(int64_t& n, double& wall) const { return metering.stamp(n, wall); }
+  // E3p: a clip's real position, and the seek that lands at a given mix sample (SpatialBus).
+  bool clipPosition(const std::string& id, double& pos, bool& playing, double& len, int64_t& at, double& wall) { return bus.clipPosition(id, pos, playing, len, at, wall); }
+  void seekClipAt(const std::string& id, double pos, int64_t at) { bus.seekClipAt(id, pos, at); }
   double liveRate() const { return liveSampleRate.load(); }
   std::atomic<double> liveSampleRate { 0.0 };
   bool takeClipped() { return meterClipped.exchange(false); } // read-and-clear: "has it clipped since you last asked"

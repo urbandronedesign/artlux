@@ -5,7 +5,7 @@
 import type { PluginIpc } from '@artlux/sdk/renderer';
 // TYPE-only import: audioManager has top-level side effects (createRequire + loadNative). Importing a
 // VALUE from it would drag node:module into the renderer bundle.
-import type { AudioEffectSpec, ClipMeta, DeviceCfg, DeviceEntry, Meters, OpenedCfg } from './audioManager';
+import type { AudioEffectSpec, ClipLock, ClipMeta, DeviceCfg, DeviceEntry, Meters, OpenedCfg } from './audioManager';
 
 let ipc: PluginIpc | null = null;
 export function setIpc(i: PluginIpc): void { ipc = i; }
@@ -34,6 +34,8 @@ export const audioClient = {
   unloadClip: (id: string): void => { ipc?.send('audio:unloadClip', id); },
   playClip: (id: string, seekSec: number, gain: number): void => { ipc?.send('audio:playClip', id, seekSec, gain); },
   stopClip: (id: string): void => { ipc?.send('audio:stopClip', id); },
+  // E3p: what a sounding clip is held to (its clock and its place on it) — the native engine keeps it there itself.
+  lockClip: (id: string, lock: ClipLock | null): void => { ipc?.send('audio:lockClip', id, lock); },
   setClipGain: (id: string, gain: number): void => { ipc?.send('audio:setClipGain', id, gain); },
   // Ambisonic position — listener at origin, metres: +x right, +y up, +z forward.
   setClipSpatial: (id: string, x: number, y: number, z: number, omni?: boolean): void => { ipc?.send('audio:setClipSpatial', id, x, y, z, omni === true); },

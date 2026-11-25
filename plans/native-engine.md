@@ -2240,6 +2240,41 @@ fallback until a source/output is proven byte-identical — risk 2):
 >   steps at jittered 60 Hz ticks for 300 s — the fit within 1 ppm, the clock 10 ms behind the wall after 1000 s.
 > - **Not yet:** the plays as document (the driver still decides every play and re-seek per frame, against the
 >   wall) — the step that lets the ENGINE re-seek sound against its own clock instead of the picture following it.
+>   → **the re-seek half: E3p, below.**
+>
+> ✅ **E3p done 2026-11-25 — THE SOUND HELD TO THE ENGINE'S CLOCK.** The driver's drift lock compares two wall
+> estimates of its OWN (where it sent the clip + the wall since, against its clock) and never reads where a clip
+> really is — so a play lands as late as the trip renderer → main → engine → audio thread → control thread made it,
+> and stays there. The split, as everywhere else: the app still DECIDES which clips sound (windows, mute / solo,
+> fades, scenes, holds — the whole driver); it now also DESCRIBES what each sounding clip is locked to, and the
+> engine keeps it there:
+> - **App:** `lockClip(id, {clock, start, inPoint, duration})` — the bed on the SHOW clock, the bound timeline's audio
+>   and video soundtracks on the SCENE clock (the container's clock travels with it in `reconcileContainer`) — sent
+>   when a clip starts and when a retime moves it. The addon ignores it; engineHost records it and a restarted engine
+>   gets it back after the resumed play.
+> - **Core:** the bus counts the samples it MIXES (and the wall time the next one plays) under its lock;
+>   `clipPositions` reads each clip's source position and that count under the same lock — one instant, exact to the
+>   sample; `seekClipAt(id, pos, at)` lands the clip at `pos + (mixed − at) / rate`, so the time a call waits in the
+>   queue costs nothing.
+> - **Engine:** the render thread publishes its clock each tick (`transport::publish` → `clocks_at_wall`: the same
+>   advance as `own()`, at the audio rate from the anchor); the audio thread reads every locked clip each 100 ms, asks
+>   that clock where the clip should be at the wall time of the mix sample it was read at, and re-seeks one more than
+>   HOLD (2 ms) off. A clip off its window or past its source is left to the driver (a wrap it has not answered yet).
+>   The engine answers `lockClip` itself (`ENGINE_OPS`) — it never reaches the library.
+> - **Measured** (`test:engine-audio-show`): a play lands −9 to −10 ms from the engine's clock (the relay's trip); it is
+>   re-seeked once and the bed then stays within **0.58 ms** over the run. The restarted engine's resumed clip (a wall
+>   estimate) landed −447 ms off — re-seeked, then held. Mutation (`ARTLUX_AUDIO_LOCK_SKEW_MS=40`): each play found
+>   −47 ms off, re-seeked, held within 0.07 ms after, 3 re-seeks in 20 s (one per driver start / wrap). With a 10 ms
+>   hold the landings stayed where they fell — readings exact to 0.1 ms made 2 ms the right bound.
+> - `verify:invariants`: the driver locks every clip it starts, the bed on the show clock and the two playhead
+>   containers on the scene clock, the engine holds at the mix sample it read, seekClipAt lands at that sample, the
+>   render thread publishes, a restart gets the locks back; ops the engine answers itself are exempt from the "case in
+>   artlux_audio_call" check and must be answered by serve(). transport-clock, light-bytes, native-takeover,
+>   test:engine-audio and the addon's offline + effects tests pass.
+> - **Not yet:** the driver still decides the plays (start / stop / wrap) per frame against its own clock — so at a
+>   loop wrap or a seek the sound restarts where the APP's clock says and the engine corrects it a check later
+>   (≤100 ms, as measured above). Moving the decisions themselves into the engine (the clips as document) is the last
+>   audio step; it needs the driver's mute / solo / fade / scene-container rules ported, as E3d–E3f ported the lanes.
 
 ## 9d. E4 started early — the 3D view in the engine (owner, 2026-11-24)
 

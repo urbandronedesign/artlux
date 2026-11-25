@@ -476,7 +476,7 @@ export function audioCall(op: string, args: unknown[], answer: boolean): Promise
 // with its gain / position / chain and, if sounding, where it was started and when — and hands it to a restarted
 // engine before anything else, exactly as it re-sends the document. A sounding clip resumes where it would be NOW
 // (its seek + the time since); the driver's own drift lock (a 50 ms source-offset test) still holds it from there.
-interface ClipAudio { path: string; gain?: number; spatial?: unknown[]; effects?: unknown; playing?: { seek: number; gain: number; at: number } }
+interface ClipAudio { path: string; gain?: number; spatial?: unknown[]; effects?: unknown; playing?: { seek: number; gain: number; at: number }; lock?: unknown }
 const aud = { configure: null as unknown[] | null, clips: new Map<string, ClipAudio>(), gain: undefined as number | undefined, effects: undefined as unknown, tone: undefined as unknown[] | undefined };
 function trackAudio(op: string, args: unknown[]): void {
   const id = String(args[0] ?? '');
@@ -486,7 +486,8 @@ function trackAudio(op: string, args: unknown[]): void {
     case 'loadClip': aud.clips.set(id, { path: String(args[1] ?? '') }); break;   // a reload is a new clip: no chain, not sounding
     case 'unloadClip': aud.clips.delete(id); break;
     case 'playClip': if (c) { c.playing = { seek: Number(args[1]) || 0, gain: Number(args[2] ?? 1), at: Date.now() }; c.gain = Number(args[2] ?? 1); } break;
-    case 'stopClip': if (c) c.playing = undefined; break;
+    case 'stopClip': if (c) { c.playing = undefined; c.lock = undefined; } break;
+    case 'lockClip': if (c) c.lock = args[1] ?? undefined; break;   // E3p: what the engine holds it to
     case 'setClipGain': if (c) c.gain = Number(args[1]); break;
     case 'setClipSpatial': if (c) c.spatial = args.slice(1); break;
     case 'clearClipSpatial': if (c) c.spatial = undefined; break;
@@ -494,7 +495,7 @@ function trackAudio(op: string, args: unknown[]): void {
     case 'setMasterGain': aud.gain = Number(args[0]); break;
     case 'setMasterEffects': aud.effects = args[0]; break;
     case 'setTestTone': aud.tone = args; break;
-    case 'stopAll': for (const x of aud.clips.values()) x.playing = undefined; break;
+    case 'stopAll': for (const x of aud.clips.values()) { x.playing = undefined; x.lock = undefined; } break;
     case 'close': aud.configure = null; aud.clips.clear(); aud.gain = undefined; aud.effects = undefined; aud.tone = undefined; break;
     default: break;   // reads (meters, spectrum, devices) and the offline render change nothing to replay
   }
@@ -519,6 +520,8 @@ function replayAudio(): void {
     if (c.effects !== undefined) send('setClipEffects', [id, c.effects]);
     if (c.spatial) send('setClipSpatial', [id, ...c.spatial]);
     if (c.playing) { send('playClip', [id, c.playing.seek + (now - c.playing.at) / 1000, c.playing.gain]); sounding++; }
+    // E3p: …and held to the new engine's clock again — which puts it back exactly, where the resume is a wall estimate.
+    if (c.playing && c.lock) send('lockClip', [id, c.lock]);
     if (c.gain !== undefined) send('setClipGain', [id, c.gain]);
   }
   if (aud.configure || aud.clips.size) {

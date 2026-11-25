@@ -279,8 +279,15 @@ pub fn serve(rx: std::sync::mpsc::Receiver<serde_json::Value>) {
     // sound comes out of THIS process — scripts/test-engine-audio-show.cjs reads it).
     let mut open = false;
     let mut last_report = std::time::Instant::now();
+    // E3p: the clips held to the engine's clock, and how well (reported with the clock).
+    let mut locks: std::collections::HashMap<String, Lock> = Default::default();
+    let mut stats = HoldStats::default();
+    let mut last_hold = std::time::Instant::now();
+    // The mutation the test needs (test-engine-audio-show.cjs): the engine wants every clip this far further on.
+    let skew = std::env::var("ARTLUX_AUDIO_LOCK_SKEW_MS").ok().and_then(|x| x.parse::<f64>().ok()).unwrap_or(0.0) / 1000.0;
     loop {
-        let m = match rx.recv_timeout(std::time::Duration::from_millis(500)) {
+        let wait = if open && !locks.is_empty() { 20 } else { 500 };
+        let m = match rx.recv_timeout(std::time::Duration::from_millis(wait)) {
             Ok(m) => m,
             Err(std::sync::mpsc::RecvTimeoutError::Timeout) => serde_json::Value::Null,
             Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => break,
@@ -292,9 +299,40 @@ pub fn serve(rx: std::sync::mpsc::Receiver<serde_json::Value>) {
                 if let (Ok((n, rate)), Ok(mt)) = (a.clock(), a.meters()) {
                     eprintln!("artlux-engine: audio: clock {:.3} s ({n} samples at {rate} Hz), output peak {:.4}", if rate > 0.0 { n as f64 / rate } else { 0.0 }, mt["peak"].as_f64().unwrap_or(0.0));
                 }
+                if stats.checks > 0 {
+                    eprintln!("artlux-engine: audio: holding {} clip(s) to the engine's clock — within {:.2} ms over {} checks since the last report, {} re-seek(s) in all", locks.len(), stats.worst * 1000.0, stats.checks, stats.seeks);
+                    stats.checks = 0; stats.worst = 0.0;
+                }
             }
         }
+        if open && !locks.is_empty() && last_hold.elapsed().as_millis() >= 100 {
+            last_hold = std::time::Instant::now();
+            if let Some(Ok(a)) = &lib { hold(a, &mut locks, &mut stats, skew); }
+        }
         if m.is_null() { continue; }
+        let op = m["op"].as_str().unwrap_or("").to_string();
+        let id = m["args"][0].as_str().unwrap_or("").to_string();
+        if op == "lockClip" {
+            // [id, lock | null] — the engine's own; nothing reaches the library.
+            match Lock::from_json(&m["args"][1]) {
+                Some(mut l) => {
+                    if let Some(old) = locks.get(&id) { l.landed = old.landed; l.seeks = old.seeks; }
+                    locks.insert(id, l);
+                }
+                None => { locks.remove(&id); }
+            }
+            if let Some(req) = m["req"].as_u64() {
+                let mut o = std::io::stdout().lock();
+                let _ = writeln!(o, "{}", serde_json::json!({ "type": "audio", "req": req, "ok": true, "value": null })).and_then(|_| o.flush());
+            }
+            continue;
+        }
+        match op.as_str() {
+            "playClip" => if let Some(l) = locks.get_mut(&id) { l.landed = false; },
+            "stopClip" | "unloadClip" => { locks.remove(&id); }
+            "stopAll" | "close" | "configure" => locks.clear(),
+            _ => {}
+        }
         let a = lib.get_or_insert_with(|| {
             let r = Audio::load();
             match &r {
@@ -328,6 +366,68 @@ pub fn serve(rx: std::sync::mpsc::Receiver<serde_json::Value>) {
     // Main went away: close the device on a live process (the one place ~AudioDeviceManager is safe).
     withdraw_clock();
     if let Some(Ok(a)) = &lib { let _ = a.close(); }
+}
+
+// ── E3p: THE SOUND HELD TO THE ENGINE'S CLOCK ──────────────────────────────────────────────────────────────────
+// The app's driver decides WHICH clips sound and starts them where its own clock says — but its drift lock compares
+// two wall-clock estimates of its own and never reads where a clip really is, so a play lands as late as the trip
+// through four processes and threads made it, and stays there. The driver now also says what each sounding clip is
+// LOCKED to (`lockClip`: the show clock or the scene clock, and the clip's place on it); the audio thread reads every
+// locked clip's real position (at a mix sample, with that sample's wall time — `clipPositions`), asks the engine's
+// own clock where it should be at that instant, and re-seeks it when the two part by more than HOLD — landing at a
+// mix sample (`seekClipAt`), so the trip back costs nothing either.
+
+/// Ops the ENGINE answers itself (never forwarded to the library).
+pub const ENGINE_OPS: &[&str] = &["lockClip"];
+/// A clip further than this from the engine's clock is re-seeked. The readings are exact to ~0.1 ms (a position and
+/// its mix sample under one lock), and a play lands 5–10 ms late (the trip through four processes and threads) — so
+/// a hold at 10 ms left most landings where they fell. One seek, inside the read-ahead, just after the clip starts.
+pub const HOLD: f64 = 0.002;
+
+/// What a sounding clip is held to: its clock (the show's — a bed — or the scene's), the offset from that clock to
+/// the source (`start − inPoint`), and its window on the clock.
+struct Lock { show: bool, base: f64, a: f64, b: f64, landed: bool, seeks: u64 }
+impl Lock {
+    fn from_json(v: &serde_json::Value) -> Option<Lock> {
+        let n = |k: &str| v[k].as_f64();
+        let (start, inp, dur) = (n("start")?, n("inPoint")?, n("duration")?);
+        Some(Lock { show: v["clock"] == "show", base: start - inp, a: start, b: start + dur, landed: false, seeks: 0 })
+    }
+}
+#[derive(Default)]
+struct HoldStats { checks: u64, worst: f64, seeks: u64, logged: u64 }
+
+/// One pass: every locked, sounding clip against the engine's clock; a re-seek where it parted.
+fn hold(a: &Audio, locks: &mut std::collections::HashMap<String, Lock>, st: &mut HoldStats, skew: f64) {
+    let ids: Vec<&String> = locks.keys().collect();
+    let Ok(v) = a.call(&serde_json::json!({ "op": "clipPositions", "args": [ids] })) else { return };
+    for (id, l) in locks.iter_mut() {
+        let c = &v[id.as_str()];
+        if c["playing"].as_bool() != Some(true) { continue; }
+        let (Some(pos), Some(len), Some(at), Some(wall)) = (c["pos"].as_f64(), c["len"].as_f64(), c["at"].as_i64(), c["wall"].as_f64()) else { continue };
+        if wall <= 0.0 { continue; }
+        let Some((p, s, playing)) = crate::transport::clocks_at_wall(wall) else { continue };
+        if !playing { continue; }
+        let clock = if l.show { s } else { p };
+        // Off its window (a wrap the driver has not answered yet) or past its source: the driver's to decide.
+        if clock < l.a || clock >= l.b { continue; }
+        let want = clock - l.base + skew;
+        if want < 0.0 || want >= len - 0.05 { continue; }
+        let err = pos - want; // + : the sound is AHEAD of the engine's clock
+        if !l.landed {
+            l.landed = true;
+            if st.logged < 40 { st.logged += 1; eprintln!("artlux-engine: audio: clip {id} landed {:+.1} ms from the engine's clock", err * 1000.0); }
+        } else {
+            st.checks += 1;
+            if err.abs() > st.worst { st.worst = err.abs(); }
+        }
+        if err.abs() > HOLD {
+            let _ = a.call(&serde_json::json!({ "op": "seekClipAt", "args": [id, want, at] }));
+            l.seeks += 1; st.seeks += 1;
+            if st.logged < 40 { st.logged += 1; eprintln!("artlux-engine: audio: clip {id} re-seeked to the engine's clock — it was {:+.1} ms off", err * 1000.0); }
+            l.landed = false; // the next reading is where the seek landed
+        }
+    }
 }
 
 /// Standard base64 (what juce::Base64::toBase64 writes), decoded — the offline render's samples travel in it.

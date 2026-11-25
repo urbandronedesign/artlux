@@ -35,14 +35,14 @@ fs.writeFileSync(project, JSON.stringify({
   stateMachine: { enabled: true, initialStateId: 'st', states: [{ id: 'st', name: 'Play', x: 100, y: 100, entry: [{ kind: 'play' }] }], transitions: [], regions: [] },
 }, null, 2));
 
-async function run(engineAudio, restart = false) {
+async function run(engineAudio, restart = false, extraEnv = {}) {
   for (let i = 0; ; i++) {
     try { fs.rmSync(PROFILE, { recursive: true, force: true }); break; } catch (e) { if (i >= 20) throw e; await sleep(500); }
   }
   fs.mkdirSync(PROFILE, { recursive: true });
-  const logf = path.join(WORK, `run-${engineAudio ? 'engine' : 'addon'}.log`);
+  const logf = path.join(WORK, `run-${engineAudio ? 'engine' : 'addon'}${Object.keys(extraEnv).length ? '-mut' : ''}.log`);
   const log = fs.openSync(logf, 'w');
-  const env = { ...process.env }; delete env.ELECTRON_RUN_AS_NODE;
+  const env = { ...process.env, ...extraEnv }; delete env.ELECTRON_RUN_AS_NODE;
   const args = [`--user-data-dir=${PROFILE}`, '--headless', `--project=${project}`, '--native-engine', ...(engineAudio ? ['--engine-audio'] : [])];
   const child = spawn(EXE, args, { env, stdio: ['ignore', log, log] });
   try {
@@ -98,6 +98,23 @@ async function run(engineAudio, restart = false) {
   check('the bed sounds again from the restarted engine', after.filter((c) => c.peak > 0.001).length >= 1, `${after.length} report(s) after the restart, peak up to ${Math.max(0, ...after.map((c) => c.peak)).toFixed(4)}`);
   const relayErr = E.filter((l) => /audio: .* failed|no audio library|audio call failed/.test(l));
   check('no relayed call failed', relayErr.length === 0, relayErr.slice(0, 2).join(' | '));
+  // E3p: THE SOUND HELD TO THE ENGINE'S CLOCK — where each play really landed against the engine's clock, then every
+  // check after it within the hold (2 ms; a seek corrects anything further), also on the restarted engine.
+  const landed = E.map((l) => l.match(/audio: clip (\S+) landed ([+-][\d.]+) ms from the engine's clock/)).filter(Boolean).map((m) => +m[2]);
+  const holds = (L) => L.map((l) => l.match(/holding (\d+) clip\(s\) to the engine's clock — within ([\d.]+) ms over (\d+) checks since the last report, (\d+) re-seek/)).filter(Boolean).map((m) => ({ ms: +m[2], checks: +m[3], seeks: +m[4] }));
+  const H = holds(E);
+  check('the engine read where each play landed against its own clock', landed.length >= 2, `landed ${landed.map((x) => x.toFixed(1)).join(', ')} ms`);
+  check('the engine held the bed to its clock', H.length >= 3 && H.every((h) => h.ms <= 2.5), `${H.length} reports, within ${Math.max(0, ...H.map((h) => h.ms)).toFixed(2)} ms at worst, ${H.length ? H[H.length - 1].seeks : 0} re-seek(s)`);
+  const ri = E.findIndex((l) => /audio replayed to the restarted engine/.test(l));
+  check('…and again on the restarted engine', ri > 0 && E.slice(ri).some((l) => /audio: clip \S+ landed/.test(l)) && holds(E.slice(ri)).length >= 1);
+
+  // The mutation: the engine wants every clip 40 ms further on than the app played it — it must find that, re-seek,
+  // and HOLD the clip there (a correction that did not land would be re-seeked on every check).
+  const S = await run(true, false, { ARTLUX_AUDIO_LOCK_SKEW_MS: '40' });
+  const reseeks = S.map((l) => l.match(/re-seeked to the engine's clock — it was ([+-][\d.]+) ms off/)).filter(Boolean).map((m) => +m[1]);
+  const HS = holds(S);
+  check('mutation: a clip 40 ms from the engine\'s clock is re-seeked', reseeks.length >= 1 && reseeks.every((x) => Math.abs(x + 40) < 15), `${reseeks.length} re-seek(s), off by ${reseeks.slice(0, 4).map((x) => x.toFixed(1)).join(', ')} ms`);
+  check('mutation: …and lands, and stays', HS.length >= 3 && HS.every((h) => h.ms <= 2.5) && reseeks.length <= 8, `within ${Math.max(0, ...HS.map((h) => h.ms)).toFixed(2)} ms at worst after, ${reseeks.length} re-seek(s) in 20 s`);
 
   const A = await run(false);
   check('without --engine-audio the plugin keeps its addon', !A.some((l) => /\[audio\] playing through the native engine/.test(l)));

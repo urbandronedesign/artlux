@@ -57,6 +57,13 @@ native/audio-engine/
                         THE ENGINE'S CLOCK ON THE AUDIO CLOCK (E3o): the device callback stamps (sample
                         index, wall time) as a pair; the engine fits the card's rate and its playhead
                         advances at it, so what it draws follows what is heard
+                        THE SOUND HELD TO THE ENGINE'S CLOCK (E3p): the driver tells each sounding clip what
+                        it is locked to (`lockClip`: the show clock for the bed, the scene clock for the
+                        playhead's containers, and the clip's place on it); the engine's audio thread reads
+                        every locked clip's real position at a mix sample (`clipPositions`, under the bus
+                        lock) and re-seeks one more than 2 ms off its own clock (`seekClipAt`, landing at that
+                        mix sample). A play lands 5–10 ms late through the relay; that is now corrected once,
+                        and a restart's resumed clip (a wall estimate) lands exactly. The addon ignores locks.
   src/effects.h         the DSP: GainFx / FilterFx / ReverbFx / DelayFx / CompFx, and EffectChain.
                         build() ALLOCATES (the control thread, never under the lock); setParams()/process() are
                         allocation-free and run under it. `buildable()` is where a master reverb is

@@ -446,6 +446,10 @@ export const plugin: RendererPlugin = {
     const sentGain = new Map<string, number>();   // last gain pushed, per sounding clip
     const sentOffset = new Map<string, number>(); // last source offset seeked, per sounding clip
     const sentWallMs = new Map<string, number>(); // wall-clock (ms) at that seek — to estimate engine drift
+    // E3p: what each sounding clip is LOCKED to, as last told (a key of clock + place). With the sound in the native
+    // engine, the engine holds the clip to its OWN clock from this (audio.rs `hold`) — reading where the clip really
+    // is, which the drift re-lock below never does. The addon ignores it.
+    const sentLock = new Map<string, string>();
     const sentSpatial = new Map<string, string>(); // last ambisonic position pushed ('' = non-spatial)
     const sentEffects = new Map<string, string>(); // last effect chain pushed, per clip (JSON)
     let sentMaster = '';                           // last master chain pushed (JSON)
@@ -594,11 +598,11 @@ export const plugin: RendererPlugin = {
     };
     const stopSounding = (id: string) => {
       audioClient.stopClip(id);
-      sounding.delete(id); sentGain.delete(id); sentOffset.delete(id); sentWallMs.delete(id);
+      sounding.delete(id); sentGain.delete(id); sentOffset.delete(id); sentWallMs.delete(id); sentLock.delete(id);
     };
     const stopAllSounding = () => {
       audioClient.stopAll();
-      sounding.clear(); sentGain.clear(); sentOffset.clear(); sentWallMs.clear();
+      sounding.clear(); sentGain.clear(); sentOffset.clear(); sentWallMs.clear(); sentLock.clear();
     };
 
     // Reconcile engine-resident sources with BOTH containers (`allClips()`). Removed clips are
@@ -825,7 +829,14 @@ export const plugin: RendererPlugin = {
     //
     // `clock` — NOT "playhead". Naming it `playhead` would be a standing invitation to feed the bound doc's
     // time to the bed again (the bed takes st.showTime; the bound timeline's audio takes the playhead).
-    const reconcileContainer = (clips: BedClip[], tracks: BedTrack[], clock: number, nowMs: number) => {
+    // `clockName` travels with `clock`: which of the engine's two clocks the container's clips are held to.
+    const lockClip = (clip: BedClip, clockName: 'show' | 'scene') => {
+      const key = `${clockName}|${clip.start}|${clip.inPoint}|${clip.duration}`;
+      if (sentLock.get(clip.id) === key) return;
+      audioClient.lockClip(clip.id, { clock: clockName, start: clip.start, inPoint: clip.inPoint, duration: clip.duration });
+      sentLock.set(clip.id, key);
+    };
+    const reconcileContainer = (clips: BedClip[], tracks: BedTrack[], clock: number, clockName: 'show' | 'scene', nowMs: number) => {
       for (const clip of clips) {
         const inWindow = clock >= clip.start && clock < clip.start + clip.duration;
         const isSounding = sounding.has(clip.id);
@@ -833,6 +844,7 @@ export const plugin: RendererPlugin = {
         const ok = audibleIn(clip, tracks);
         if (inWindow && ok && !isSounding) {
           startClip(clip, clip.inPoint + tLocal, tLocal, nowMs);
+          lockClip(clip, clockName);
         } else if (isSounding && (!inWindow || !ok)) {
           stopSounding(clip.id);
         } else if (isSounding) {
@@ -840,6 +852,7 @@ export const plugin: RendererPlugin = {
           // fadeIn/fadeOut) and re-lock after a retime / small seek the tick-level detector missed.
           const g = effGain(clip, tLocal);
           if (sentGain.get(clip.id) !== g) { audioClient.setClipGain(clip.id, g); sentGain.set(clip.id, g); }
+          lockClip(clip, clockName);   // a retime moves the place the engine holds it to (a no-op otherwise)
           const desired = clip.inPoint + tLocal;
           // Estimate where the engine's source cursor is now (it advanced in real time since the last seek).
           // During steady playback desired ≈ estimated (both derive from performance.now); a retime or a
@@ -950,7 +963,7 @@ export const plugin: RendererPlugin = {
       // BED and skip it. `stopSounding` per clip, NOT stopAllSounding() — that clears the shared sent*
       // maps wholesale and would take the bound timeline's clips down with it.
       if (showEnded) { for (const c of bed.clips) if (sounding.has(c.id)) stopSounding(c.id); }
-      else reconcileContainer(bed.clips, bed.tracks, showTime, nowMs);      // THE BED — show clock
+      else reconcileContainer(bed.clips, bed.tracks, showTime, 'show', nowMs);      // THE BED — show clock
       // …AND THE SAME TREATMENT FOR THE PLAYHEAD'S OWN PARK. A HELD state's picture is a still frame, so
       // its sound is over: stop both playhead-clocked containers and skip them. Per clip, never
       // stopAllSounding() — that clears the shared sent* maps wholesale and would take the BED down with
@@ -960,11 +973,11 @@ export const plugin: RendererPlugin = {
         for (const c of vidAudio.clips) if (sounding.has(c.id)) stopSounding(c.id);
         return;
       }
-      reconcileContainer(tlAudio.clips, tlAudio.tracks, playhead, nowMs);   // the BOUND timeline's own audio — playhead
+      reconcileContainer(tlAudio.clips, tlAudio.tracks, playhead, 'scene', nowMs);   // the BOUND timeline's own audio — playhead
       // VIDEO CLIPS' OWN SOUNDTRACKS — the playhead, exactly like the container above, and deliberately
       // NOT gated on `showEnded`: that is bed-scoped. A scene looping under a finished show keeps its
       // video playing, so its video must keep sounding.
-      reconcileContainer(vidAudio.clips, vidAudio.tracks, playhead, nowMs);
+      reconcileContainer(vidAudio.clips, vidAudio.tracks, playhead, 'scene', nowMs);
     };
 
     // TWO CLOCKS, TWO SEEK TESTS.

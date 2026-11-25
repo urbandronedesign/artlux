@@ -104,6 +104,24 @@ pub struct Transport {
 
 static SKEW: std::sync::OnceLock<f64> = std::sync::OnceLock::new();
 
+/// E3p — THE ENGINE'S CLOCK, READABLE FROM THE AUDIO THREAD. The render thread owns the transport; the audio thread
+/// holds each sounding clip to it (audio.rs `hold`), at the wall time a given mix sample is played — not "now".
+struct Shared { a: Anchor, o: f64, so: f64, ratio: f64 }
+static SHARED: std::sync::Mutex<Option<Shared>> = std::sync::Mutex::new(None);
+
+/// Both clocks — (scene playhead, show time, playing) — at WALL time `wall` (epoch seconds), on the engine's own clock
+/// (the same advance as `Transport::own`: from the anchor at the audio rate). None before the first anchor, during a
+/// bake, or before the render thread has published one.
+pub fn clocks_at_wall(wall: f64) -> Option<(f64, f64, bool)> {
+    let g = SHARED.lock().ok()?;
+    let s = g.as_ref()?;
+    let a = &s.a;
+    let rnow = wall * 1000.0 - a.w0;
+    let now = a.at + (rnow - a.at) * s.ratio;
+    let (mut o, mut so) = (s.o, s.so);
+    Some((step_one(&mut o, now, a.playing, a.p, a.a, a.b, a.lp, a.f), step_one(&mut so, now, a.playing, a.s, a.ga, a.gb, a.glp, a.gf), a.playing))
+}
+
 /// E3o — THE AUDIO CLOCK'S RATE AGAINST THE WALL, measured continuously. One reading of the audio clock is a whole
 /// device buffer coarse (480 samples = 10 ms at 48 kHz), far too coarse to draw at; its RATE, fitted over the last
 /// WINDOW seconds of readings (least squares; ±0.3 ppm over 300 s of 10 ms readings at 60 Hz — the precision grows as
@@ -198,6 +216,13 @@ impl Transport {
         let now = a.at + (render_now(a.w0) - a.at) * self.audio.ratio;
         let (mut o, mut so) = (self.o, self.so);
         Some((step_one(&mut o, now, a.playing, a.p, a.a, a.b, a.lp, a.f), step_one(&mut so, now, a.playing, a.s, a.ga, a.gb, a.glp, a.gf)))
+    }
+
+    /// E3p: hand the engine's clock to the AUDIO thread (`clocks_at_wall`) — the anchor, the origins as runFrame has
+    /// moved them, and the audio rate. Called after every tick; a bake (`off`) withdraws it.
+    pub fn publish(&self) {
+        let s = self.anchor.as_ref().filter(|a| !a.off && a.w0.is_finite()).map(|a| Shared { a: a.clone(), o: self.o, so: self.so, ratio: self.audio.ratio });
+        if let Ok(mut g) = SHARED.lock() { *g = s; }
     }
 
     /// One tick: take its anchor, check the app's `ph` / `t` against the engine's clock at `fm`, and read

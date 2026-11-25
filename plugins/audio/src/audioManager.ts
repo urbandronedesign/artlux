@@ -92,6 +92,8 @@ interface NativeAudio {
   unloadClip(id: string): void;
   playClip(id: string, seekSec: number, gain: number): void;
   stopClip(id: string): void;
+  /** E3p: the native engine's only — the addon has no clock of its own to hold a clip to. */
+  lockClip?(id: string, lock: ClipLock | null): void;
   setClipGain(id: string, gain: number): void;
   // Ambisonic position — listener at origin, metres: +x right, +y up, +z forward.
   setClipSpatial(id: string, x: number, y: number, z: number, omni?: boolean): void;
@@ -164,6 +166,7 @@ export function useEngineAudio(relay: { call(op: string, args: unknown[], answer
     unloadClip: (id) => tell('unloadClip', [id]),
     playClip: (id, seekSec, gain) => tell('playClip', [id, seekSec, gain]),
     stopClip: (id) => tell('stopClip', [id]),
+    lockClip: (id, lock) => tell('lockClip', [id, lock]),
     setClipGain: (id, gain) => tell('setClipGain', [id, gain]),
     setClipSpatial: (id, x, y, z, omni) => tell('setClipSpatial', [id, x, y, z, omni === true]),
     clearClipSpatial: (id) => tell('clearClipSpatial', [id]),
@@ -216,6 +219,14 @@ export function loadClip(id: string, path: string): Promise<ClipMeta | null> { c
 export function unloadClip(id: string): void { native?.unloadClip(id); }
 export function playClip(id: string, seekSec: number, gain: number): void { native?.playClip(id, seekSec, gain); }
 export function stopClip(id: string): void { native?.stopClip(id); }
+/**
+ * E3p — WHAT A SOUNDING CLIP IS HELD TO: the show clock (a bed) or the scene clock (the bound timeline's audio, a
+ * video's soundtrack), and the clip's place on it — the source should read `inPoint + (clock − start)` while the clock
+ * is inside `[start, start + duration)`. The native engine re-seeks the clip to its OWN clock from this (audio.rs
+ * `hold`); the addon has no such clock and ignores it.
+ */
+export interface ClipLock { clock: 'show' | 'scene'; start: number; inPoint: number; duration: number }
+export function lockClip(id: string, lock: ClipLock | null): void { native?.lockClip?.(id, lock); }
 export function setClipGain(id: string, gain: number): void { native?.setClipGain(id, gain); }
 // `omni` is OPTIONAL all the way down to the addon, which defaults it to false — so a venue running an
 // older audio_engine.node against this renderer keeps working, with omni sources simply playing at their
