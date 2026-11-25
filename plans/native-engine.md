@@ -2431,6 +2431,20 @@ fallback until a source/output is proven byte-identical — risk 2):
 > the app. `test:native-takeover` + two slices of the noise still: whole pixels universe 8 **identical**, fractional
 > (0.13, 0.21, 0.37 × 0.44) universe 9 **identical** too (held within 1 for other GPUs); the rest unchanged.
 
+> ✅ **E6f (masks, blend maps) done 2026-11-25 — TWO REFUSALS THAT REFUSED NOTHING.** Inventory item D listed "a
+> projection mask" and "a blend map". Read in the code: the app's projector window applies NEITHER — `projMask` is
+> the NVIDIA scanout path's (nvwarpApply, docs/CALIB-OPTIMIZATIONS.md: "GLSL-fallback honoring is a follow-up"), the
+> blend map render-from-projector's (CalibProjector `render` mode / ProjectorScene) — and both of those paths are
+> refused on their own. So such an output was the app's for nothing; the engine now takes it and shows the same plain
+> warp. `test:native-projectors` with both set on its output: the engine's window **= the app's, 2 073 600 of
+> 2 073 600 pixels**, also after a kill and restart. `verify:invariants` fails the day ProjectorGL / ProjectorApp
+> reads either (the engine would then have to, or refuse again).
+> - **The test was made safe on the way:** it rewrote the OPERATOR's prefs in %APPDATA% (backup / restore) and
+>   `taskkill /IM`'d every electron.exe, ArtLux.exe and artlux-engine.exe on the machine, and C. killed "the first
+>   artlux-engine" — now a scratch `--user-data-dir`, this run's own trees by pid, the engine pid from its own log
+>   (guarded). And a capture is retaken while it differs: the NVIDIA app draws its "Alt+Z" toast over a new
+>   fullscreen D3D window for a few seconds (23 662 pixels by up to 231 — exactly that box), which is not ours.
+
 ## 9d. E4 started early — the 3D view in the engine (owner, 2026-11-24)
 
 > **Owner, 2026-11-24: "start E4's 3D now"** — for the detachable 3D view (plans/3d-workbench.md §5/Phase 4),

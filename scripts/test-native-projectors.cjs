@@ -17,7 +17,14 @@
 // (Until 2026-11-22 the engine was judged against a capture taken just after the kill — which was the
 // RESTARTED engine's window. See C below.)
 // Nothing synchronous runs while ArtLux does: in dev its stdout is piped here, and on Windows a blocked
-// reader blocks the writer (E1f-1). Prefs are backed up and restored.
+// reader blocks the writer (E1f-1).
+// OWN PROCESSES, OWN PROFILE (2026-11-25): every launch uses a SCRATCH profile (--user-data-dir) — it used to
+// back up, rewrite and restore the OPERATOR's prefs in %APPDATA% — and only this run's own process tree is ever
+// killed (by pid). `stopAll` used to `taskkill /IM` every electron.exe, ArtLux.exe and artlux-engine.exe on the
+// machine, and C. killed "the first artlux-engine" — either could take down a show the operator had open.
+// E6f: the output also carries a projection MASK and a BLEND MAP. The app's projector window applies neither (the
+// mask is the NVIDIA scanout path's, the blend map render-from-projector's — both refused separately), so the
+// engine takes the output and must show the same picture: A = B with them on.
 
 const { spawn, execFile, execSync } = require('node:child_process');
 const fs = require('node:fs');
@@ -28,8 +35,8 @@ if (process.platform !== 'win32') { console.log('Windows only — skipped'); pro
 const ROOT = path.resolve(__dirname, '..');
 const WORK = path.join(os.tmpdir(), 'artlux-native-projectors');
 fs.mkdirSync(WORK, { recursive: true });
-const PREFS = path.join(process.env.APPDATA, 'ArtLux', 'artlux-prefs.json');
-const PREFS_BAK = path.join(WORK, 'prefs.backup.json');
+const PROFILE = path.join(WORK, 'profile');
+const PREFS = path.join(PROFILE, 'artlux-prefs.json');
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const { PNG } = require(path.join(ROOT, 'node_modules', 'pngjs'));
 const env0 = { ...process.env }; delete env0.ELECTRON_RUN_AS_NODE;
@@ -69,6 +76,9 @@ fs.writeFileSync(project, JSON.stringify({
     surfaceId: 'sP', name: 'Wall', enabled: true, displayId: disp.id,
     cornerPin: { tl: [0.05, 0.1], tr: [0.93, 0.02], br: [0.97, 0.95], bl: [0.02, 0.88] },
     softEdge: { left: 0.15, right: 0, top: 0, bottom: 0.1, gamma: 2.2 }, gamma: 1, colorGain: [1, 0.95, 0.9], blackLift: [0.01, 0.01, 0.02],
+    // E6f: drawn by neither the app's window nor the engine (see the header) — present to prove the engine takes it.
+    projMask: { polys: [[[0.6, 0.6], [0.9, 0.6], [0.9, 0.9]]] },
+    blend: { w: 4, h: 2, alpha: [1, 1, 0.5, 0, 1, 1, 0.5, 0], solvedAt: '2026-01-01T00:00:00.000Z', rigIds: ['sP'] },
   }],
 }, null, 2));
 
@@ -107,38 +117,45 @@ const capture = (name) => new Promise((res) => {
   execFile('powershell', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', CAP, '-Out', f], { windowsHide: true }, () => res(PNG.sync.read(fs.readFileSync(f))));
 });
 const diff = (a, b) => { let n = 0, max = 0; for (let i = 0; i < a.data.length; i += 4) { let d = 0; for (let k = 0; k < 3; k++) d = Math.max(d, Math.abs(a.data[i + k] - b.data[i + k])); if (d) n++; max = Math.max(max, d); } return { n, max, of: a.data.length / 4 }; };
+// A capture held to `ref`, RETAKEN while it differs (up to 4 times, 4 s apart): a fullscreen D3D window that has just
+// appeared gets the NVIDIA app's own toast ("Alt+Z to open the overlay", top right, ~10 s) drawn OVER it by the
+// system — not our pixels (seen 2026-11-25: 23 662 pixels by up to 231, exactly that box). A difference that
+// stays is ours.
+async function settledCapture(name, ref, bar) {
+  let c = await capture(name);
+  for (let k = 0; k < 4 && !bar(diff(ref, c)); k++) { console.log(`     ${name}: differs — retaken in 4 s (a system toast over a new fullscreen window clears by itself)`); await sleep(4000); c = await capture(name); }
+  return c;
+}
 const lit = (a) => { let n = 0; for (let i = 0; i < a.data.length; i += 4) if (a.data[i] + a.data[i + 1] + a.data[i + 2] > 30) n++; return n / (a.data.length / 4); };
 
 function launch(native) {
-  const args = ['--broadcast', `--project=${project}`, ...(native ? ['--native-engine'] : [])];
+  const args = [`--user-data-dir=${PROFILE}`, '--broadcast', `--project=${project}`, ...(native ? ['--native-engine'] : [])];
   const child = PACKAGED
     ? spawn(PACKAGED, args, { env: env0, stdio: ['ignore', 'pipe', 'pipe'] })
     : spawn('npm.cmd', ['run', 'dev', '--', '--', ...args], { cwd: ROOT, env: env0, stdio: ['ignore', 'pipe', 'pipe'], shell: true });
   child.lines = [];
   const take = (d) => { for (const l of String(d).split(/\r?\n/)) if (l.trim()) child.lines.push({ at: Date.now(), l: l.trim() }); };
   child.stdout.on('data', take); child.stderr.on('data', take);
+  running.push(child);
   return child;
 }
 const said = (child, re) => child.lines.find((x) => re.test(x.l));
 async function waitFor(pred, ms) { const t0 = Date.now(); while (Date.now() - t0 < ms) { if (pred()) return true; await sleep(200); } return false; }
 const run = (cmd, args) => new Promise((res) => execFile(cmd, args, { windowsHide: true, encoding: 'utf8' }, (e, out) => res(out || '')));
+const running = [];
 async function stopAll() {
-  await run('taskkill', ['/IM', 'electron.exe', '/F', '/T']);
-  await run('taskkill', ['/IM', 'ArtLux.exe', '/F', '/T']);
-  await run('taskkill', ['/IM', 'artlux-engine.exe', '/F', '/T']);
+  // THIS RUN'S trees only (the app, its engine and GPU / renderer children), by pid.
+  for (const c of running.splice(0)) await run('taskkill', ['/PID', String(c.pid), '/F', '/T']);
   await sleep(2500);
 }
 
 (async () => {
   let fails = 0;
   const ok = (c, m) => { if (!c) fails++; console.log(`${c ? 'ok  ' : 'FAIL'} ${m}`); };
-  const hadPrefs = fs.existsSync(PREFS);
-  if (hadPrefs) fs.copyFileSync(PREFS, PREFS_BAK);
   try {
     {
-      const prefs = hadPrefs ? JSON.parse(fs.readFileSync(PREFS, 'utf8')) : {};
-      if (calibFile) prefs.calibrationFile = calibFile; else delete prefs.calibrationFile;
-      fs.writeFileSync(PREFS, JSON.stringify(prefs, null, 2));
+      fs.rmSync(PROFILE, { recursive: true, force: true }); fs.mkdirSync(PROFILE, { recursive: true });
+      fs.writeFileSync(PREFS, JSON.stringify(calibFile ? { calibrationFile: calibFile } : {}, null, 2));
     }
     if (BAKED) console.log(`BAKED: the output plays ${calibFile}`);
     console.log(`display ${disp.id} ${disp.b.width}x${disp.b.height} at (${disp.b.x}, ${disp.b.y}) · ${project} · ${PACKAGED ? `packaged ${PACKAGED}` : 'dev (npm run dev)'}`);
@@ -155,7 +172,8 @@ async function stopAll() {
     const owned = await waitFor(() => said(app, /\[engine\] owns the projector outputs/), 120000);
     ok(owned, `B. main logged the engine owning the projector outputs${owned ? '' : ` — ${(said(app, /keeps the projector outputs/) || { l: 'no answer' }).l}`}`);
     await sleep(6000);
-    const B = await capture('B-engine');
+    const bar0 = (d) => BAKED && !MP4 ? d.n === 0 : d.max <= 1 && d.n <= d.of * (MP4 ? 0.001 : 0.0001);
+    const B = await settledCapture('B-engine', A, bar0);
     ok(lit(B) > 0.3, `B. the engine's window shows the output (${(100 * lit(B)).toFixed(0)}% of the screen lit)`);
     // THE ENGINE'S WINDOW AGAINST THE APP'S OWN (run A — the app alone, nothing else on the screen). A2 at
     // the end shows that reference is sound: the app equals itself across launches.
@@ -170,8 +188,9 @@ async function stopAll() {
     ok(bar(dAB), `THE ENGINE'S WINDOW = THE APP'S: ${dAB.of - dAB.n} of ${dAB.of} pixels identical (max difference ${dAB.max})${BAKED && !MP4 ? '' : ' — within 1 allowed'}`);
 
     // ── C. the engine dies → the app's window, uncovered ──────────────────────────────────────────────
-    const pidOut = await run('powershell', ['-NoProfile', '-Command', '(Get-Process artlux-engine | Select-Object -First 1).Id']);
-    const pid = Number(pidOut.trim());
+    // OUR engine: the pid main logged for this run (never "the first artlux-engine" on the machine).
+    const ups = app.lines.filter((x) => /\[engine\] up \(pid (\d+)/.test(x.l));
+    const pid = Number(/\(pid (\d+)/.exec(ups[ups.length - 1]?.l ?? '')?.[1]);
     const killedAt = Date.now();
     try { process.kill(pid, 'SIGKILL'); } catch (e) { console.log(`     kill: ${e.message}`); }
     await waitFor(() => app.lines.some((x) => x.at > killedAt && /the app keeps the projector outputs: the engine exited/.test(x.l)), 5000);
@@ -186,7 +205,7 @@ async function stopAll() {
     const retook = await waitFor(() => app.lines.some((x) => x.at > killedAt && /\[engine\] owns the projector outputs/.test(x.l)), 15000);
     ok(retook, 'C. the restarted engine takes the projector outputs back');
     await sleep(3000);
-    const D = await capture('D-engine-again');
+    const D = await settledCapture('D-engine-again', A, bar);
     const dD = diff(A, D);
     // MP4: within 1 (the conversion is Chromium's within 1 — test:mp4-parity).
     ok(bar(dD), `C. ...and the restarted engine's window = the app's (A) again (${dD.of - dD.n} of ${dD.of}, max ${dD.max})`);
@@ -204,9 +223,6 @@ async function stopAll() {
   } catch (e) {
     fails++; console.log(`FAIL ${e.stack || e}`);
     await stopAll();
-  } finally {
-    if (hadPrefs) fs.copyFileSync(PREFS_BAK, PREFS); else { try { fs.unlinkSync(PREFS); } catch { /* */ } }
-    console.log('prefs restored');
   }
   console.log(fails ? `\nNATIVE PROJECTORS FAILED: ${fails}` : '\nNATIVE PROJECTORS OK');
   process.exit(fails ? 1 : 0);

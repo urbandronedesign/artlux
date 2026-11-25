@@ -9101,7 +9101,9 @@ check(
     if (!/proc\.on\('exit'[\s\S]{0,500}setProjOwns\(null, 'the engine exited'\)/.test(eh)) problems.push('an engine exit no longer uncovers the app\'s projector windows');
     if (!/p\.bounds = process\.platform === 'win32' \? screen\.dipToScreenRect\(null, d\.bounds\)/.test(eh)) problems.push('main no longer gives the engine PHYSICAL display bounds');
     const nl = read('src/renderer/engine/nativeLink.ts');
-    for (const w of ['calibrated (render-from-projector)', 'NVIDIA hardware warp', 'a projection mask', 'an NDI send', 'a blend map', 'a windowed output']) {
+    // (A projection mask and a blend map are no longer refused — E6f: the app's window applies neither; see the
+    // 'masked or blend-mapped projector output' check, which fails the day it does.)
+    for (const w of ['calibrated (render-from-projector)', 'NVIDIA hardware warp', 'an NDI send', 'a windowed output']) {
       if (!nl.includes(`'${w}'`)) problems.push(`nativeLink no longer refuses an output with ${w}`);
     }
     return problems.length ? problems.join('; ') : null;
@@ -9690,6 +9692,27 @@ check(
       const t = read(f);
       if (!/nativeSource: /.test(t) || !/nativeSourceAhead: /.test(t)) problems.push(`the ${id} codec no longer says what the engine draws for its files`);
     }
+    return problems.length ? problems.join('; ') : null;
+  },
+);
+
+check(
+  'a masked or blend-mapped projector output is the engine\'s only while the app draws neither — and its test touches nothing of the operator\'s',
+  'E6f: the engine takes a projector output with a projection mask or a blend map because the app\'s projector window ' +
+  'applies NEITHER (the mask is the NVIDIA scanout path\'s, nvwarpApply; the blend map render-from-projector\'s, ' +
+  'ProjectorScene — both refused separately). The day the plain path (ProjectorGL / ProjectorApp) honours one, the ' +
+  'engine would show a different picture: this fails first. test:native-projectors used to rewrite the operator\'s ' +
+  'prefs in %APPDATA% and taskkill /IM every ArtLux on the machine — it must keep to its scratch profile and its own pids.',
+  () => {
+    const problems = [];
+    for (const f of ['src/renderer/projector/ProjectorGL.ts', 'src/renderer/projector/ProjectorApp.tsx']) {
+      const t = read(f);
+      if (/projMask/.test(t)) problems.push(`${f} applies the projection mask now — the engine must too, or refuse it again (nativeLink projectorEntry)`);
+      if (/\.blend\b(?!Glsl)/.test(t.replace(/blendGlsl|softEdge/g, ''))) problems.push(`${f} reads the blend map now — the engine must too, or refuse it again`);
+    }
+    const t = read('scripts/test-native-projectors.cjs');
+    if (/^[^/\n]*taskkill', \['\/IM'/m.test(t) || /^[^/\n]*process\.env\.APPDATA/m.test(t) || /^[^/\n]*Get-Process artlux-engine/m.test(t)) problems.push('test-native-projectors touches the operator profile or kills processes by image name again');
+    if (!/`--user-data-dir=\$\{PROFILE\}`/.test(t)) problems.push('test-native-projectors no longer launches on a scratch profile');
     return problems.length ? problems.join('; ') : null;
   },
 );

@@ -187,9 +187,11 @@ function projectorEntry(o: ProjectorOutput, surfaces: Surface[], sources: Record
     // WITHOUT a map is the live render-from-projector, which stays the app's.
     : !baked.has(o.surfaceId) && (o.calibration || o.useCalibration) ? 'calibrated (render-from-projector)'
     : o.hwWarp ? 'NVIDIA hardware warp'
-    : o.projMask?.polys?.length ? 'a projection mask'
+    // E6f: NOT refused — a projection MASK (`projMask`) and a BLEND MAP (`blend`). The app's projector window applies
+    // neither: the mask is the NVIDIA scanout path's (nvwarpApply), the blend map render-from-projector's
+    // (ProjectorScene) — both refused above. Without them the app draws the plain warp, which the engine draws the
+    // same (test:native-projectors, with both set). verify:invariants fails this if the app ever applies them.
     : o.ndiSend ? 'an NDI send'
-    : o.blend ? 'a blend map'
     : !src || src.kind === 'unsupported' ? (src && 'why' in src ? src.why : 'a source the engine does not draw')
     : undefined;
   return {
