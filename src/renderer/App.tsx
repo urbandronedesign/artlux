@@ -4926,6 +4926,13 @@ const App: React.FC = () => {
   useEffect(() => { nativeLink.setProjectors(projectorOutputs, projectorBrightness ?? 1, projectorOutputs.filter(o => hwOwnsGeometry(o)).map(o => o.surfaceId)); },
       // eslint-disable-next-line react-hooks/exhaustive-deps -- hwOwnsGeometry reads exactly nvAvailable + displays
       [projectorOutputs, projectorBrightness, nvAvailable, displays]);
+  // E6f: RENDER-FROM-PROJECTOR — the outputs pushProjectorState tells to draw the venue (rendersVenue, the one
+  // predicate), the scene it sends them (resolveProjectedScene applied, as there) and the output a calibration
+  // session owns. The engine draws those outputs itself where it can (nativeLink.calibFor, venueLink).
+  useEffect(() => {
+      const render = projectorOutputs.filter(o => o.enabled && rendersVenue(o, scene3D)).map(o => o.surfaceId);
+      nativeLink.setVenue(render.length ? resolveProjectedScene(scene3D, projectorOutputs) : null, render, calibratingOutputId);
+  }, [scene3D, projectorOutputs, calibratingOutputId]);
   useEffect(() => bootGate.subscribe((p) => nativeLink.setBooting(p.booting)), []);
   // The same push, driven by a slider in ANOTHER window (E5/W4, live/broker.ts). A client that vanishes
   // mid-drag leaves the projectors at the committed value, not at wherever its hand was.

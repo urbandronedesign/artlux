@@ -326,7 +326,10 @@ nothing visible** — it only merges the half back into the shared chunk — whi
   a Three.js camera (pose quaternion + an **exact** intrinsic GL projection matrix that represents
   `fx≠fy` and the principal point — validated to 1e-13 px vs OpenCV).
 - **Render-from-projector** — `plugins/calibration/src/ProjectorScene.tsx` renders the venue models from
-  that camera, with a lens-distortion post-pass (`@react-three/postprocessing`).
+  that camera, with a lens-distortion post-pass (`@react-three/postprocessing`). With the native engine on, the
+  engine draws it instead where it draws the same picture (`engine/artlux-engine/src/calib3d.rs`, described by
+  `src/renderer/engine/venueLink.ts`; the rest is refused with a reason — see DEVELOPMENT.md). `renderLook.ts`
+  holds what both ask: the clip planes, `needsBlendPass`, `hasDistortion`.
 - **Residual warp** — the operator can still bend a calibrated output by hand, because no solve is
   exact on a real wall. `ProjectorScene` offers its canvas to the host through the panel context
   (`setRenderSource`), and `ProjectorApp`'s loop feeds it to the ordinary `ProjectorGL` stage — so the

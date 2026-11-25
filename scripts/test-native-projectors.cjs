@@ -69,6 +69,12 @@ const mk = process.argv.indexOf('--mp4');
 const WINDOWED = process.argv.includes('--windowed');
 const NDI = process.argv.includes('--ndi');
 const HWWARP = process.argv.includes('--hwwarp');
+// --calibrated [--glb] (E6f): RENDER-FROM-PROJECTOR — the output is calibrated and draws the VENUE (two screen planes,
+// one through its UVs, one projected from this projector; --glb adds the multi-projector example's venue GLB wearing
+// the still). The app's window draws it with three.js (ProjectorScene), the engine with calib3d.rs.
+const CALIBRATED = process.argv.includes('--calibrated');
+const CALIB_SOFT = CALIBRATED && process.argv.includes('--calib-soft');
+const CALIB_GLB = CALIBRATED && process.argv.includes('--glb') ? path.join(ROOT, 'examples', 'multi-projector', 'assets', 'models', 'panorama-venue.glb') : null;
 const PRETEND = HWWARP && !process.argv.includes('--no-nvapi');
 env0.ARTLUX_NVWARP_PRETEND = PRETEND ? '1' : '0';   // ALWAYS set — see the header (never the real scanout)
 // --editor: launch WITHOUT --broadcast (the editor's window opens too). With --ndi that is the editor's 720p NDI cap,
@@ -96,7 +102,18 @@ fs.writeFileSync(project, JSON.stringify({
   surfaces: [{ id: 'sP', name: 'Projected', x: 0.1, y: 0.1, width: 0.5, height: 0.28125, rotation: 0, zIndex: 0, content: MP4 ? { type: 'VIDEO', url: MP4, opacity: 1 } : { type: 'IMAGE', url: picture, opacity: 1 } }],
   fixtures: [], controllers: [], groups: [], scenes: [], cueBanks: [],
   projectorBrightness: 0.9,
-  projectorOutputs: [{
+  projectorOutputs: [CALIBRATED ? {
+    // --calibrated: RENDER-FROM-PROJECTOR — a solved pose (1800 px focal on a 1920×1080 raster, 4 m in front of the
+    // venue and 1.5 m up, looking down −Z), no distortion, no blend pass, no residual warp (the engine draws those
+    // later — refused for now).
+    surfaceId: 'sP', name: 'Wall', enabled: true, displayId: WINDOWED ? -1 : disp.id, useCalibration: true,
+    calibration: {
+      intrinsics: [1800, 0, 960, 0, 1800, 540, 0, 0, 1], distortion: [0, 0, 0, 0, 0],
+      rotation: [1, 0, 0, 0, -1, 0, 0, 0, -1], translation: [0, 1.5, 4], imageSize: [1920, 1080], poseRms: 0.4,
+    },
+    // --calib-soft: a soft edge — the blend pass, which the engine does not draw yet: the app must KEEP the outputs.
+    ...(CALIB_SOFT ? { softEdge: { left: 0.1, right: 0, top: 0, bottom: 0, gamma: 2.2 } } : {}),
+  } : {
     surfaceId: 'sP', name: 'Wall', enabled: true, displayId: WINDOWED ? -1 : disp.id, ...(NDI ? { ndiSend: true } : {}), ...(HWWARP ? { hwWarp: true } : {}),
     cornerPin: { tl: [0.05, 0.1], tr: [0.93, 0.02], br: [0.97, 0.95], bl: [0.02, 0.88] },
     softEdge: { left: 0.15, right: 0, top: 0, bottom: 0.1, gamma: 2.2 }, gamma: 1, colorGain: [1, 0.95, 0.9], blackLift: [0.01, 0.01, 0.02],
@@ -104,6 +121,15 @@ fs.writeFileSync(project, JSON.stringify({
     projMask: { polys: [[[0.6, 0.6], [0.9, 0.6], [0.9, 0.9]]] },
     blend: { w: 4, h: 2, alpha: [1, 1, 0.5, 0, 1, 1, 0.5, 0], solvedAt: '2026-01-01T00:00:00.000Z', rigIds: ['sP'] },
   }],
+  ...(CALIBRATED ? { scene3D: { models: [
+    // A screen wearing the still through its UVs — tilted, so its texels are not 1:1 with the raster.
+    { id: 'scr', name: 'Screen', kind: 'plane', path: '', surfaceId: 'sP', position: { x: -0.9, y: 1.2, z: 0 }, rotation: { x: 0, y: 18, z: 4 }, scale: 1, scaleXYZ: [1.6, 1.6, 1], visible: true },
+    // A screen PROJECTED from this very projector (resolveProjectedScene fills its matrix from the calibration).
+    { id: 'prj', name: 'Projected', kind: 'plane', path: '', surfaceId: 'sP', position: { x: 1.3, y: 1.0, z: -0.5 }, rotation: { x: -12, y: -25, z: 0 }, scale: 1, scaleXYZ: [1.2, 1.2, 1], visible: true,
+      uvMode: 'projected', uvProjFrom: 'sP', uvProjSoft: 0.05, uvProjOccludeOff: true },
+    // --glb: the multi-projector example's venue, the still on every mesh of it (its UVs, v flipped as three flips it).
+    ...(CALIB_GLB ? [{ id: 'ven', name: 'Venue', kind: 'mesh', path: CALIB_GLB, surfaceId: 'sP', position: { x: 0, y: 2.9, z: -3 }, rotation: { x: 0, y: 0, z: 0 }, scale: 0.5, visible: true }] : []),
+  ] } } : {}),
 }, null, 2));
 
 let calibFile = null;
@@ -343,6 +369,19 @@ async function stopAll() {
 
     // ── B. the engine's window ───────────────────────────────────────────────────────────────────────
     app = launch(true);
+    if (CALIB_SOFT) {
+      // What the engine does not draw is REFUSED, with its reason — and the app's window stays the picture.
+      const kept = await waitFor(() => said(app, /keeps the projector outputs: output 'Wall': calibrated with a soft edge/), 60000);
+      ok(kept && !said(app, /\[engine\] owns the projector outputs/), `B. a calibrated output with a soft edge stays the app's, with the reason (${(said(app, /keeps the projector outputs/) || { l: 'no answer' }).l})`);
+      await sleep(12000);
+      const K = await capture('B-kept');
+      const dK = diff(A, K);
+      // The app's own three.js render, twice: within 1 at an MSAA edge (see A2).
+      ok(dK.max <= 1 && dK.n <= dK.of * 0.0001, `B. ...and the screen is still the app's (${dK.n} pixels differ, max ${dK.max})`);
+      await stopAll();
+      console.log(fails ? `\nNATIVE PROJECTORS FAILED: ${fails}` : '\nNATIVE PROJECTORS OK');
+      process.exit(fails ? 1 : 0);
+    }
     const owned = await waitFor(() => said(app, /\[engine\] owns the projector outputs/), 120000);
     ok(owned, `B. main logged the engine owning the projector outputs${owned ? '' : ` — ${(said(app, /keeps the projector outputs/) || { l: 'no answer' }).l}`}`);
     await sleep(6000);
@@ -443,7 +482,10 @@ async function stopAll() {
     let A2 = await capture('A2-app', null);
     if (WINDOWED) { const w = (await wins('Wall'))[0]; A2 = w ? crop(A2, { x: w.x - disp.b.x, y: w.y - disp.b.y, w: w.w, h: w.h }) : A2; }
     const dAA = diff(A, A2);
-    ok(dAA.n === 0, `A2. the app's window equals itself across two launches (${dAA.n} pixels differ, max ${dAA.max}) — so A is the reference`);
+    // --calibrated: the app's three.js render is NOT bit-stable across launches at an MSAA edge (measured: 0 one run,
+    // 1 pixel by 1 the next, same build) — so there the reference is held to the engine's own bar, within 1.
+    const a2ok = CALIBRATED ? dAA.max <= 1 && dAA.n <= dAA.of * 0.0001 : dAA.n === 0;
+    ok(a2ok, `A2. the app's window equals itself across two launches (${dAA.n} pixels differ, max ${dAA.max})${CALIBRATED ? ' — within 1 allowed (three.js MSAA edges)' : ''} — so A is the reference`);
     await stopAll();
   } catch (e) {
     fails++; console.log(`FAIL ${e.stack || e}`);

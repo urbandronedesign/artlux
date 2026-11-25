@@ -442,8 +442,8 @@ fn bytes(v: &[f32]) -> Vec<u8> { v.iter().flat_map(|x| x.to_le_bytes()).collect(
 // ── glTF, loaded off the presenter thread ───────────────────────────────────────────────────────────
 
 /// `slot`: this primitive's index among the file's three.js MESHES (see `Content`).
-struct CpuPrim { local: [f32; 16], verts: Vec<f32>, idx: Vec<u32>, color: [f32; 4], image: Option<usize>, unlit: bool, slot: usize }
-struct CpuGlb { prims: Vec<CpuPrim>, images: Vec<(u32, u32, Vec<u8>)> }
+pub(crate) struct CpuPrim { pub(crate) local: [f32; 16], pub(crate) verts: Vec<f32>, pub(crate) idx: Vec<u32>, pub(crate) color: [f32; 4], pub(crate) image: Option<usize>, pub(crate) unlit: bool, pub(crate) slot: usize }
+pub(crate) struct CpuGlb { pub(crate) prims: Vec<CpuPrim>, pub(crate) images: Vec<(u32, u32, Vec<u8>)> }
 
 fn node_matrix(n: &gltf::Node) -> [f32; 16] {
     let m = n.transform().matrix();
@@ -452,7 +452,7 @@ fn node_matrix(n: &gltf::Node) -> [f32; 16] {
     r
 }
 
-fn load_glb(path: &str) -> Result<CpuGlb, String> {
+pub(crate) fn load_glb(path: &str) -> Result<CpuGlb, String> {
     let (doc, buffers, images) = gltf::import(path).map_err(|e| format!("{path}: {e}"))?;
     let mut prims = Vec::new();
     let scene = doc.default_scene().or_else(|| doc.scenes().next()).ok_or("no scene")?;

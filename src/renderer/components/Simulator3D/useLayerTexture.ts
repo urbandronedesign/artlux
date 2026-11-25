@@ -64,6 +64,7 @@ export function useLayerTexture(
       if (gen !== undefined && gen === lastGen.current && texRef.current) return;
       lastGen.current = gen;
       let t = texRef.current;
+      const fresh = !t || t instanceof THREE.VideoTexture;
       if (!t || t instanceof THREE.VideoTexture) {
         t?.dispose();
         t = new THREE.Texture();
@@ -72,11 +73,13 @@ export function useLayerTexture(
         t.magFilter = THREE.LinearFilter;
         t.generateMipmaps = false;
         texRef.current = t;
-        cbRef.current(t);
       }
       t.image = d as unknown as HTMLImageElement;
       matchBitmapOrientation(t); // a mirror window is fed ImageBitmaps, which ignore flipY
       t.needsUpdate = true;
+      // Handed over ORIENTED — a projected material copies repeat/offset only when handed a texture (see
+      // plugins/calibration useStreamedSurfaceTexture: the same order put projected content upside down).
+      if (fresh) cbRef.current(t);
     }
   });
 }

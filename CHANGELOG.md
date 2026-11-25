@@ -2,6 +2,18 @@
 
 ## Unreleased
 
+### Projected content on a calibrated projector is the right way up
+
+On a calibrated projector drawing the venue, a mesh set to **projected** mapping showed its picture upside down on
+the wall, while the 3D view showed it correctly. It now shows the picture the right way up on the projector too.
+See [Calibration](docs/CALIBRATION.md).
+
+### Fades and projector brightness reach a calibrated projector
+
+A calibrated projector drawing the venue ignored the **projector brightness** and the surface's **opacity** unless
+you had nudged its warp. A cue that faded the surface out left that projector at full. It now dims with every
+other output.
+
 ### No more frozen seconds at start-up
 
 Opening the sound card could take several seconds (over five on some onboard audio), and during that

@@ -34,6 +34,7 @@ pub mod cam;
 pub mod camshared;
 pub mod effects;
 pub mod projector;
+pub mod calib3d;
 pub mod runtime;
 pub mod outputs;
 pub mod view3d;

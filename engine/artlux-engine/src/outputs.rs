@@ -105,6 +105,9 @@ pub struct Shared {
     pub booting: bool,
     /// E6f: raster key → (generation, picture) of each windowed output's badge.
     pub badges: HashMap<String, (u64, Arc<Picture>)>,
+    /// E6f: output id → (version, venue) of each calibrated output in RENDER mode (calib3d.rs) — drawn instead of
+    /// its surface. The surfaces the venue shows are published in `pictures` as `venue:<surface id>`.
+    pub calib: HashMap<String, (u64, Arc<crate::calib3d::View>)>,
 }
 
 /// E4a: `View3d(true)` opens the engine's 3D view window (view3d.rs), `false` closes it.
@@ -571,6 +574,8 @@ fn present(gpu: Arc<Gpu>, window: Arc<Window>, surface: wgpu::Surface<'static>, 
         })
     });
     let mut badge_tex: Option<(u64, wgpu::BindGroup, u32, u32)> = None;
+    // E6f: the venue renderer of a calibrated output in render mode, made the first time it is one.
+    let mut calib_r: Option<crate::calib3d::Renderer> = None;
     // E6f: this output's NDI send — the app's capture of its window (a LINEAR blit, flipped to top-first: crop.rs
     // samples bilinearly at each pixel's centre from level 0, upside down), every ≥ 33 ms.
     #[cfg(feature = "ndi")]
@@ -602,13 +607,25 @@ fn present(gpu: Arc<Gpu>, window: Arc<Window>, surface: wgpu::Surface<'static>, 
             if spec.window.is_none() { window.set_window_level(WindowLevel::AlwaysOnTop); }
         }
         // What to show now: the surface's picture and this output's settings, as last published.
-        let (pic, opts, booting, badge) = {
+        let (pic, opts, booting, badge, calib) = {
             let s = shared.lock().unwrap();
-            (s.pictures.get(&spec.surface_id).cloned(), s.opts.get(&spec.id).cloned(), s.booting, spec.badge.as_ref().and_then(|k| s.badges.get(k).cloned()))
+            // E6f: in render mode, the venue and the pictures of the surfaces it shows.
+            let calib = s.calib.get(&spec.id).map(|(_, v)| {
+                let pics: HashMap<String, (u64, Arc<Picture>)> = v.surfaces().into_iter()
+                    .filter_map(|sid| s.pictures.get(&format!("venue:{sid}")).cloned().map(|p| (sid, p))).collect();
+                (v.clone(), pics)
+            });
+            (s.pictures.get(&spec.surface_id).cloned(), s.opts.get(&spec.id).cloned(), s.booting, spec.badge.as_ref().and_then(|k| s.badges.get(k).cloned()), calib)
         };
         let (ov, o) = opts.unwrap_or((0, spec.opts.clone()));
         let gen = pic.as_ref().map_or(0, |p| p.0);
-        if drawn != Some((gen, ov, booting, size)) {
+        // E6f: RENDER-FROM-PROJECTOR — the venue from the solved projector, every frame (its pictures move; the
+        // draw is the app's per-frame scene render), into the same bottom-up raster the flip pass presents.
+        if let (Some((view, pics)), false, Some((tex, _))) = (&calib, booting, &raster) {
+            let target = tex.create_view(&Default::default());
+            calib_r.get_or_insert_with(|| crate::calib3d::Renderer::new(&gpu, &spec.id)).draw(&gpu, view, pics, &target, size.width, size.height, o.brightness);
+            drawn = None;
+        } else if drawn != Some((gen, ov, booting, size)) {
             if let Some((tex, _)) = &raster {
                 let target = tex.create_view(&Default::default());
                 match (&pic, booting) {

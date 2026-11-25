@@ -52,16 +52,19 @@ interface EngineSrc {
  * (a BOUND named screen wears its own; every other mesh the model's; neither → the file's material).
  * `mesh[i]` is the i-th Mesh of `root` in three's traversal order — the order the engine's loader walks
  * the file's (node, triangle primitive) pairs in — an index into `src`, or −1 for the file's own material.
+ * `exact`: the projection unrounded (E6f: a calibrated OUTPUT is held to the projector window's pixels; the
+ * view's 1e-4 is ~0.06 texel at 1280 — fine for a preview, a visible ±1 on the wall).
  */
-export function engineContent(root: THREE.Object3D, model: SceneModel): { src: EngineSrc[]; mesh: number[] } | null {
+export function engineContent(root: THREE.Object3D, model: SceneModel, exact = false): { src: EngineSrc[]; mesh: number[] } | null {
   const src: EngineSrc[] = [];
+  const r = exact ? (v: number) => v : r4;
   let whole = -1;
   if (model.layerId || model.surfaceId) {
     whole = src.length;
     src.push({
       surface: model.layerId ? null : model.surfaceId!,
       proj: usesProjectedUv(model) ? {
-        view: model.uvProjView!.map(r4), eye: (model.uvProjEye ?? [0, 0, 0]).map(r4),
+        view: model.uvProjView!.map(r), eye: (model.uvProjEye ?? [0, 0, 0]).map(r),
         soft: model.uvProjSoft ?? 0, cull: !!model.uvProjCull,
         occlude: usesProjectedOcclusion(model), bias: model.uvProjBias ?? DEFAULT_BIAS_M,
       } : undefined,

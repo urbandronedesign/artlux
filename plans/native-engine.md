@@ -2520,6 +2520,49 @@ fallback until a source/output is proven byte-identical — risk 2):
 >   by-1 is 0 today). Guarded (verify:invariants; four mutations caught).
 > - **Remaining D refusal on Windows: live calibration (render-from-projector).**
 
+> ✅ **E6f (render-from-projector, first step) done 2026-11-25 — THE CALIBRATED VENUE, DRAWN AS THREE.JS DRAWS IT.**
+> Inventory item D's last refusal, "live calibration". A calibrated output in render mode shows the venue drawn from
+> the solved projector (ProjectorScene, three.js in the projector window). The engine now draws it — `calib3d.rs` —
+> where it draws the SAME picture, held to the window pixel for pixel:
+> - **The description (`src/renderer/engine/venueLink.ts`).** Needs no editor 3D view (broadcast has none — the
+>   calibration plugin's venueRegistrar had the same reason): the GLBs are loaded with three's own GLTFLoader and
+>   placed with the editor's recenterClone + applyModelTransform; the camera is CalibCamera's (cameraPose +
+>   glProjectionMatrix through a three camera, so the view is three's matrixWorldInverse); EVERY MESH'S MODEL-VIEW is
+>   computed there in f64 as three's renderer computes `modelViewMatrix` — the engine never composes a matrix. What
+>   each mesh wears is engineContent (E4a+), now with an `exact` mode (the view's 1e-4 rounding is ~0.06 texel at
+>   1280). App hands nativeLink the outputs it tells to draw the venue (its `rendersVenue`), the scene it sends them
+>   (resolveProjectedScene) and the output a calibration session owns (`setVenue`).
+> - **The draw (`calib3d.rs`), three's MeshBasicMaterial written out:** P × (MV × p), then ANGLE's GL→D3D step (y
+>   negated — the projector raster is bottom-up, as a GL framebuffer — z to [0, w]); front face clockwise for the
+>   same reason; the streamed-bitmap UV transform (bitmapFlip: v' = −v + 1 in the vertex stage) and, on a GLB wearing
+>   content, flippedUv's 1 − v in f32 first; the surface as a LinearFilter, no-mip, clamp texture decoded by an sRGB
+>   VIEW; three's sRGBTransferOETF (pow 0.41666); depth LessEqual; 4× MSAA; the projected material FRONT-sided
+>   (projectedMapping BODY_VERT / BODY_FRAG, without occlusion). Path C's dim — projectorBrightness × the surface's
+>   opacity, which the window applies as the scene canvas ELEMENT's opacity — is its own pass over the resolved
+>   picture, 8-bit quantised (in the shader, one rounding instead of the compositor's two: 289 648 pixels one level
+>   off). The venue's surfaces are published to the presenters as `venue:<sid>` at the MAIN picture's size (the
+>   app streams `createImageBitmap(getDrawable(surface))`, not the display-size raster).
+> - **Refused with a reason** (the app keeps every output): a lens distortion, a soft edge / colour match / rig blend
+>   (`needsBlendPass`, now in the pure `renderLook.ts` both sides read), a residual warp (`hasResidualWarp`), an NDI
+>   send of a calibrated output (without a residual warp the app's window sends NOTHING — it returns before the
+>   capture), a mesh in its own lit material, an unbound screen, a timeline layer on the venue, projected occlusion,
+>   an open calibration session. A calibration that is NOT in render mode (no pose, opted out, no visible venue) was
+>   refused too and was never more than the plain warp in the app's window — now the engine's.
+> - **It found two app bugs, both fixed:** (1) a PROJECTED mesh drew its content UPSIDE DOWN on the real projector —
+>   useStreamedSurfaceTexture handed the material its texture before matchBitmapOrientation, and the projected material
+>   copies repeat/offset only when handed one (useLayerTexture had the same order); (2) a calibrated output with no
+>   residual warp ignored projector brightness and the surface's opacity — CalibProjector handed its canvas element to
+>   ProjectorApp only with a warp, so path C's dim had nothing to dim (now always handed over; `readPixels` keeps
+>   preserveDrawingBuffer for the warp alone).
+> - `test:native-projectors --calibrated` (a screen through its UVs + one projected from the projector, brightness 0.9):
+>   **2 073 599 / 2 073 600** (one pixel by 1); `--calibrated --glb` (+ the multi-projector example's curved venue GLB):
+>   **2 073 600 / 2 073 600**; restart identical; `--calib-soft`: refused with its reason, the screen still the app's.
+>   The app's own three.js render is not bit-stable across launches at an MSAA edge (0 one run, 1 pixel by 1 the next),
+>   so A2 holds it to the engine's bar there. Plain, `--hwwarp` identical; `--baked` the old 6 pixels. Guarded
+>   (verify:invariants, six mutations caught).
+> - **Next for D:** the passes refused above — lens distortion, the blend pass, the residual warp — then occlusion,
+>   a mesh's own lit material and timeline layers on the venue.
+
 ## 9d. E4 started early — the 3D view in the engine (owner, 2026-11-24)
 
 > **Owner, 2026-11-24: "start E4's 3D now"** — for the detachable 3D view (plans/3d-workbench.md §5/Phase 4),

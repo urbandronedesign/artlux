@@ -5,7 +5,8 @@ import { useGLTF } from '@react-three/drei';
 import { EffectComposer } from '@react-three/postprocessing';
 import { Effect } from 'postprocessing';
 import * as THREE from 'three';
-import type { Scene3D, SceneModel, ScreenBinding, ProjectorCalibration, ProjectorBlend, SoftEdge } from '../../../shared/protocol';
+import type { Scene3D, SceneModel, ScreenBinding, ProjectorCalibration } from '../../../shared/protocol';
+import { PROJECTOR_NEAR as NEAR, PROJECTOR_FAR as FAR, needsBlendPass, hasDistortion, type BlendLook } from './renderLook';
 import { modelScaleXYZ } from '../../../shared/protocol';
 import { cameraPose, glProjectionMatrix } from './cvCamera';
 import { useLayerTexture } from '@/components/Simulator3D/useLayerTexture'; // host hook — transitional seam
@@ -19,7 +20,6 @@ import { FrameRateCap } from '@/components/Simulator3D/FrameRateCap';      // ho
 import { SOFT_EDGE_GLSL } from '@/projector/blendGlsl';                     // the ONE soft-edge ramp
 
 const DEG = Math.PI / 180;
-const NEAR = 0.05, FAR = 200;
 
 /** How the venue is drawn from the projector: its materials, its crease edges, or every triangle. */
 export type MeshLook = 'shaded' | 'edges' | 'wireframe';
@@ -442,12 +442,9 @@ void mainImage(const in vec4 inputColor, const in vec2 uv, out vec4 outputColor)
   outputColor = vec4(blendDecodeSRGB(signal), inputColor.a);
 }`;
 
-export interface BlendLook {
-  softEdge?: SoftEdge;
-  colorGain?: [number, number, number];
-  blackLift?: [number, number, number];
-  blend?: ProjectorBlend | null;
-}
+// BlendLook and needsBlendPass live in renderLook.ts (pure — the engine link asks the same questions).
+export type { BlendLook } from './renderLook';
+export { needsBlendPass } from './renderLook';
 
 // A ProjectorBlend's alpha grid as an 8-bit red texture. 1/255 of alpha is far below the visible
 // threshold once it has been through share^(1/2.2) and an 8-bit panel, and UNSIGNED_BYTE is the one
@@ -502,19 +499,6 @@ const Blend = forwardRef<BlendEffect, { look: BlendLook }>(({ look }, ref) => {
 });
 Blend.displayName = 'Blend';
 
-// Does this output need the blend pass at all? A default output (no feather, unit gain, no lift, no
-// solved blend) is identity, and mounting an EffectComposer for identity costs a full-screen pass on
-// what may be a 4K projector.
-export function needsBlendPass(look: BlendLook): boolean {
-  const se = look.softEdge;
-  if (look.blend) return true;
-  if (se && (se.left > 0 || se.right > 0 || se.top > 0 || se.bottom > 0)) return true;
-  const g = look.colorGain, l = look.blackLift;
-  if (g && (g[0] !== 1 || g[1] !== 1 || g[2] !== 1)) return true;
-  if (l && (l[0] !== 0 || l[1] !== 0 || l[2] !== 0)) return true;
-  return false;
-}
-
 export const ProjectorScene: React.FC<{
   scene3D: Scene3D;
   modelUrls: Record<string, string>;
@@ -539,14 +523,18 @@ export const ProjectorScene: React.FC<{
    *  the calibrated render (see PublishCanvas). Set ONLY for render mode — never for the crosshair
    *  underlay, whose pixels are an aiming reference that must stay in true projector raster. */
   onCanvas?: (c: HTMLCanvasElement | null) => void;
-}> = ({ scene3D, modelUrls, calibration, look, meshLook, frameloop = 'always', fpsCap = 0, onCanvas }) => {
+  /** Will the host READ this canvas's pixels (a residual warp)? Only then is preserveDrawingBuffer worth its
+   *  copy. Separate from onCanvas since E6f: the host also needs the ELEMENT without reading it — path C dims it
+   *  by the output's brightness × the surface's opacity (ProjectorApp). Defaults to !!onCanvas. */
+  readPixels?: boolean;
+}> = ({ scene3D, modelUrls, calibration, look, meshLook, frameloop = 'always', fpsCap = 0, onCanvas, readPixels = !!onCanvas }) => {
   // A screen authored as a projection PLANE used to be filtered out here entirely, so nothing bound
   // to one could ever appear on a calibrated output — on a venue built mostly of flat screens the
   // render was simply empty. `modelUrls` still gates meshes only: a GLB that has not loaded yet must
   // not mount, whereas a plane has no file to wait for.
   const meshes = (scene3D.models ?? []).filter(m => m.kind !== 'plane' && modelUrls[m.id]);
   const planes = (scene3D.models ?? []).filter(m => m.kind === 'plane');
-  const hasDistortion = !!calibration.distortion?.some(v => v !== 0);
+  const distorted = hasDistortion(calibration);
   const wantsBlend = !!look && needsBlendPass(look);
   // A cap only means anything on the loop that runs every frame. 'demand' already draws on change.
   const capped = frameloop === 'always' && fpsCap > 0;
@@ -558,7 +546,7 @@ export const ProjectorScene: React.FC<{
       // INDEPENDENT rAFs with no ordering between them — without it the host intermittently samples a
       // cleared buffer and the projector flickers black, which reads as a dead producer rather than a
       // warp bug. It costs a stable copy, so it stays off on the path that is never read.
-      gl={{ powerPreference: 'high-performance', antialias: true, preserveDrawingBuffer: !!onCanvas }}
+      gl={{ powerPreference: 'high-performance', antialias: true, preserveDrawingBuffer: readPixels }}
       dpr={[1, 2]}
       style={{ width: '100%', height: '100%' }}
     >
@@ -582,10 +570,10 @@ export const ProjectorScene: React.FC<{
           so only after it does the framebuffer hold physical raster pixels — which is the space the
           blend map is indexed in. Reversing these puts the ramp a few pixels off the footprint edge,
           worsening with lens distortion, exactly where you would blame the lens instead. */}
-      {(hasDistortion || wantsBlend) && (
+      {(distorted || wantsBlend) && (
         <EffectComposer>
           <>
-            {hasDistortion && <Distortion calibration={calibration} />}
+            {distorted && <Distortion calibration={calibration} />}
             {wantsBlend && <Blend look={look!} />}
           </>
         </EffectComposer>

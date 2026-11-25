@@ -53,12 +53,12 @@ export function useStreamedSurfaceTexture(
       return;
     }
     let t = texRef.current;
+    const fresh = !t;
     if (!t) {
       t = new THREE.Texture();
       t.colorSpace = THREE.SRGBColorSpace;
       t.minFilter = THREE.LinearFilter; t.magFilter = THREE.LinearFilter; t.generateMipmaps = false;
       texRef.current = t;
-      cbRef.current(t);
     }
     t.image = f.bitmap as unknown as HTMLImageElement;
     // Streamed frames are ImageBitmaps, and three drops flipY for those — without this the content is
@@ -66,5 +66,12 @@ export function useStreamedSurfaceTexture(
     // right way up. See bitmapFlip. Guarded by verify:invariants.
     matchBitmapOrientation(t);
     t.needsUpdate = true;
+    // Handed over only NOW, ORIENTED. The projected material copies the texture's repeat/offset into its own
+    // uniforms when it is handed a texture (projectedMapping.syncMapTransform) — and only then. This used to be
+    // called right after `new THREE.Texture()`, before the line above, so it copied (1, 1) / (0, 0) and kept them:
+    // every PROJECTED mesh on a calibrated output drew its content UPSIDE DOWN on the real projector (an authored
+    // mesh reads the texture's own matrix each frame, so it was right). Found by the native engine drawing the same
+    // calibrated output (E6f, calib3d.rs) the right way up beside it.
+    if (fresh) cbRef.current(t);
   });
 }

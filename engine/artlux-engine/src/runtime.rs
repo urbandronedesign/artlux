@@ -95,6 +95,10 @@ pub struct Runtime {
     projectors: Vec<(String, String, Value)>,
     proj_published: HashMap<String, u64>,
     proj_opts: HashMap<String, f64>,
+    /// E6f: the surfaces calibrated outputs' venues show (published as `venue:<sid>`), what was published, and a version.
+    calib_surfaces: Vec<String>,
+    venue_published: HashMap<String, u64>,
+    calib_ver: u64,
     opts_ver: u64,
     /// E1f "2a": one Spout receiver per surface, kept while its source is that sender (spout.rs SpoutIn).
     #[cfg(windows)]
@@ -200,7 +204,7 @@ impl Runtime {
     pub fn new(gpu: Arc<Gpu>) -> Self {
         Runtime { gpu, out: None, broadcast: false, out_cfg: (44.0, true, false), doc: None, pictures: HashMap::new(), gens: HashMap::new(),
             images: HashMap::new(), effects: HashMap::new(), shaders: HashMap::new(), sources_summary: String::new(), proj_pictures: HashMap::new(), rasters: HashMap::new(), blobs: None, compositor: None, comp_tex: HashMap::new(), rng: Rng::new(0x5eed), cache: TexCache::default(), gen: 0, path_gens: HashMap::new(), frames: 0,
-            outputs: None, projectors: Vec::new(), proj_published: HashMap::new(), proj_opts: HashMap::new(), opts_ver: 0,
+            outputs: None, projectors: Vec::new(), proj_published: HashMap::new(), proj_opts: HashMap::new(), calib_surfaces: Vec::new(), venue_published: HashMap::new(), calib_ver: 0, opts_ver: 0,
             #[cfg(windows)] spouts: HashMap::new(),
             #[cfg(feature = "ndi")] ndis: HashMap::new(),
             #[cfg(windows)] mp4s: HashMap::new(), conv: None,
@@ -426,6 +430,30 @@ impl Runtime {
             }).collect()
         };
         self.proj_opts.clear();
+        // E6f: each calibrated output's VENUE (render-from-projector — calib3d.rs), and the surfaces it shows, whose
+        // pictures publish_projectors adds as `venue:<sid>`. A venue the engine cannot read is a refusal.
+        self.calib_surfaces.clear();
+        if let Some((_, shared)) = &self.outputs {
+            let mut sh = shared.lock().unwrap();
+            sh.calib.clear();
+            if why.is_none() {
+                for p in &list {
+                    if p["calib"].is_null() { continue; }
+                    match crate::calib3d::View::parse(&p["calib"]) {
+                        Some(v) => {
+                            let id = p["id"].as_str().unwrap_or_default().to_string();
+                            for sid in v.surfaces() { if !self.calib_surfaces.contains(&sid) { self.calib_surfaces.push(sid); } }
+                            eprintln!("artlux-engine: output '{id}': render-from-projector, {} venue model(s), surfaces {:?}", v.models.len(), v.surfaces());
+                            self.calib_ver += 1;
+                            sh.calib.insert(id, (self.calib_ver, Arc::new(v)));
+                        }
+                        None => eprintln!("artlux-engine: output '{}': an unreadable venue", p["id"].as_str().unwrap_or("?")),
+                    }
+                }
+            }
+            sh.pictures.retain(|k, _| !k.starts_with("venue:"));
+            self.venue_published.clear();
+        }
         if let Some((proxy, _)) = &self.outputs { let _ = proxy.send_event(crate::outputs::Cmd::Set(specs.clone())); }
         match why { Some(w) => Err(w), None => Ok(specs.len()) }
     }
@@ -437,6 +465,16 @@ impl Runtime {
         let pb = v["proj"]["brightness"].as_f64().unwrap_or(1.0);
         let mut sh = shared.lock().unwrap();
         sh.booting = v["proj"]["booting"].as_bool().unwrap_or(false);
+        // E6f: the surfaces a calibrated output's venue shows — the MAIN-SIZE picture (the app streams the projector
+        // window `createImageBitmap(getDrawable(surface))`, never the display-size raster), as `venue:<sid>`.
+        for sid in &self.calib_surfaces {
+            if let (Some(&g), Some(p)) = (self.gens.get(sid), self.pictures.get(sid)) {
+                if self.venue_published.get(sid) != Some(&g) {
+                    sh.pictures.insert(format!("venue:{sid}"), (g, Arc::new(Picture { w: p.w, h: p.h, rgba: p.rgba.clone(), mips: p.mips, crop: p.crop, tex: p.tex.clone() })));
+                    self.venue_published.insert(sid.clone(), g);
+                }
+            }
+        }
         for (id, sid, out) in &self.projectors {
             if let (Some(&g), Some(p)) = (self.gens.get(sid), self.proj_pictures.get(sid).or_else(|| self.pictures.get(sid))) {
                 if self.proj_published.get(sid) != Some(&g) {

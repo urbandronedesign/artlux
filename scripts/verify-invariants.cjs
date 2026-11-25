@@ -9103,10 +9103,10 @@ check(
     const nl = read('src/renderer/engine/nativeLink.ts');
     // (A projection mask and a blend map are no longer refused — E6f: the app's window applies neither; see the
     // 'masked or blend-mapped projector output' check, which fails the day it does. Nor a WINDOWED output, nor an NDI
-    // SEND, nor an NVIDIA HARDWARE WARP — see the 'windowed projector output', 'NDI send' and 'hardware warp' checks.)
-    for (const w of ['calibrated (render-from-projector)']) {
-      if (!nl.includes(`'${w}'`)) problems.push(`nativeLink no longer refuses an output with ${w}`);
-    }
+    // SEND, nor an NVIDIA HARDWARE WARP, nor the live RENDER-FROM-PROJECTOR — see the 'windowed projector output', 'NDI
+    // send', 'hardware warp' and 'render-from-projector' checks. What the engine still cannot draw is listed WITH ITS
+    // REASON by calibFor / venueLink, which the 'render-from-projector' check holds.)
+    if (!/: calib && 'why' in calib \? calib\.why/.test(nl)) problems.push('nativeLink no longer lists a calibrated output it cannot draw with its reason');
     return problems.length ? problems.join('; ') : null;
   },
 );
@@ -9139,7 +9139,7 @@ check(
     const problems = [];
     if (!/if \(msg\.t === 'bakedMap'\) nativeLink\.setProjectorBaked\(surfaceId, msg\.map\);/.test(read('src/renderer/App.tsx'))) problems.push('App.sendToProjector no longer records the calibration maps it hands to windows');
     const nl = read('src/renderer/engine/nativeLink.ts');
-    if (!/!baked\.has\(o\.surfaceId\) && \(o\.calibration \|\| o\.useCalibration\)/.test(nl)) problems.push('nativeLink no longer tells a mapped output from a live render-from-projector one');
+    if (!/if \(!venueRender\.has\(o\.surfaceId\) \|\| baked\.has\(o\.surfaceId\)/.test(nl)) problems.push('nativeLink no longer tells a mapped output from a live render-from-projector one (calibFor)');
     const pr = raw('engine/artlux-engine/src/projector.rs');
     if (!/textureSampleLevel\(bmap, msamp, p, 0\.0\)/.test(pr) || !/mag_filter: wgpu::FilterMode::Nearest, min_filter: wgpu::FilterMode::Nearest/.test(pr)) problems.push('projector.rs no longer reads the baked map through a point sampler');
     if (!/Some\(b\) => projector::draw_baked\(/.test(raw('engine/artlux-engine/src/outputs.rs'))) problems.push('an engine output with a map no longer draws through it');
@@ -9802,8 +9802,8 @@ check(
     const problems = [];
     const nl = read('src/renderer/engine/nativeLink.ts');
     if (/'NVIDIA hardware warp'/.test(nl)) problems.push('nativeLink refuses an NVIDIA hardware warp again');
-    if (!/projHw\.has\(o\.surfaceId\)\s*\?\s*\{ cornerPin: defaultCornerPin\(\), warp: null, softEdge: defaultSoftEdge\(\), gamma: o\.gamma, colorGain: \[1, 1, 1\], blackLift: \[0, 0, 0\]/.test(nl)) problems.push('nativeLink no longer hands the engine the FLAT output the app\'s window draws under a scanout warp');
-    if (!/projOutputs, projHwKey, bakedSeq/.test(nl)) problems.push('a change of which outputs NVAPI owns no longer re-sends the document');
+    if (!/projHw\.has\(o\.surfaceId\)\s*\?\s*\{ cornerPin: defaultCornerPin\(\), warp: null, softEdge: defaultSoftEdge\(\), gamma: o\.gamma, colorGain: \[1, 1, 1\] as \[number, number, number\], blackLift: \[0, 0, 0\] as \[number, number, number\], blend: null/.test(nl) || !/output: \(\(\{ blend: _b, \.\.\.x \}\) => x\)\(effectiveOutput\(o\)\)/.test(nl)) problems.push('nativeLink no longer hands the engine the FLAT output the app\'s window draws under a scanout warp');
+    if (!/projOutputs, projHwKey, venueScene, venueKey, venueLink\.venueGen\(\), bakedSeq/.test(nl)) problems.push('a change of which outputs NVAPI owns no longer re-sends the document');
     const app = read('src/renderer/App.tsx');
     if (!/nativeLink\.setProjectors\(projectorOutputs, projectorBrightness \?\? 1, projectorOutputs\.filter\(o => hwOwnsGeometry\(o\)\)/.test(app)) problems.push('App no longer tells nativeLink which outputs NVAPI owns through hwOwnsGeometry (the one predicate)');
     if (!/cornerPin: hwGeom \? defaultCornerPin\(\)/.test(app) || !/softEdge: hwGeom \? defaultSoftEdge\(\)/.test(app) || !/colorGain: hwGeom \? \[1, 1, 1\]/.test(app) || !/blackLift: hwGeom \? \[0, 0, 0\]/.test(app) || !/warp: hwGeom \? null/.test(app)) problems.push('the app\'s window no longer draws a hardware-owned output flat the way nativeLink tells the engine to');
@@ -9815,6 +9815,65 @@ check(
     // display at scanout, invisible to captures, and its forced kill skipped the clear. Every run pretends.
     if (!/const pretend = pretendEnv === '1' \|\| pretendEnv === '0';/.test(nv)) problems.push('ARTLUX_NVWARP_PRETEND=0 no longer pretends NVAPI absent (the --no-nvapi run would reach the real scanout)');
     if (!/env0\.ARTLUX_NVWARP_PRETEND = PRETEND \? '1' : '0';/.test(read('scripts/test-native-projectors.cjs'))) problems.push('test-native-projectors no longer sets ARTLUX_NVWARP_PRETEND on EVERY launch — a run could reach the real NVAPI scanout');
+    return problems.length ? problems.join('; ') : null;
+  },
+);
+
+check(
+  'a calibrated projector output in render mode is drawn by the engine as three.js draws it, and the rest is refused with a reason',
+  'E6f: render-from-projector — the venue drawn from the solved projector (ProjectorScene, three.js in the projector ' +
+  'window) — is the engine\'s (calib3d.rs) where it draws the SAME picture: test:native-projectors --calibrated ' +
+  '(two screens, one through its UVs, one projected from the projector, at projector brightness 0.9) = the app\'s, ' +
+  '2 073 599 / 2 073 600 (one pixel by 1); --calibrated --glb (a venue GLB too): 2 073 600 / 2 073 600. What makes it ' +
+  'exact: the host computes every mesh\'s model-view in f64 as three does (venueLink.ts, the editor\'s own placement ' +
+  'functions, three\'s own GLTFLoader); the engine runs three\'s vertex maths, ANGLE\'s y flip and depth remap, the ' +
+  'streamed-bitmap UV transform and flippedUv\'s 1 − v, a LinearFilter sRGB texture with no mips, three\'s ' +
+  'sRGBTransferOETF (0.41666), the projected material FRONT-sided; and path C\'s dim (brightness × opacity) as ' +
+  'the compositor applies a layer opacity — 8-bit, AFTER the resolve (in the shader: 289 648 pixels one level off). ' +
+  'It found two app bugs, fixed: a projected mesh drew its content UPSIDE DOWN on the real projector (the texture ' +
+  'was handed to the material before it was oriented), and a calibrated output without a residual warp ignored ' +
+  'projector brightness and the surface\'s opacity (the canvas element was handed over only with a warp).',
+  () => {
+    const problems = [];
+    const nl = read('src/renderer/engine/nativeLink.ts');
+    if (/'calibrated \(render-from-projector\)'/.test(nl)) problems.push('nativeLink refuses every calibrated output again');
+    for (const [what, re] of [
+      ['a lens distortion', /if \(hasDistortion\(o\.calibration\)\) return \{ why:/],
+      ['the blend pass', /if \(needsBlendPass\(\{ softEdge: eff\.softEdge, colorGain: eff\.colorGain, blackLift: eff\.blackLift, blend: eff\.blend \}\)\) return \{ why:/],
+      ['a residual warp', /if \(hasResidualWarp\(eff\.cornerPin, eff\.warp\)\) return \{ why:/],
+      ['an NDI send', /if \(o\.ndiSend\) return \{ why:/],
+    ]) if (!re.test(nl)) problems.push(`nativeLink no longer refuses a calibrated output with ${what} (the engine does not draw it)`);
+    if (!/\.\.\.\(inRender \? \{ calib: /.test(nl)) problems.push('nativeLink no longer hands the engine the venue');
+    const app = read('src/renderer/App.tsx');
+    if (!/const render = projectorOutputs\.filter\(o => o\.enabled && rendersVenue\(o, scene3D\)\)[\s\S]{0,200}nativeLink\.setVenue\(render\.length \? resolveProjectedScene\(scene3D, projectorOutputs\) : null, render, calibratingOutputId\)/.test(app)) problems.push('App no longer hands nativeLink the render-mode outputs through rendersVenue and the scene it sends the windows');
+    const vl = read('src/renderer/engine/venueLink.ts');
+    for (const [what, re] of [
+      ['the editor\'s placement (recenterClone + applyModelTransform)', /const cloned = recenterClone\(f\.scene, m\.origin\);[\s\S]{0,120}applyModelTransform\(g, m\);/],
+      ['three\'s modelViewMatrix', /new THREE\.Matrix4\(\)\.multiplyMatrices\(cam\.matrixWorldInverse, o\.matrixWorld\)/],
+      ['CalibCamera\'s projection', /glProjectionMatrix\(cal\.intrinsics, cal\.imageSize, PROJECTOR_NEAR, PROJECTOR_FAR\)/],
+      ['the EXACT projection of a projected mesh', /engineContent\(cloned, m, true\)/],
+      ['a refusal of a mesh in its own material', /content\.mesh\.some\(\(i\) => i < 0\)\) return \{ why:/],
+      ['a refusal of occlusion', /s\.proj\?\.occlude\) return \{ why:/],
+    ]) if (!re.test(vl)) problems.push(`venueLink no longer uses ${what}`);
+    if (!/const NEAR = 0\.05|PROJECTOR_NEAR as NEAR/.test(read('plugins/calibration/src/ProjectorScene.tsx'))) problems.push('ProjectorScene no longer takes its clip planes from renderLook (the engine\'s camera reads the same)');
+    const c = raw('engine/artlux-engine/src/calib3d.rs');
+    for (const [what, re] of [
+      ['three\'s sRGBTransferOETF', /pow\(v, vec3<f32>\(0\.41666\)\) \* 1\.055 - vec3<f32>\(0\.055\), v \* 12\.92/],
+      ['three\'s vertex maths (P × (MV × p))', /let mvp = obj\.mv \* vec4<f32>\(p, 1\.0\);\s*var c = cam\.p \* mvp;/],
+      ['ANGLE\'s y flip and depth remap', /c\.y = -c\.y;\s*c\.z = \(c\.z \+ c\.w\) \* 0\.5;/],
+      ['the streamed bitmap\'s UV transform', /mat3x3<f32>\(vec3<f32>\(1\.0, 0\.0, 0\.0\), vec3<f32>\(0\.0, -1\.0, 0\.0\), vec3<f32>\(0\.0, 1\.0, 1\.0\)\)/],
+      ['flippedUv\'s 1 − v on a GLB wearing content', /v\[k \+ 7\] = 1\.0 - v\[k \+ 7\];/],
+      ['a LinearFilter sRGB texture without mips', /mipmap_filter: wgpu::MipmapFilterMode::Nearest/],
+      ['the sRGB view', /format: Some\(wgpu::TextureFormat::Rgba8UnormSrgb\)/],
+      ['the clockwise front face (the y flip)', /front_face: wgpu::FrontFace::Cw/],
+      ['the projected material\'s front side', /let front = s\.proj\.is_some\(\);/],
+      ['path C\'s dim AFTER the resolve', /let resolve = if dimmed \{ &self\.resolved\.as_ref\(\)\.unwrap\(\)\.2 \} else \{ target \};/],
+    ]) if (!re.test(c)) problems.push(`calib3d.rs no longer has ${what}`);
+    const st = read('plugins/calibration/src/useStreamedSurfaceTexture.ts');
+    if (!/matchBitmapOrientation\(t\);\s*t\.needsUpdate = true;[\s\S]{0,900}if \(fresh\) cbRef\.current\(t\);/.test(st)) problems.push('useStreamedSurfaceTexture hands the texture over before orienting it again (projected content upside down on the projector)');
+    const lt = read('src/renderer/components/Simulator3D/useLayerTexture.ts');
+    if (!/matchBitmapOrientation\(t\);[^\n]*\n\s*t\.needsUpdate = true;[\s\S]{0,300}if \(fresh\) cbRef\.current\(t\);/.test(lt)) problems.push('useLayerTexture hands the texture over before orienting it again');
+    if (!/onCanvas=\{publishCanvas\} readPixels=\{warpSource\}/.test(read('plugins/calibration/src/CalibProjector.tsx'))) problems.push('CalibProjector hands its canvas over only with a residual warp again (path C then ignores brightness and opacity)');
     return problems.length ? problems.join('; ') : null;
   },
 );

@@ -40,3 +40,6 @@ export { registerVenueMesh, unregisterVenueMesh } from './venueRaycast';
 // matrix + eye the shared shader consumes. Called by App at the scene push and by Simulator3D — main
 // holds every calibration, and a projector window holds only its own, so this cannot run there.
 export { resolveProjectedScene } from './projectedScene';
+// What render-from-projector draws with beyond the scene (pure): the native engine's link asks the SAME questions
+// ProjectorScene asks before it draws a calibrated output itself (E6f).
+export { PROJECTOR_NEAR, PROJECTOR_FAR, needsBlendPass, hasDistortion, type BlendLook } from './renderLook';

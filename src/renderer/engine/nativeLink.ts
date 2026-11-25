@@ -1,5 +1,8 @@
 import type { Fixture, FixtureProfile, Surface, Controller, OutputProtocol, SurfaceContent } from '../types';
-import { WINDOWED_DISPLAY, defaultCornerPin, defaultSoftEdge, type ProjectorOutput } from '../../../shared/protocol';
+import { WINDOWED_DISPLAY, defaultCornerPin, defaultSoftEdge, type ProjectorOutput, type Scene3D } from '../../../shared/protocol';
+import { needsBlendPass, hasDistortion } from '@artlux/plugin-calibration/playback';
+import { hasResidualWarp } from '../projector/warp';
+import * as venueLink from './venueLink';
 import { badgeBitmap } from '../components/brand/badge';
 import { ndiCap } from '../projector/ndiCap';
 // The app's own broadcast flag (App.tsx BROADCAST): a broadcast machine sends NDI at up to 1080p.
@@ -120,10 +123,10 @@ let lastSources = '';
 // ── E1f-3: PROJECTOR OUTPUTS ────────────────────────────────────────────────────────────────────────
 // App hands these in (they are not frame-engine inputs): the outputs, the projector master brightness
 // (committed and live drags) and the cold-start hold. The engine draws an output only when it can draw
-// it EXACTLY as ProjectorApp's plain warp path does (projector.rs, identical to ProjectorGL — E1e-1), so an
-// output with anything else on it — live calibration (render-from-projector; a baked map IS drawn) — is listed
-// WITH THE REASON and the app keeps every output (all or nothing, runtime.rs). A mask, a blend map, a windowed
-// output, an NDI send and an NVIDIA hardware warp are the engine's (E6f — see projectorEntry).
+// it EXACTLY as ProjectorApp draws it (projector.rs, identical to ProjectorGL — E1e-1; calib3d.rs, identical to
+// ProjectorScene), so an output with anything else on it is listed WITH THE REASON and the app keeps every output
+// (all or nothing, runtime.rs). A mask, a blend map, a windowed output, an NDI send, an NVIDIA hardware warp and
+// the live RENDER-FROM-PROJECTOR (the parts it draws — see calibFor) are the engine's (E6f — see projectorEntry).
 // `hwOwned`: the outputs whose geometry + blend the NVIDIA SCANOUT applies (App's hwOwnsGeometry — not re-derived
 // here: it needs the NVAPI answer and the displays' `internal`, and two predicates would drift).
 let projOutputs: ProjectorOutput[] = [];
@@ -134,6 +137,18 @@ let projHwKey = '';
 export function setProjectors(outputs: ProjectorOutput[], brightness: number, hwOwned: string[] = []): void {
   projOutputs = outputs; projBrightness = brightness; projHw = new Set(hwOwned); projHwKey = [...projHw].sort().join(',');
   refreshDisplays();
+}
+// E6f: RENDER-FROM-PROJECTOR. App hands in the scene it sends the projector windows (resolveProjectedScene
+// applied), the outputs it tells to draw the venue (its rendersVenue — one predicate), and the output a
+// calibration session owns (its wizard drives that window's mode — authoring, the app's). A venue GLB that
+// finishes loading changes the document through venueLink.venueGen, which is in its change key.
+let venueScene: Scene3D | null = null;
+let venueRender = new Set<string>();
+let venueCalibrating: string | null = null;
+let venueKey = '';
+export function setVenue(scene: Scene3D | null, render: string[], calibrating: string | null): void {
+  venueScene = scene; venueRender = new Set(render); venueCalibrating = calibrating;
+  venueKey = `${[...venueRender].sort().join(',')}|${calibrating ?? ''}`;
 }
 
 // ── E2: RASTER SOURCES (text first) ─────────────────────────────────────────────────────────────────
@@ -188,17 +203,55 @@ export function setProjectorBaked(surfaceId: string, map: BakedMap | null): void
   if (enabled) window.artlux?.nativeEngineBakedMap?.(key, map.w, map.h, map.uv, map.alpha ?? null);
 }
 
+/** The output's settings as the app's window gets them (App pushProjectorState): FLAT when the NVIDIA scanout owns it. */
+function effectiveOutput(o: ProjectorOutput) {
+  return projHw.has(o.surfaceId)
+    ? { cornerPin: defaultCornerPin(), warp: null, softEdge: defaultSoftEdge(), gamma: o.gamma, colorGain: [1, 1, 1] as [number, number, number], blackLift: [0, 0, 0] as [number, number, number], blend: null, scanout: true }
+    : { cornerPin: o.cornerPin, warp: o.warp ?? null, softEdge: o.softEdge, gamma: o.gamma, colorGain: o.colorGain, blackLift: o.blackLift, blend: o.blend ?? null };
+}
+
+/**
+ * E6f: a calibrated output in RENDER mode — the venue as the engine draws it (venueLink.calibDoc), or why not.
+ * The scene's own reasons are venueLink's; these are the OUTPUT's, each a pass ProjectorScene / ProjectorApp
+ * applies that calib3d.rs does not yet: the lens distortion, the blend pass (soft edge, colour gain, black lift,
+ * the solved rig blend — needsBlendPass, ProjectorScene's own test), a residual warp (the base stage then warps the
+ * scene's canvas — hasResidualWarp, ProjectorApp's own test), and an NDI send (without a residual warp the app's
+ * window returns before its capture and sends nothing). Null: not in render mode.
+ */
+function calibFor(o: ProjectorOutput, sources: Record<string, contentSource.NativeSource>): { doc: unknown } | { why: string } | null {
+  if (!venueRender.has(o.surfaceId) || baked.has(o.surfaceId) || !venueScene || !o.calibration) return null;
+  const eff = effectiveOutput(o);
+  if (hasDistortion(o.calibration)) return { why: 'calibrated with a lens distortion (not drawn by the engine yet)' };
+  if (needsBlendPass({ softEdge: eff.softEdge, colorGain: eff.colorGain, blackLift: eff.blackLift, blend: eff.blend })) return { why: 'calibrated with a soft edge, colour match or rig blend (not drawn by the engine yet)' };
+  if (hasResidualWarp(eff.cornerPin, eff.warp)) return { why: 'calibrated with a residual warp (not drawn by the engine yet)' };
+  if (o.ndiSend) return { why: 'calibrated and sent as NDI (the app sends nothing there without a residual warp)' };
+  const r = venueLink.calibDoc(o.calibration, venueScene);
+  if ('why' in r) return r;
+  for (const sid of r.surfaces) {
+    const x = sources[sid];
+    if (!x) return { why: `the venue shows surface ${sid}, which is gone` };
+    if (x.kind === 'unsupported') return { why: `the venue shows '${sid}': ${'why' in x ? x.why : 'a source the engine does not draw'}` };
+  }
+  return { doc: r.doc };
+}
+
 function projectorEntry(o: ProjectorOutput, surfaces: Surface[], sources: Record<string, contentSource.NativeSource>) {
   const s = surfaces.find((x) => x.id === o.surfaceId);
+  const calib = calibFor(o, sources);
+  // In render mode the window shows the VENUE, not its own surface — whose source then does not decide.
+  const inRender = !!calib && 'doc' in calib;
   const src = sources[o.surfaceId];
   const why =
     !s ? 'its surface is gone'
     : o.displayId === null ? 'no display chosen'
     // E6f: a WINDOWED output (WINDOWED_DISPLAY) is the engine's too — main gives it the app window's rect, the engine
     // opens an ordinary window there and the app's is hidden while it shows (main/projector.ts, outputs.rs).
+    // E6f: a calibration SESSION drives its output's window itself (patterns, crosshair, the verify looks) — authoring.
+    : o.surfaceId === venueCalibrating ? 'a calibration session is open on it'
     // A calibration MAP is played (item 3) — it supersedes the venue render inside the window too. Calibration
-    // WITHOUT a map is the live render-from-projector, which stays the app's.
-    : !baked.has(o.surfaceId) && (o.calibration || o.useCalibration) ? 'calibrated (render-from-projector)'
+    // WITHOUT a map, in render mode, is the live RENDER-FROM-PROJECTOR (calibFor below); a calibration NOT in
+    // render mode (no pose, opted out, no visible venue) is the plain warp in the app's window too.
+    : calib && 'why' in calib ? calib.why
     // E6f: an NVIDIA HARDWARE WARP is the engine's too. NVAPI warps + blends the DISPLAY at scanout — whatever window is
     // on it, the engine's topmost one included — and the app's window then draws the output FLAT (App
     // pushProjectorState: identity corner-pin, no warp, no soft edge, unit gain, no lift; gamma stays), so the
@@ -210,6 +263,7 @@ function projectorEntry(o: ProjectorOutput, surfaces: Surface[], sources: Record
     // same (test:native-projectors, with both set). verify:invariants fails this if the app ever applies them.
     // E6f: an NDI SEND is the engine's too — it captures its own window as the app's does and sends under the SAME
     // name (`ndi` below); the app's sender stands down while it does (plugins/ndi). An engine without NDI refuses.
+    : inRender ? undefined
     : !src || src.kind === 'unsupported' ? (src && 'why' in src ? src.why : 'a source the engine does not draw')
     : undefined;
   // E6f: a WINDOWED output carries the app's badge (components/brand/badge.ts) — the SAME bitmap the app's window
@@ -224,9 +278,8 @@ function projectorEntry(o: ProjectorOutput, surfaces: Surface[], sources: Record
     ...(windowed ? { badge: `badge:${o.surfaceId}` } : {}),
     // The app's sender name and capture cap (App's NDI reconcile, ProjectorApp captureNdi — ndiFullRes = broadcast).
     ...(o.ndiSend && s ? { ndi: { name: `ArtLux — ${s.name}`, maxW: ndiCap(BROADCAST)[0], maxH: ndiCap(BROADCAST)[1] } } : {}),
-    output: projHw.has(o.surfaceId)
-      ? { cornerPin: defaultCornerPin(), warp: null, softEdge: defaultSoftEdge(), gamma: o.gamma, colorGain: [1, 1, 1], blackLift: [0, 0, 0], scanout: true }
-      : { cornerPin: o.cornerPin, warp: o.warp ?? null, softEdge: o.softEdge, gamma: o.gamma, colorGain: o.colorGain, blackLift: o.blackLift },
+    output: (({ blend: _b, ...x }) => x)(effectiveOutput(o)),
+    ...(inRender ? { calib: (calib as { doc: unknown }).doc } : {}),
     ...(baked.has(o.surfaceId) ? { baked: { key: baked.get(o.surfaceId)!.key } } : {}),
     ...(why ? { why } : {}),
   };
@@ -294,7 +347,7 @@ function link(inputs: LinkInputs, surfaces: Surface[], fixtures: Fixture[], brig
   shipRasters(surfaces, sources);   // E2: before the document that names them
   for (const [key, content] of layerContent) if (sources[key]?.kind === 'raster') shipRaster(key, contentSource.nativeRaster(key, content));
   const sourcesKey = JSON.stringify(sources);
-  const refs = [surfaces, fixtures, inputs.fixtureProfiles, inputs.controllers, inputs.protocol, inputs.targetIp, inputs.broadcast, inputs.gamma, inputs.artNetPort, inputs.outputEnabled, projOutputs, projHwKey, bakedSeq, ...lightingRefs()];
+  const refs = [surfaces, fixtures, inputs.fixtureProfiles, inputs.controllers, inputs.protocol, inputs.targetIp, inputs.broadcast, inputs.gamma, inputs.artNetPort, inputs.outputEnabled, projOutputs, projHwKey, venueScene, venueKey, venueLink.venueGen(), bakedSeq, ...lightingRefs()];
   if (sourcesKey !== lastSources || lanesKey !== lastLanes || refs.length !== lastRefs.length || refs.some((r, i) => r !== lastRefs[i])) {
     lastRefs = refs; lastSources = sourcesKey; lastLanes = lanesKey; rev++;
     const ln = lanesView ? timeline.nativeLanes(engineLane) : { gen: 0, lanes: [] };
