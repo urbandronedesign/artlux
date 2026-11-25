@@ -261,6 +261,14 @@ fn main() -> ExitCode {
         };
     }
     #[cfg(windows)]
+    if let Some(i) = args.iter().position(|a| a == "--bake-nv12-check") {
+        // E6c: the bake's GPU RGB → NV12 against encode::to_nv12, byte for byte.
+        let (w, h) = args.get(i + 1).and_then(|s| s.split_once('x')).and_then(|(a, b)| Some((a.parse().ok()?, b.parse().ok()?))).unwrap_or((1920u32, 1080u32));
+        let gpu = match Gpu::open(AdapterPolicy { allow_software: has("--allow-software"), force_software: has("--software") }) { Ok(g) => g, Err(e) => { eprintln!("artlux-engine: {e}"); return ExitCode::from(2); } };
+        let r = artlux_engine::bakescale::nv12_check(&gpu, w, h);
+        println!("{r}");
+        return if r["ok"] == true { ExitCode::SUCCESS } else { ExitCode::from(1) };
+    }
     #[cfg(windows)]
     if let Some(i) = args.iter().position(|a| a == "--mp4-compare") {
         // E6a: a bake held frame by frame against its source (or another bake) — encode.rs compare.

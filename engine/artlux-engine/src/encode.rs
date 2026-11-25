@@ -206,6 +206,16 @@ impl Mp4Out {
         Ok(())
     }
 
+    /// E6c: the next frame ALREADY NV12 (converted on the GPU — bakescale.rs, the same BT.709 limited arithmetic as
+    /// `to_nv12`): w × h luma, then the interleaved chroma.
+    pub fn frame_nv12(&mut self, nv12: &[u8]) -> Result<(), String> {
+        if nv12.len() != (self.w * self.h * 3 / 2) as usize { return Err(format!("a {}-byte NV12 frame for {}x{}", nv12.len(), self.w, self.h)); }
+        let (t0, t1) = (frame_time(self.frames, self.fps), frame_time(self.frames + 1, self.fps));
+        self.write(self.video, nv12, t0, t1 - t0)?;
+        self.frames += 1;
+        Ok(())
+    }
+
     /// Interleaved stereo f32 (the offline pull's), appended after what was written so far.
     pub fn audio(&mut self, pcm: &[f32]) -> Result<(), String> {
         let Some(a) = self.audio else { return Ok(()) };
@@ -237,7 +247,7 @@ impl Mp4Out {
 // Order is kept — sound and pictures share the one queue — and an encoder error is reported on the next call.
 
 const QUEUE: usize = 3;
-enum Job { Frame(Vec<u8>), Audio(Vec<f32>) }
+enum Job { Frame(Vec<u8>), Nv12(Vec<u8>), Audio(Vec<f32>) }
 
 pub struct Mp4Writer {
     tx: Option<std::sync::mpsc::SyncSender<Job>>,
@@ -265,7 +275,7 @@ impl Mp4Writer {
             while let Ok(job) = rx.recv() {
                 if stop.load(std::sync::atomic::Ordering::SeqCst) { return Ok(ms); }
                 let t0 = std::time::Instant::now();
-                let r = match job { Job::Frame(px) => out.frame(&px, true), Job::Audio(pcm) => out.audio(&pcm) };
+                let r = match job { Job::Frame(px) => out.frame(&px, true), Job::Nv12(f) => out.frame_nv12(&f), Job::Audio(pcm) => out.audio(&pcm) };
                 ms += t0.elapsed().as_secs_f64() * 1000.0;
                 if let Err(e) = r { *err.lock().unwrap() = Some(e.clone()); return Err(e); }
             }
@@ -285,6 +295,8 @@ impl Mp4Writer {
     }
     /// A frame: w × h RGBA (premultiplied — laid over black), moved to the encoder.
     pub fn frame(&mut self, px: Vec<u8>) -> Result<(), String> { self.send(Job::Frame(px))?; self.frames += 1; Ok(()) }
+    /// E6c: a frame converted to NV12 on the GPU.
+    pub fn frame_nv12(&mut self, f: Vec<u8>) -> Result<(), String> { self.send(Job::Nv12(f))?; self.frames += 1; Ok(()) }
     pub fn audio(&mut self, pcm: Vec<f32>) -> Result<(), String> { let n = pcm.len() as u64 / AUDIO_CH as u64; self.send(Job::Audio(pcm))?; self.audio_samples += n; Ok(()) }
     /// Every queued frame encoded, the file closed. The encoder's own time in all (ms).
     pub fn finish(mut self) -> Result<f64, String> {
@@ -329,13 +341,13 @@ pub fn to_nv12(rgba: &[u8], w: usize, h: usize, premultiplied: bool, out: &mut V
                                 let (x, y) = (x2 * 2 + dx, ry * 2 + dy);
                                 let [r, g, b] = px(y * w + x);
                                 let yl = KR * r + KG * g + KB * b;
-                                yc[(j * 2 + dy) * w + x] = (16.0 + 219.0 * yl).round().clamp(0.0, 255.0) as u8;
+                                yc[(j * 2 + dy) * w + x] = (16.0 + 219.0 * yl + 0.5).floor().clamp(0.0, 255.0) as u8;
                                 sb += (b - yl) / (2.0 * (1.0 - KB));
                                 sr += (r - yl) / (2.0 * (1.0 - KR));
                             }
                         }
-                        uvrow[x2 * 2] = (128.0 + 224.0 * sb / 4.0).round().clamp(0.0, 255.0) as u8;
-                        uvrow[x2 * 2 + 1] = (128.0 + 224.0 * sr / 4.0).round().clamp(0.0, 255.0) as u8;
+                        uvrow[x2 * 2] = (128.0 + 224.0 * sb / 4.0 + 0.5).floor().clamp(0.0, 255.0) as u8;
+                        uvrow[x2 * 2 + 1] = (128.0 + 224.0 * sr / 4.0 + 0.5).floor().clamp(0.0, 255.0) as u8;
                     }
                 }
             });

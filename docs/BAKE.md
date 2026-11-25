@@ -248,8 +248,14 @@ Measured (`npm run test:engine-bake`, RTX 5090, a 1080p25 film): every frame the
 levels mean, the app's own bake 0.79), none early or late; an effect frame for frame the app's (0.03); sound
 exact to the sample; a cancel leaves no file. Per frame: draw 3.3 ms and read back 1.7 ms on the render thread,
 encode 3.1 ms beside it — about 5 ms a frame, the app's own pace (4.6 ms), after a fixed ~0.4 s to open the
-GPU's encoder (100 frames: 0.94 s against the app's 0.46 s). Not yet: RGB → NV12 on the GPU (the encode thread's
-CPU conversion is now as long as the draw).
+GPU's encoder (100 frames: 0.94 s against the app's 0.46 s).
+
+**RGB → NV12 on the GPU (E6c).** A compute pass converts the drawn frame where it is (`bakescale.rs`, the CPU's
+`to_nv12` line for line, both rounding half up — WGSL's `round()` is half-to-even), and the encoder is handed
+1.5 bytes a pixel already converted; a width that is not a multiple of 4 goes the CPU way. Held to the CPU by
+`--bake-nv12-check` (2 bytes in 3.1 M differ, by 1: float order on a value exactly at .5). Per frame now: draw
+2.8 ms, read back 0.7, encode 0.5 on its own thread. 250 frames: 1.18 s against the app's 0.82 s — the same
+pace once running (~3 ms a frame each); the difference is opening the GPU's encoder.
 
 ## Testing it
 

@@ -92,11 +92,19 @@ function buildProject() {
       rebake: () => bake({ ...base, surfaceId: 'sM', width: W, height: H, outPath: path.join(WORK, 'film-rebake.mp4') }),
       // A long bake CANCELLED a second in: refused as cancelled, and no file left behind.
       cancel: async () => {
+        // Cancelled at its first progress report (a time would race a bake that has got fast: 250 frames in ~1 s).
+        let started; const first = new Promise((r) => { started = r; });
+        const onMsg = (m) => { if (/\[bake\] progress \d+\/250 /.test(m.text())) started(); };
+        page.on('console', onMsg);
         const p = page.evaluate((r) => window.__artluxBake(r), { ...base, surfaceId: 'sM', width: W, height: H, endSec: 10, outPath: path.join(WORK, 'film-cancel.mp4') });
-        await sleep(1200);
+        await Promise.race([first, sleep(20000)]);
+        page.off('console', onMsg);
         await page.evaluate(() => window.__artluxBakeCancel());
         return p;
       },
+      // Not in the default run: a 10 s bake both ways, to read the steady-state pace (`--only long,longApp`).
+      long: () => bake({ ...base, surfaceId: 'sM', width: W, height: H, endSec: 10, outPath: path.join(WORK, 'film-long.mp4') }),
+      longApp: () => bake({ ...base, surfaceId: 'sM', width: W, height: H, endSec: 10, via: 'app', outPath: path.join(WORK, 'film-long-app.mp4') }),
       soundApp: () => bake({ ...base, surfaceId: 'sM', width: W, height: H, audio: true, endSec: 2, via: 'app', outPath: path.join(WORK, 'film-sound-app.mp4') }),
     };
     // The sound bake before the effect bakes: the bed rides the SHOW clock, which a playhead bake does not step, and
@@ -161,6 +169,12 @@ function buildProject() {
     let gone = false;
     for (let k = 0; k < 40 && !(gone = !fs.existsSync(path.join(WORK, 'film-cancel.mp4'))); k++) await sleep(100);
     check('…and leaves no half file behind', gone);
+  }
+  // E6c: the bake's RGB → NV12 on the GPU against the CPU's (encode.rs to_nv12), on ramps, noise and hard edges.
+  for (const size of ['1920x1080', '3840x2160']) {
+    const r = spawnSync(ENGINE, ['--bake-nv12-check', size], { encoding: 'utf8' });
+    let j = null; try { j = JSON.parse(r.stdout.slice(r.stdout.indexOf('{'))); } catch { /* reported below */ }
+    check(`the GPU's NV12 is the CPU's at ${size}`, !!j && j.ok && j.drawnExact && j.worst <= 1 && j.differ <= 64, j ? `${j.differ} of ${j.bytes} bytes differ, by at most ${j.worst}` : r.stderr);
   }
   if (!KEEP && !failed) { try { fs.rmSync(WORK, { recursive: true, force: true }); } catch { /* the profile may still be locked */ } }
   else console.log(`   (kept: ${WORK})`);

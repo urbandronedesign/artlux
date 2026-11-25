@@ -9636,6 +9636,10 @@ check(
     if (!/if \(viaEngine\) \{\s*const why = await drainEngine\(0\);/.test(br)) problems.push('an engine bake can close its file with frames still in flight');
     if (!/if \(tracks !== undefined && viaEngine\) \{/.test(br)) problems.push('the app settling of timeline tracks is no longer skipped for an engine bake (or is skipped when the app draws)');
     if (!/if stop\.load\(std::sync::atomic::Ordering::SeqCst\) \{ return Ok\(ms\); \}\s*out\.finish\(\)\?;/.test(en)) problems.push('a cancelled bake would still close its file (the encoder thread finishes a full queue)');
+    // E6c: NV12 on the GPU where the width allows, with the CPU's arithmetic — the same rounding on both sides.
+    if (!/if nv12 \{ b\.out\.frame_nv12\(px\)\?; \} else \{ b\.out\.frame\(px\)\?; \}/.test(rt)) problems.push('the bake no longer hands the NV12 the GPU converted to the encoder');
+    const bs = read('engine/artlux-engine/src/bakescale.rs');
+    if (!/fn q\(x: f32\) -> u32 \{ return u32\(clamp\(floor\(x \+ 0\.5\), 0\.0, 255\.0\)\); \}/.test(bs) || (en.match(/\+ 0\.5\)\.floor\(\)/g) ?? []).length !== 3) problems.push('the GPU and CPU NV12 conversions no longer round the same way (WGSL round() is half-to-even)');
     const fe = read('src/renderer/engine/frameEngine.ts');
     const at = fe.indexOf('  bakeTick(at: nativeLink.BakeAt = {}): string | null {');
     const bt = at < 0 ? '' : fe.slice(at, at + 1600);

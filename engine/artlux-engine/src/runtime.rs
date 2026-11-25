@@ -1379,9 +1379,12 @@ impl Runtime {
         let t1 = std::time::Instant::now();
         let b = self.bake.as_mut().unwrap();
         let (w, h) = (b.w, b.h);
+        let mut nv12 = false;
         let px = match self.pictures.get(&b.surface) {
             // The picture at the file's size (bakescale.rs): the CONTENT only, filling the frame — the warp, blend
             // and calibration stay live and apply to the file later (docs/BAKE.md).
+            // E6c: NV12 straight from the GPU where the width allows (a multiple of 4), else RGBA for the CPU.
+            Some(p) if b.scaler.gpu_nv12() => { let f = b.scaler.frame_nv12(&self.gpu, p, self.gens.get(&b.surface).copied().unwrap_or(0))?; nv12 = true; f }
             Some(p) => b.scaler.frame(&self.gpu, p, self.gens.get(&b.surface).copied().unwrap_or(0))?,
             None => { b.blank += 1; vec![0u8; (w * h * 4) as usize] }   // drew nothing this frame: black, as the app's canvas
         };
@@ -1392,7 +1395,7 @@ impl Runtime {
             b.out.audio(pcm)?;
         }
         // The pictures are premultiplied (and opaque where a video is): the colour video is the surface over black.
-        b.out.frame(px)?;   // queued to the encoder thread; the next frame is drawn meanwhile
+        if nv12 { b.out.frame_nv12(px)?; } else { b.out.frame(px)?; }   // queued to the encoder thread; the next frame is drawn meanwhile
         let t3 = std::time::Instant::now();
         b.draw_ms += (t1 - t0).as_secs_f64() * 1000.0;
         b.read_ms += (t2 - t1).as_secs_f64() * 1000.0;

@@ -2359,6 +2359,18 @@ fallback until a source/output is proven byte-identical — risk 2):
 > - `verify:invariants` (mutation-tested): drained before the file closes, the settle skipped only for an engine
 >   bake, a cancelled encoder never closes its file.
 > - **Not yet:** RGB → NV12 on the GPU (the encode thread's CPU conversion now matches the draw); the matte; macOS.
+>   → NV12: **E6c**.
+>
+> ✅ **E6c done 2026-11-25 — RGB → NV12 ON THE GPU for the bake.** A compute pass (`bakescale.rs NV12_WGSL`, one
+> invocation per 4×2 block, words written whole) converts the drawn frame with `encode::to_nv12`'s arithmetic (BT.709
+> limited, 2×2 chroma mean); both round half UP (WGSL `round()` is half-to-even, so the CPU's `.round()` became
+> `floor(x + 0.5)` — the same bytes for these positive values). The encoder gets NV12 (`Mp4Writer::frame_nv12`); a
+> width not a multiple of 4 goes the CPU way. `--bake-nv12-check` (in test:engine-bake): 1080p 2 of 3 110 400 bytes
+> differ, 4K 2 of 12 441 600, by 1; 360p none. Per frame: read back 1.67 → **0.67 ms**, encode 3.07 → **0.55 ms**;
+> the engine's part of 100 frames **0.4 s**. 250 frames: **1.18 s vs the app's 0.82 s** — ~3 ms a frame each once
+> running; the rest is NVENC opening (~0.4 s). Every frame still the film's (0 off, luma 0.82).
+> - **Not yet:** opening the encoder ahead (at the panel, not the press); the matte; macOS (AVFoundation). Next:
+>   SDK v2 for render contributions.
 
 ## 9d. E4 started early — the 3D view in the engine (owner, 2026-11-24)
 
