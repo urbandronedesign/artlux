@@ -43,6 +43,14 @@ export interface MainPluginContext {
    * audio plugin plays through its own addon, as always.
    */
   engineAudio?: { call(op: string, args: unknown[], answer: boolean): Promise<unknown> | void };
+  /**
+   * E6f — THE NATIVE ENGINE SHOWS THE PROJECTOR OUTPUTS. Present only with the native engine on: `cb(true)` while
+   * the engine's own windows show them (the app's are covered and stop drawing), `cb(false)` when it gives them
+   * back or dies — called once at once with the current state. A plugin that publishes something FROM the app's
+   * projector windows stands down while owned, because the engine publishes it: plugins/ndi releases its NDI
+   * senders (the engine sends under the same names). Returns an unsubscribe.
+   */
+  nativeEngine?: { onProjectorsOwned(cb: (owned: boolean) => void): () => void };
 }
 
 export interface MainPlugin {

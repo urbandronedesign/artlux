@@ -28,6 +28,10 @@ export const plugin: MainPlugin = {
     ipc.on('ndi:send-frame', (outputId, width, height, data) => {
       ndi.sendFrame(outputId as string, width as number, height as number, Buffer.from(data as ArrayBuffer));
     });
+    // E6f: while the NATIVE ENGINE shows the projector outputs it also SENDS them, under the same names — so the
+    // app's senders stand down (two senders of one name would be one source with two owners), and come back when
+    // the engine gives the outputs back or dies.
+    ctx.nativeEngine?.onProjectorsOwned((owned) => ndi.setSendersSuspended(owned));
   },
 
   deactivate(): void { ndi.stopAllSenders(); ndi.stopRecv(); },

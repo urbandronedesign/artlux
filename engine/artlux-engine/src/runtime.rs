@@ -379,15 +379,23 @@ impl Runtime {
         self.outputs = Some((proxy, shared));
     }
 
+    /// E6f: can this engine send NDI?
+    fn ndi_ready() -> Result<(), String> {
+        #[cfg(feature = "ndi")] { crate::ndi::runtime() }
+        #[cfg(not(feature = "ndi"))] { Err("this engine was built without NDI".to_string()) }
+    }
+
     /// E1f-3: the document's projector outputs. ALL OR NOTHING, like the wire: when any enabled output is
-    /// one the engine cannot draw (the host says why: calibrated, hardware-warped, NDI-sent, a source
+    /// one the engine cannot draw (the host says why: calibrated, hardware-warped, an NDI send this engine cannot make, a source
     /// the engine lacks...) it opens NONE and the app keeps every output. Err(why) when it will not drive
     /// them; Ok(n) when it asked the windows thread for n outputs (whose report answers main).
     pub fn projectors(&mut self, d: &Value) -> Result<usize, String> {
         let list = d["projectors"].as_array().cloned().unwrap_or_default();
         let why = if self.outputs.is_none() { Some("the engine has no window system here".to_string()) }
             else if list.is_empty() { Some("no projector output is enabled".to_string()) }
-            else { list.iter().find_map(|p| p["why"].as_str().map(|w| format!("output '{}': {w}", p["name"].as_str().unwrap_or(p["id"].as_str().unwrap_or("?"))))) };
+            else { list.iter().find_map(|p| p["why"].as_str().map(|w| format!("output '{}': {w}", p["name"].as_str().unwrap_or(p["id"].as_str().unwrap_or("?"))))) }
+            // E6f: an NDI SEND needs NDI here — built with it, and its runtime on this machine (else the app sends it).
+            .or_else(|| list.iter().find(|p| p["ndi"].is_object()).and_then(|p| Self::ndi_ready().err().map(|w| format!("output '{}': an NDI send — {w}", p["name"].as_str().unwrap_or("?")))));
         let specs: Vec<crate::outputs::Spec> = if why.is_some() { Vec::new() } else { list.iter().map(|p| crate::outputs::Spec {
             id: p["id"].as_str().unwrap_or_default().to_string(),
             surface_id: p["surfaceId"].as_str().unwrap_or_default().to_string(),
@@ -400,6 +408,7 @@ impl Runtime {
             window: (|| Some((p["window"]["x"].as_i64()? as i32, p["window"]["y"].as_i64()? as i32, p["window"]["width"].as_u64()? as u32, p["window"]["height"].as_u64()? as u32)))(),
             title: p["title"].as_str().or(p["name"].as_str()).unwrap_or_default().to_string(),
             badge: p["badge"].as_str().map(str::to_string),
+            ndi: p["ndi"]["name"].as_str().map(|n| crate::outputs::NdiOut { name: n.to_string(), max: (p["ndi"]["maxW"].as_u64().unwrap_or(1280) as u32, p["ndi"]["maxH"].as_u64().unwrap_or(720) as u32) }),
             baked: p["baked"].as_object().and_then(|b| Some(crate::outputs::BakedFiles {
                 key: b.get("key")?.as_str()?.to_string(),
                 w: b.get("w")?.as_u64()? as u32, h: b.get("h")?.as_u64()? as u32,

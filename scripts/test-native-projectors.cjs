@@ -30,6 +30,10 @@
 // two programs'), exactly one visible window carries the output's title and it is the engine's, a move of the
 // engine's window is followed by the hidden app window, and after a kill the restarted engine opens at the moved
 // place. The rest of the screen is not judged (it is the desktop).
+// --ndi (E6f): the output is also SENT AS NDI. The frames are RECEIVED here (a child process, the app's own addon,
+// uncapped) from the app in A and from the ENGINE in B and after the restart: the engine's NDI frame must equal the
+// app's, there must be exactly ONE source of that name while the engine sends (the app's sender stood down), and the
+// app's sender comes back when the engine dies.
 
 const { spawn, execFile, execSync } = require('node:child_process');
 const fs = require('node:fs');
@@ -56,6 +60,10 @@ const BAKED = process.argv.includes('--baked');
 // converted frame (GPU) — within 1 of Chromium's conversion, so the windows are held to "within 1".
 const mk = process.argv.indexOf('--mp4');
 const WINDOWED = process.argv.includes('--windowed');
+const NDI = process.argv.includes('--ndi');
+// --editor: launch WITHOUT --broadcast (the editor's window opens too). With --ndi that is the editor's 720p NDI cap,
+// so a 1080p output is SCALED DOWN for the send — the path broadcast (1080p cap) never takes.
+const EDITOR = process.argv.includes('--editor');
 const MP4 = mk > 0 ? path.resolve(process.argv[mk + 1] && !process.argv[mk + 1].startsWith('--') ? process.argv[mk + 1] : path.join(ROOT, 'engine', 'testdata', 'still-avc-1280x720.mp4')) : null;
 
 // The primary display, as Electron names it (the project's output points at it).
@@ -79,7 +87,7 @@ fs.writeFileSync(project, JSON.stringify({
   fixtures: [], controllers: [], groups: [], scenes: [], cueBanks: [],
   projectorBrightness: 0.9,
   projectorOutputs: [{
-    surfaceId: 'sP', name: 'Wall', enabled: true, displayId: WINDOWED ? -1 : disp.id,
+    surfaceId: 'sP', name: 'Wall', enabled: true, displayId: WINDOWED ? -1 : disp.id, ...(NDI ? { ndiSend: true } : {}),
     cornerPin: { tl: [0.05, 0.1], tr: [0.93, 0.02], br: [0.97, 0.95], bl: [0.02, 0.88] },
     softEdge: { left: 0.15, right: 0, top: 0, bottom: 0.1, gamma: 2.2 }, gamma: 1, colorGain: [1, 0.95, 0.9], blackLift: [0.01, 0.01, 0.02],
     // E6f: drawn by neither the app's window nor the engine (see the header) — present to prove the engine takes it.
@@ -184,10 +192,53 @@ foreach ($h in [W]::Find($Title)) {
 `);
 const wins = async (title, pid = 0, dx = 0, dy = 0, close = 0) => (await run('powershell', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', WINPS, '-Title', title, '-Owner', String(pid), '-Dx', String(dx), '-Dy', String(dy), '-Close', String(close)]))
   .split(/\r?\n/).filter((l) => l.trim()).map((l) => { const [p, x, y, w, h] = l.trim().split(/\s+/).map(Number); return { pid: p, x, y, w, h }; });
+// --ndi: one frame of the source 'ArtLux — Projected', received through the app's own addon in a child process
+// (uncapped). Waits for the source, then keeps the LAST frame of ~2 s; also reports how many sources carry the name.
+const NDI_NAME = 'ArtLux — Projected';
+const RECV = path.join(WORK, 'ndi-recv.cjs');
+fs.writeFileSync(RECV, `const a = require(${JSON.stringify(path.join(ROOT, 'native', 'ndi', 'ndi.node'))});
+const fs = require('fs'); const out = process.argv[2]; const want = ${JSON.stringify(NDI_NAME)};
+a.setRecvCap(8192, 8192);
+const t0 = Date.now(); let src = null, n = 0, last = null;
+const tick = () => {
+  if (!src) {
+    const all = a.listSources().filter((x) => x.endsWith('(' + want + ')'));
+    n = all.length; if (all.length) { src = all[0]; try { a.recvConnect(src); } catch (e) { src = null; } }
+    if (!src && Date.now() - t0 > 20000) { fs.writeFileSync(out + '.json', JSON.stringify({ n, frames: 0 })); process.exit(0); }
+    return setTimeout(tick, 300);
+  }
+  const f = a.recvFrame(); if (f) last = f;
+  if (last && Date.now() - t0 > 4000) {
+    n = a.listSources().filter((x) => x.endsWith('(' + want + ')')).length;
+    fs.writeFileSync(out, Buffer.from(last.data)); fs.writeFileSync(out + '.json', JSON.stringify({ n, w: last.width, h: last.height, sw: last.srcWidth, sh: last.srcHeight }));
+    process.exit(0);
+  }
+  if (Date.now() - t0 > 30000) { fs.writeFileSync(out + '.json', JSON.stringify({ n, frames: 0 })); process.exit(0); }
+  setTimeout(tick, 15);
+};
+tick();`);
+const BS = String.fromCharCode(92);
+const NDI_DIRS = [process.env.NDI_RUNTIME_DIR_V6, process.env.NDI_RUNTIME_DIR_V5, ['C:', 'Program Files', 'NDI', 'NDI 6 Runtime', 'v6'].join(BS),
+  process.env.NDI_SDK_DIR ? path.join(process.env.NDI_SDK_DIR, 'Bin', 'x64') : null].filter((d) => d && fs.existsSync(d));
+const ndiGrab = (name) => new Promise((res) => {
+  const f = path.join(WORK, `ndi-${name}.rgba`);
+  try { fs.unlinkSync(f + '.json'); } catch { /* */ }
+  execFile(process.execPath, [RECV, f], { windowsHide: true, env: { ...process.env, PATH: [...NDI_DIRS, process.env.PATH].join(';') } }, (e, _o, err) => {
+    let meta = null; try { meta = JSON.parse(fs.readFileSync(f + '.json', 'utf8')); } catch { /* */ }
+    if (!meta) return res({ n: 0, err: (err || String(e || '')).slice(0, 300) });
+    res({ ...meta, data: meta.w ? fs.readFileSync(f) : null });
+  });
+});
+const ndiDiff = (a, b) => {
+  if (!a?.data || !b?.data || a.w !== b.w || a.h !== b.h) return { n: -1, max: -1, of: 0 };
+  let n = 0, max = 0; for (let i = 0; i < a.data.length; i += 4) { let d = 0; for (let k = 0; k < 3; k++) d = Math.max(d, Math.abs(a.data[i + k] - b.data[i + k])); if (d) n++; max = Math.max(max, d); }
+  return { n, max, of: a.data.length / 4 };
+};
+let ndiA = null;
 const lit = (a) => { let n = 0; for (let i = 0; i < a.data.length; i += 4) if (a.data[i] + a.data[i + 1] + a.data[i + 2] > 30) n++; return n / (a.data.length / 4); };
 
 function launch(native) {
-  const args = [`--user-data-dir=${PROFILE}`, '--broadcast', `--project=${project}`, ...(native ? ['--native-engine'] : [])];
+  const args = [`--user-data-dir=${PROFILE}`, ...(EDITOR ? [] : ['--broadcast']), `--project=${project}`, ...(native ? ['--native-engine'] : [])];
   const child = PACKAGED
     ? spawn(PACKAGED, args, { env: env0, stdio: ['ignore', 'pipe', 'pipe'] })
     : spawn('npm.cmd', ['run', 'dev', '--', '--', ...args], { cwd: ROOT, env: env0, stdio: ['ignore', 'pipe', 'pipe'], shell: true });
@@ -229,6 +280,10 @@ async function stopAll() {
       if (w[0]) { aRect = { x: w[0].x - disp.b.x, y: w[0].y - disp.b.y, w: w[0].w, h: w[0].h }; A = crop(Afull, aRect); }
     }
     ok(lit(A) > 0.3, `A. the app's projector output is on the screen (${(100 * lit(A)).toFixed(0)}% of it lit)`);
+    if (NDI) {
+      ndiA = await ndiGrab('A-app');
+      ok(!!ndiA.data && ndiA.n === 1, `A. the app sends the output as NDI '${NDI_NAME}' (${ndiA.data ? `${ndiA.w}x${ndiA.h}, ${ndiA.n} source(s)` : `nothing received${ndiA.err ? `: ${ndiA.err}` : ''}`})`);
+    }
     await stopAll();
 
     // ── B. the engine's window ───────────────────────────────────────────────────────────────────────
@@ -260,6 +315,13 @@ async function stopAll() {
     //   - an MP4: within 1 on at most 0.1% — the conversion is Chromium's within 1 (test:mp4-parity).
     const bar = (d) => BAKED && !MP4 ? d.n === 0 : d.max <= 1 && d.n <= d.of * (MP4 ? 0.001 : 0.0001);
     const dAB = diff(A, B);
+    if (NDI) {
+      const nB = await ndiGrab('B-engine');
+      ok(said(app, /NDI send 'ArtLux — Projected' up/) && said(app, /\[ndi\] the engine sends the projector outputs/), `B. the ENGINE sends the NDI source and the app's sender stood down (${said(app, /NDI send '.*' up/)?.l ?? 'the engine did not say'})`);
+      ok(nB.n === 1, `B. exactly ONE source named '${NDI_NAME}' (${nB.n})`);
+      const d = ndiDiff(ndiA, nB);
+      ok(d.n === 0, `B. THE ENGINE'S NDI FRAME = THE APP'S: ${d.n < 0 ? `not comparable (app ${ndiA?.w}x${ndiA?.h}, engine ${nB.w}x${nB.h})` : `${d.of - d.n} of ${d.of} pixels identical (max ${d.max})`}`);
+    }
     ok(bar(dAB), `THE ENGINE'S WINDOW = THE APP'S: ${dAB.of - dAB.n} of ${dAB.of} pixels identical (max difference ${dAB.max})${BAKED && !MP4 ? '' : ' — within 1 allowed'}`);
 
     // ── C. the engine dies → the app's window, uncovered ──────────────────────────────────────────────
@@ -290,6 +352,12 @@ async function stopAll() {
     // main's log, above. The app's window is judged where nothing else can be on the screen: run A, and A2.
     const retook = await waitFor(() => app.lines.some((x) => x.at > killedAt && /\[engine\] owns the projector outputs/.test(x.l)), 15000);
     ok(retook, 'C. the restarted engine takes the projector outputs back');
+    if (NDI) {
+      ok(app.lines.some((x) => x.at > killedAt && /\[ndi\] the app sends the projector outputs again/.test(x.l)), "C. engine killed: the app's NDI sender came back");
+      const nD = await ndiGrab('D-engine');
+      const d = ndiDiff(ndiA, nD);
+      ok(nD.n === 1 && d.n === 0, `C. ...and the restarted engine's NDI frame = the app's again (${nD.n} source(s); ${d.n < 0 ? 'not comparable' : `${d.of - d.n} of ${d.of}, max ${d.max}`})`);
+    }
     await sleep(3000);
     if (moved) {
       const again = engineRect(app, killedAt);

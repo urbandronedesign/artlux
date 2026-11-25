@@ -14,6 +14,7 @@ import { eventToChord } from '../shortcuts/chord';
 import { projectorChannelRegistry, projectorPanelRegistry } from '../host/registries';
 import { ErrorBoundary } from '../components/ErrorBoundary';
 import { badgeBitmap, BADGE } from '../components/brand/badge';
+import { ndiCap } from './ndiCap';
 import { AlignAids, type AlignAidSpec } from './AlignAids';
 import { rasterizeAidSvg } from './aidRaster';
 import { reportFault } from '../services/faultReporter';
@@ -78,8 +79,7 @@ const REPAINT_MS = 250;
 const RENDER_TESS = 24; // patch → render mesh subdivisions per axis
 // Identity feather, hoisted so the calibrated-warp path does not allocate one per frame per window.
 const NO_FEATHER = defaultSoftEdge();
-const NDI_MAX_W = 1280, NDI_MAX_H = 720; // cap NDI capture for light readback + IPC
-const NDI_BCAST_W = 1920, NDI_BCAST_H = 1080; // broadcast mode: send NDI at up to 1080p
+// The NDI capture cap (720p, 1080p in broadcast) is shared with the native engine link — ndiCap.ts.
 
 // One fullscreen projector output for a Surface. Renders content through a corner-pin or a
 // bicubic Bézier warp (tessellated to a mesh) with soft-edge + gamma, MSAA-resolved. Edit
@@ -602,8 +602,7 @@ export const ProjectorApp: React.FC = () => {
       lastNdiRef.current = now;
       const id = surfaceRef.current?.id;
       if (!id) return;
-      const mw = ndiFullResRef.current ? NDI_BCAST_W : NDI_MAX_W;
-      const mh = ndiFullResRef.current ? NDI_BCAST_H : NDI_MAX_H;
+      const [mw, mh] = ndiCap(ndiFullResRef.current);
       const shot = gl.captureRGBA(mw, mh);
       if (shot) window.artlux?.pluginSend?.('ndi:send-frame', id, shot.width, shot.height, shot.data.buffer as ArrayBuffer);
     };

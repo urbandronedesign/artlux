@@ -39,6 +39,8 @@ const FLAG = process.argv.includes('--native-engine') || process.env.ARTLUX_NATI
 const AUDIO_FLAG = FLAG && (process.argv.includes('--engine-audio') || process.env.ARTLUX_ENGINE_AUDIO === '1');
 /** Does plugins/audio play through the native engine (E3m) rather than its own addon? */
 export function engineAudioEnabled(): boolean { return AUDIO_FLAG; }
+/** Is the native engine on for this run (--native-engine / ARTLUX_NATIVE_ENGINE=1)? */
+export function nativeEngineEnabled(): boolean { return FLAG; }
 const RESTART_DELAY_MS = 200;
 const RESTART_LIMIT = 5;
 const HELLO_TIMEOUT_MS = 10_000;   // opening the GPU device on a cold machine can take a few seconds
@@ -216,6 +218,13 @@ onWindowedPlaced(() => { if (FLAG && lastDocRaw) noteDoc(lastDocRaw, lastDocRev)
 // E1f-3: whether the engine's windows show the projector outputs (the app's are then COVERED: told to stop
 // drawing, kept open underneath — the engine's are topmost — so an engine that dies uncovers them at once).
 let projOwns: { rev: number; pid: number | null } | null = null;
+// E6f: told when the engine takes / gives back the projector outputs (the SDK's `nativeEngine.onProjectorsOwned`).
+const projOwnsListeners = new Set<(owned: boolean) => void>();
+export function onProjectorsOwned(cb: (owned: boolean) => void): () => void {
+  projOwnsListeners.add(cb);
+  try { cb(!!projOwns); } catch (e) { logger.log('warn', 'engine', 'projectors-owned-listener', {}, e); }
+  return () => { projOwnsListeners.delete(cb); };
+}
 let lastProjWhy = '';
 function setProjOwns(next: { rev: number; pid: number | null } | null, why: string): void {
   const was = !!projOwns;
@@ -227,7 +236,10 @@ function setProjOwns(next: { rev: number; pid: number | null } | null, why: stri
     console.log(next ? `[engine] owns the projector outputs (document ${next.rev})` : `[engine] the app keeps the projector outputs: ${why}`);
   }
   lastProjWhy = next ? '' : why;
-  if (was !== !!next) setProjectorsCovered(!!next);
+  if (was !== !!next) {
+    setProjectorsCovered(!!next);
+    for (const cb of projOwnsListeners) { try { cb(!!next); } catch (e) { logger.log('warn', 'engine', 'projectors-owned-listener', {}, e); } }
+  }
 }
 
 function write(line: string): void { try { child?.stdin?.write(line + '\n'); } catch { /* the exit handler takes it */ } }

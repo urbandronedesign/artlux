@@ -2474,6 +2474,27 @@ fallback until a source/output is proven byte-identical — risk 2):
 > - **Open, NOT from this step:** `--baked` shows 6 scattered dark pixels off by 1 (bar: exact) — the same with the
 >   committed engine (38b7c4b), so older than this; not chased yet.
 
+> ✅ **E6f (NDI send) done 2026-11-25 — THE ENGINE SENDS IT, UNDER THE APP'S NAME.** Inventory item D's "an NDI send".
+> With the engine showing the outputs the app's windows are covered and stop drawing — so they stop capturing too,
+> and the send would freeze. So the ENGINE sends it (ndi.rs `NdiSend`): its own window raster captured as the app's
+> window captures (ProjectorGL.captureRGBA — fitted within the same cap, now ONE constant in `projector/ndiCap.ts`:
+> 720p, 1080p in broadcast; crop.rs samples bilinearly at pixel centres, upside down), on its own thread, through
+> the same crate with the same options (`clock_video(true)`, RGBA, 60/1), under the SAME name. The app's sender of
+> that name stands down while the engine owns the outputs — a new main-plugin hook, `ctx.nativeEngine
+> .onProjectorsOwned` (SDK), used by plugins/ndi (`setSendersSuspended`) — and is re-created when it stops.
+> - **NDI refuses a second sender of a name**, and the engine's starts as its window opens, BEFORE main hears it
+>   owns the outputs and stands the app's down: the first start was refused every time. It retries every 250 ms
+>   (up in 10–261 ms measured).
+> - **The windowed badge was moved out of the output.** It was composited into the raster, so the engine's NDI frame
+>   carried it (2 659 pixels) while the app's — read from its GL canvas, under the DOM badge — does not. It is
+>   window chrome: now drawn on the swapchain after the flip, top-down (no bottom-up arithmetic any more).
+> - `test:native-projectors --ndi`, the frames RECEIVED through the app's own addon in a child process, uncapped:
+>   the engine's NDI frame **= the app's, 2 073 600 / 2 073 600** (broadcast, 1:1); `--ndi --editor` (the 720p
+>   DOWNSCALE): **921 600 / 921 600**; `--windowed --ndi`: **859 520 / 859 520** and the window still identical;
+>   exactly one source of the name while the engine sends; after a kill the app's sender comes back, and the
+>   restarted engine's frame is identical again. Guarded (verify:invariants; four mutations caught).
+> - **Remaining D refusals on Windows: live calibration (render-from-projector) and NVIDIA hardware warp.**
+
 ## 9d. E4 started early — the 3D view in the engine (owner, 2026-11-24)
 
 > **Owner, 2026-11-24: "start E4's 3D now"** — for the detachable 3D view (plans/3d-workbench.md §5/Phase 4),

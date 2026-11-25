@@ -48,6 +48,20 @@ pub struct Spec {
     /// E6f: a windowed output's badge — the raster key (`badge:<surface>`) of the app's own bitmap, drawn at
     /// BADGE_AT × the window's scale with BADGE_OPACITY, as the app's window draws it (components/brand/badge.ts).
     pub badge: Option<String>,
+    /// E6f: an NDI SEND of this output — its source name and the app's capture cap (ProjectorApp captureNdi: the
+    /// window's pixels, fitted within it). Sent every ≥ 33 ms, as the app's window sends.
+    pub ndi: Option<NdiOut>,
+}
+
+#[derive(Clone, PartialEq)]
+pub struct NdiOut { pub name: String, pub max: (u32, u32) }
+
+/// E6f: the app's capture size (ProjectorGL.captureRGBA): the window's size, or fitted within the cap — aspect kept,
+/// each side `max(1, round(side × r))`, never upscaled.
+pub fn ndi_fit(cw: u32, ch: u32, (mw, mh): (u32, u32)) -> (u32, u32) {
+    if cw <= mw && ch <= mh { return (cw, ch); }
+    let r = (mw as f64 / cw as f64).min(mh as f64 / ch as f64);
+    (((cw as f64 * r).round() as u32).max(1), ((ch as f64 * r).round() as u32).max(1))
 }
 
 /// E6f: where and how the app draws a windowed output's badge (components/brand/badge.ts BADGE, CSS pixels).
@@ -58,7 +72,7 @@ const BADGE_AT: (f64, f64) = (14.0, 12.0);
 const BADGE_OPACITY: f32 = 217.0 / 255.0;
 const BADGE_WGSL: &str = r#"
 @group(0) @binding(0) var t: texture_2d<f32>;
-struct U { off: vec2<f32>, op: f32, h: f32 };
+struct U { off: vec2<f32>, op: f32, pad: f32 };
 @group(0) @binding(1) var<uniform> u: U;
 @vertex
 fn vs(@builtin(vertex_index) i: u32) -> @builtin(position) vec4<f32> {
@@ -68,10 +82,10 @@ fn vs(@builtin(vertex_index) i: u32) -> @builtin(position) vec4<f32> {
 }
 @fragment
 fn fs(@builtin(position) p: vec4<f32>) -> @location(0) vec4<f32> {
-    // 1:1 texel copy (the bitmap is at the window's scale), premultiplied, times the layer's opacity. The window's
-    // raster is BOTTOM-UP (GL's order — the flip pass turns it over), so the bitmap's row 0 goes at the top of the box.
-    let q = p.xy - u.off;
-    return textureLoad(t, vec2<i32>(i32(q.x), i32(u.h - 1.0 - floor(q.y))), 0) * u.op;
+    // 1:1 texel copy (the bitmap is at the window's scale), premultiplied, times the layer's opacity — drawn on the
+    // SWAPCHAIN, top-down, after the flip: window chrome over the output, never IN it (the app's NDI capture reads
+    // its GL canvas, under the DOM badge — measured: a badge in the raster put 2 659 pixels into the NDI frame).
+    return textureLoad(t, vec2<i32>(p.xy - u.off), 0) * u.op;
 }
 "#;
 
@@ -153,7 +167,7 @@ impl App {
                 let o = &self.outs[&id].spec;
                 // E6f: a windowed output is NOT reopened when its rect changes — it is moved (below).
                 s.window.is_some() != o.window.is_some() || (s.window.is_none() && (s.display.bounds != o.display.bounds || s.display.index != o.display.index))
-                    || s.surface_id != o.surface_id || s.baked != o.baked
+                    || s.surface_id != o.surface_id || s.baked != o.baked || s.ndi != o.ndi
             });
             if !keep.contains(&id) || moved { self.close(&id); }
         }
@@ -543,7 +557,7 @@ fn present(gpu: Arc<Gpu>, window: Arc<Window>, surface: wgpu::Surface<'static>, 
         let alpha = b.alpha.as_ref().and_then(|(aw, ah, f)| std::fs::read(f).ok().map(|d| (*aw, *ah, d)));
         Some(projector::baked_upload(&gpu, b.w, b.h, &uv, alpha.as_ref().map(|(aw, ah, d)| (*aw, *ah, d.as_slice()))))
     });
-    let mut drawn: Option<(u64, u64, bool, PhysicalSize<u32>, u64)> = None;   // (picture gen, opts version, booting, size, badge gen)
+    let mut drawn: Option<(u64, u64, bool, PhysicalSize<u32>)> = None;   // (picture gen, opts version, booting, size)
     // E6f: the badge pass (a windowed output only) and the badge as last uploaded.
     let badge_pipe = spec.badge.as_ref().map(|_| {
         let m = d.create_shader_module(wgpu::ShaderModuleDescriptor { label: Some("badge"), source: wgpu::ShaderSource::Wgsl(BADGE_WGSL.into()) });
@@ -551,12 +565,17 @@ fn present(gpu: Arc<Gpu>, window: Arc<Window>, surface: wgpu::Surface<'static>, 
             label: Some("badge"), layout: None,
             vertex: wgpu::VertexState { module: &m, entry_point: Some("vs"), buffers: &[], compilation_options: Default::default() },
             fragment: Some(wgpu::FragmentState { module: &m, entry_point: Some("fs"), targets: &[Some(wgpu::ColorTargetState {
-                format: wgpu::TextureFormat::Rgba8Unorm, blend: Some(wgpu::BlendState::PREMULTIPLIED_ALPHA_BLENDING), write_mask: wgpu::ColorWrites::ALL })],
+                format, blend: Some(wgpu::BlendState::PREMULTIPLIED_ALPHA_BLENDING), write_mask: wgpu::ColorWrites::ALL })],
                 compilation_options: Default::default() }),
             primitive: Default::default(), depth_stencil: None, multisample: Default::default(), multiview_mask: None, cache: None,
         })
     });
-    let mut badge_tex: Option<(u64, wgpu::Texture)> = None;
+    let mut badge_tex: Option<(u64, wgpu::BindGroup, u32, u32)> = None;
+    // E6f: this output's NDI send — the app's capture of its window (a LINEAR blit, flipped to top-first: crop.rs
+    // samples bilinearly at each pixel's centre from level 0, upside down), every ≥ 33 ms.
+    #[cfg(feature = "ndi")]
+    let ndi_send = spec.ndi.as_ref().map(|n| (crate::ndi::NdiSend::new(&n.name), n.max, crate::crop::Cropper::new(&gpu)));
+    let mut ndi_at = std::time::Instant::now() - Duration::from_secs(1);
     while !stop.load(Ordering::SeqCst) {
         let size = window.inner_size();
         if size.width == 0 || size.height == 0 { std::thread::sleep(Duration::from_millis(50)); continue; }
@@ -589,8 +608,7 @@ fn present(gpu: Arc<Gpu>, window: Arc<Window>, surface: wgpu::Surface<'static>, 
         };
         let (ov, o) = opts.unwrap_or((0, spec.opts.clone()));
         let gen = pic.as_ref().map_or(0, |p| p.0);
-        let bgen = badge.as_ref().map_or(0, |b| b.0);
-        if drawn != Some((gen, ov, booting, size, bgen)) {
+        if drawn != Some((gen, ov, booting, size)) {
             if let Some((tex, _)) = &raster {
                 let target = tex.create_view(&Default::default());
                 match (&pic, booting) {
@@ -620,55 +638,61 @@ fn present(gpu: Arc<Gpu>, window: Arc<Window>, surface: wgpu::Surface<'static>, 
                     }
                 }
             }
-            // E6f: the badge, OVER the output (the app's DOM order), at its place × the window's scale.
-            if let (Some(bp), Some((bg, b)), Some((tex, _))) = (&badge_pipe, &badge, &raster) {
-                if badge_tex.as_ref().map(|t| t.0) != Some(*bg) {
-                    use wgpu::util::DeviceExt;
-                    badge_tex = Some((*bg, d.create_texture_with_data(&gpu.queue, &wgpu::TextureDescriptor {
-                        label: Some("badge"), size: wgpu::Extent3d { width: b.w, height: b.h, depth_or_array_layers: 1 }, mip_level_count: 1, sample_count: 1,
-                        dimension: wgpu::TextureDimension::D2, format: wgpu::TextureFormat::Rgba8Unorm, usage: wgpu::TextureUsages::TEXTURE_BINDING, view_formats: &[],
-                    }, wgpu::util::TextureDataOrder::LayerMajor, &b.rgba)));
-                }
-                let scale = window.scale_factor();
-                let (bx, by) = ((BADGE_AT.0 * scale).round() as u32, (BADGE_AT.1 * scale).round() as u32);
-                let (bw, bh) = (b.w.min(size.width.saturating_sub(bx)), b.h.min(size.height.saturating_sub(by)));
-                if bw > 0 && bh > 0 {
-                    // In the BOTTOM-UP raster the box starts (height − top − its height) up from the bottom row.
-                    let vy = size.height - by - bh;
-                    let u: [f32; 4] = [bx as f32, vy as f32, BADGE_OPACITY, bh as f32];
-                    let ubuf = d.create_buffer(&wgpu::BufferDescriptor { label: Some("badge"), size: 16, usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST, mapped_at_creation: false });
-                    gpu.queue.write_buffer(&ubuf, 0, &u.iter().flat_map(|x| x.to_le_bytes()).collect::<Vec<u8>>());
-                    let bview = badge_tex.as_ref().unwrap().1.create_view(&Default::default());
-                    let bind = d.create_bind_group(&wgpu::BindGroupDescriptor { label: None, layout: &bp.get_bind_group_layout(0), entries: &[
-                        wgpu::BindGroupEntry { binding: 0, resource: wgpu::BindingResource::TextureView(&bview) },
-                        wgpu::BindGroupEntry { binding: 1, resource: ubuf.as_entire_binding() },
-                    ] });
-                    let target = tex.create_view(&Default::default());
-                    let mut enc = d.create_command_encoder(&Default::default());
-                    {
-                        let mut pass = enc.begin_render_pass(&wgpu::RenderPassDescriptor { label: Some("badge"), color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                            view: &target, depth_slice: None, resolve_target: None, ops: wgpu::Operations { load: wgpu::LoadOp::Load, store: wgpu::StoreOp::Store } })], ..Default::default() });
-                        pass.set_pipeline(bp); pass.set_bind_group(0, &bind, &[]);
-                        pass.set_viewport(bx as f32, vy as f32, bw as f32, bh as f32, 0.0, 1.0);
-                        pass.set_scissor_rect(bx, vy, bw, bh);
-                        pass.draw(0..3, 0..1);
-                    }
-                    gpu.queue.submit([enc.finish()]);
-                }
-            }
-            drawn = Some((gen, ov, booting, size, bgen));
+            drawn = Some((gen, ov, booting, size));
         }
+        #[cfg(feature = "ndi")]
+        if let (Some((send, max, cut)), Some((rt, _))) = (&ndi_send, &raster) {
+            if ndi_at.elapsed() >= Duration::from_millis(33) {
+                ndi_at = std::time::Instant::now();
+                let (w, h) = ndi_fit(size.width, size.height, *max);
+                let shot = cut.crop(&gpu, rt, [0.0, size.height as f64, size.width as f64, -(size.height as f64)], w, h);
+                match crate::crop::Cropper::read(&gpu, &shot) { Ok(px) => send.send(w, h, px), Err(e) => eprintln!("artlux-engine: output '{}': NDI capture: {e}", spec.id) }
+            }
+        }
+        #[cfg(not(feature = "ndi"))]
+        let _ = &mut ndi_at;
         let tex = match surface.get_current_texture() {
             wgpu::CurrentSurfaceTexture::Success(t) | wgpu::CurrentSurfaceTexture::Suboptimal(t) => t,
             wgpu::CurrentSurfaceTexture::Timeout | wgpu::CurrentSurfaceTexture::Occluded => { std::thread::sleep(Duration::from_millis(8)); continue; }
             _ => { configured = None; continue; }
         };
         let view = tex.texture.create_view(&Default::default());
+        // E6f: the badge's texture and bindings, (re)made when its bitmap changes.
+        if let (Some(bp), Some((bg, b))) = (&badge_pipe, &badge) {
+            if badge_tex.as_ref().map(|t| t.0) != Some(*bg) {
+                use wgpu::util::DeviceExt;
+                let bt = d.create_texture_with_data(&gpu.queue, &wgpu::TextureDescriptor {
+                    label: Some("badge"), size: wgpu::Extent3d { width: b.w, height: b.h, depth_or_array_layers: 1 }, mip_level_count: 1, sample_count: 1,
+                    dimension: wgpu::TextureDimension::D2, format: wgpu::TextureFormat::Rgba8Unorm, usage: wgpu::TextureUsages::TEXTURE_BINDING, view_formats: &[],
+                }, wgpu::util::TextureDataOrder::LayerMajor, &b.rgba);
+                let scale = window.scale_factor();
+                let (bx, by) = ((BADGE_AT.0 * scale).round() as u32, (BADGE_AT.1 * scale).round() as u32);
+                let u: [f32; 4] = [bx as f32, by as f32, BADGE_OPACITY, 0.0];
+                let ubuf = d.create_buffer(&wgpu::BufferDescriptor { label: Some("badge"), size: 16, usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST, mapped_at_creation: false });
+                gpu.queue.write_buffer(&ubuf, 0, &u.iter().flat_map(|x| x.to_le_bytes()).collect::<Vec<u8>>());
+                let bview = bt.create_view(&Default::default());
+                let bind = d.create_bind_group(&wgpu::BindGroupDescriptor { label: None, layout: &bp.get_bind_group_layout(0), entries: &[
+                    wgpu::BindGroupEntry { binding: 0, resource: wgpu::BindingResource::TextureView(&bview) },
+                    wgpu::BindGroupEntry { binding: 1, resource: ubuf.as_entire_binding() },
+                ] });
+                badge_tex = Some((*bg, bind, bx, by));
+            }
+        }
         let mut enc = d.create_command_encoder(&Default::default());
         {
             let mut pass = enc.begin_render_pass(&wgpu::RenderPassDescriptor { label: Some("flip"), color_attachments: &[Some(wgpu::RenderPassColorAttachment {
                 view: &view, depth_slice: None, resolve_target: None, ops: wgpu::Operations { load: wgpu::LoadOp::Clear(wgpu::Color::BLACK), store: wgpu::StoreOp::Store } })], ..Default::default() });
             pass.set_pipeline(&pipe); pass.set_bind_group(0, raster.as_ref().map(|r| &r.1), &[]); pass.draw(0..3, 0..1);
+            // E6f: the windowed output's badge, OVER the flipped output (the app's DOM order).
+            if let (Some(bp), Some((_, bind, bx, by)), Some((_, b))) = (&badge_pipe, &badge_tex, &badge) {
+                let (bw, bh) = (b.w.min(size.width.saturating_sub(*bx)), b.h.min(size.height.saturating_sub(*by)));
+                if bw > 0 && bh > 0 {
+                    pass.set_pipeline(bp); pass.set_bind_group(0, bind, &[]);
+                    pass.set_viewport(*bx as f32, *by as f32, bw as f32, bh as f32, 0.0, 1.0);
+                    pass.set_scissor_rect(*bx, *by, bw, bh);
+                    pass.draw(0..3, 0..1);
+                }
+            }
         }
         gpu.queue.submit([enc.finish()]);
         window.pre_present_notify();

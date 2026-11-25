@@ -1,6 +1,9 @@
 import type { Fixture, FixtureProfile, Surface, Controller, OutputProtocol, SurfaceContent } from '../types';
 import { WINDOWED_DISPLAY, type ProjectorOutput } from '../../../shared/protocol';
 import { badgeBitmap } from '../components/brand/badge';
+import { ndiCap } from '../projector/ndiCap';
+// The app's own broadcast flag (App.tsx BROADCAST): a broadcast machine sends NDI at up to 1080p.
+const BROADCAST = typeof location !== 'undefined' && new URLSearchParams(location.search).get('broadcast') === '1';
 import * as surfaceMedia from '../services/surfaceMedia';
 import { isLight } from '../services/fixtureKind';
 import * as contentSource from '../services/contentSource';
@@ -119,8 +122,8 @@ let lastSources = '';
 // (committed and live drags) and the cold-start hold. The engine draws an output only when it can draw
 // it EXACTLY as ProjectorApp's plain warp path does (projector.rs, identical to ProjectorGL — E1e-1), so an
 // output with anything else on it — live calibration (render-from-projector; a baked map IS drawn), NVIDIA
-// hardware warp, an NDI send — is listed WITH THE REASON and the app keeps every output (all or nothing,
-// runtime.rs). A mask, a blend map and a windowed output are the engine's (E6f — see projectorEntry).
+// hardware warp — is listed WITH THE REASON and the app keeps every output (all or nothing,
+// runtime.rs). A mask, a blend map, a windowed output and an NDI send are the engine's (E6f — see projectorEntry).
 let projOutputs: ProjectorOutput[] = [];
 let projBrightness = 1;
 let projBooting = false;
@@ -194,7 +197,8 @@ function projectorEntry(o: ProjectorOutput, surfaces: Surface[], sources: Record
     // neither: the mask is the NVIDIA scanout path's (nvwarpApply), the blend map render-from-projector's
     // (ProjectorScene) — both refused above. Without them the app draws the plain warp, which the engine draws the
     // same (test:native-projectors, with both set). verify:invariants fails this if the app ever applies them.
-    : o.ndiSend ? 'an NDI send'
+    // E6f: an NDI SEND is the engine's too — it captures its own window as the app's does and sends under the SAME
+    // name (`ndi` below); the app's sender stands down while it does (plugins/ndi). An engine without NDI refuses.
     : !src || src.kind === 'unsupported' ? (src && 'why' in src ? src.why : 'a source the engine does not draw')
     : undefined;
   // E6f: a WINDOWED output carries the app's badge (components/brand/badge.ts) — the SAME bitmap the app's window
@@ -207,6 +211,8 @@ function projectorEntry(o: ProjectorOutput, surfaces: Surface[], sources: Record
   return {
     id: o.surfaceId, surfaceId: o.surfaceId, name: o.name ?? s?.name ?? o.surfaceId, displayId: o.displayId,
     ...(windowed ? { badge: `badge:${o.surfaceId}` } : {}),
+    // The app's sender name and capture cap (App's NDI reconcile, ProjectorApp captureNdi — ndiFullRes = broadcast).
+    ...(o.ndiSend && s ? { ndi: { name: `ArtLux — ${s.name}`, maxW: ndiCap(BROADCAST)[0], maxH: ndiCap(BROADCAST)[1] } } : {}),
     output: { cornerPin: o.cornerPin, warp: o.warp ?? null, softEdge: o.softEdge, gamma: o.gamma, colorGain: o.colorGain, blackLift: o.blackLift },
     ...(baked.has(o.surfaceId) ? { baked: { key: baked.get(o.surfaceId)!.key } } : {}),
     ...(why ? { why } : {}),

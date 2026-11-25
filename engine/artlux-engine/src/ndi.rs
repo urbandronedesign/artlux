@@ -123,3 +123,51 @@ fn downscale_rgba(src: &[u8], sw: u32, sh: u32, ow: u32, oh: u32) -> Vec<u8> {
     }
     out
 }
+
+/// E6f — AN NDI SEND, by the engine, of one projector output it shows: the app's per-output sender
+/// (native/ndi send_create / send_frame), as is — the same crate, `clock_video(true)`, RGBA, 60/1 — fed from the
+/// engine's own window raster instead of the app's covered window. Its OWN thread: a clocked send waits for the
+/// frame slot, which must never stall a presenter. One frame in flight; a newer one replaces a waiting one.
+/// While the engine sends, the app's sender of the same name stands down (plugins/ndi, `nativeEngine`).
+pub struct NdiSend { tx: std::sync::mpsc::SyncSender<(u32, u32, Vec<u8>)>, stop: Arc<AtomicBool> }
+
+impl Drop for NdiSend { fn drop(&mut self) { self.stop.store(true, Ordering::SeqCst); } }
+
+impl NdiSend {
+    pub fn new(name: &str) -> Self {
+        let (tx, rx) = std::sync::mpsc::sync_channel::<(u32, u32, Vec<u8>)>(1);
+        let stop = Arc::new(AtomicBool::new(false));
+        let (st, n) = (stop.clone(), name.to_string());
+        let _ = std::thread::Builder::new().name(format!("ndi-send:{name}")).spawn(move || {
+            if runtime().is_err() { return; }
+            use grafton_ndi::{PixelFormat, Sender, SenderOptions, VideoFrame};
+            let Ok(ndi) = NDI::new() else { eprintln!("artlux-engine: NDI send '{n}': no NDI"); return };
+            // The NAME IS STILL THE APP'S for a moment: this starts as the window opens, and the app's sender of the
+            // same name stands down only once main hears the engine owns the outputs — NDI refuses a second sender of a
+            // name meanwhile (measured: the first start was refused, every time). So it is retried until free.
+            let t0 = std::time::Instant::now();
+            let sender = loop {
+                if st.load(Ordering::SeqCst) { return; }
+                match Sender::new(&ndi, &SenderOptions::builder(n.as_str()).clock_video(true).build()) {
+                    Ok(s) => break s,
+                    Err(e) => {
+                        if t0.elapsed() > Duration::from_secs(10) { eprintln!("artlux-engine: NDI send '{n}': still refused after 10 s ({e}) — retrying"); }
+                        std::thread::sleep(Duration::from_millis(250));
+                    }
+                }
+            };
+            eprintln!("artlux-engine: NDI send '{n}' up ({} ms)", t0.elapsed().as_millis());
+            while !st.load(Ordering::SeqCst) {
+                let Ok((w, h, px)) = rx.recv_timeout(Duration::from_millis(200)) else { continue };
+                let Ok(mut frame) = VideoFrame::builder().resolution(w as i32, h as i32).pixel_format(PixelFormat::RGBA).frame_rate(60, 1).build() else { continue };
+                let dst = frame.data_mut();
+                let k = dst.len().min(px.len());
+                dst[..k].copy_from_slice(&px[..k]);
+                sender.send_video(&frame);
+            }
+        });
+        NdiSend { tx, stop }
+    }
+    /// Hand over a frame (top row first, RGBA). Dropped if the previous one has not been sent yet.
+    pub fn send(&self, w: u32, h: u32, px: Vec<u8>) { let _ = self.tx.try_send((w, h, px)); }
+}

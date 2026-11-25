@@ -112,7 +112,7 @@ second survives that deletion:
   `layerFrame`, `ProjectorChannel.renderSource(gl)`: a canvas or a WebGL draw. Legacy; do not grow it.
 - **The engine half** — a DESCRIPTION, typed as **`NativeSource`** (`@artlux/sdk/renderer`): one variant per
   kind the engine draws (`image`, `hap`, `mp4`, `spout`, `ndi`, `camera`, `effect`, `shader`, `raster`, `blobs`,
-  `comp`, `none`), or `{ kind: 'unsupported', why }`, which keeps that output on the app *with the reason
+  `comp`, `slice`, `none`), or `{ kind: 'unsupported', why }`, which keeps that output on the app *with the reason
   shown*. A content type answers with `nativeSource(key, content)` and, per frame, `nativeTick(key, content, t)`;
   a picture only the app can draw (text) answers `{ kind: 'raster' }` and ships it with `nativeRaster`. A codec
   answers for its own files with `nativeSource(path, frame?)` — `frame` being the app's own decoded frame, to
@@ -127,6 +127,11 @@ Rules:
 - **The list is closed.** A new kind is an engine change first (`runtime.rs doc`), then a variant here —
   `verify:invariants` holds the SDK's kinds and the engine's parser equal, and fails core if it names a codec id
   to decide what the engine draws.
+- **What you publish FROM a projector window, the engine publishes while it shows the outputs.** A main plugin
+  gets `ctx.nativeEngine?.onProjectorsOwned(cb)` (present only with the engine on): `cb(true)` while the engine's
+  windows show the projector outputs — the app's are covered and stop drawing, so anything captured from them
+  stops too — and `cb(false)` when it gives them back or dies. Stand down while owned and come back after;
+  plugins/ndi releases its NDI senders this way, and the engine sends them under the same names (E6f).
 
 ### UI helpers — `useDraggable` (the only runtime export in `/renderer`)
 

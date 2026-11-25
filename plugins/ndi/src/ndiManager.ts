@@ -120,14 +120,29 @@ export function stopRecv(): void {
 }
 
 // ---- Send (one named NDI source per projector output) ----
+// `wanted`: every sender the renderer configured (outputId → source name). `senders`: those that exist in the
+// addon now. They differ only while SUSPENDED (E6f): the native engine shows the outputs and sends them itself,
+// under the same names, so the app's senders are released — and re-created from `wanted` when it stops.
+const wanted = new Map<string, string>();
 const senders = new Set<string>();
+let suspended = false;
+
+function create(outputId: string, name: string): void {
+  if (!native || senders.has(outputId)) return;
+  try { native.sendCreate(outputId, name); senders.add(outputId); }
+  catch (e) { console.error('[ndi] send create failed', e); }
+}
+function release(outputId: string): void {
+  if (!senders.has(outputId)) return;
+  senders.delete(outputId);
+  if (native) { try { native.sendDestroy(outputId); } catch { /* */ } }
+}
 
 export function sendConfigure(outputId: string, enabled: boolean, name: string): void {
   if (!native) return;
   if (enabled) {
-    if (senders.has(outputId)) return;
-    try { native.sendCreate(outputId, name); senders.add(outputId); }
-    catch (e) { console.error('[ndi] send create failed', e); }
+    wanted.set(outputId, name);
+    if (!suspended) create(outputId, name);
   } else {
     sendDestroy(outputId);
   }
@@ -139,11 +154,19 @@ export function sendFrame(outputId: string, width: number, height: number, data:
 }
 
 export function sendDestroy(outputId: string): void {
-  if (!senders.has(outputId)) return;
-  senders.delete(outputId);
-  if (native) { try { native.sendDestroy(outputId); } catch { /* */ } }
+  wanted.delete(outputId);
+  release(outputId);
 }
 
 export function stopAllSenders(): void {
-  for (const id of [...senders]) sendDestroy(id);
+  for (const id of [...wanted.keys()]) sendDestroy(id);
+  for (const id of [...senders]) release(id);
+}
+
+/** E6f: release every sender while the native engine sends the outputs (`true`); re-create them after (`false`). */
+export function setSendersSuspended(on: boolean): void {
+  if (suspended === on) return;
+  suspended = on;
+  if (on) { for (const id of [...senders]) release(id); console.log(`[ndi] the engine sends the projector outputs — ${wanted.size} app sender(s) stood down`); }
+  else { for (const [id, name] of wanted) create(id, name); if (wanted.size) console.log(`[ndi] the app sends the projector outputs again (${wanted.size})`); }
 }

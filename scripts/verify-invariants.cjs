@@ -9102,9 +9102,9 @@ check(
     if (!/p\.bounds = process\.platform === 'win32' \? screen\.dipToScreenRect\(null, d\.bounds\)/.test(eh)) problems.push('main no longer gives the engine PHYSICAL display bounds');
     const nl = read('src/renderer/engine/nativeLink.ts');
     // (A projection mask and a blend map are no longer refused — E6f: the app's window applies neither; see the
-    // 'masked or blend-mapped projector output' check, which fails the day it does. Nor a WINDOWED output — see the
-    // 'windowed projector output' check.)
-    for (const w of ['calibrated (render-from-projector)', 'NVIDIA hardware warp', 'an NDI send']) {
+    // 'masked or blend-mapped projector output' check, which fails the day it does. Nor a WINDOWED output, nor an NDI
+    // SEND — see the 'windowed projector output' and 'NDI send' checks.)
+    for (const w of ['calibrated (render-from-projector)', 'NVIDIA hardware warp']) {
       if (!nl.includes(`'${w}'`)) problems.push(`nativeLink no longer refuses an output with ${w}`);
     }
     return problems.length ? problems.join('; ') : null;
@@ -9751,7 +9751,40 @@ check(
     if (/noteDoc\(lastDoc,/.test(eh)) problems.push('engineHost re-sends the ANNOTATED document (stale reasons stick) — rebuild from lastDocRaw');
     if (!/m\.type === 'outputClosed'[\s\S]{0,200}closeWindowedByOperator/.test(eh)) problems.push('closing the engine\'s window of a windowed output no longer closes the output');
     if (!/if spec\.window\.is_none\(\) \{ window\.set_window_level\(WindowLevel::AlwaysOnTop\); \}/.test(o)) problems.push('outputs.rs makes a windowed output topmost (it is an ordinary window, like the app\'s)');
-    if (!/raster is BOTTOM-UP/.test(o)) problems.push('the badge pass no longer accounts for the bottom-up raster (it drew upside down at the bottom)');
+    if (!/set_pipeline\(&pipe\);[\s\S]{0,900}pass\.set_pipeline\(bp\)/.test(o)) problems.push('the badge is no longer drawn on the swapchain after the flip — in the output raster it is upside down, and it lands in the NDI frame the app sends without it');
+    return problems.length ? problems.join('; ') : null;
+  },
+);
+
+check(
+  'an NDI send of a projector output the engine shows is the engine\'s, under the app\'s name, and ONE source of it',
+  'E6f: with the engine showing the outputs the app\'s windows are covered and stop drawing — so they stop capturing ' +
+  'too, and an NDI send would freeze. The engine therefore SENDS it: its own window\'s pixels, captured as the app ' +
+  'captures (fitted within the SAME cap, ndiCap.ts; bilinear at pixel centres, flipped — crop.rs), through the same ' +
+  'crate with the same sender options and frame format, under the SAME name; and the app\'s sender of that name stands ' +
+  'down while it does (plugins/ndi via the SDK\'s nativeEngine.onProjectorsOwned) and comes back when it stops. NDI ' +
+  'refuses a second sender of a name, and the engine\'s starts BEFORE main hears it owns the outputs — so it retries ' +
+  '(the first start was refused every time). test:native-projectors --ndi (also --editor: the 720p downscale, and ' +
+  '--windowed): the received frames identical, one source.',
+  () => {
+    const problems = [];
+    const nl = read('src/renderer/engine/nativeLink.ts');
+    if (/'an NDI send'/.test(nl)) problems.push('nativeLink refuses an NDI send again');
+    if (!/ndi: \{ name: `ArtLux — \$\{s\.name\}`, maxW: ndiCap\(BROADCAST\)\[0\], maxH: ndiCap\(BROADCAST\)\[1\] \}/.test(nl)) problems.push('nativeLink no longer gives the engine the app\'s NDI name and cap');
+    if (!/desired\.set\(o\.surfaceId, `ArtLux — \$\{surface!\.name\}`\)/.test(read('src/renderer/App.tsx'))) problems.push('App names its NDI sender differently from what nativeLink gives the engine — two names, two sources');
+    const pa = read('src/renderer/projector/ProjectorApp.tsx');
+    if (!/ndiCap\(ndiFullResRef\.current\)/.test(pa) || /const NDI_MAX_W/.test(pa)) problems.push('the projector window has its own NDI cap again (ndiCap.ts is the one both read)');
+    const n = raw('engine/artlux-engine/src/ndi.rs');
+    const a = raw('native/ndi/src/lib.rs');
+    for (const [what, re] of [['clock_video(true)', /SenderOptions::builder\(.*?\)\.clock_video\(true\)/], ['RGBA', /\.pixel_format\(PixelFormat::RGBA\)/], ['60/1', /\.frame_rate\(60, 1\)/]]) {
+      if (!re.test(a) || !re.test(n)) problems.push(`the engine's NDI sender and the app's addon differ on ${what}`);
+    }
+    if (!/let sender = loop \{[\s\S]{0,400}Sender::new\(/.test(n)) problems.push('the engine no longer retries its NDI sender while the app still holds the name');
+    const o = raw('engine/artlux-engine/src/outputs.rs');
+    if (!/ndi_fit\(size\.width, size\.height, \*max\)/.test(o) || !/\[0\.0, size\.height as f64, size\.width as f64, -\(size\.height as f64\)\]/.test(o)) problems.push('the engine no longer captures its window as the app does (fitted, flipped)');
+    if (!/an NDI send — \{w\}/.test(raw('engine/artlux-engine/src/runtime.rs'))) problems.push('an engine without NDI no longer refuses an NDI send (the app must keep it)');
+    if (!/ctx\.nativeEngine\?\.onProjectorsOwned\(\(owned\) => ndi\.setSendersSuspended\(owned\)\)/.test(read('plugins/ndi/src/plugin.main.ts'))) problems.push('plugins/ndi no longer stands its senders down while the engine sends');
+    if (!/for \(const cb of projOwnsListeners\)/.test(read('src/main/engineHost.ts'))) problems.push('engineHost no longer tells plugins who shows the projector outputs');
     return problems.length ? problems.join('; ') : null;
   },
 );
