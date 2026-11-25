@@ -185,7 +185,7 @@ pub struct Runtime {
 
 /// E6a: one bake — the file being written and what each frame cost (drawing, reading back, encoding).
 #[cfg(windows)]
-struct Bake { out: crate::encode::Mp4Out, scaler: crate::bakescale::Scaler, surface: String, w: u32, h: u32, draw_ms: f64, read_ms: f64, enc_ms: f64, started: std::time::Instant, blank: u64 }
+struct Bake { out: crate::encode::Mp4Writer, scaler: crate::bakescale::Scaler, surface: String, w: u32, h: u32, draw_ms: f64, read_ms: f64, enc_ms: f64, started: std::time::Instant, blank: u64 }
 
 #[derive(Clone, Copy, PartialEq)]
 enum AutoLeaf { Opacity, Speed, Intensity }
@@ -1342,7 +1342,7 @@ impl Runtime {
             audio: m["audio"].as_bool().unwrap_or(false),
         };
         let path = m["path"].as_str().ok_or("no file named")?;
-        let out = crate::encode::Mp4Out::create(path, &s)?;
+        let out = crate::encode::Mp4Writer::create(path, &s)?;   // E6b: encoded on its own thread
         let encoder = out.encoder().to_string();
         eprintln!("artlux-engine: bake: surface {sid} → {path} ({}x{} @ {} fps, {encoder}{})", s.w, s.h, s.fps, if s.audio { ", AAC" } else { "" });
         self.bake = Some(Bake { out, scaler: crate::bakescale::Scaler::new(&self.gpu, s.w, s.h), surface: sid, w: s.w, h: s.h, draw_ms: 0.0, read_ms: 0.0, enc_ms: 0.0, started: std::time::Instant::now(), blank: 0 });
@@ -1389,10 +1389,10 @@ impl Runtime {
         if let Some(s) = m["pcm"].as_str() {
             let raw = base64::engine::general_purpose::STANDARD.decode(s).map_err(|e| format!("sound: {e}"))?;
             let pcm: Vec<f32> = raw.chunks_exact(4).map(|q| f32::from_le_bytes([q[0], q[1], q[2], q[3]])).collect();
-            b.out.audio(&pcm)?;
+            b.out.audio(pcm)?;
         }
         // The pictures are premultiplied (and opaque where a video is): the colour video is the surface over black.
-        b.out.frame(&px, true)?;
+        b.out.frame(px)?;   // queued to the encoder thread; the next frame is drawn meanwhile
         let t3 = std::time::Instant::now();
         b.draw_ms += (t1 - t0).as_secs_f64() * 1000.0;
         b.read_ms += (t2 - t1).as_secs_f64() * 1000.0;
@@ -1405,15 +1405,15 @@ impl Runtime {
         let b = self.bake.take().ok_or("no bake in flight")?;
         let (frames, audio, encoder, path) = (b.out.frames(), b.out.audio_samples(), b.out.encoder().to_string(), b.out.path.clone());
         let f0 = std::time::Instant::now();
-        b.out.finish()?;
+        let enc_total = b.out.finish()?;
         let n = frames.max(1) as f64;
         let secs = b.started.elapsed().as_secs_f64();
-        eprintln!("artlux-engine: bake: {frames} frame(s){} written to {path} in {secs:.1} s ({encoder}); per frame: draw {:.2} ms, read back {:.2} ms, encode {:.2} ms; finalise {:.0} ms{}",
+        eprintln!("artlux-engine: bake: {frames} frame(s){} written to {path} in {secs:.1} s ({encoder}); per frame: draw {:.2} ms, read back {:.2} ms, handed to the encoder {:.2} ms (encoding {:.2} ms on its own thread); queue drained and file closed in {:.0} ms{}",
             if audio > 0 { format!(" + {audio} sample(s) of sound") } else { String::new() },
-            b.draw_ms / n, b.read_ms / n, b.enc_ms / n, f0.elapsed().as_secs_f64() * 1000.0,
+            b.draw_ms / n, b.read_ms / n, b.enc_ms / n, enc_total / n, f0.elapsed().as_secs_f64() * 1000.0,
             if b.blank > 0 { format!("; {} frame(s) the surface drew nothing (black)", b.blank) } else { String::new() });
         Ok(serde_json::json!({ "frames": frames, "audioSamples": audio, "encoder": encoder, "path": path, "blank": b.blank,
-            "drawMs": b.draw_ms / n, "readMs": b.read_ms / n, "encodeMs": b.enc_ms / n, "seconds": secs }))
+            "drawMs": b.draw_ms / n, "readMs": b.read_ms / n, "handMs": b.enc_ms / n, "encodeMs": enc_total / n, "seconds": secs }))
     }
 
     /// `{"type":"bakeCancel"}`: the encoder is dropped unfinished and the half file deleted — a file that plays for

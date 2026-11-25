@@ -238,11 +238,18 @@ Traps, each now a `verify:invariants` rule:
 - **The frame's exact time**, not the timeline's reading of the stepped clock: a float sum a hair under it
   (0.23999… for 0.24) made an effect that steps on a frame boundary draw the previous step, once in a hundred.
 
+**Throughput (E6b).** Frames are PIPELINED — up to four in flight (`ENGINE_WINDOW`); the engine takes them in
+order and the app's next step touches nothing the engine draws from. The encode runs on its own thread
+(`encode.rs Mp4Writer`, a queue of three), so a frame is encoded while the next is drawn; a cancel stops that
+thread without closing the file, and the file is deleted. For a timeline-fed surface the app's decoders are
+not settled at all — the engine picks each video frame from the clip time itself (E3j) and decodes it.
+
 Measured (`npm run test:engine-bake`, RTX 5090, a 1080p25 film): every frame the film's own at its time (luma 0.81
 levels mean, the app's own bake 0.79), none early or late; an effect frame for frame the app's (0.03); sound
-exact to the sample. Per frame: draw 3.3 ms, read back 1.4 ms, encode 2.6 ms — but the whole render took 1.4 s
-for 100 frames against the app's 0.5 s, because each frame is a round trip through main. Not yet: pipelining
-frames, and the app's own decoders still settle every frame for an engine-drawn bake.
+exact to the sample; a cancel leaves no file. Per frame: draw 3.3 ms and read back 1.7 ms on the render thread,
+encode 3.1 ms beside it — about 5 ms a frame, the app's own pace (4.6 ms), after a fixed ~0.4 s to open the
+GPU's encoder (100 frames: 0.94 s against the app's 0.46 s). Not yet: RGB → NV12 on the GPU (the encode thread's
+CPU conversion is now as long as the draw).
 
 ## Testing it
 

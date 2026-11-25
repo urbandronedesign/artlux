@@ -9630,6 +9630,12 @@ check(
     if (!/bakeStore\.setRendering\(null\);   \/\/ the surface plays its \(new\) bake again/.test(br)) problems.push('a render no longer gives the surface its bake back when it ends');
     if (!/None \| Some\(Source::None\) => return Err\("the engine no longer draws this surface/.test(rt)) problems.push('an engine bake whose surface it no longer draws would write black frames instead of refusing');
     if (!/frameEngine\.bakeTick\(clock === 'show' \? \{ t \} : \{ ph: t \}\)/.test(br)) problems.push('a bake frame no longer carries its exact time (an effect on a frame boundary draws the previous step)');
+    // E6b: frames pipelined — every one drained before the file is closed, the app's decoders left alone only for a
+    // timeline surface the engine draws (the engine picks those frames itself), the encoder on its own thread with a
+    // cancel that never closes the file.
+    if (!/if \(viaEngine\) \{\s*const why = await drainEngine\(0\);/.test(br)) problems.push('an engine bake can close its file with frames still in flight');
+    if (!/if \(tracks !== undefined && viaEngine\) \{/.test(br)) problems.push('the app settling of timeline tracks is no longer skipped for an engine bake (or is skipped when the app draws)');
+    if (!/if stop\.load\(std::sync::atomic::Ordering::SeqCst\) \{ return Ok\(ms\); \}\s*out\.finish\(\)\?;/.test(en)) problems.push('a cancelled bake would still close its file (the encoder thread finishes a full queue)');
     const fe = read('src/renderer/engine/frameEngine.ts');
     const at = fe.indexOf('  bakeTick(at: nativeLink.BakeAt = {}): string | null {');
     const bt = at < 0 ? '' : fe.slice(at, at + 1600);

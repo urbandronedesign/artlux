@@ -35,6 +35,8 @@ import * as nativeLink from '@/engine/nativeLink';
 // this loop still steps the clock, runs the show at each step and settles the decoders, and hands the engine the
 // frame's tick and sound, waiting until it is in the file. Otherwise the app draws and encodes, as before.
 // Kept by the app: transparency (the matte is a second file the app writes), content the engine does not draw.
+/** E6b: bake frames in flight to the engine at once (measured in test:engine-bake — see docs/BAKE.md). */
+const ENGINE_WINDOW = 4;
 const ENGINE_NEVER = new Set(['unsupported', 'none', 'spout', 'ndi', 'camera', 'blobs']);
 function engineRefusal(surface: Surface, req: BakeRequest): string | null {
   if (req.via === 'app') return 'asked for the app';
@@ -592,6 +594,16 @@ export async function run(
     // frameExact: a renderer that cannot tell a near-miss from a hit must not deliver the near-miss.
     const stateAtStart = stateMachine.getCurrentStateId();
 
+    // E6b: the engine's frames in flight, oldest first; drained to `keep`, the first refusal returned.
+    const inflight: { i: number; p: Promise<{ ok: boolean; error?: string }> }[] = [];
+    const drainEngine = async (keep: number): Promise<string | null> => {
+      while (inflight.length > keep) {
+        const f = inflight.shift()!;
+        const r = await withTimeout(f.p, STEP_TIMEOUT_MS, 'drawing in the engine');
+        if (!r.ok) return `the native engine could not draw frame ${f.i}: ${r.error ?? 'no reason given'}`;
+      }
+      return null;
+    };
     for (let i = 0; i < frames; i++) {
       if (cancelled) {
         await abandon();
@@ -654,7 +666,10 @@ export async function run(
       // decoder); everything else settles its own source. Two paths because they are two different
       // things, not because the rule differs: both mean "do not composite until the pictures are the
       // ones that belong at t".
-      if (tracks !== undefined) {
+      if (tracks !== undefined && viaEngine) {
+        // E6b: nothing to settle — the ENGINE chooses each video track's frame from the clip time (E3j VidTable, the
+        // app codec's own rule) and decodes it itself, so the app's decoders would only do the same work again.
+      } else if (tracks !== undefined) {
         trace(i, 'settling timeline tracks');
         const why = await withTimeout(timeline.settleLayersExact(tracks), STEP_TIMEOUT_MS, 'settling timeline tracks');
         if (why) { await abandon(); return { kind: 'refused', reason: why }; }
@@ -673,8 +688,12 @@ export async function run(
         trace(i, 'drawing in the engine');
         const tick = frameEngine.bakeTick(clock === 'show' ? { t } : { ph: t });   // the frame's EXACT time (nativeLink.BakeAt)
         if (!tick) throw new Error('the native engine went away');
-        const r = await withTimeout(engineCall('bakeFrame', `{${pcmB64 ? `"pcm":"${pcmB64}",` : ''}"tick":${tick}}`), STEP_TIMEOUT_MS, 'drawing in the engine');
-        if (!r.ok) { await abandon(); return { kind: 'refused', reason: `the native engine could not draw frame ${i}: ${r.error ?? 'no reason given'}` }; }
+        // E6b: PIPELINED — up to ENGINE_WINDOW frames in flight. The tick is a snapshot of this frame, the engine takes
+        // them in order, and the app's next step does not touch what the engine draws from; waiting on each answer made
+        // the round trip through main the cost of the whole render (1.4 s for 100 frames against the app's 0.5 s).
+        inflight.push({ i, p: engineCall('bakeFrame', `{${pcmB64 ? `"pcm":"${pcmB64}",` : ''}"tick":${tick}}`).catch((e: Error) => ({ ok: false, error: e.message })) });
+        const why = await drainEngine(ENGINE_WINDOW - 1);
+        if (why) { await abandon(); return { kind: 'refused', reason: why }; }
       } else {
         trace(i, 'drawing');
         const drawable = surfaceMedia.getDrawable(surface);
@@ -723,6 +742,10 @@ export async function run(
       }
     }
 
+    if (viaEngine) {
+      const why = await drainEngine(0);   // every frame in the file before it is closed
+      if (why) { await abandon(); return { kind: 'refused', reason: why }; }
+    }
     trace(done, 'finalising');
     console.info(`[bake] cost: ${costSummary()}`);
     let written: string | null;

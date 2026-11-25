@@ -2347,6 +2347,19 @@ fallback until a source/output is proven byte-identical — risk 2):
 >   engine-drawn bake (the engine decodes its own); the matte in the engine; macOS (AVFoundation). Next in E6: SDK
 >   v2 for render contributions, then deleting the browser engine.
 
+> ✅ **E6b done 2026-11-25 — THE ENGINE BAKE AT THE APP'S PACE.** (1) Frames PIPELINED: up to 4 `bakeFrame`s in
+> flight (`ENGINE_WINDOW`), all drained before the file closes. (2) The encode on its own thread (`Mp4Writer`, a
+> queue of 3 — the render thread hands over the pixels and draws the next frame); a cancel stops it WITHOUT closing
+> the file (a flag, so a full queue is dropped, not encoded), then the file is deleted. (3) A timeline surface's
+> frames are not settled by the app for an engine bake — the engine chooses and decodes them (E3j).
+> - **Measured** (`test:engine-bake`, all gates as E6a + a cancel a second into a 10 s bake: refused, no file): the
+>   engine's part of 100 frames 2.6 s → **0.5 s** (draw 3.3 + read 1.7 on the render thread, encode 3.1 beside it);
+>   the whole render 1.38 s → **0.94 s** against the app's 0.46 s, of which ~0.4 s is opening NVENC once — steady
+>   state ~5 ms a frame against the app's 4.6. Every frame still the film's (0 off, luma 0.81).
+> - `verify:invariants` (mutation-tested): drained before the file closes, the settle skipped only for an engine
+>   bake, a cancelled encoder never closes its file.
+> - **Not yet:** RGB → NV12 on the GPU (the encode thread's CPU conversion now matches the draw); the matte; macOS.
+
 ## 9d. E4 started early — the 3D view in the engine (owner, 2026-11-24)
 
 > **Owner, 2026-11-24: "start E4's 3D now"** — for the detachable 3D view (plans/3d-workbench.md §5/Phase 4),

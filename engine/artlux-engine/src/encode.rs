@@ -229,6 +229,79 @@ impl Mp4Out {
     }
 }
 
+// ── E6b: THE ENCODER ON ITS OWN THREAD ─────────────────────────────────────────────────────────────────────────
+// A bake frame on the render thread was draw + read back + ENCODE in series (3.0 + 1.3 + 2.6 ms at 1080p, the
+// encode being the RGB → NV12 conversion and the sink writer's copy). The writer below owns the Mp4Out on a thread of
+// its own: the render thread hands it each frame's pixels (moved, not copied) and goes on to draw the next. A bounded
+// queue (QUEUE frames) holds the render thread back when the encoder falls behind, so memory stays a few frames.
+// Order is kept — sound and pictures share the one queue — and an encoder error is reported on the next call.
+
+const QUEUE: usize = 3;
+enum Job { Frame(Vec<u8>), Audio(Vec<f32>) }
+
+pub struct Mp4Writer {
+    tx: Option<std::sync::mpsc::SyncSender<Job>>,
+    thread: Option<std::thread::JoinHandle<Result<f64, String>>>,
+    error: std::sync::Arc<std::sync::Mutex<Option<String>>>,
+    /// Set by a cancel: the thread stops at its next job and never closes the file (a queue still full is dropped).
+    cancel: std::sync::Arc<std::sync::atomic::AtomicBool>,
+    encoder: String,
+    frames: u64,
+    audio_samples: u64,
+    pub path: String,
+}
+
+impl Mp4Writer {
+    pub fn create(path: &str, s: &Settings) -> Result<Self, String> {
+        let (tx, rx) = std::sync::mpsc::sync_channel::<Job>(QUEUE);
+        let (ready_tx, ready_rx) = std::sync::mpsc::channel::<Result<String, String>>();
+        let error = std::sync::Arc::new(std::sync::Mutex::new(None::<String>));
+        let cancel = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
+        let (p, st, err, stop) = (path.to_string(), Settings { w: s.w, h: s.h, fps: s.fps, bitrate: s.bitrate, audio: s.audio }, error.clone(), cancel.clone());
+        let thread = std::thread::Builder::new().name("bake encoder".into()).spawn(move || -> Result<f64, String> {
+            // Made ON this thread, used only here: the sink writer never crosses threads.
+            let mut out = match Mp4Out::create(&p, &st) { Ok(o) => { let _ = ready_tx.send(Ok(o.encoder().to_string())); o } Err(e) => { let _ = ready_tx.send(Err(e.clone())); return Err(e); } };
+            let mut ms = 0.0;
+            while let Ok(job) = rx.recv() {
+                if stop.load(std::sync::atomic::Ordering::SeqCst) { return Ok(ms); }
+                let t0 = std::time::Instant::now();
+                let r = match job { Job::Frame(px) => out.frame(&px, true), Job::Audio(pcm) => out.audio(&pcm) };
+                ms += t0.elapsed().as_secs_f64() * 1000.0;
+                if let Err(e) = r { *err.lock().unwrap() = Some(e.clone()); return Err(e); }
+            }
+            if stop.load(std::sync::atomic::Ordering::SeqCst) { return Ok(ms); }
+            out.finish()?;   // the sender dropped: every frame is in — close the file
+            Ok(ms)
+        }).map_err(|e| format!("the encoder thread: {e}"))?;
+        let encoder = ready_rx.recv().map_err(|_| "the encoder thread ended".to_string())??;
+        Ok(Mp4Writer { tx: Some(tx), thread: Some(thread), error, cancel, encoder, frames: 0, audio_samples: 0, path: path.to_string() })
+    }
+    pub fn encoder(&self) -> &str { &self.encoder }
+    pub fn frames(&self) -> u64 { self.frames }
+    pub fn audio_samples(&self) -> u64 { self.audio_samples }
+    fn send(&mut self, j: Job) -> Result<(), String> {
+        if let Some(e) = self.error.lock().unwrap().clone() { return Err(e); }
+        self.tx.as_ref().ok_or("the bake is closed")?.send(j).map_err(|_| self.error.lock().unwrap().clone().unwrap_or_else(|| "the encoder stopped".into()))
+    }
+    /// A frame: w × h RGBA (premultiplied — laid over black), moved to the encoder.
+    pub fn frame(&mut self, px: Vec<u8>) -> Result<(), String> { self.send(Job::Frame(px))?; self.frames += 1; Ok(()) }
+    pub fn audio(&mut self, pcm: Vec<f32>) -> Result<(), String> { let n = pcm.len() as u64 / AUDIO_CH as u64; self.send(Job::Audio(pcm))?; self.audio_samples += n; Ok(()) }
+    /// Every queued frame encoded, the file closed. The encoder's own time in all (ms).
+    pub fn finish(mut self) -> Result<f64, String> {
+        drop(self.tx.take());
+        self.thread.take().map(|t| t.join().map_err(|_| "the encoder thread panicked".to_string())?).unwrap_or(Err("no encoder".into()))
+    }
+}
+
+impl Drop for Mp4Writer {
+    /// Dropped unfinished (a cancel, an error): the encoder stops without closing the file — the caller deletes it.
+    fn drop(&mut self) {
+        self.cancel.store(true, std::sync::atomic::Ordering::SeqCst);
+        drop(self.tx.take());
+        if let Some(t) = self.thread.take() { let _ = t.join(); }
+    }
+}
+
 /// Straight (or premultiplied) RGBA over black → NV12, BT.709 limited range. Chroma from the 2×2 block's mean.
 /// Rows are split across threads: a 4K frame is 8 M pixels.
 pub fn to_nv12(rgba: &[u8], w: usize, h: usize, premultiplied: bool, out: &mut Vec<u8>) {

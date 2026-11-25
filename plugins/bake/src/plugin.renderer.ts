@@ -52,6 +52,8 @@ export const bakeRendererPlugin: RendererPlugin = {
         clock: 'show', bitrate: 4_000_000, audio: false, alpha: false, ...req,
       }, surfaces, (p) => console.info(`[bake] progress ${p.frame}/${p.frames} ${p.rate.toFixed(1)}fps`));
     };
+    // …and stop the one in flight, as the panel's Cancel does (test:engine-bake: a cancelled engine bake leaves no file).
+    (window as unknown as { __artluxBakeCancel?: unknown }).__artluxBakeCancel = () => runner.cancel();
     // What range the panel would offer, and where a render would land — the two things an operator
     // reads off this panel before pressing anything, so they are worth being able to ask for directly.
     (window as unknown as { __artluxBakeRange?: unknown }).__artluxBakeRange = () => ({

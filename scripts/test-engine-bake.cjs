@@ -90,11 +90,18 @@ function buildProject() {
       sound: () => bake({ ...base, surfaceId: 'sM', width: W, height: H, audio: true, endSec: 2, outPath: path.join(WORK, 'film-sound.mp4') }),
       // The film's surface AGAIN, once its first bake is bound: the render must draw the content, not that file.
       rebake: () => bake({ ...base, surfaceId: 'sM', width: W, height: H, outPath: path.join(WORK, 'film-rebake.mp4') }),
+      // A long bake CANCELLED a second in: refused as cancelled, and no file left behind.
+      cancel: async () => {
+        const p = page.evaluate((r) => window.__artluxBake(r), { ...base, surfaceId: 'sM', width: W, height: H, endSec: 10, outPath: path.join(WORK, 'film-cancel.mp4') });
+        await sleep(1200);
+        await page.evaluate(() => window.__artluxBakeCancel());
+        return p;
+      },
       soundApp: () => bake({ ...base, surfaceId: 'sM', width: W, height: H, audio: true, endSec: 2, via: 'app', outPath: path.join(WORK, 'film-sound-app.mp4') }),
     };
     // The sound bake before the effect bakes: the bed rides the SHOW clock, which a playhead bake does not step, and
     // a show-clock bake leaves it at its range's end — past the 3 s tone's source.
-    const order = arg('--only') ? arg('--only').split(',') : ['engine', 'app', 'sound', 'fxEngine', 'fxApp', 'rebake'];
+    const order = arg('--only') ? arg('--only').split(',') : ['engine', 'app', 'sound', 'fxEngine', 'fxApp', 'rebake', 'cancel'];
     for (const k of order) results[k] = await all[k]();
   } catch (e) {
     check('the run', false, e.message);
@@ -146,6 +153,14 @@ function buildProject() {
       const blank = lines.find((l) => /film-rebake.*frame\(s\) the surface drew nothing/.test(l));
       check('the re-bake drew the content (the film), not its own previous file', c.ok && c.off === 0 && c.meanLuma < 3 && !blank, `${c.off} off, luma ${(+c.meanLuma).toFixed(2)} mean${blank ? '; black frames: ' + blank.replace(/^.*; /, '') : ''}`);
     }
+  }
+  const ca = results.cancel;
+  if (ca) {
+    check('a cancelled engine bake is refused as cancelled', ca.kind === 'refused' && ca.reason === 'cancelled', ca.reason ?? ca.kind);
+    // The engine drops the encoder and deletes the file; settle — the log reaches the file through main with lag.
+    let gone = false;
+    for (let k = 0; k < 40 && !(gone = !fs.existsSync(path.join(WORK, 'film-cancel.mp4'))); k++) await sleep(100);
+    check('…and leaves no half file behind', gone);
   }
   if (!KEEP && !failed) { try { fs.rmSync(WORK, { recursive: true, force: true }); } catch { /* the profile may still be locked */ } }
   else console.log(`   (kept: ${WORK})`);
