@@ -289,7 +289,7 @@ function link(inputs: LinkInputs, surfaces: Surface[], fixtures: Fixture[], brig
   const mp4: Record<string, number> = {};
   for (const s of surfaces) {
     if (sources[s.id].kind !== 'mp4') continue;
-    const g = contentSource.getDrawableGeneration(s.id, s.content);
+    const g = surfaceMedia.nativeGeneration(s);   // E6f: a live bake's frame, when one plays here
     if (g !== undefined) mp4[s.id] = g;
   }
   // Item 2b: each NDI surface's canvas size in the APP — the engine scales its frame to exactly that.

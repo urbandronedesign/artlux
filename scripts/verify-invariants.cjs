@@ -9674,6 +9674,12 @@ check(
     const cs = read('src/renderer/services/contentSource.ts');
     if (/codecId === '(hap|mp4-webcodecs)'|e\.codecId === '/.test(cs)) problems.push('core names a codec id to decide what the engine draws (ask the codec: VideoCodecContribution.nativeSource)');
     if (!/export type \{ NativeSource \} from '@artlux\/sdk\/renderer';/.test(cs)) problems.push('core defines its own NativeSource instead of the SDK one');
+    // E6f: a surface playing its bake is the bake's MP4 to the engine, at the bake decoder's own frame; a transparent
+    // bake (matte recombined in the browser) stays the app's.
+    const sm = read('src/renderer/services/surfaceMedia.ts');
+    if (!/const bake = bakeStore\.nativeFor\(s, t, timeline\.activePoolKey\(\)\);\s*if \(bake\) return 'why' in bake\.source/.test(sm)) problems.push('a surface playing its bake is no longer described to the engine as that MP4');
+    if (!/const g = surfaceMedia\.nativeGeneration\(s\);/.test(read('src/renderer/engine/nativeLink.ts'))) problems.push('an MP4 surface tick no longer carries a live bake frame (the engine would draw the authored content frame)');
+    if (!/if \(e\.mattePath\) return \{ source: \{ why: /.test(read('src/renderer/services/bakeStore.ts'))) problems.push('a transparent bake would go to the engine, which does not recombine a matte');
     for (const [f, id] of [['plugins/hap/src/hapCodec.ts', 'hap'], ['plugins/mp4/src/mp4Codec.ts', 'mp4']]) {
       const t = read(f);
       if (!/nativeSource: /.test(t) || !/nativeSourceAhead: /.test(t)) problems.push(`the ${id} codec no longer says what the engine draws for its files`);

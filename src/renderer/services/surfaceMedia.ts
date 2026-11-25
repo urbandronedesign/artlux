@@ -231,11 +231,21 @@ export function getDrawableGeneration(s: Surface): number | undefined {
   return contentSource.getDrawableGeneration(s.id, s.content);
 }
 
+/** E6f: the frame timestamp the engine draws an MP4 surface at — a live bake's own decoder's, else the surface's. */
+export function nativeGeneration(s: Surface): number | undefined {
+  const t = s.content.type === SourceType.LAYER || s.content.type === SourceType.PROGRAM ? timeline.getPlayhead() : timeline.getShowTime();
+  const bake = bakeStore.nativeFor(s, t, timeline.activePoolKey());
+  if (bake) return bake.gen;
+  return contentSource.getDrawableGeneration(s.id, s.content);
+}
+
 // E1f: what the NATIVE engine is to draw for this surface — the same branches as getDrawable below, in the
 // same order, so the engine is never told to draw something this surface is not showing.
 export function nativeSource(s: Surface): contentSource.NativeSource {
   const t = s.content.type === SourceType.LAYER || s.content.type === SourceType.PROGRAM ? timeline.getPlayhead() : timeline.getShowTime();
-  if (bakeStore.statusFor(s, t, timeline.activePoolKey()).state === 'live') return { kind: 'unsupported', why: 'a baked surface plays its video in the browser' };
+  // E6f: a live bake is its MP4, drawn by the engine (bakeStore.nativeFor); a transparent one stays the app's.
+  const bake = bakeStore.nativeFor(s, t, timeline.activePoolKey());
+  if (bake) return 'why' in bake.source ? { kind: 'unsupported', why: bake.source.why } : contentSource.codecClipNativeSource(bake.source.codecId, bake.source.path, bake.source.frame);
   if (s.content.type === SourceType.LAYER || s.content.type === SourceType.PROGRAM) return compositeNativeSource(s);
   if (s.content.type === SourceType.SLICE) return { kind: 'unsupported', why: 'a SLICE surface is composed in the browser' };
   return contentSource.nativeSource(s.id, s.content);

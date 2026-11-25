@@ -130,6 +130,9 @@ The app renders it instead, as it always has, when:
 
 Either way the file is the same kind of file: H.264 with a key frame every second, BT.709, AAC stereo sound.
 
+**Playing the bake is the engine's too.** With the native engine on, a surface playing its bake is drawn by the
+engine — the bake is an ordinary MP4 to it. A bake that keeps transparency (two files) is still played by the app.
+
 **Re-baking a surface that already plays its bake renders the content again**, never the previous file.
 (Before, a re-bake of unchanged content re-encoded the old file — a copy of a copy, a little softer each time.)
 

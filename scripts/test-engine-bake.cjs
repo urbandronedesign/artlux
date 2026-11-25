@@ -42,7 +42,13 @@ function buildProject() {
       { id: 'sM', name: 'Film', x: 0.02, y: 0.02, width: 0.96, height: 0.54, rotation: 0, zIndex: 0, content: { type: 'LAYER', layerId: 'LM', opacity: 1 } },
       { id: 'sE', name: 'Effect', x: 0.02, y: 0.6, width: 0.5, height: 0.3, rotation: 0, zIndex: 1, content: { type: 'EFFECT', effectId: 1, paletteId: 0, speed: 0.5, intensity: 0.8, opacity: 1 } },
     ],
-    fixtures: [], controllers: [], groups: [], scenes: [], cueBanks: [],
+    // A strip on the film and on the effect (Art-Net to 127.0.0.1 only): with a fixture the engine draws the surfaces
+    // live, so after the bakes it must draw the BAKED files (E6f) and own the wire.
+    fixtures: [
+      { id: 'fM', name: 'fM', surfaceId: 'sM', x: 0.03, y: 0.3, width: 0.9, height: 0.01, rotation: 0, ledCount: 150, universe: 0, startAddress: 1, colorOrder: 'RGB', channelsPerPixel: 3 },
+      { id: 'fE', name: 'fE', surfaceId: 'sE', x: 0.05, y: 0.75, width: 0.4, height: 0.01, rotation: 0, ledCount: 100, universe: 1, startAddress: 1, colorOrder: 'RGB', channelsPerPixel: 3 },
+    ],
+    controllers: [], groups: [], scenes: [], cueBanks: [],
     timeline: { duration: 10, fps: 25, loop: false, layers: [{ id: 'LM', name: 'Film', opacity: 1 }], clips: [{ id: 'cM', layerId: 'LM', name: 'film', path: FILM, start: 0, duration: 10, inPoint: 0 }], markers: [], inPoint: null, outPoint: null },
     audio: { tracks: [{ id: 'atr', name: 'Bed', gain: 0.5, mute: false }], clips: [{ id: 'acl', trackId: 'atr', name: 'tone', path: TONE, start: 0, duration: 10, inPoint: 0, sourceDuration: 3, gain: 1, mute: false }], buses: [] },
     stateMachine: { enabled: false, states: [], transitions: [], regions: [] },
@@ -53,7 +59,7 @@ function buildProject() {
 (async () => {
   for (let i = 0; ; i++) { try { fs.rmSync(WORK, { recursive: true, force: true }); break; } catch (e) { if (i >= 20) throw e; await sleep(500); } }
   fs.mkdirSync(PROFILE, { recursive: true });
-  fs.writeFileSync(path.join(PROFILE, 'artlux-prefs.json'), JSON.stringify({ appSettings: { outputEnabled: false } }));
+  fs.writeFileSync(path.join(PROFILE, 'artlux-prefs.json'), JSON.stringify({ appSettings: { outputEnabled: true, artNetIp: '127.0.0.1', artNetPort: 16454, broadcast: false, protocol: 'artnet' } }));
   const project = buildProject();
   const logf = path.join(WORK, 'app.log');
   const log = fs.openSync(logf, 'w');
@@ -111,6 +117,7 @@ function buildProject() {
     // a show-clock bake leaves it at its range's end — past the 3 s tone's source.
     const order = arg('--only') ? arg('--only').split(',') : ['engine', 'app', 'sound', 'fxEngine', 'fxApp', 'rebake', 'cancel'];
     for (const k of order) results[k] = await all[k]();
+    await sleep(4000);   // the live frames after the last bake: the document and the engine's answer to it
   } catch (e) {
     check('the run', false, e.message);
   } finally {
@@ -175,6 +182,15 @@ function buildProject() {
     const r = spawnSync(ENGINE, ['--bake-nv12-check', size], { encoding: 'utf8' });
     let j = null; try { j = JSON.parse(r.stdout.slice(r.stdout.indexOf('{'))); } catch { /* reported below */ }
     check(`the GPU's NV12 is the CPU's at ${size}`, !!j && j.ok && j.drawnExact && j.worst <= 1 && j.differ <= 64, j ? `${j.differ} of ${j.bytes} bytes differ, by at most ${j.worst}` : r.stderr);
+  }
+  // E6f: the surfaces now play their bakes — the engine draws them as MP4s (and so owns the wire).
+  if (!arg('--only')) {
+    let doc = null; try { doc = JSON.parse(fs.readFileSync(path.join(WORK, 'doc.json'), 'utf8')); } catch { /* reported below */ }
+    const sm = doc?.sources?.sM, se = doc?.sources?.sE;
+    check('a surface playing its bake is drawn by the engine, as the MP4 of its bake', sm?.kind === 'mp4' && /film-rebake\.mp4$/.test(sm.path ?? ''), JSON.stringify(sm));
+    check('…and the effect surface, playing its own bake', se?.kind === 'mp4' && /fx-app\.mp4$/.test(se.path ?? ''), JSON.stringify(se));
+    const own = lines.filter((l) => /\[engine\] (owns the wire|the app keeps the wire)/.test(l));
+    check('the engine owns the wire with both surfaces baked', /owns the wire/.test(own[own.length - 1] ?? ''), own[own.length - 1]);
   }
   if (!KEEP && !failed) { try { fs.rmSync(WORK, { recursive: true, force: true }); } catch { /* the profile may still be locked */ } }
   else console.log(`   (kept: ${WORK})`);

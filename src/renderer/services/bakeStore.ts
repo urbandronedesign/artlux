@@ -120,6 +120,26 @@ export function statusFor(s: Surface, timeSec: number, docKey: string):
 }
 
 /**
+ * E6f — A LIVE BAKE AS THE NATIVE ENGINE DRAWS IT: the file is an MP4 the engine decodes itself, so it is described
+ * like any MP4 surface — by the CODEC (VideoCodecContribution.nativeSource), judged on the frame the bake's own
+ * decoder holds (the one drawableFor hands the app), with that frame's timestamp for the tick (`gen`). Null when no
+ * bake is live here (the surface's own content is described instead). A transparent bake (colour + matte, recombined
+ * in the browser by matteGL) stays the app's, with the reason.
+ */
+export function nativeFor(s: Surface, timeSec: number, docKey: string): { source: { path: string; codecId: string; frame: unknown } | { why: string }; gen?: number } | null {
+  const st = statusFor(s, timeSec, docKey);
+  if (st.state !== 'live') return null;
+  const e = st.entry;
+  if (e.mattePath) return { source: { why: 'a transparent bake (its colour and matte files are recombined in the browser)' } };
+  const codec = videoCodecRegistry.forPath(e.path);
+  if (!codec) return { source: { why: 'a bake no codec plays' } };
+  // The frame the app is showing for this bake (drawableFor's own call, at the same time — the decoder answers it
+  // again without moving) and its timestamp: what the engine draws, exactly as for an MP4 surface.
+  const frame = codec.layerFrame(`bake:${e.path}`, e.path, timeSec - e.startSec);
+  return { source: { path: e.path, codecId: codec.id, frame }, gen: codec.layerGeneration?.(`bake:${e.path}`) };
+}
+
+/**
  * The baked picture for this surface at `timeSec`, or null to fall through to the live content.
  *
  * ⚠ ADDRESSED BY TIME, NOT PLAYED. It goes through the codec's LAYER path — the seekable one — with

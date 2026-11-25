@@ -2385,6 +2385,43 @@ fallback until a source/output is proven byte-identical — risk 2):
 >   WebGL-typed — their engine halves (the calibrated projector render is E4's; lidar's 3D view is the engine's
 >   own) come with deleting the browser engine.
 
+> **E6 — what still needs the browser engine (inventory, 2026-11-25).** Deleting `frameEngine` / `WebGPUMapper` /
+> `GPUMapper` today would break shipped behaviour. What stands in the way, from the code (every refusal the host
+> sends with a reason, every WebGL-typed hook, every `cfg(windows)` in the engine):
+> - **A. The engine is OFF by default** (`--native-engine` / `ARTLUX_NATIVE_ENGINE=1`; sound `--engine-audio`).
+>   Every installed show runs on the browser engine. Nothing has run default-on at a venue yet.
+> - **B. Platforms.** The engine decodes MP4 (mf.rs), reads cameras (cam.rs / camshared.rs), receives Spout and
+>   ENCODES A BAKE (encode.rs, Media Foundation) on **Windows only**; Syphon is not drawn at all. macOS ships
+>   (v0.35.1: NDI + Syphon), so deleting the browser engine would take MP4, cameras, Syphon and baking away from it.
+> - **C. Content the engine refuses** (per surface — the app keeps that output, with the reason): a SLICE surface;
+>   a surface playing its BAKE (the bake's MP4 is played in the browser); a video no codec plugin plays (a
+>   `<video>` element — no exact frame); an MP4 that is not 8-bit BT.709 limited (10-bit, HDR, BT.601, full range);
+>   a camera streaming MJPEG or not I420 / NV12; tracking / Augmenta / MediaPipe drawn over a timeline layer or
+>   showing a calibration grid, id labels or a skeleton; two Spout senders or two NDI sources at once (the APP's
+>   one-receiver limit — the engine would show both correctly, so this is a parity choice, not a gap).
+> - **D. Projector outputs the engine refuses:** a windowed output; live calibration (render-from-projector — a
+>   baked map IS drawn); NVIDIA hardware warp (nvwarp); a projection mask; an NDI send; a blend map.
+> - **E. WebGL-typed SDK hooks with no engine half:** `ProjectorChannel.renderSource(gl)` (lidar-tracking, augmenta,
+>   mediapipe overlays on a projector), `SceneVizContribution` (lidar's 3D), calibration authoring's patterns.
+> - **F. The crash fallback.** Today an engine death hands the wire back to the app in ~25 ms (engineHost setOwns);
+>   with no browser engine the wire would go dark until the restart (`RESTART_DELAY_MS`) — a hold-last-frame in
+>   main, or a faster restart, has to replace it.
+> - Not in scope: the editor's own views (the Stage preview, the r3f 3D view) are UI, not the output engine.
+>
+> **Order:** E6e default-ON on Windows with the per-surface fallback kept (a flag to turn it off), run on real
+> shows; E6f close C and D on Windows (a bake's playback is an MP4 the engine already decodes — the first and
+> smallest); E6g the macOS engine (VideoToolbox decode, AVFoundation encode, Syphon, AVCapture); E6h replace F; only
+> then E6i deletes the browser engine, when every refusal list is empty on every shipped platform.
+
+> ✅ **E6f (first) done 2026-11-25 — A SURFACE PLAYING ITS BAKE IS DRAWN BY THE ENGINE.** Inventory item C's "a surface
+> playing its BAKE": the bake is an MP4 the engine decodes, so `bakeStore.nativeFor` describes it through its codec
+> (`codecClipNativeSource` → the mp4 codec's judgement on the bake decoder's own frame) and `surfaceMedia.nativeGeneration`
+> puts that decoder's frame timestamp on the tick — the MP4 surface path (E1f 2c-4) unchanged. A transparent bake
+> (colour + matte, recombined by matteGL) stays the app's, with the reason. `test:engine-bake` (now with a strip on
+> each surface, Art-Net to 127.0.0.1): after the bakes the engine's document has the film surface as
+> `film-rebake.mp4` and the effect surface as `fx-app.mp4` (the APP's own bake passes the colour judgement too), and
+> the engine owns the wire. `verify:invariants`: the description, the tick's frame, the matte refusal.
+
 ## 9d. E4 started early — the 3D view in the engine (owner, 2026-11-24)
 
 > **Owner, 2026-11-24: "start E4's 3D now"** — for the detachable 3D view (plans/3d-workbench.md §5/Phase 4),
