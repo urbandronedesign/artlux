@@ -336,6 +336,9 @@ export const IPC = {
   /** Main → a projector window: covered (true) by the native engine's own output window — stop drawing — or
    *  uncovered (false) — draw again. E1f-3, src/main/projector.ts setProjectorsCovered. */
   PROJECTOR_COVERED: 'projector:covered',
+  /** E6h: main → a projector window — the engine's last picture of this output (RGBA, top row first) to show across an
+   *  engine death, or null to drop it (the engine owns the output again). */
+  PROJECTOR_HELD: 'projector:held',
   /** Main → splash window: the whole boot report, re-sent on every change (see BootReport). */
   SPLASH_REPORT: 'splash:report',
   /** Splash window → main: mounted and listening — send the report now (it may already be complete). */
@@ -1974,6 +1977,8 @@ export interface ArtluxApi {
   reportRenderStats(stats: RenderStats): void;
   /** E1f-3 (projector windows): covered by the native engine's own output window (stop drawing), or not. */
   onProjectorCovered?(cb: (covered: boolean) => void): () => void;
+  /** E6h: the engine's last picture of this output across an engine death (null: drop it). */
+  onProjectorHeld?(cb: (held: { w: number; h: number; data: Uint8Array } | null) => void): () => void;
   /** E1f: is the native engine running behind `--native-engine`? (Resolves false when it is off.) */
   nativeEngineEnabled?(): Promise<boolean>;
   /** E2: every display's CSS size by Electron id — what an app projector window on it would measure. */

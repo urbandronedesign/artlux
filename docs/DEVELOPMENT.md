@@ -119,12 +119,17 @@ engine that owned the wire dies or hangs, main reads it and puts it on the wire 
 (`outputManager.hold`, its keep-alive repeats it) until a restarted engine owns the wire again (`releaseHold` — an
 empty frame, one sender never two) or the app's own next frame replaces it. A **stalled render thread** is treated
 as a hang: ticks relayed for 3 s with no `sent` back (after this engine has drawn once, never during a bake, never on
-a late ping tick) → hold, kill, restart (`ARTLUX_ENGINE_TEST_STALL_FILE` is the engine's hook to cause one). `node scripts/test-engine-hold.cjs
+a late ping tick) → hold, kill, restart (`ARTLUX_ENGINE_TEST_STALL_FILE` is the engine's hook to cause one). **Projector
+outputs** too: each presenter keeps its output's last picture (`<hold file>.proj-<id>`, every 500 ms, `ProjHold`);
+on a death main hands it to the app's window (`projector:held`) BEFORE uncovering it, and drops it when the engine
+owns the outputs again. `test:native-projectors --hold` proves it with `ARTLUX_NO_APP_PROJECTOR=1` (a TEST HOOK: the
+app's window draws nothing of its own — `HeldOnly`) and `ARTLUX_ENGINE_TEST_RESTART_MS` (a slow restart, so the
+screen can be photographed in between). `node scripts/test-engine-hold.cjs
 [--packaged <ArtLux.exe>]` proves it with `ARTLUX_NO_APP_WIRE=1` (a TEST HOOK: the app's frames never reach the wire,
 as with no browser engine).
 Proof: `node scripts/test-engine-runtime.cjs` (the engine alone, over stdio) and
 `node scripts/test-native-takeover.cjs [--packaged <ArtLux.exe>]` (the real app: who sends each packet, and
-the bytes) and `node scripts/test-native-projectors.cjs [--windowed] [--ndi [--editor]] [--hwwarp [--no-nvapi]] [--calibrated [--glb] [--distort] [--calib-blend] [--calib-warp [--ndi]] [--calib-occlude] [--calib-own] [--calib-layer] [--calib-refused]]` (the real app in
+the bytes) and `node scripts/test-native-projectors.cjs [--windowed] [--ndi [--editor]] [--hwwarp [--no-nvapi]] [--calibrated [--glb] [--distort] [--calib-blend] [--calib-warp [--ndi]] [--calib-occlude] [--calib-own] [--calib-layer] [--calib-refused]] [--hold]` (the real app in
 broadcast mode, read from the SCREEN — ⚠ it covers display 0 for ~15 s at a time; on a scratch profile, killing only
 its own processes). It sets `ARTLUX_NVWARP_PRETEND` on every launch (`1` available / `0` absent, scanout calls
 skipped), because **a GeForce can have NVAPI scanout warp** (an RTX 5090 on driver 621 does) and a screen capture

@@ -7,7 +7,7 @@ import * as logger from './logger';
 import { getPrefs, setPrefs } from './persistence';
 import * as output from './transport/outputManager';
 import { screen } from 'electron';
-import { setProjectorsCovered, windowedContent, placeWindowed, closeWindowedByOperator, onWindowedPlaced } from './projector';
+import { setProjectorsCovered, windowedContent, placeWindowed, closeWindowedByOperator, onWindowedPlaced, showHeld, clearHeld } from './projector';
 import type { OutputConfig, EngineView3dPlace } from '../../shared/protocol';
 
 // THE NATIVE ENGINE AS ARTLUX'S CHILD (plans/native-engine.md §9c, E1a). E6e: ON BY DEFAULT ON WINDOWS — the
@@ -65,7 +65,9 @@ const audioFlag = (): boolean => flag() && (process.argv.includes('--engine-audi
 export function engineAudioEnabled(): boolean { return audioFlag(); }
 /** Is the native engine on for this run (see decide())? */
 export function nativeEngineEnabled(): boolean { return flag(); }
-const RESTART_DELAY_MS = 200;
+// (E6h TEST HOOK: ARTLUX_ENGINE_TEST_RESTART_MS — a longer wait, so a test can photograph what is on a projector
+// between the death and the restart; test:native-projectors --hold. Never set in a show.)
+const RESTART_DELAY_MS = Number(process.env.ARTLUX_ENGINE_TEST_RESTART_MS) > 0 ? Number(process.env.ARTLUX_ENGINE_TEST_RESTART_MS) : 200;
 const RESTART_LIMIT = 5;
 const HELLO_TIMEOUT_MS = 10_000;   // opening the GPU device on a cold machine can take a few seconds
 const PING_MS = 1000;
@@ -164,6 +166,32 @@ function readHold(): Uint8Array | null {
     return new Uint8Array(body.buffer, body.byteOffset, len);
   } catch { return null; } finally { if (fd >= 0) try { closeSync(fd); } catch { /* gone */ } }
 }
+/** E6h: the dead engine's last picture of a projector output (hold.rs ProjHold), or null if none verifies. */
+function readProjHold(output: string): { w: number; h: number; data: Uint8Array } | null {
+  if (!holdPath) return null;
+  let fd = -1;
+  try {
+    fd = openSync(`${holdPath}.proj-${output.replace(/[^A-Za-z0-9._-]/g, '_')}`, 'r');
+    const head = Buffer.alloc(HOLD_HEAD);
+    if (readSync(fd, head, 0, HOLD_HEAD, 0) !== HOLD_HEAD || head.toString('latin1', 0, 8) !== 'ALPROJ01') return null;
+    const slot = head.readUInt32LE(16), w = head.readUInt32LE(20), h = head.readUInt32LE(24), len = head.readUInt32LE(28), sum = head.readUInt32LE(32);
+    if (slot > 1 || !w || !h || len !== w * h * 4) return null;
+    const body = Buffer.alloc(len);
+    if (readSync(fd, body, 0, len, HOLD_HEAD + slot * len) !== len || fnv1a32(body) !== sum) return null;
+    return { w, h, data: new Uint8Array(body.buffer, body.byteOffset, len) };
+  } catch { return null; } finally { if (fd >= 0) try { closeSync(fd); } catch { /* gone */ } }
+}
+/** E6h: an engine that OWNED the projector outputs is gone — hand each app window the engine's last picture of it,
+ *  BEFORE the windows are uncovered, so what the room sees is that picture until the engine is back. */
+function holdProjectors(why: string): void {
+  let ids: string[] = [];
+  try { ids = ((JSON.parse(lastDoc ?? '{}').projectors ?? []) as { id?: string }[]).map((p) => p.id ?? '').filter(Boolean); } catch { /* none */ }
+  let held = 0;
+  for (const id of ids) { const p = readProjHold(id); if (p && showHeld(id, p)) held++; }
+  logger.log(held ? 'info' : 'warn', 'engine', 'projectors-held', { why, held, of: ids.length });
+  console.log(`[engine] holding the last picture on ${held} of ${ids.length} projector output(s) (${why})`);
+}
+
 /** An engine that OWNED the wire is gone: hold its last frame there until the wire has a live sender again. */
 function holdWire(why: string): void {
   const f = readHold();
@@ -314,6 +342,7 @@ function setProjOwns(next: { rev: number; pid: number | null } | null, why: stri
   }
   lastProjWhy = next ? '' : why;
   if (was !== !!next) {
+    if (next) clearHeld();   // E6h: the engine shows the outputs again — the held pictures go
     setProjectorsCovered(!!next);
     for (const cb of projOwnsListeners) { try { cb(!!next); } catch (e) { logger.log('warn', 'engine', 'projectors-owned-listener', {}, e); } }
   }
@@ -474,7 +503,7 @@ function spawnEngine(): void {
             console.warn(`[engine] hung (no answer for ${Date.now() - lastPong} ms) — killing pid ${proc.pid}`);
             clearTimers();
             if (owns) { holdWire('the engine hung'); setOwns(null, 'the engine hung'); }
-            if (projOwns) setProjOwns(null, 'the engine hung');
+            if (projOwns) { holdProjectors('the engine hung'); setProjOwns(null, 'the engine hung'); }
             proc.kill();
             return;
           }
@@ -484,7 +513,7 @@ function spawnEngine(): void {
             clearTimers();
             holdWire('the render thread stalled');
             setOwns(null, 'the render thread stalled');
-            if (projOwns) setProjOwns(null, 'the render thread stalled');
+            if (projOwns) { holdProjectors('the render thread stalled'); setProjOwns(null, 'the render thread stalled'); }
             proc.kill();
             return;
           }
@@ -571,7 +600,7 @@ function spawnEngine(): void {
     clearTimers();
     // THE WIRE GOES BACK TO THE APP FIRST — before anything else is decided about this death.
     if (owns && owns.pid === (proc.pid ?? null)) { holdWire('the engine exited'); setOwns(null, 'the engine exited'); }
-    if (projOwns && projOwns.pid === (proc.pid ?? null)) setProjOwns(null, 'the engine exited');
+    if (projOwns && projOwns.pid === (proc.pid ?? null)) { holdProjectors('the engine exited'); setProjOwns(null, 'the engine exited'); }
     failAudio('the engine exited');   // E3m: an answer that will never come
     failBakes('the engine exited during the bake');   // E6a: the same
     const what = signal ? `signal ${signal}` : `code ${code}`;

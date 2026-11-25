@@ -21,6 +21,11 @@ const api: ArtluxApi = {
         return () => { ipcRenderer.removeListener(IPC.STATS, listener); };
     },
     reportRenderStats: (stats: RenderStats) => ipcRenderer.send(IPC.RENDER_STATS, stats),
+    onProjectorHeld: (cb: (held: { w: number; h: number; data: Uint8Array } | null) => void) => {
+        const listener = (_e: unknown, held: { w: number; h: number; data: Uint8Array } | null) => cb(held);
+        ipcRenderer.on(IPC.PROJECTOR_HELD, listener);
+        return () => { ipcRenderer.removeListener(IPC.PROJECTOR_HELD, listener); };
+    },
     onProjectorCovered: (cb: (covered: boolean) => void) => {
         const listener = (_e: unknown, c: boolean) => cb(!!c);
         ipcRenderer.on(IPC.PROJECTOR_COVERED, listener);

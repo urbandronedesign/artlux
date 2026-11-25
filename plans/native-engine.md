@@ -2697,6 +2697,25 @@ fallback until a source/output is proven byte-identical — risk 2):
 > later, main let go; the longest silence on the wire **80 ms** (the engine's own sender keeps repeating its last
 > frame through the stall itself). No false stall in `test-native-takeover` or `test-native-projectors`.
 > - **Left of E6h:** projector outputs across an engine death (E6i's design).
+>
+> ✅ **E6h (3) done 2026-11-25 — PROJECTOR OUTPUTS ACROSS AN ENGINE DEATH. E6h IS CLOSED.** The engine's windows die
+> with it; main uncovers the app's windows, which today draw the output live — and after E6i would have nothing. Now
+> each presenter keeps its output's last picture where main can read it (`hold.rs` `ProjHold`, `<hold file>.proj-<id>`:
+> the raster turned top-first by the same exact same-size crop the NDI capture uses, RGBA, two slots, picture before
+> header, FNV-checked), refreshed every `PROJ_EVERY` 500 ms (8 MB at 1080p — not every frame; what is held is at most
+> that old). On a death / hang / stall, `engineHost.holdProjectors` hands each app window its picture
+> (`projector:held`, `projector.showHeld`) BEFORE `setProjOwns(null)` uncovers them, and `clearHeld` drops them the
+> moment the engine owns the outputs again. The window side is `HeldOnly` — what a projector window is when it draws
+> nothing of its own: black, the held picture 1:1 in device pixels, its bridge kept for the output's title (the
+> engine's windowed output copies it — `outputTitle`, now one definition) and the windowed badge (`BadgeCanvas`, the
+> one bitmap). Today it is mounted only under the TEST HOOK `ARTLUX_NO_APP_PROJECTOR=1` (the app's live window beats
+> a held picture while it exists); after E6i it is every projector window. `test:native-projectors --hold` (with
+> `ARTLUX_ENGINE_TEST_RESTART_MS` 9 s, so the screen can be photographed between the death and the restart): what the
+> room sees after the kill = the engine's last picture, **2 073 600 / 2 073 600**; `--hold --calibrated --calib-own`
+> identical; `--hold --windowed` (the window moved by the operator before the kill, badged) **860 784 / 860 784**. The
+> restarted engine covers it again and equals the app. Guarded.
+> - **E6 now:** E6g (the macOS engine — needs a Mac), then E6i (delete the browser engine: HeldOnly becomes the
+>   projector window, outputManager's app frames go, the holds are the only bridge).
 
 ## 9d. E4 started early — the 3D view in the engine (owner, 2026-11-24)
 

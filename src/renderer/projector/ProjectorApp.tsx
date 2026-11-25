@@ -8,6 +8,7 @@ import { ProjectorGL } from './ProjectorGL';
 import { squareToQuad, applyH } from './homography';
 import { makeBezierWarp, tessellateBezier, evalBezier, hasResidualWarp, BEZIER_CORNERS } from './warp';
 import type { MainToProjector, ProjectorToMain, ProjectorRender } from './bridge';
+import { outputTitle } from './outputTitle';
 import { activateRendererPlugins } from '../host/plugins';
 import { keymap } from '../shortcuts/keymapStore';
 import { eventToChord } from '../shortcuts/chord';
@@ -467,7 +468,7 @@ export const ProjectorApp: React.FC = () => {
             // not know the label — it is project state, and it changes while the window is open.
             // Electron forwards a document.title change to the native title bar, which is also why
             // projector.html carries the fallback <title> for the moment before the first config.
-            document.title = `ARTLux — ${[label, m.identity?.display].filter(Boolean).join(' · ')}`;
+            document.title = outputTitle(label, m.identity?.display);
           }
           setConnected(true);
           applyRender(m.render);
@@ -1068,7 +1069,7 @@ const hintBox: React.CSSProperties = {
 };
 
 /** E6f: the windowed output's badge — the one bitmap (components/brand/badge.ts) the engine composites too. */
-function BadgeCanvas({ name }: { name: string }) {
+export function BadgeCanvas({ name }: { name: string }) {
   const ref = useRef<HTMLCanvasElement>(null);
   const [css, setCss] = useState<[number, number] | null>(null);
   useEffect(() => {

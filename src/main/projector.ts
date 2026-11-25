@@ -238,7 +238,9 @@ function createProjectorWindow(getMain: () => BrowserWindow | null, surfaceId: s
   // plugins as the editor, so an editor that dropped calibration must not spawn outputs that load it
   // — that would put the expensive render-from-projector panel back on the very windows the profile
   // exists to keep cheap. Both read it from the URL, both from the same argv. See main/runProfile.ts.
-  const query = { surfaceId, ...profileQuery() };
+  // E6h TEST HOOK: ARTLUX_NO_APP_PROJECTOR=1 — the window draws nothing of its own (as with no browser engine, E6i),
+  // only what main holds there across an engine death (HeldOnly). scripts/test-native-projectors.cjs --hold.
+  const query = { surfaceId, ...profileQuery(), ...(process.env.ARTLUX_NO_APP_PROJECTOR === '1' ? { noDraw: '1' } : {}) };
   if (devUrl) win.loadURL(`${devUrl}/projector.html?${new URLSearchParams(query).toString()}`);
   else win.loadFile(join(__dirname, '../renderer/projector.html'), { query });
   return win;
@@ -294,6 +296,18 @@ function closeProjector(surfaceId: string): void {
 // double the GPU work for a picture nobody sees. Uncovered (the engine gave the outputs back, or died) it
 // draws on its next frame: the fallback is a window that is already on the display.
 let covered = false;
+/** E6h: hand a projector window the engine's last picture of its output (null: drop it). */
+export function showHeld(surfaceId: string, held: { w: number; h: number; data: Uint8Array } | null): boolean {
+  const e = windows.get(surfaceId);
+  if (!e || e.win.isDestroyed()) return false;
+  e.win.webContents.send(IPC.PROJECTOR_HELD, held);
+  return true;
+}
+/** E6h: drop every held picture (the engine owns the outputs again). */
+export function clearHeld(): void {
+  for (const { win } of windows.values()) if (!win.isDestroyed()) win.webContents.send(IPC.PROJECTOR_HELD, null);
+}
+
 export function setProjectorsCovered(c: boolean): void {
   covered = c;
   for (const { win, displayId } of windows.values()) {

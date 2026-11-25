@@ -78,6 +78,11 @@ const HWWARP = process.argv.includes('--hwwarp');
 // OCCLUSION — a blocker screen stands between the projector and the projected one, and (with --glb) the venue GLB is
 // projected too and shadows itself. --calib-refused: an NDI send WITHOUT a residual warp (the app sends nothing
 // there), which the engine leaves alone: the app must KEEP the outputs, with the reason.
+// --hold (E6h): the ENGINE run with ARTLUX_NO_APP_PROJECTOR=1 — the app's projector windows draw nothing of their own,
+// as with no browser engine (E6i) — and a slow restart (ARTLUX_ENGINE_TEST_RESTART_MS): killed, the engine's LAST
+// PICTURE must be what the screen shows (main hands it to the app's window, engineHost.holdProjectors), until the
+// restarted engine covers it again.
+const HOLD = process.argv.includes('--hold');
 const CALIBRATED = process.argv.includes('--calibrated');
 const CALIB_WARP = CALIBRATED && process.argv.includes('--calib-warp');
 const CALIB_OCCLUDE = CALIBRATED && process.argv.includes('--calib-occlude');
@@ -361,9 +366,10 @@ const lit = (a) => { let n = 0; for (let i = 0; i < a.data.length; i += 4) if (a
 
 function launch(native) {
   const args = [`--user-data-dir=${PROFILE}`, ...(EDITOR ? [] : ['--broadcast']), `--project=${project}`, ...(native ? ['--native-engine'] : ['--no-native-engine'])];
+  const env = native && HOLD ? { ...env0, ARTLUX_NO_APP_PROJECTOR: '1', ARTLUX_ENGINE_TEST_RESTART_MS: '9000' } : env0;
   const child = PACKAGED
-    ? spawn(PACKAGED, args, { env: env0, stdio: ['ignore', 'pipe', 'pipe'] })
-    : spawn('npm.cmd', ['run', 'dev', '--', '--', ...args], { cwd: ROOT, env: env0, stdio: ['ignore', 'pipe', 'pipe'], shell: true });
+    ? spawn(PACKAGED, args, { env, stdio: ['ignore', 'pipe', 'pipe'] })
+    : spawn('npm.cmd', ['run', 'dev', '--', '--', ...args], { cwd: ROOT, env, stdio: ['ignore', 'pipe', 'pipe'], shell: true });
   child.lines = [];
   const take = (d) => { for (const l of String(d).split(/\r?\n/)) if (l.trim()) child.lines.push({ at: Date.now(), l: l.trim() }); };
   child.stdout.on('data', take); child.stderr.on('data', take);
@@ -492,6 +498,17 @@ async function stopAll() {
     await waitFor(() => app.lines.some((x) => x.at > killedAt && /the app keeps the projector outputs: the engine exited/.test(x.l)), 5000);
     const back = app.lines.find((x) => x.at > killedAt && /the app keeps the projector outputs/.test(x.l));
     ok(!!back, `C. engine killed: main uncovered the app's windows${back ? ` (${back.at - killedAt} ms after the kill)` : ''}`);
+    if (HOLD) {
+      // The restart is held off (9 s): the screen now shows what the app's window shows — and that draws nothing of
+      // its own, so it can only be the engine's last picture, handed over by main.
+      const said = app.lines.find((x) => x.at > killedAt && /\[engine\] holding the last picture on (\d+) of (\d+) projector/.test(x.l));
+      ok(!!said && /on 1 of 1/.test(said.l), `C. main hands the app's window the engine's last picture (${said ? said.l : 'nothing said'})`);
+      await sleep(1500);
+      if (moved) REGION = moved;   // --windowed: the app's window followed the operator's move (main placed it there)
+      const H = await capture('C-held');
+      const dH = diff(B, H);
+      ok(dH.n === 0, `C. WHAT THE ROOM SEES AFTER THE DEATH = THE ENGINE'S LAST PICTURE: ${dH.of - dH.n} of ${dH.of} pixels identical (max ${dH.max}) — and the app's window draws nothing of its own`);
+    }
     // ⚠ NO CAPTURE OF "THE APP'S WINDOW AGAIN" HERE. One used to be taken ~0.4 s after the kill and held up as
     // the app's uncovered window — and the engine was judged against it. A capture takes PowerShell about a
     // second to start, and by then main has RESTARTED the engine, topmost again: that capture was the

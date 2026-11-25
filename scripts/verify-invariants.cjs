@@ -9967,7 +9967,10 @@ check(
   'ARTLUX_NO_APP_WIRE=1): held within 146 ms, byte-identical to the engine\'s last frame, released on the restart. A ' +
   'STALLED render thread (ticks in, no frame out for 3 s — the stdin thread still answers pings) is the same: seen in ' +
   '3.7 s, held byte-identical, killed, restarted, released; the wire never silent more than 80 ms (the engine\'s own ' +
-  'keep-alive covers the stall itself).',
+  'keep-alive covers the stall itself). PROJECTOR OUTPUTS: the engine keeps each one\'s last picture (every 500 ms), ' +
+  'main hands it to the app\'s window before uncovering it; test:native-projectors --hold (the app\'s window drawing ' +
+  'nothing of its own): what the room sees after the death = the engine\'s last picture, 2 073 600 / 2 073 600 — ' +
+  'calibrated and windowed (moved, badged) too.',
   () => {
     const problems = [];
     const h = raw('engine/artlux-engine/src/hold.rs');
@@ -9988,6 +9991,15 @@ check(
     if (!/if \(late\) \{ lastPong = now; lastSentAt = Math\.max\(lastSentAt, now\); \}/.test(eh)) problems.push('engineHost judges a stall on a LATE ping tick (main itself was stalled — it would kill a healthy engine)');
     if (!/lastTickAt = Date\.now\(\);/.test(eh) || !/drewThisEngine = false;\s*let proc: ChildProcess;/.test(eh)) problems.push('engineHost no longer tracks the ticks it relays / whether THIS engine has drawn');
     if (!/ARTLUX_ENGINE_TEST_STALL_FILE/.test(raw('engine/artlux-engine/src/serve.rs'))) problems.push('the engine\'s render-stall test hook is gone (test:engine-hold needs it)');
+    // PROJECTOR OUTPUTS: the engine keeps each one's last picture; main hands it to the app's window BEFORE uncovering.
+    if (!/ProjHold::open\(&spec\.id\)/.test(raw('engine/artlux-engine/src/outputs.rs')) || !/if write_at\(&self\.f, HEAD \+ slot \* len, rgba\)\.and_then\(\|_\| write_at\(&self\.f, 0, &head\)\)/.test(h)) problems.push('the engine no longer keeps each projector output\'s last picture (picture before header)');
+    for (const site of ['the engine exited', 'the engine hung', 'the render thread stalled']) {
+      if (!new RegExp(`\\{ holdProjectors\\('${site}'\\); setProjOwns\\(null, '${site}'\\); \\}`).test(eh)) problems.push(`engineHost no longer hands the app's projector windows the engine's last picture when ${site} (before uncovering them)`);
+    }
+    if (!/if \(next\) clearHeld\(\);/.test(eh)) problems.push('engineHost no longer drops the held projector pictures when the engine owns the outputs again');
+    if (!/fnv1a32\(body\) !== sum\) return null;\s*return \{ w, h, data:/.test(eh)) problems.push('engineHost no longer verifies a held projector picture');
+    const ho = read('src/renderer/projector/HeldOnly.tsx');
+    if (!/putImageData\(img, 0, 0\)/.test(ho) || !/<BadgeCanvas name=\{badge\} \/>/.test(ho) || !/outputTitle\(label, m\.identity\?\.display\)/.test(ho)) problems.push('HeldOnly no longer shows the held picture 1:1 with the windowed badge and the output\'s own title');
     return problems.length ? problems.join('; ') : null;
   },
 );

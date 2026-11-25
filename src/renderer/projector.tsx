@@ -2,6 +2,7 @@ import React from 'react';
 import ReactDOM from 'react-dom/client';
 import './styles/index.css';
 import { ProjectorApp } from './projector/ProjectorApp';
+import { HeldOnly } from './projector/HeldOnly';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { installGlobalNet } from './services/faultReporter';
 import { installLogTap } from './services/log';
@@ -26,7 +27,8 @@ const rootElement = document.getElementById('root');
 if (rootElement) {
   ReactDOM.createRoot(rootElement).render(
     <ErrorBoundary scope="projector-root" faultWindow="projector" silent>
-      <ProjectorApp />
+      {/* E6h test hook (main/projector.ts): a window that draws nothing of its own, only what main holds there. */}
+      {new URLSearchParams(location.search).get('noDraw') === '1' ? <HeldOnly /> : <ProjectorApp />}
     </ErrorBoundary>,
   );
 }

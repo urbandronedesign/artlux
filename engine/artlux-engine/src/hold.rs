@@ -56,6 +56,42 @@ impl Hold {
     }
 }
 
+/// E6h — A PROJECTOR OUTPUT'S LAST PICTURE, for main to show in the app's window across an engine death (the
+/// engine's own windows die with it). `<the hold file>.proj-<output id>`: a 64-byte header — magic `ALPROJ01`, seq
+/// (u64), slot (u32), w, h, len (u32), fnv1a-32 (u32) — then two slots of `len` bytes (RGBA, top row first: what is
+/// on the screen). Same rules as the wire's: the picture into the unused slot THEN the header pointing at it, checked.
+/// Refreshed every PROJ_EVERY by the presenter — a picture of the screen is 8 MB at 1080p, so not every frame: what
+/// is held after a death is at most that old.
+pub const PROJ_MAGIC: &[u8; 8] = b"ALPROJ01";
+pub const PROJ_EVERY: std::time::Duration = std::time::Duration::from_millis(500);
+pub struct ProjHold { f: File, slot: u64, seq: u64 }
+impl ProjHold {
+    pub fn open(output: &str) -> Option<ProjHold> {
+        let base = std::env::var("ARTLUX_ENGINE_HOLD").ok().filter(|p| !p.is_empty())?;
+        let safe: String = output.chars().map(|c| if c.is_ascii_alphanumeric() || c == '-' || c == '_' || c == '.' { c } else { '_' }).collect();
+        let p = format!("{base}.proj-{safe}");
+        let f = std::fs::OpenOptions::new().create(true).write(true).truncate(true).open(&p)
+            .map_err(|e| eprintln!("artlux-engine: projector hold file {p}: {e}")).ok()?;
+        Some(ProjHold { f, slot: 1, seq: 0 })
+    }
+    pub fn record(&mut self, w: u32, h: u32, rgba: &[u8]) {
+        let len = rgba.len() as u64;
+        if w == 0 || h == 0 || len != w as u64 * h as u64 * 4 { return; }
+        let slot = self.slot ^ 1;
+        self.seq += 1;
+        let mut head = [0u8; HEAD as usize];
+        head[..8].copy_from_slice(PROJ_MAGIC);
+        head[8..16].copy_from_slice(&self.seq.to_le_bytes());
+        head[16..20].copy_from_slice(&(slot as u32).to_le_bytes());
+        head[20..24].copy_from_slice(&w.to_le_bytes());
+        head[24..28].copy_from_slice(&h.to_le_bytes());
+        head[28..32].copy_from_slice(&(len as u32).to_le_bytes());
+        head[32..36].copy_from_slice(&fnv1a32(rgba).to_le_bytes());
+        if write_at(&self.f, HEAD + slot * len, rgba).and_then(|_| write_at(&self.f, 0, &head)).is_err() { return; }
+        self.slot = slot;
+    }
+}
+
 #[cfg(windows)]
 fn write_at(f: &File, at: u64, b: &[u8]) -> std::io::Result<()> {
     use std::os::windows::fs::FileExt;

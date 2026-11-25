@@ -585,6 +585,10 @@ fn present(gpu: Arc<Gpu>, window: Arc<Window>, surface: wgpu::Surface<'static>, 
     #[cfg(feature = "ndi")]
     let ndi_send = spec.ndi.as_ref().map(|n| (crate::ndi::NdiSend::new(&n.name), n.max, crate::crop::Cropper::new(&gpu)));
     let mut ndi_at = std::time::Instant::now() - Duration::from_secs(1);
+    // E6h: this output's last picture, for main to show across an engine death (hold.rs ProjHold) — the raster turned
+    // top-first by the same exact same-size crop the NDI capture uses, every PROJ_EVERY.
+    let mut proj_hold = crate::hold::ProjHold::open(&spec.id).map(|h| (h, crate::crop::Cropper::new(&gpu)));
+    let mut proj_hold_at = std::time::Instant::now() - crate::hold::PROJ_EVERY;
     while !stop.load(Ordering::SeqCst) {
         let size = window.inner_size();
         if size.width == 0 || size.height == 0 { std::thread::sleep(Duration::from_millis(50)); continue; }
@@ -694,6 +698,13 @@ fn present(gpu: Arc<Gpu>, window: Arc<Window>, surface: wgpu::Surface<'static>, 
         }
         #[cfg(not(feature = "ndi"))]
         let _ = &mut ndi_at;
+        if let (Some((hold, cut)), Some((rt, _)), false) = (&mut proj_hold, &raster, booting) {
+            if proj_hold_at.elapsed() >= crate::hold::PROJ_EVERY {
+                proj_hold_at = std::time::Instant::now();
+                let shot = cut.crop(&gpu, rt, [0.0, size.height as f64, size.width as f64, -(size.height as f64)], size.width, size.height);
+                if let Ok(px) = crate::crop::Cropper::read(&gpu, &shot) { hold.record(size.width, size.height, &px); }
+            }
+        }
         let tex = match surface.get_current_texture() {
             wgpu::CurrentSurfaceTexture::Success(t) | wgpu::CurrentSurfaceTexture::Suboptimal(t) => t,
             wgpu::CurrentSurfaceTexture::Timeout | wgpu::CurrentSurfaceTexture::Occluded => { std::thread::sleep(Duration::from_millis(8)); continue; }
