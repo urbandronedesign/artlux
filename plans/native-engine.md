@@ -2635,6 +2635,23 @@ fallback until a source/output is proven byte-identical — risk 2):
 > 1**; `+ --calib-warp`: identical; `+ --calib-occlude --glb` (own meshes cast): the projected-sampling 16 by ≤ 2.
 > Guarded.
 > - **Next for D:** a timeline layer on the venue — then E6e (default-on, the owner's OK).
+>
+> ✅ **E6f (render-from-projector, step 6) done 2026-11-25 — A TIMELINE LAYER ON THE VENUE. ITEM D IS CLOSED.** The
+> window textures a mesh bound to a layer from `getLayerDrawable(layerId)` (the program composite for the program
+> sentinel), streamed by App as a `layerFrame` — and a single-track LAYER surface draws exactly that
+> (surfaceMedia). So the engine needs nothing new: nativeLink (`withVenueLayers`) appends one HIDDEN surface per
+> bound layer — `venuelayer:<id>`, content LAYER (PROGRAM for the sentinel) — to the frame's surfaces, memoised so the
+> document is not re-sent every frame; the engine composites it as any timeline surface (its tracks' sources, the
+> tick's clip alpha and time) and publishes it to the presenters as it does every venue surface; venueLink names it as
+> the mesh's source (a plane's `layerId`, a GLB's model or named-screen binding — engineContent now carries the
+> layer id). What a timeline surface cannot hand the engine stays refused with that reason (a clip playing through a
+> `<video>` element — met in the test: a PNG given as a clip PATH plays that way; a still is a content clip).
+> `test:native-projectors --calibrated --calib-layer` (the tilted screen showing a track's still, colour-inverted):
+> **2 073 600 / 2 073 600**; `+ --calib-own` (the room's named screen on the layer): identical; `+ --calib-warp
+> --distort`: identical. Guarded.
+> - **What is left of D on Windows:** an NDI send of an UNWARPED calibrated output (the app sends nothing there —
+>   both are silent, by design) and an open calibration SESSION (authoring: patterns, crosshair, verify looks). Next:
+>   E6e (default-on — the owner's OK), E6g (macOS), E6h (crash fallback), E6i (delete the browser engine).
 
 ## 9d. E4 started early — the 3D view in the engine (owner, 2026-11-24)
 

@@ -84,6 +84,9 @@ const CALIB_OCCLUDE = CALIBRATED && process.argv.includes('--calib-occlude');
 const CALIB_REFUSED = CALIBRATED && process.argv.includes('--calib-refused');
 // --calib-own: the blender-screens example ROOM behind the screens — its walls and floor in the file's OWN materials
 // (lit by the window's ambient + hemisphere lights, ACES tone-mapped), its named screen 'screen_main' wearing the still.
+// --calib-layer: a TIMELINE LAYER on the venue — the tilted screen (and, with --calib-own, the room's screen) shows a
+// track playing a second still (the first, colour-inverted), paused at 0. The engine composites it as a LAYER surface.
+const CALIB_LAYER = CALIBRATED && process.argv.includes('--calib-layer');
 const CALIB_OWN = CALIBRATED && process.argv.includes('--calib-own') ? path.join(ROOT, 'examples', 'blender-screens', 'venue.glb') : null;
 // --calib-occlude projects from a SECOND projector ('sQ', a disabled output at another pose): occlusion is invisible
 // from the projecting projector itself (what its depth map hides, its own depth buffer hides too), so the shadow is
@@ -116,12 +119,20 @@ for (let y = 0; y < H0; y++) for (let x = 0; x < W0; x++) {
 }
 const picture = path.join(WORK, 'projected-1280x720.png');
 fs.writeFileSync(picture, PNG.sync.write(png));
+const layerPicture = path.join(WORK, 'layer-1280x720.png');
+if (CALIB_LAYER) {
+  const inv = new PNG({ width: W0, height: H0 });
+  for (let i = 0; i < png.data.length; i += 4) inv.data.set([255 - png.data[i], 255 - png.data[i + 1], 255 - png.data[i + 2], 255], i);
+  fs.writeFileSync(layerPicture, PNG.sync.write(inv));
+}
 const project = path.join(WORK, 'projectors.artlux');
 fs.writeFileSync(project, JSON.stringify({
   version: '1.2', timestamp: '2026-01-01T00:00:00.000Z',
   surfaces: [{ id: 'sP', name: 'Projected', x: 0.1, y: 0.1, width: 0.5, height: 0.28125, rotation: 0, zIndex: 0, content: MP4 ? { type: 'VIDEO', url: MP4, opacity: 1 } : { type: 'IMAGE', url: picture, opacity: 1 } },
     ...(CALIB_OCCLUDE ? [{ id: 'sQ', name: 'Other', x: 0.6, y: 0.6, width: 0.3, height: 0.16875, rotation: 0, zIndex: 1, content: { type: 'IMAGE', url: picture, opacity: 1 } }] : [])],
   fixtures: [], controllers: [], groups: [], scenes: [], cueBanks: [],
+  ...(CALIB_LAYER ? { timeline: { duration: 10, fps: 25, loop: false, layers: [{ id: 'LV', name: 'Venue layer', opacity: 1 }],
+    clips: [{ id: 'cV', layerId: 'LV', name: 'still', path: '', content: { type: 'IMAGE', url: layerPicture, opacity: 1 }, start: 0, duration: 10, inPoint: 0 }], markers: [], inPoint: null, outPoint: null } } : {}),
   projectorBrightness: 0.9,
   projectorOutputs: [...(CALIB_OCCLUDE ? [{
     // The projecting projector of --calib-occlude: calibrated, NOT enabled (nothing to show — it only throws content).
@@ -155,7 +166,7 @@ fs.writeFileSync(project, JSON.stringify({
   }],
   ...(CALIBRATED ? { scene3D: { models: [
     // A screen wearing the still through its UVs — tilted, so its texels are not 1:1 with the raster.
-    { id: 'scr', name: 'Screen', kind: 'plane', path: '', surfaceId: 'sP', position: { x: -0.9, y: 1.2, z: 0 }, rotation: { x: 0, y: 18, z: 4 }, scale: 1, scaleXYZ: [1.6, 1.6, 1], visible: true },
+    { id: 'scr', name: 'Screen', kind: 'plane', path: '', surfaceId: 'sP', ...(CALIB_LAYER ? { layerId: 'LV' } : {}), position: { x: -0.9, y: 1.2, z: 0 }, rotation: { x: 0, y: 18, z: 4 }, scale: 1, scaleXYZ: [1.6, 1.6, 1], visible: true },
     // A screen PROJECTED from this very projector (resolveProjectedScene fills its matrix from the calibration).
     { id: 'prj', name: 'Projected', kind: 'plane', path: '', surfaceId: 'sP', position: { x: 1.3, y: 1.0, z: -0.5 }, rotation: { x: -12, y: -25, z: 0 }, scale: 1, scaleXYZ: [1.2, 1.2, 1], visible: true,
       uvMode: 'projected', uvProjFrom: PROJ_FROM, uvProjSoft: 0.05, uvProjOccludeOff: !CALIB_OCCLUDE },
@@ -166,7 +177,7 @@ fs.writeFileSync(project, JSON.stringify({
     ...(CALIB_GLB ? [{ id: 'ven', name: 'Venue', kind: 'mesh', path: CALIB_GLB, surfaceId: 'sP', position: { x: 0, y: 2.9, z: -3 }, rotation: { x: 0, y: 0, z: 0 }, scale: 0.5, visible: true,
       ...(CALIB_OCCLUDE ? { uvMode: 'projected', uvProjFrom: PROJ_FROM } : {}) }] : []),
     ...(CALIB_OWN ? [{ id: 'room', name: 'Room', kind: 'mesh', path: CALIB_OWN, position: { x: 0, y: 1.3, z: -2.5 }, rotation: { x: 0, y: 8, z: 0 }, scale: 0.6, visible: true,
-      screens: { screen_main: { surfaceId: 'sP' } } }] : []),
+      screens: { screen_main: CALIB_LAYER ? { layerId: 'LV' } : { surfaceId: 'sP' } } }] : []),
   ] } } : {}),
 }, null, 2));
 

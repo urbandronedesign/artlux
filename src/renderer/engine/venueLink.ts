@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
-import type { Scene3D, SceneModel, ProjectorCalibration } from '../../../shared/protocol';
+import { modelBindings, type Scene3D, type SceneModel, type ProjectorCalibration } from '../../../shared/protocol';
 import { recenterClone, applyModelTransform } from '../components/Simulator3D/venuePlacement';
 import { engineContent } from '../components/Simulator3D/engineView';
 import { usesProjectedUv, usesProjectedOcclusion, DEFAULT_BIAS_M } from '../components/Simulator3D/projectedMapping';
@@ -74,6 +74,26 @@ function load(path: string): Loaded {
 const els = (m: THREE.Matrix4) => Array.from(m.elements);
 
 /**
+ * E6f: a venue mesh bound to a TIMELINE LAYER. The projector window textures it from getLayerDrawable(layerId) (the
+ * program composite for PROGRAM_LAYER_ID) — App streams it as a `layerFrame` — and that is exactly what a LAYER
+ * (PROGRAM) surface draws (surfaceMedia: "a single-track surface draws exactly timeline.getLayerDrawable"). So the
+ * engine is handed one hidden surface per bound layer, `venuelayer:<id>` (nativeLink adds them), which it composites
+ * as any timeline surface; the mesh names it as its source.
+ */
+export const venueLayerSurface = (layerId: string) => `venuelayer:${layerId}`;
+
+/** Every timeline layer a visible model of the scene shows — its own binding and its named screens' (modelBindings,
+ *  layerId winning — App's layerFrame pump walks the same). */
+export function venueLayers(scene: Scene3D): string[] {
+  const ids = new Set<string>();
+  for (const m of scene.models ?? []) {
+    if (!m.visible) continue;
+    for (const b of modelBindings(m)) if (b.layerId) ids.add(b.layerId);
+  }
+  return [...ids].sort();
+}
+
+/**
  * A mesh's OWN material as three lights it in the projector window — or why the engine cannot. E6f: the window
  * lights a venue file's own materials with an ambient and a hemisphere light and NO environment map, and there three's
  * MeshStandardMaterial reduces to irradiance × diffuse × (1 − metalness) / π + emissive (calib3d.rs OWN). What that
@@ -114,7 +134,7 @@ function venueLights(view: THREE.Matrix4) {
 /** One projected or plain content source, as the engine's 3D view takes it (engineView's EngineSrc). */
 function planeSrc(m: SceneModel) {
   return {
-    surface: m.surfaceId!,
+    surface: m.layerId ? venueLayerSurface(m.layerId) : m.surfaceId!,
     proj: usesProjectedUv(m) ? {
       view: m.uvProjView!, eye: m.uvProjEye ?? [0, 0, 0], soft: m.uvProjSoft ?? 0, cull: !!m.uvProjCull,
       occlude: usesProjectedOcclusion(m), bias: m.uvProjBias ?? DEFAULT_BIAS_M,
@@ -141,13 +161,12 @@ export function calibDoc(cal: ProjectorCalibration, scene: Scene3D): { doc: unkn
     const name = m.name || m.id;
     if (m.kind === 'plane') {
       // ProjectorPlane: a 16/9 × 1 PlaneGeometry in a group carrying the model's transform.
-      if (m.layerId) return { why: `screen '${name}' shows a timeline layer` };
-      if (!m.surfaceId) return { why: `screen '${name}' has nothing bound (drawn dark grey by the app)` };
+      if (!m.surfaceId && !m.layerId) return { why: `screen '${name}' has nothing bound (drawn dark grey by the app)` };
       const src = planeSrc(m);
       const g = new THREE.Group();
       applyModelTransform(g, m);
       g.updateMatrixWorld(true);
-      surfaces.add(m.surfaceId);
+      surfaces.add(src.surface);
       models.push({ id: m.id, kind: 'plane', w: 16 / 9, h: 1, mv: mv(g), world: els(g.matrixWorld), src });
       continue;
     }
@@ -166,7 +185,10 @@ export function calibDoc(cal: ProjectorCalibration, scene: Scene3D): { doc: unkn
     cloned.traverse((o) => { if ((o as THREE.Mesh).isMesh) count++; });
     const content = engineContent(cloned, m, true) ?? { src: [], mesh: new Array<number>(count).fill(-1) };
     for (const s of content.src) {
-      if (s.surface === null) return { why: `'${name}' shows a timeline layer` };
+      if (s.surface === null) {
+        if (!s.layer) return { why: `'${name}' shows a binding the engine cannot draw` };
+        s.surface = venueLayerSurface(s.layer);
+      }
       surfaces.add(s.surface);
     }
     // Per mesh, in three's traversal order (engineContent's): its model-view and world matrix — and, for a mesh in its

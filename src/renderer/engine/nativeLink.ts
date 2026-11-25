@@ -1,5 +1,7 @@
 import type { Fixture, FixtureProfile, Surface, Controller, OutputProtocol, SurfaceContent } from '../types';
+import { SourceType } from '../types';
 import { WINDOWED_DISPLAY, defaultCornerPin, defaultSoftEdge, type ProjectorOutput, type Scene3D } from '../../../shared/protocol';
+import { PROGRAM_LAYER_ID } from '../services/programLayer';
 import { needsBlendPass, hasDistortion, distortionValues, blendValues } from '@artlux/plugin-calibration/playback';
 import { hasResidualWarp } from '../projector/warp';
 import * as venueLink from './venueLink';
@@ -298,6 +300,27 @@ function projectorEntry(o: ProjectorOutput, surfaces: Surface[], sources: Record
   };
 }
 
+/**
+ * E6f: the hidden surfaces of the timeline layers a calibrated output's venue shows (venueLink.venueLayerSurface) —
+ * a LAYER surface per track, a PROGRAM surface for the program sentinel — appended to the frame's surfaces, so the
+ * engine composites them (and the tick carries their tracks' alpha and time) as it does any timeline surface. The
+ * same array is returned while neither the frame's surfaces nor the layer set changed: the document is re-sent on
+ * a change of identity, and a fresh array per frame would re-send it every frame.
+ */
+let venueLayerMemo: { base: Surface[]; key: string; out: Surface[] } | null = null;
+function withVenueLayers(base: Surface[]): Surface[] {
+  const ids = venueRender.size && venueScene ? venueLink.venueLayers(venueScene) : [];
+  if (!ids.length) return base;
+  const key = ids.join('\n');
+  if (venueLayerMemo && venueLayerMemo.base === base && venueLayerMemo.key === key) return venueLayerMemo.out;
+  const extra: Surface[] = ids.map((id) => ({
+    id: venueLink.venueLayerSurface(id), name: `venue layer ${id}`, x: 0, y: 0, width: 0, height: 0, rotation: 0, zIndex: -1,
+    content: id === PROGRAM_LAYER_ID ? { type: SourceType.PROGRAM, opacity: 1 } : { type: SourceType.LAYER, layerId: id, opacity: 1 },
+  } as Surface));
+  venueLayerMemo = { base, key, out: [...base, ...extra] };
+  return venueLayerMemo.out;
+}
+
 /** One frame. Cheap when nothing changed: a reference compare, one small string, one IPC send. */
 export function frame(inputs: LinkInputs, surfaces: Surface[], fixtures: Fixture[], brightness: number, lightBytes: Record<string, number[]> = {}, lanesView: Surface[] | null = null, lightLive: Record<string, Record<string, number>> = {}): void {
   const tick = link(inputs, surfaces, fixtures, brightness, lightBytes, lanesView, lightLive);
@@ -329,6 +352,7 @@ function link(inputs: LinkInputs, surfaces: Surface[], fixtures: Fixture[], brig
   // while a scene fade runs over them, or nothing is automated). The document carries the authored values and
   // the lanes; the engine samples them per tick, so a curve no longer re-sends the document every frame.
   if (lanesView) surfaces = lanesView;
+  surfaces = withVenueLayers(surfaces);
   const lanesKey = lanesView ? `on ${timeline.nativeLanes(engineLane).gen}` : 'off';
   const sources: Record<string, contentSource.NativeSource> = {};
   for (const s of surfaces) sources[s.id] = surfaceMedia.nativeSource(s);

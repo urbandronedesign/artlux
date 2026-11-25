@@ -44,6 +44,8 @@ const r4 = (v: number) => Math.round(v * 1e4) / 1e4;
  *  draw, e.g. a timeline layer — dark, as the editor shows a binding with no frame), optionally projected. */
 interface EngineSrc {
   surface: string | null;
+  /** The timeline layer a null `surface` is bound to (E6f: a calibrated output draws it — venueLink). */
+  layer?: string;
   proj?: { view: number[]; eye: number[]; soft: number; cull: boolean; occlude: boolean; bias: number };
 }
 
@@ -63,6 +65,7 @@ export function engineContent(root: THREE.Object3D, model: SceneModel, exact = f
     whole = src.length;
     src.push({
       surface: model.layerId ? null : model.surfaceId!,
+      ...(model.layerId ? { layer: model.layerId } : {}),
       proj: usesProjectedUv(model) ? {
         view: model.uvProjView!.map(r), eye: (model.uvProjEye ?? [0, 0, 0]).map(r),
         soft: model.uvProjSoft ?? 0, cull: !!model.uvProjCull,
@@ -74,7 +77,7 @@ export function engineContent(root: THREE.Object3D, model: SceneModel, exact = f
   for (const [name, b] of Object.entries(model.screens ?? {})) {
     if (!b.layerId && !b.surfaceId) continue;
     screenSrc.set(name, src.length);
-    src.push({ surface: b.layerId ? null : b.surfaceId! });
+    src.push({ surface: b.layerId ? null : b.surfaceId!, ...(b.layerId ? { layer: b.layerId } : {}) });
   }
   if (src.length === 0) return null;
   const screenOf = new Map<string, string>();

@@ -9839,7 +9839,9 @@ check(
   'BODY_FRAG\'s test: --calib-occlude (projected from a second projector past a blocker) adds no difference of its ' +
   'own (16 pixels by ≤ 2 with it, 22 without — oblique projected sampling). Step 5: a mesh in its OWN material ' +
   '(ambient + hemisphere, no env map: irradiance × diffuse × (1 − metalness) / π + emissive, ACESFilmic, OETF): ' +
-  '--calib-own 2 073 600 / 2 073 600; with distortion + blend 5 by 1; warped identical. ' +
+  '--calib-own 2 073 600 / 2 073 600; with distortion + blend 5 by 1; warped identical. Step 6: a TIMELINE LAYER on the ' +
+  'venue — a hidden LAYER surface the engine composites (getLayerDrawable is what a LAYER surface draws): --calib-layer ' +
+  'identical, on a GLB\'s named screen identical, warped + distorted identical. ' +
   'It found two app bugs, fixed: a projected mesh drew its content UPSIDE DOWN on the real projector (the texture ' +
   'was handed to the material before it was oriented), and a calibrated output without a residual warp ignored ' +
   'projector brightness and the surface\'s opacity (the canvas element was handed over only with a warp).',
@@ -9908,6 +9910,12 @@ check(
     if (!/export const DEPTH_FAR = 250;/.test(pd) || !/const DEPTH_SIZE = 1024;/.test(pd)) problems.push('projectorDepth.ts changed DEPTH_FAR or DEPTH_SIZE — calib3d.rs draws the same map and must change with it');
     // The occlusion test lives in BOTH fragment stages (the 8-bit one and the post pass's linear one) — each must have it.
     if ((raw('engine/artlux-engine/src/calib3d.rs').match(/let bias = obj\.po\.y \* \(1\.0 \+ 4\.0 \* \(1\.0 - abs\(ndl\)\)\);\s*if \(i\.ppos\.w > seen \+ bias\) \{ vis = 0\.0; \}/g) || []).length !== 2) problems.push('calib3d.rs no longer runs BODY_FRAG\'s occlusion test in both of its fragment stages');
+    // Step 6: a TIMELINE LAYER on the venue — a hidden LAYER / PROGRAM surface per bound layer, composited by the engine.
+    if (/shows a timeline layer/.test(vl)) problems.push('venueLink refuses a timeline layer on the venue again (the engine composites it)');
+    if (!/surface: m\.layerId \? venueLayerSurface\(m\.layerId\) : m\.surfaceId!/.test(vl) || !/s\.surface = venueLayerSurface\(s\.layer\);/.test(vl)) problems.push('venueLink no longer names a layer binding\'s hidden surface as the mesh\'s source');
+    if (!/for \(const b of modelBindings\(m\)\) if \(b\.layerId\) ids\.add\(b\.layerId\);/.test(vl)) problems.push('venueLink no longer finds the bound layers as App\'s layerFrame pump does (modelBindings)');
+    if (!/surfaces = withVenueLayers\(surfaces\);/.test(nl) || !/content: id === PROGRAM_LAYER_ID \? \{ type: SourceType\.PROGRAM, opacity: 1 \} : \{ type: SourceType\.LAYER, layerId: id, opacity: 1 \}/.test(nl)) problems.push('nativeLink no longer hands the engine a hidden LAYER / PROGRAM surface per venue layer');
+    if (!/venueLayerMemo\.base === base && venueLayerMemo\.key === key\) return venueLayerMemo\.out;/.test(nl)) problems.push('nativeLink builds the venue-layer surfaces afresh every frame again (the document would be re-sent every frame)');
     if (/is projected with occlusion/.test(vl)) problems.push('venueLink refuses occlusion again (the engine draws it)');
     const st = read('plugins/calibration/src/useStreamedSurfaceTexture.ts');
     if (!/matchBitmapOrientation\(t\);\s*t\.needsUpdate = true;[\s\S]{0,900}if \(fresh\) cbRef\.current\(t\);/.test(st)) problems.push('useStreamedSurfaceTexture hands the texture over before orienting it again (projected content upside down on the projector)');
