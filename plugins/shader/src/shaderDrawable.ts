@@ -5,6 +5,7 @@
 // bookkeeping that lets N of them coexist on it, plus the two rules that keep a live show alive: a
 // broken edit never blacks out a wall, and a shader that will not behave stops being drawn.
 
+import type { NativeSource } from '@artlux/sdk/renderer';
 import type { SurfaceContent } from '@/types';
 import { getSurface } from '@/services/surfaceMedia'; // host service (transitional runtime seam, as in augmentaDrawable)
 import { reportFault } from '@/services/faultReporter';
@@ -231,7 +232,7 @@ export function release(key: string): void {
  * edit is broken, exactly as resolveProgram does — so the engine never shows a typo the app hides. Sized
  * as the main window sizes it (sizeFor), header inputs in order, and their GLSL types (wrapper.ts).
  */
-export function nativeSourceFor(key: string, content: SurfaceContent): { kind: string; [k: string]: unknown } {
+export function nativeSourceFor(key: string, content: SurfaceContent): NativeSource {
   const source = sourceOf(content);
   const run = compile(source).ok ? source : entries.get(key)?.lastGoodSource ?? null;
   if (!run) return { kind: 'unsupported', why: 'a shader that does not compile' };

@@ -9,6 +9,7 @@
 
 import type { Surface, SurfaceContent } from '@/types'; // host domain types (transitional; type-only)
 import { timeline } from '@/services/timeline';          // host timeline engine (transitional runtime seam)
+import type { NativeSource } from '@artlux/sdk/renderer';
 import * as trackingRenderer from './trackingRenderer';
 import * as blobPass from './blobPass';
 
@@ -116,7 +117,7 @@ function renderCPU(surface: Surface, w: number, h: number, now: number): HTMLCan
 // canvas — a setup aid, not show content).
 const lastFrame = new Map<string, { blobs: blobPass.BlobInst[]; trail: Float32Array }>();
 
-export function nativeSourceFor(key: string, content: SurfaceContent): { kind: string; [k: string]: unknown } {
+export function nativeSourceFor(key: string, content: SurfaceContent): NativeSource {
   if (!content.trackingSource) return { kind: 'none' };
   if (content.bgLayerId) return { kind: 'unsupported', why: 'a tracking surface drawn over a timeline layer (composed in the browser)' };
   if (content.calibration || content.showIds) return { kind: 'unsupported', why: 'a tracking surface showing its calibration grid or id labels' };

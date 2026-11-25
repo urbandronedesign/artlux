@@ -736,19 +736,9 @@ export function releaseExact(keys?: readonly string[]): void {
 // The engine draws stills, HAP and effects itself (proven against this file's drawables, E1d). Anything
 // else is "unsupported" with a reason, and then the app keeps the wire (engine/runtime.rs: all or nothing).
 // A VIDEO is HAP only once its codec has claimed it — until then it is unsupported, i.e. the app's.
-export type NativeSource = { kind: 'image' | 'hap'; path: string } | { kind: 'mp4'; path: string; durUs: number } | { kind: 'spout' | 'ndi'; name: string }
-  | { kind: 'camera'; label: string; bt709: boolean; fullRange: boolean; twins: boolean }
-  | { kind: 'effect' | 'none' } | { kind: 'unsupported'; why: string }
-  // E2: a shader (plugins/shader nativeSourceFor; engine shader.rs) — the text the app is running, its
-  // header inputs with their GLSL types, and the raster the main window draws it at.
-  | { kind: 'shader'; source: string; inputs: { name: string; glsl: string }[]; lastFrame: boolean; w: number; h: number; hold?: boolean }
-  // E2: a picture THIS app draws and ships when it changes (text first — nativeLink, engineHost.noteRaster).
-  | { kind: 'raster' }
-  // E2: tracking blobs (lidar-tracking / Augmenta) — the engine draws blobPass from each tick's instances.
-  | { kind: 'blobs'; w: number; h: number }
-  // E3a: a timeline surface (LAYER / stack / PROGRAM) composited by the engine — surfaceMedia.compositeNativeSource.
-  // `sources` are the tracks' clips as hidden sources (`layer:<id>`), with the clip content they are drawn from.
-  | { kind: 'comp'; w: number; h: number; single: boolean; layers: { key: string; opacity: number; blend: string; clip?: { id?: string; start: number; inPoint: number; duration: number; fadeIn?: number; fadeOut?: number; opacity?: number }; spans?: { id: string; start: number; duration: number }[]; next?: { key: string; clip: { id: string; start: number; inPoint: number; duration: number; fadeIn?: number; fadeOut?: number; opacity?: number } } }[]; sources: Record<string, { src: NativeSource; content: unknown }> };
+// SDK v2 (E6d): the contract lives in the SDK — @artlux/sdk/renderer NativeSource.
+export type { NativeSource } from '@artlux/sdk/renderer';
+import type { NativeSource } from '@artlux/sdk/renderer';
 
 // Item 2d step 5 (plans/native-engine.md): a CAMERA surface. The app keeps its camera (owner's decision); the
 // engine reads the same device SHARED and draws it as this app does (engine cam.rs — proven by
@@ -801,24 +791,16 @@ export function filePathOf(url: string): string {
   if (!/^file:\/\//i.test(url)) return url;
   return decodeURIComponent(url.replace(/^file:\/\//i, '')).replace(/^\/([A-Za-z]:)/, '$1');
 }
-// Item 2c-4: an MP4 the app plays through plugins/mp4 (WebCodecs). The engine decodes the file itself (mf.rs —
-// the same pictures, proven by test:mp4-parity) and converts it as Chromium does — for what was MEASURED: an
-// 8-bit NV12 frame, BT.709 matrix and primaries, limited range, the BT.709 or sRGB transfer (yuv.rs accepts).
-// Decided on THE APP'S OWN current VideoFrame, which knows the stream's colour (the decoder's VUI), so
-// anything else — 10-bit, BT.601, full range, HDR — stays the app's with the reason. Before the app has a
-// frame there is nothing to judge: the app keeps it, and the next document (once a frame exists) asks again.
-function mp4NativeSource(path: string, frame?: unknown): NativeSource {
-  const codec = videoCodecRegistry.get('mp4-webcodecs');
-  // E3b: a timeline track's frame is the track's own (its decoder is per track), handed in by the caller.
-  const vf = (frame !== undefined ? frame : codec?.surfaceFrame(path)) as VideoFrame | null | undefined;
-  if (!vf || typeof (vf as VideoFrame).format === 'undefined') return { kind: 'unsupported', why: 'an MP4 with no decoded frame yet' };
-  if (vf.format !== 'NV12') return { kind: 'unsupported', why: `an MP4 decoded as ${vf.format} (the engine draws 8-bit NV12 only)` };
-  const cs = vf.colorSpace;
-  const ok = cs?.matrix === 'bt709' && cs?.fullRange === false && cs?.primaries === 'bt709' && (cs?.transfer === 'bt709' || cs?.transfer === 'iec61966-2-1');
-  if (!ok) return { kind: 'unsupported', why: `an MP4 in colour space ${cs?.matrix}/${cs?.primaries}/${cs?.transfer}/${cs?.fullRange ? 'full' : 'limited'} (the engine draws BT.709 limited range only)` };
-  const info = codec?.sourceInfo?.(path);
-  if (!info || !(info.durationSec > 0)) return { kind: 'unsupported', why: 'an MP4 whose duration is not known yet' };
-  return { kind: 'mp4', path: filePathOf(path), durUs: info.durationSec * 1e6 };
+// SDK v2 (E6d): A CODEC ANSWERS FOR ITS OWN FILES (VideoCodecContribution.nativeSource / nativeSourceAhead) — the
+// HAP and MP4 rules (the MP4 colour judgement on the app's own frame) live in plugins/hap and plugins/mp4 now. The
+// host only turns the file the app plays into the path the engine opens.
+function withFilePath(s: NativeSource): NativeSource {
+  return 'path' in s ? { ...s, path: filePathOf(s.path) } as NativeSource : s;
+}
+function codecNative(codecId: string, path: string, frame?: unknown): NativeSource {
+  const c = videoCodecRegistry.get(codecId);
+  if (!c?.nativeSource) return { kind: 'unsupported', why: `a ${codecId} video is decoded in the browser` };
+  return withFilePath(c.nativeSource(path, frame));
 }
 
 /**
@@ -841,18 +823,12 @@ export function nextClipNativeSource(key: string, clip: { path: string; content?
     const s = nativeSource(key, clip.content);
     return s.kind === 'image' || s.kind === 'effect' ? s : null;
   }
-  if (codecId === 'hap') return { kind: 'hap', path: filePathOf(clip.path) };
-  if (codecId === 'mp4-webcodecs') {
-    const info = videoCodecRegistry.get('mp4-webcodecs')?.sourceInfo?.(clip.path);
-    return info && info.durationSec > 0 ? { kind: 'mp4', path: filePathOf(clip.path), durUs: info.durationSec * 1e6, judge: 'engine' } as NativeSource : null;
-  }
-  return null;
+  const ahead = codecId ? videoCodecRegistry.get(codecId)?.nativeSourceAhead?.(clip.path) : null;
+  return ahead ? withFilePath(ahead) : null;
 }
 
 export function codecClipNativeSource(codecId: string, path: string, frame: unknown): NativeSource {
-  if (codecId === 'hap') return { kind: 'hap', path: filePathOf(path) };
-  if (codecId === 'mp4-webcodecs') return mp4NativeSource(path, frame);
-  return { kind: 'unsupported', why: `a ${codecId} video is decoded in the browser` };
+  return codecNative(codecId, path, frame);
 }
 
 export function nativeSource(key: string, content: SurfaceContent): NativeSource {
@@ -871,14 +847,13 @@ export function nativeSource(key: string, content: SurfaceContent): NativeSource
     case 'SYPHON': return { kind: 'unsupported', why: `Syphon ('${content.syphonName ?? ''}') is not drawn by the native engine yet` };
     case SourceType.VIDEO: {
       const e = media.get(key);
-      if (e?.type === 'CODEC' && e.codecId === 'hap') return { kind: 'hap', path: filePathOf(e.path) };
-      if (e?.type === 'CODEC' && e.codecId === 'mp4-webcodecs') return mp4NativeSource(e.path);
-      return { kind: 'unsupported', why: e?.type === 'CODEC' ? `a ${e.codecId} video is decoded in the browser` : 'a video that is not HAP is decoded in the browser' };
+      if (e?.type === 'CODEC') return codecNative(e.codecId, e.path);
+      return { kind: 'unsupported', why: 'a video no codec plugin plays is decoded in the browser' };
     }
     default: {
       // A PLUGIN TYPE ANSWERS FOR ITSELF (E2: SHADER) — the same registry getDrawable dispatches through.
       const ns = contentSourceRegistry.get(content.type)?.nativeSource?.(key, content);
-      if (ns) return ns as NativeSource;
+      if (ns) return withFilePath(ns);
       return { kind: 'unsupported', why: `${content.type} is not drawn by the native engine yet` };
     }
   }

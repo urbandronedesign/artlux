@@ -2372,6 +2372,19 @@ fallback until a source/output is proven byte-identical — risk 2):
 > - **Not yet:** opening the encoder ahead (at the panel, not the press); the matte; macOS (AVFoundation). Next:
 >   SDK v2 for render contributions.
 
+> ✅ **E6d done 2026-11-25 — SDK v2: render contributions DESCRIBE, the engine draws.** (1) The contract moved into
+> the SDK: `NativeSource` (`@artlux/sdk/renderer`) — one typed variant per kind the engine's document parser knows,
+> `unsupported` the app's own "no"; `ContentSourceProvider.nativeSource` returns it (it was `{ kind: string, … }`:
+> the typing found four plugins — shader, lidar-tracking, augmenta, mediapipe — returning untyped objects). (2) A
+> codec answers for its own files: `VideoCodecContribution.nativeSource(path, frame?)` / `nativeSourceAhead(path)`;
+> the HAP rule moved to plugins/hap, the MP4 colour judgement on the app's own VideoFrame to plugins/mp4 — core no
+> longer names a codec id (`contentSource.codecNative`, the host turning the played path into the file path).
+> (3) docs/SDK.md "SDK v2". `verify:invariants` (mutation-tested): the SDK's kinds and runtime.rs's parser equal
+> both ways, no codec id in core, both codecs answer; the 2c-4 MP4 guard now reads the mp4 codec.
+> - **Not yet:** `ProjectorChannel.renderSource(gl)` (calibration, lidar) and scene-viz (lidar's 3D) are still
+>   WebGL-typed — their engine halves (the calibrated projector render is E4's; lidar's 3D view is the engine's
+>   own) come with deleting the browser engine.
+
 ## 9d. E4 started early — the 3D view in the engine (owner, 2026-11-24)
 
 > **Owner, 2026-11-24: "start E4's 3D now"** — for the detachable 3D view (plans/3d-workbench.md §5/Phase 4),

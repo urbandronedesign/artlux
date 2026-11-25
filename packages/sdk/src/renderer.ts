@@ -38,6 +38,34 @@ export function onGpuLost(cb: () => void): () => void {
 // A drawable surface source — same as the host compositor's `CanvasImageSource`.
 export type Drawable = CanvasImageSource;
 
+// ─── SDK v2 — WHAT THE NATIVE ENGINE DRAWS (plans/native-engine.md §2 Plugins, E6d) ─────────────────────────
+// A render contribution is moving from "hand the browser a drawable" to "DESCRIBE the picture; the engine draws
+// it". This union is that description — every kind the engine's document parser knows (engine runtime.rs `doc`),
+// one variant each, with exactly the fields it reads. `verify:invariants` holds the two lists equal: a kind here
+// the engine does not parse would draw nothing; a kind the engine parses that is missing here cannot be asked for.
+// `unsupported` is the app's own "no" (the app keeps that output, and says why); it never reaches a drawing path.
+//
+// `path` is the file the app plays — the host turns it into a file-system path before the engine sees it.
+export type NativeSource =
+  | { kind: 'image' | 'hap'; path: string }
+  // `durUs`: the file's length (a looping surface's frame time is folded back into it). `judge: 'engine'`: no frame
+  // of it has been decoded by the app — the engine reads its colour space from its own decoder.
+  | { kind: 'mp4'; path: string; durUs: number; judge?: 'engine' }
+  | { kind: 'spout' | 'ndi'; name: string }
+  | { kind: 'camera'; label: string; bt709: boolean; fullRange: boolean; twins: boolean }
+  | { kind: 'effect' | 'none' }
+  | { kind: 'unsupported'; why: string }
+  // A shader (plugins/shader; engine shader.rs): the text the app is running, its header inputs, the raster size.
+  | { kind: 'shader'; source: string; inputs: { name: string; glsl: string }[]; lastFrame: boolean; w: number; h: number; hold?: boolean }
+  // A picture the app draws and ships when it changes (text first — nativeRaster below).
+  | { kind: 'raster' }
+  // Tracking blobs (lidar-tracking / Augmenta / mediapipe): the engine draws them from each tick's instances.
+  | { kind: 'blobs'; w: number; h: number }
+  // A timeline surface composited by the engine — the host builds it (surfaceMedia.compositeNativeSource).
+  | { kind: 'comp'; w: number; h: number; single: boolean; layers: { key: string; opacity: number; blend: string; clip?: { id?: string; start: number; inPoint: number; duration: number; fadeIn?: number; fadeOut?: number; opacity?: number }; spans?: { id: string; start: number; duration: number }[]; next?: { key: string; clip: { id: string; start: number; inPoint: number; duration: number; fadeIn?: number; fadeOut?: number; opacity?: number } } }[]; sources: Record<string, { src: NativeSource; content: unknown }> };
+/** The kinds the engine draws (every NativeSource but the app's own `unsupported`). */
+export type EngineSourceKind = Exclude<NativeSource['kind'], 'unsupported'>;
+
 // ─── Content source contribution ────────────────────────────────────────────────────────────
 // Turns a consumer's content (a surface's or timeline clip's `SurfaceContent`) into a per-frame
 // drawable. The host keeps built-in types (VIDEO/IMAGE/CAMERA/SPOUT/NDI/EFFECT) on explicit hot-
@@ -64,12 +92,12 @@ export interface ContentSourceProvider<C = unknown, D = Drawable> {
   getDrawableGeneration?(key: string, content: C): number | undefined;
   getAspect?(key: string, content: C): number | null;
   /**
-   * OPTIONAL — what the NATIVE ENGINE should draw for this key (plans/native-engine.md). Return a source
-   * the engine knows (`{ kind: 'shader', … }` today) or `{ kind: 'unsupported', why }`; absent means the
-   * engine cannot draw this type and the app keeps the output, with that reason. The engine draws only
-   * what it was measured to draw exactly as the app does, so opt in per kind, not per plugin.
+   * SDK v2 — what the NATIVE ENGINE draws for this key (`NativeSource` above). Return a kind the engine knows
+   * or `{ kind: 'unsupported', why }`; absent means the engine cannot draw this type and the app keeps the
+   * output, with that reason. The engine draws only what it was measured to draw exactly as the app does, so
+   * opt in per kind, not per plugin. With the browser engine gone (E6) this is how a content type is drawn at all.
    */
-  nativeSource?(key: string, content: C): { kind: string; [k: string]: unknown } | null;
+  nativeSource?(key: string, content: C): NativeSource | null;
   /** OPTIONAL — this frame's values for the source `nativeSource` named (sent with every engine tick). */
   nativeTick?(key: string, content: C, timeSec: number): unknown;
   /**
@@ -460,6 +488,18 @@ export interface VideoCodecContribution {
    * Synchronous and cheap: answer from what `probe()` already parsed, or null if not open yet.
    */
   sourceInfo?(path: string): { width: number; height: number; fps: number; durationSec: number } | null;
+  /**
+   * SDK v2 — what the NATIVE ENGINE draws for a file this codec plays (`NativeSource`), on a surface or a timeline
+   * track. `frame` is the app's own current decoded frame for that surface / track (a codec whose engine twin is
+   * held to the app's pictures judges by it — the colour space, the pixel format); undefined when the caller has
+   * none to hand. Absent: the engine does not decode this format, and the app keeps the output.
+   */
+  nativeSource?(path: string, frame?: unknown): NativeSource;
+  /**
+   * SDK v2 — the same, for a clip the app has NOT decoded yet (the clip a track cuts to, drawn by the engine ahead
+   * of the app — E3k): no frame to judge by, so the engine must judge for itself, or null when it cannot.
+   */
+  nativeSourceAhead?(path: string): NativeSource | null;
 }
 
 export interface VideoCodecRegistry {

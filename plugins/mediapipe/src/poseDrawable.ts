@@ -6,6 +6,7 @@
 
 import type { Surface, SurfaceContent } from '@/types'; // host domain types (transitional; type-only)
 import { timeline } from '@/services/timeline';          // host timeline engine (transitional runtime seam)
+import type { NativeSource } from '@artlux/sdk/renderer';
 import * as poseRenderer from './poseRenderer';
 import * as posePass from './posePass';
 
@@ -102,7 +103,7 @@ function renderCPU(surface: Surface, w: number, h: number, now: number): HTMLCan
 // skeleton / id overlay stay the app's, with the reason.
 const lastFrame = new Map<string, { marks: posePass.PoseInst[]; trail: Float32Array }>();
 
-export function nativeSourceFor(_key: string, content: SurfaceContent): { kind: string; [k: string]: unknown } {
+export function nativeSourceFor(_key: string, content: SurfaceContent): NativeSource {
   if (content.bgLayerId) return { kind: 'unsupported', why: 'a MediaPipe surface drawn over a timeline layer (composed in the browser)' };
   // poseRenderer.overlayCanvas draws for exactly these two (its 2D canvas: the skeleton and the #id labels).
   if (content.showIds || content.poseSkeleton) return { kind: 'unsupported', why: 'a MediaPipe surface showing its skeleton or id labels' };

@@ -1,5 +1,23 @@
 import type { VideoCodecContribution } from '@artlux/sdk/renderer';
+import type { NativeSource } from '@artlux/sdk/renderer';
 import * as dec from './mp4Decoder';
+
+// SDK v2 (E6d) — WHAT THE NATIVE ENGINE DRAWS FOR AN MP4 (it was core's, contentSource.mp4NativeSource). The engine
+// decodes the file itself (mf.rs — the same pictures, test:mp4-parity) and converts it as Chromium does, for what was
+// MEASURED: an 8-bit NV12 frame, BT.709 matrix and primaries, limited range, the BT.709 or sRGB transfer. Decided on
+// THE APP'S OWN current VideoFrame (`frame`, or this surface's), which knows the stream's colour; anything else stays
+// the app's with the reason. Before the app has a frame there is nothing to judge: the next document asks again.
+function mp4NativeSource(path: string, frame?: unknown): NativeSource {
+  const vf = (frame !== undefined ? frame : dec.frame(path, clock)) as VideoFrame | null | undefined;
+  if (!vf || typeof (vf as VideoFrame).format === 'undefined') return { kind: 'unsupported', why: 'an MP4 with no decoded frame yet' };
+  if (vf.format !== 'NV12') return { kind: 'unsupported', why: `an MP4 decoded as ${vf.format} (the engine draws 8-bit NV12 only)` };
+  const cs = vf.colorSpace;
+  const ok = cs?.matrix === 'bt709' && cs?.fullRange === false && cs?.primaries === 'bt709' && (cs?.transfer === 'bt709' || cs?.transfer === 'iec61966-2-1');
+  if (!ok) return { kind: 'unsupported', why: `an MP4 in colour space ${cs?.matrix}/${cs?.primaries}/${cs?.transfer}/${cs?.fullRange ? 'full' : 'limited'} (the engine draws BT.709 limited range only)` };
+  const info = dec.sourceInfo(path);
+  if (!info || !(info.durationSec > 0)) return { kind: 'unsupported', why: 'an MP4 whose duration is not known yet' };
+  return { kind: 'mp4', path, durUs: info.durationSec * 1e6 };
+}
 
 // The MP4 VideoCodec — frame-accurate H.264/H.265 via the GPU-accelerated WebCodecs decoder
 // (mp4Decoder). DEFAULT ON: `enabled` is pushed from the mp4WebCodecs setting, which is now absent ⇒
@@ -28,6 +46,9 @@ function ensureRaf(): void { if (!raf) { clockOriginMs = performance.now() - clo
 
 export const mp4Codec: VideoCodecContribution = {
   id: 'mp4-webcodecs',
+  nativeSource: (path, frame) => mp4NativeSource(path, frame),
+  // Ahead of the app (E3k): the file and its length; the engine judges the colour space from its own decoder.
+  nativeSourceAhead: (path) => { const info = dec.sourceInfo(path); return info && info.durationSec > 0 ? { kind: 'mp4', path, durUs: info.durationSec * 1e6, judge: 'engine' } : null; },
   canDecode: (path) => enabled && /\.(mp4|m4v)$/i.test(path),
   // Index only — it must not open a decoder. It used to (ensureOpen), and nothing owned what it opened,
   // so every probed file stayed resident for the session. See mp4Decoder's index-probe section.

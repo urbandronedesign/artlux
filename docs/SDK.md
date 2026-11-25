@@ -42,7 +42,7 @@ talks to its own main-process half). All are handed to the plugin in its `activa
 | `sceneViz` | `SceneVizContribution` | A react-three-fiber overlay mounted inside the editor's 3D `<Canvas>`. Its component gets `scene3D` and `htmlPosition` — pass the latter to drei `<Html calculatePosition>` so a DOM label lands in the right pane when the 3D view shows four views. | lidar (blob markers, zone names) |
 | `smTriggers` | `SmTriggerContribution` | **A condition the show graph can transition on**, owned by a plugin: `fires(params, ctx)` evaluated once per frame per candidate edge, plus an optional `Inspector` (the params editor the state-graph editor mounts) and `describe` (the edge label). The project persists only `SmTrigger { kind:'plugin', source, params }` — a **core** shape, so files open on any build and an unregistered `source` is inert rather than truthy. ⚠ **Return an EDGE, not a level**, unless a level is really what the author asked for: a state can be re-entered while the world is still in the condition that caused the last hop (someone is *still standing in the zone*), and a level then re-fires on the new state's first frame, forever. `ctx.stateEnteredAtSec` is what you compare your own event against. ⚠ **You are asked every frame, including while the transition's guard is closed** — the host evaluates a trigger *then* applies `requireEnd`, precisely so a stateful source keeps a complete history; a source that is only asked once the guard opens sees somebody *standing* where it should have seen them *arrive*. Do not assume a call means the transition is eligible. | lidar (`lidar.zone` — trigger zones) |
 | `trackingSurfaces` | `TrackingSurfaceContribution` | **A surface trigger zones can sit on**, owned by a plugin that knows where people are: `points()` returns this frame's `TrackedPoint { u, v, person, part? }` in the surface's 0..1 bottom-left space, `parts` lists what a zone may filter on, `available()` says whether it is calibrated, `aspect()` gives true proportions for the editor, `acquire(owner)` keeps the source running while a zone listens (returns a release), and `calibrateAction` / `warning()` feed the zone editor, and optional `toWorld(u, v)` says where a surface point sits in the 3D scene (null while the provider's own overlay is off) so the zone owner draws zones on it. The zone engine (lidar-tracking) counts **distinct `person`s** with a qualifying point inside a zone; plugins never import each other — this registry is the only link. Persisted as `TrackingZone.surface` = `key`; a key no plugin provides is inert. | mediapipe (`POSE` — the camera interaction area) |
-| `videoCodecs` | `VideoCodecContribution` | A pluggable decoder for non-`<video>` file content (`canDecode`/`probe`/`openSurface`/`surfaceFrame`/`layerFrame`/`thumbnail`/…). | hap, mp4 |
+| `videoCodecs` | `VideoCodecContribution` | A pluggable decoder for non-`<video>` file content (`canDecode`/`probe`/`openSurface`/`surfaceFrame`/`layerFrame`/`thumbnail`/…), and — SDK v2 — what the native engine draws for its files (`nativeSource` / `nativeSourceAhead`, below). | hap, mp4 |
 | `projectorPanels` | `ProjectorPanelContribution` | A full-window React overlay mounted **in projector output windows** (pattern/crosshair/render), with a bidirectional bridge. | calibration |
 | `automationTargets` | `AutomationTargetProvider` | **Publishes automatable parameters into the core curve engine** — `enumerate()` the targets a plugin owns, `write()`/`writeFade()` the two override layers, `release()`/`releaseFade()` to hand a path back, `get()` (authored) / `getLive()` (what is actually sounding). This is how an audio lane on the timeline is *the same object* as any other lane. A target may also declare `display { unit, min, max }` — a linear map from storage onto the unit the operator reads (a Pan lane showing `270 deg` while storing `0.50`). It is read by the lane UI only: `min`/`max` are what `compileAutomation` **clamps** to and what reaches `write()`, so publishing the display range there would let a curve be drawn past the parameter's real limit. ⚠ Undocumented here until 2026-07-14 — the table listed 8 of the 9 registries. | audio |
 | `settings` | `SettingsSection` | A Preferences section (`{settings, onChange}` Component). The persisted field stays core; only the editor moves. | mp4 (Video) |
@@ -101,6 +101,32 @@ state there); `projectors.onMessage` only fires in the main window (it owns the 
 contextIsolation means a plugin can't add named preload methods, so all plugin IPC rides three generic
 forwarders — `pluginInvoke`/`pluginSend`/`pluginOn` (renderer) ↔ `ctx.ipc.{handle,on,send}` (main) —
 over channels namespaced `plugin:<ch>`. See PLUGINS.md → "The generic plugin IPC bridge".
+
+### SDK v2 — render contributions describe; the native engine draws
+
+The native engine (`plans/native-engine.md`) draws everything it can measure to be identical to the app, and
+the browser engine is on its way out (E6). A render contribution therefore has **two halves**, and only the
+second survives that deletion:
+
+- **The browser half** — `ContentSourceProvider.getDrawable`, `VideoCodecContribution.surfaceFrame` /
+  `layerFrame`, `ProjectorChannel.renderSource(gl)`: a canvas or a WebGL draw. Legacy; do not grow it.
+- **The engine half** — a DESCRIPTION, typed as **`NativeSource`** (`@artlux/sdk/renderer`): one variant per
+  kind the engine draws (`image`, `hap`, `mp4`, `spout`, `ndi`, `camera`, `effect`, `shader`, `raster`, `blobs`,
+  `comp`, `none`), or `{ kind: 'unsupported', why }`, which keeps that output on the app *with the reason
+  shown*. A content type answers with `nativeSource(key, content)` and, per frame, `nativeTick(key, content, t)`;
+  a picture only the app can draw (text) answers `{ kind: 'raster' }` and ships it with `nativeRaster`. A codec
+  answers for its own files with `nativeSource(path, frame?)` — `frame` being the app's own decoded frame, to
+  judge by (the mp4 codec checks its colour space) — and `nativeSourceAhead(path)` for a clip the app has not
+  decoded yet.
+
+Rules:
+
+- **Opt in per kind, by measurement.** Return a kind only for content the engine was measured to draw as the
+  app does (the parity tests in `scripts/test-*-parity.cjs`); everything else is `unsupported` with a sentence.
+- **The host owns paths.** Return the path the app plays; the host turns it into the file the engine opens.
+- **The list is closed.** A new kind is an engine change first (`runtime.rs doc`), then a variant here —
+  `verify:invariants` holds the SDK's kinds and the engine's parser equal, and fails core if it names a codec id
+  to decide what the engine draws.
 
 ### UI helpers — `useDraggable` (the only runtime export in `/renderer`)
 

@@ -9331,8 +9331,9 @@ check(
   'froze after the first loop (6 of 8 frames).',
   () => {
     const problems = [];
-    const c = raw('src/renderer/services/contentSource.ts');
-    if (!/if \(vf\.format !== 'NV12'\)/.test(c) || !/cs\?\.matrix === 'bt709' && cs\?\.fullRange === false && cs\?\.primaries === 'bt709'/.test(c)) problems.push('contentSource no longer limits the engine to the proven MP4 frames (8-bit NV12, BT.709 limited)');
+    // SDK v2 (E6d): the MP4 rule is the mp4 codec's own (VideoCodecContribution.nativeSource), no longer core's.
+    const c = raw('plugins/mp4/src/mp4Codec.ts');
+    if (!/if \(vf\.format !== 'NV12'\)/.test(c) || !/cs\?\.matrix === 'bt709' && cs\?\.fullRange === false && cs\?\.primaries === 'bt709'/.test(c)) problems.push('the mp4 codec no longer limits the engine to the proven MP4 frames (8-bit NV12, BT.709 limited)');
     if (!/durUs: info\.durationSec \* 1e6/.test(c)) problems.push('the MP4 source no longer carries the file duration the engine folds the loop with');
     const n = raw('src/renderer/engine/nativeLink.ts');
     if (!/mp4\[s\.id\] = g;/.test(n) || !/hap, mp4, ndi, (camfp, )?(shader, )?(blobs, )?(comp, times, )?lights/.test(n)) problems.push('the tick no longer carries each MP4 surface frame timestamp');
@@ -9644,6 +9645,39 @@ check(
     const at = fe.indexOf('  bakeTick(at: nativeLink.BakeAt = {}): string | null {');
     const bt = at < 0 ? '' : fe.slice(at, at + 1600);
     if (!bt.includes('nativeLink.bakeTick(') || /packAndPublish|mapper\./.test(bt)) problems.push('frameEngine.bakeTick must build the tick only — no sampling, nothing on the wire');
+    return problems.length ? problems.join('; ') : null;
+  },
+);
+
+check(
+  'SDK v2: the engine sources the SDK names are exactly the ones the engine draws, and a codec answers for its own files',
+  'E6d: a render contribution DESCRIBES its picture (`NativeSource`, @artlux/sdk/renderer) and the engine draws it ' +
+  '(runtime.rs `doc`). A kind in the SDK the engine does not parse is silently drawn as nothing; a kind the engine ' +
+  'parses that the SDK lacks cannot be asked for by a plugin. And the HAP / MP4 rules belong to their codecs: core ' +
+  'naming a codec id to decide what the engine draws is the hard-coding SDK v2 removes — a third codec would have ' +
+  'had to edit core.',
+  () => {
+    const problems = [];
+    const sdk = read('packages/sdk/src/renderer.ts');
+    const a = sdk.indexOf('export type NativeSource ='), b = sdk.indexOf('export type EngineSourceKind', a);
+    if (a < 0 || b < 0) return 'the NativeSource contract is gone from the SDK';
+    const kinds = new Set();
+    for (const m of sdk.slice(a, b).matchAll(/kind: ((?:'[a-z0-9]+'(?: \| )?)+)/g)) for (const k of m[1].matchAll(/'([a-z0-9]+)'/g)) kinds.add(k[1]);
+    kinds.delete('unsupported');
+    const rt = read('engine/artlux-engine/src/runtime.rs');
+    const s0 = rt.indexOf('let source = match src["kind"].as_str().unwrap_or("none") {');
+    const s1 = rt.indexOf('\n            };', s0);
+    if (s0 < 0 || s1 < 0) return 'the engine document parser moved (runtime.rs doc)';
+    const eng = new Set([...rt.slice(s0, s1).matchAll(/^\s+"([a-z0-9]+)" =>/gm)].map((m) => m[1]));
+    for (const k of kinds) if (!eng.has(k)) problems.push(`the SDK names '${k}' but the engine does not draw it`);
+    for (const k of eng) if (!kinds.has(k)) problems.push(`the engine draws '${k}' but the SDK cannot ask for it`);
+    const cs = read('src/renderer/services/contentSource.ts');
+    if (/codecId === '(hap|mp4-webcodecs)'|e\.codecId === '/.test(cs)) problems.push('core names a codec id to decide what the engine draws (ask the codec: VideoCodecContribution.nativeSource)');
+    if (!/export type \{ NativeSource \} from '@artlux\/sdk\/renderer';/.test(cs)) problems.push('core defines its own NativeSource instead of the SDK one');
+    for (const [f, id] of [['plugins/hap/src/hapCodec.ts', 'hap'], ['plugins/mp4/src/mp4Codec.ts', 'mp4']]) {
+      const t = read(f);
+      if (!/nativeSource: /.test(t) || !/nativeSourceAhead: /.test(t)) problems.push(`the ${id} codec no longer says what the engine draws for its files`);
+    }
     return problems.length ? problems.join('; ') : null;
   },
 );

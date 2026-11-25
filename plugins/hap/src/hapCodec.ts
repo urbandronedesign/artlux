@@ -13,6 +13,10 @@ const layerState = new Map<string, { index: number; canvas: hapGL.DecodeCanvas |
 
 export const hapCodec: VideoCodecContribution = {
   id: 'hap',
+  // SDK v2 (E6d): the engine reads the same file (hapimport.rs) and is told the frame index the app shows — or,
+  // ahead of the app (E3k), chooses it from the clip time. Any HAP the app plays, the engine draws.
+  nativeSource: (path) => ({ kind: 'hap', path }),
+  nativeSourceAhead: (path) => ({ kind: 'hap', path }),
   canDecode: (path) => hapDecode.isHapCandidate(path),           // .mov (the demux is ISO-BMFF)
   probe: async (path) => (await hapDecode.ensureOpen(path)) !== null, // open native + cache info, no playback
   probed: (path) => hapDecode.isHap(path),                        // true / false / undefined (probing)
