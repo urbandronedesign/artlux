@@ -125,7 +125,7 @@ encoder that wrote the file.
 The app renders it instead, as it always has, when:
 
 - **transparency is kept** — the matte file is still the app's;
-- the engine **does not draw that content** (a slice, a baked surface's own video, a live source);
+- the engine **does not draw that content** (a live source, or content it has not been measured on);
 - the native engine is off.
 
 Either way the file is the same kind of file: H.264 with a key frame every second, BT.709, AAC stereo sound.

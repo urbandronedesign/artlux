@@ -47,6 +47,7 @@ pub mod shader;
 pub mod blobs;
 pub mod comp;
 pub mod bakescale;
+pub mod crop;
 pub mod eval;
 pub mod transport;
 pub mod audio;

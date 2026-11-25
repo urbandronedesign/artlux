@@ -57,6 +57,8 @@ export type NativeSource =
   | { kind: 'unsupported'; why: string }
   // A shader (plugins/shader; engine shader.rs): the text the app is running, its header inputs, the raster size.
   | { kind: 'shader'; source: string; inputs: { name: string; glsl: string }[]; lastFrame: boolean; w: number; h: number; hold?: boolean }
+  // A rectangle of ANOTHER surface's picture (0..1 of it) — a SLICE surface; slices do not nest (E6f).
+  | { kind: 'slice'; of: string; rect: { x: number; y: number; w: number; h: number } }
   // A picture the app draws and ships when it changes (text first — nativeRaster below).
   | { kind: 'raster' }
   // Tracking blobs (lidar-tracking / Augmenta / mediapipe): the engine draws them from each tick's instances.

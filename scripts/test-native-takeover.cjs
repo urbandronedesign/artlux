@@ -104,6 +104,19 @@ if (CAMERA) {
   fs.writeFileSync(project, JSON.stringify(pj, null, 2));
 }
 const LIVE = CAMERA ? [4, 5, 6, 7] : [4, 5, 6];
+// E6f: two SLICES of the noise still — one on whole pixels (an exact copy: must be IDENTICAL), one fractional (the
+// canvas's bilinear drawImage against the engine's crop.rs: measured IDENTICAL here (RTX 5090), held within 1 —
+// another GPU's bilinear may round one level apart).
+{
+  const pj = JSON.parse(fs.readFileSync(project, 'utf8'));
+  pj.surfaces.push(
+    { id: 'sSl1', name: 'Slice whole', x: 0.52, y: 0.8, width: 0.2, height: 0.18, rotation: 0, zIndex: 6, content: { type: 'SLICE', sliceOf: 'sN', sliceRect: { x: 0.25, y: 0, w: 0.5, h: 0.5 }, opacity: 1 } },
+    { id: 'sSl2', name: 'Slice fractional', x: 0.76, y: 0.8, width: 0.2, height: 0.18, rotation: 0, zIndex: 7, content: { type: 'SLICE', sliceOf: 'sN', sliceRect: { x: 0.13, y: 0.21, w: 0.37, h: 0.44 }, opacity: 1 } });
+  pj.fixtures.push(
+    { id: 'fSl1', name: 'Slice whole strip', surfaceId: 'sSl1', x: 0.53, y: 0.88, width: 0.18, height: 0.01, rotation: 0, ledCount: 150, universe: 8, startAddress: 1, colorOrder: 'RGB', channelsPerPixel: 3 },
+    { id: 'fSl2', name: 'Slice fractional strip', surfaceId: 'sSl2', x: 0.77, y: 0.88, width: 0.18, height: 0.01, rotation: 0, ledCount: 150, universe: 9, startAddress: 1, colorOrder: 'RGB', channelsPerPixel: 3 });
+  fs.writeFileSync(project, JSON.stringify(pj, null, 2));
+}
 // The mean absolute difference of two payloads (levels per channel).
 const mad = (x, y) => { let s = 0; for (let i = 0; i < x.length; i++) s += Math.abs(x[i] - y[i]); return s / x.length; };
 
@@ -211,7 +224,7 @@ setInterval(() => a.sendFrame('t', w, h, px), 33);`);
     await sleep(6000);
     await settle();
     const A = packets.splice(0);
-    const ref = { 0: lastOf(A, 0), 1: lastOf(A, 1), 2: lastOf(A, 2), 3: lastOf(A, 3), 4: lastOf(A, 4), 5: lastOf(A, 5) };
+    const ref = { 0: lastOf(A, 0), 1: lastOf(A, 1), 2: lastOf(A, 2), 3: lastOf(A, 3), 4: lastOf(A, 4), 5: lastOf(A, 5), 8: lastOf(A, 8), 9: lastOf(A, 9) };
     ok(ref[5] && ref[5].some((b) => b > 0), `A. the NDI surface is on it (universe 5 lit: ${!!ref[5]?.some((b) => b > 0)})`);
     const appMp4 = [...new Map(A.filter((p) => p.u === 6).map((p) => [p.data.toString('hex'), p.data])).values()];
     ok(appMp4.length >= 4 && appMp4.some((d) => d.some((b) => b > 0)), `A. the MP4 surface is on it and MOVES (universe 6: ${appMp4.length} distinct payloads)`);
@@ -247,12 +260,20 @@ setInterval(() => a.sendFrame('t', w, h, px), 33);`);
     const sendersB = new Set(after.map(who));
     for (const u of [0, 1]) { const t = after.filter((p) => p.u === u).slice(-60); console.log(`     run B universe ${u}: ${new Set(t.map((p) => p.data.toString('hex'))).size} distinct payloads in the engine's last ${t.length} packets`); }
     ok(after.length > 50 && sendersB.size === 1 && sendersB.has('engine'), `B. after the handover only the engine sends (${after.length} packets: ${[...sendersB].join(', ')})`);
-    for (const u of [0, 1, 2, 3, 4, 5]) {
+    for (const u of [0, 1, 2, 3, 4, 5, 8]) {
       const got = lastOf(after, u);
       if (got) fs.writeFileSync(path.join(WORK, `engine-u${u}.bin`), got);
       if (ref[u]) fs.writeFileSync(path.join(WORK, `app-u${u}.bin`), ref[u]);
       if (got && ref[u]) { let nd = 0, mx = 0; for (let i = 0; i < got.length; i++) { const d = Math.abs(got[i] - ref[u][i]); if (d) nd++; mx = Math.max(mx, d); } console.log(`     universe ${u}: ${nd} of ${got.length} channels differ, max ${mx}`); }
+      if (u === 8) ok(!!ref[8]?.some((b) => b > 0), 'A. the whole-pixel SLICE is on the wire (universe 8 lit)');
       ok(got && ref[u] && Buffer.compare(got, ref[u]) === 0, `B. universe ${u}: the engine's bytes ${got && ref[u] && Buffer.compare(got, ref[u]) === 0 ? 'are IDENTICAL to the app\'s' : 'DIFFER from the app\'s'} (${got?.length} channels)`);
+    }
+    {
+      // E6f: the FRACTIONAL slice — the canvas's bilinear against the engine's.
+      const got = lastOf(after, 9);
+      let mx = 999, nd = 0;
+      if (got && ref[9]) { mx = 0; for (let i = 0; i < got.length; i++) { const d = Math.abs(got[i] - ref[9][i]); if (d) nd++; mx = Math.max(mx, d); } }
+      ok(!!ref[9]?.some((b) => b > 0) && mx <= 1, `B. universe 9 (a FRACTIONAL slice): ${nd} of ${got?.length} channels differ from the app's, by at most ${mx}`);
     }
 
     {

@@ -2422,6 +2422,15 @@ fallback until a source/output is proven byte-identical — risk 2):
 > `film-rebake.mp4` and the effect surface as `fx-app.mp4` (the APP's own bake passes the colour judgement too), and
 > the engine owns the wire. `verify:invariants`: the description, the tick's frame, the matte refusal.
 
+> ✅ **E6f (slices) done 2026-11-25 — A SLICE SURFACE IS CUT BY THE ENGINE.** `{ kind: 'slice', of, rect }` (SDK
+> `NativeSource`, runtime.rs parser — the SDK v2 guard holds both): the rectangle of the source surface's shown picture
+> at the app's size round(w·r.w) × round(h·r.h), sampled as the app's canvas `drawImage` does — Skia's default
+> smoothing: bilinear from the full-size level (`crop.rs`, `textureSampleLevel` 0); re-cut only when the source's
+> generation, the rectangle or the size changes. The source passes the verdict like a sampled surface; a source the
+> engine refuses leaves the slice to the app with its reason; no source / itself / a slice of a slice = nothing, as
+> the app. `test:native-takeover` + two slices of the noise still: whole pixels universe 8 **identical**, fractional
+> (0.13, 0.21, 0.37 × 0.44) universe 9 **identical** too (held within 1 for other GPUs); the rest unchanged.
+
 ## 9d. E4 started early — the 3D view in the engine (owner, 2026-11-24)
 
 > **Owner, 2026-11-24: "start E4's 3D now"** — for the detachable 3D view (plans/3d-workbench.md §5/Phase 4),

@@ -9674,6 +9674,12 @@ check(
     const cs = read('src/renderer/services/contentSource.ts');
     if (/codecId === '(hap|mp4-webcodecs)'|e\.codecId === '/.test(cs)) problems.push('core names a codec id to decide what the engine draws (ask the codec: VideoCodecContribution.nativeSource)');
     if (!/export type \{ NativeSource \} from '@artlux\/sdk\/renderer';/.test(cs)) problems.push('core defines its own NativeSource instead of the SDK one');
+    // E6f: a SLICE is cut by the engine as the app's canvas cuts it — level 0, bilinear (Skia's default smoothing);
+    // its source passes the verdict like a sampled surface; a source the engine refuses leaves the slice to the app.
+    const cr = read('engine/artlux-engine/src/crop.rs');
+    if (!/textureSampleLevel\(tex, samp, u\.off \+ v\.uv \* u\.scale, 0\.0\)/.test(cr) || !/mag_filter: wgpu::FilterMode::Linear, min_filter: wgpu::FilterMode::Linear, \.\.Default::default\(\)/.test(cr)) problems.push('a slice is no longer sampled as the app canvas does (bilinear, full-size level only)');
+    if (!/if !sampled\.iter\(\)\.any\(\|x\| x == of\) \{ sampled\.push\(of\.to_string\(\)\); \}/.test(read('engine/artlux-engine/src/runtime.rs'))) problems.push('the source of a slice no longer passes the engine verdict (a source it cannot draw would be drawn black)');
+    if (!/if \(inner\.kind === 'unsupported'\) return \{ kind: 'unsupported', why: `a slice of/.test(read('src/renderer/services/surfaceMedia.ts'))) problems.push('a slice of a source the engine does not draw would go to the engine');
     // E6f: a surface playing its bake is the bake's MP4 to the engine, at the bake decoder's own frame; a transparent
     // bake (matte recombined in the browser) stays the app's.
     const sm = read('src/renderer/services/surfaceMedia.ts');

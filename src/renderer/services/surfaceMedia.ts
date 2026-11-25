@@ -231,6 +231,21 @@ export function getDrawableGeneration(s: Surface): number | undefined {
   return contentSource.getDrawableGeneration(s.id, s.content);
 }
 
+/**
+ * E6f — A SLICE as the engine cuts it (engine crop.rs): its source surface and rectangle, under the same rules as
+ * sliceDrawable — no source, itself, or a slice of a slice shows nothing. A source the engine does not draw leaves
+ * the slice to the app too, with the source's reason.
+ */
+function sliceNativeSource(s: Surface): contentSource.NativeSource {
+  const srcId = s.content.sliceOf;
+  if (!srcId || srcId === s.id) return { kind: 'none' };
+  const src = byId.get(srcId);
+  if (!src || src.content.type === SourceType.SLICE) return { kind: 'none' };
+  const inner = nativeSource(src);
+  if (inner.kind === 'unsupported') return { kind: 'unsupported', why: `a slice of '${src.name}': ${inner.why}` };
+  return { kind: 'slice', of: srcId, rect: clampRect(s.content.sliceRect ?? FULL_RECT) };
+}
+
 /** E6f: the frame timestamp the engine draws an MP4 surface at — a live bake's own decoder's, else the surface's. */
 export function nativeGeneration(s: Surface): number | undefined {
   const t = s.content.type === SourceType.LAYER || s.content.type === SourceType.PROGRAM ? timeline.getPlayhead() : timeline.getShowTime();
@@ -247,7 +262,7 @@ export function nativeSource(s: Surface): contentSource.NativeSource {
   const bake = bakeStore.nativeFor(s, t, timeline.activePoolKey());
   if (bake) return 'why' in bake.source ? { kind: 'unsupported', why: bake.source.why } : contentSource.codecClipNativeSource(bake.source.codecId, bake.source.path, bake.source.frame);
   if (s.content.type === SourceType.LAYER || s.content.type === SourceType.PROGRAM) return compositeNativeSource(s);
-  if (s.content.type === SourceType.SLICE) return { kind: 'unsupported', why: 'a SLICE surface is composed in the browser' };
+  if (s.content.type === SourceType.SLICE) return sliceNativeSource(s);
   return contentSource.nativeSource(s.id, s.content);
 }
 

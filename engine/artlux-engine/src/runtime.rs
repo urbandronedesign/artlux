@@ -34,7 +34,7 @@ use std::sync::Arc;
 struct CompSpec { w: u32, h: u32, single: bool, layers: Vec<(String, f32, String, Option<crate::eval::ClipTime>, crate::eval::Track)> }
 
 #[derive(PartialEq)]
-enum Source { Image(String), Effect(Params), Hap(String), Spout(String), Ndi(String), Mp4(String, i64), Camera(CamSpec), Shader(crate::shader::Spec), Raster, Blobs(u32, u32), Comp(CompSpec), None }
+enum Source { Slice(String, [f64; 4]), Image(String), Effect(Params), Hap(String), Spout(String), Ndi(String), Mp4(String, i64), Camera(CamSpec), Shader(crate::shader::Spec), Raster, Blobs(u32, u32), Comp(CompSpec), None }
 
 /// Item 2d step 5: a camera surface as the host describes it — the app's track label (which camera), the
 /// colour space of the app's own VideoFrames (what the engine's picture is held to — cam::picture), and
@@ -178,6 +178,9 @@ pub struct Runtime {
     /// E4b: what every light is doing this tick (lightpack Head::resolve), for the 3D view's beams — resolved only
     /// while a view is open, from the same stack its bytes were packed with.
     light_beams: HashMap<String, crate::lightpack::Beam>,
+    /// E6f: the slice cutter, and what each slice was last cut from (source generation, rectangle, size).
+    cropper: Option<crate::crop::Cropper>,
+    slice_keys: HashMap<String, String>,
     /// E6a: the bake in flight — one surface drawn at the app's stepped clock and encoded here (encode.rs).
     #[cfg(windows)]
     bake: Option<Bake>,
@@ -202,7 +205,7 @@ impl Runtime {
             #[cfg(feature = "ndi")] ndis: HashMap::new(),
             #[cfg(windows)] mp4s: HashMap::new(), conv: None,
             #[cfg(windows)] cams: HashMap::new(), resolved: HashMap::new(), pending_cams: HashMap::new(), last_doc: None, redo: false,
-            view: None, view_scene_ver: 0, view_published: HashMap::new(), view_colors_gen: 0, view_last_summary: String::new(), clock_diffs: 0, transport: Default::default(), draw_at: None, draw_stats: (0, 0, 0), draw_max_step: 0, comp_draw: (0, 0), vids: HashMap::new(), frame_agree: (0, 0), clock_ticks: 0, comp_sub: HashMap::new(), next_drawn: 0, handovers: 0, clip_bad: Default::default(), src_paths: HashMap::new(), judge: Default::default(), clock_rev: 0, lanes: Vec::new(), auto_fx: HashMap::new(), auto_diffs: 0, auto_ticks: 0, show: Default::default(), light_diffs: 0, light_ticks: 0, rig: None, light_fix: HashMap::new(), byte_diffs: 0, byte_ticks: 0, light_solved: HashMap::new(), light_beams: HashMap::new(),
+            view: None, view_scene_ver: 0, view_published: HashMap::new(), view_colors_gen: 0, view_last_summary: String::new(), clock_diffs: 0, transport: Default::default(), draw_at: None, draw_stats: (0, 0, 0), draw_max_step: 0, comp_draw: (0, 0), vids: HashMap::new(), frame_agree: (0, 0), clock_ticks: 0, comp_sub: HashMap::new(), next_drawn: 0, handovers: 0, clip_bad: Default::default(), src_paths: HashMap::new(), judge: Default::default(), clock_rev: 0, lanes: Vec::new(), auto_fx: HashMap::new(), auto_diffs: 0, auto_ticks: 0, show: Default::default(), light_diffs: 0, light_ticks: 0, rig: None, light_fix: HashMap::new(), byte_diffs: 0, byte_ticks: 0, light_solved: HashMap::new(), light_beams: HashMap::new(), cropper: None, slice_keys: HashMap::new(),
             #[cfg(windows)] bake: None }
     }
 
@@ -259,6 +262,34 @@ impl Runtime {
         let t = self.compositor.as_ref().unwrap().render(&self.gpu, spec.w, spec.h, &layers);
         self.pictures.insert(sid.to_string(), Picture::gpu_frame(spec.w, spec.h, t, [0, 0, spec.w, spec.h]));
         self.gen += 1; self.gens.insert(sid.to_string(), self.gen << 2 | 2);
+    }
+
+    /// E6f — a SLICE: the rectangle `r` (0..1 of the source's shown picture) of surface `of`'s picture, at the app's size
+    /// round(w·r.w) × round(h·r.h), sampled as the app's canvas does (crop.rs). Re-cut only when the source's picture,
+    /// the rectangle or the size changed; no source picture = nothing (black, as the app shows).
+    fn slice(&mut self, sid: &str, of: &str, r: [f64; 4]) {
+        let Some(p) = self.pictures.get(of) else { self.pictures.remove(sid); return };
+        let gen = self.gens.get(of).copied().unwrap_or(0);
+        let [vx, vy, vw, vh] = p.crop.unwrap_or([0, 0, p.w, p.h]);
+        let (dw, dh) = (((vw as f64 * r[2]).round() as u32).max(1), ((vh as f64 * r[3]).round() as u32).max(1));
+        let key = format!("{gen}|{r:?}|{vw}x{vh}");
+        if self.slice_keys.get(sid) == Some(&key) && self.pictures.contains_key(sid) { return; }
+        let src = match &p.tex {
+            Some(t) => t.clone(),
+            None => {
+                // A CPU picture is uploaded once per generation (stills: once), level 0 only.
+                if self.comp_tex.get(of).map(|e| e.0) != Some(gen) {
+                    self.comp_tex.insert(of.to_string(), (gen, crate::projector::content_texture(&self.gpu, p.w, p.h, &p.rgba)));
+                }
+                self.comp_tex[of].1.clone()
+            }
+        };
+        if self.cropper.is_none() { self.cropper = Some(crate::crop::Cropper::new(&self.gpu)); }
+        let rect = [vx as f64 + r[0] * vw as f64, vy as f64 + r[1] * vh as f64, r[2] * vw as f64, r[3] * vh as f64];
+        let tex = self.cropper.as_ref().unwrap().crop(&self.gpu, &src, rect, dw, dh);
+        self.pictures.insert(sid.to_string(), Picture::gpu_frame(dw, dh, tex, [0, 0, dw, dh]));
+        self.gen += 1; self.gens.insert(sid.to_string(), self.gen << 2 | 2);
+        self.slice_keys.insert(sid.to_string(), key);
     }
 
     /// E2: `{"type":"raster","surface","gen","w","h","path"}` — a picture the app drew (main wrote its straight-
@@ -475,6 +506,8 @@ impl Runtime {
                     layers: src["layers"].as_array().into_iter().flatten().map(|l| (l["key"].as_str().unwrap_or_default().to_string(), l["opacity"].as_f64().unwrap_or(1.0) as f32, l["blend"].as_str().unwrap_or("normal").to_string(), crate::eval::ClipTime::from_json(&l["clip"]), crate::eval::Track::from_json(l))).collect(),
                 }),
                 "blobs" => Source::Blobs(src["w"].as_u64().unwrap_or(1920).clamp(2, 4096) as u32, src["h"].as_u64().unwrap_or(1024).clamp(2, 4096) as u32),
+                // E6f: a rectangle of ANOTHER surface's picture (x, y, w, h of it, 0..1) — drawn after every other source.
+                "slice" => Source::Slice(src["of"].as_str().unwrap_or_default().to_string(), [src["rect"]["x"].as_f64().unwrap_or(0.0), src["rect"]["y"].as_f64().unwrap_or(0.0), src["rect"]["w"].as_f64().unwrap_or(1.0), src["rect"]["h"].as_f64().unwrap_or(1.0)]),
                 "none" => Source::None,
                 _ => Source::None,
             };
@@ -591,11 +624,17 @@ impl Runtime {
         if !d["outputEnabled"].as_bool().unwrap_or(false) { return Err("output is off".into()); }
         // E1f-2: lights are DRIVEN — their bytes come in each tick. Which fixtures are lights is the host's
         // call (services/fixtureKind.ts), sent as `lights`; the engine never infers it from a profileId.
-        let sampled: Vec<String> = layout::surface_order(&doc.lfix, &doc.surfaces);
+        let mut sampled: Vec<String> = layout::surface_order(&doc.lfix, &doc.surfaces);
+        // E6f: a slice draws its SOURCE surface — which must pass the same verdict, fixture or not.
+        for sid in sampled.clone() {
+            if let Some(of) = d["sources"][&sid]["of"].as_str().filter(|_| d["sources"][&sid]["kind"] == "slice") {
+                if !sampled.iter().any(|x| x == of) { sampled.push(of.to_string()); }
+            }
+        }
         for sid in &sampled {
             let src = &d["sources"][sid];
             match src["kind"].as_str() {
-                Some("image") | Some("effect") | Some("hap") | Some("spout") | Some("none") | Some("raster") | Some("blobs") => {}
+                Some("image") | Some("effect") | Some("hap") | Some("spout") | Some("none") | Some("raster") | Some("blobs") | Some("slice") => {}
                 // E3a: every track of the composite must be a kind the engine draws; stills are loaded here.
                 Some("comp") => {
                     for l in src["layers"].as_array().into_iter().flatten() {
@@ -1262,12 +1301,16 @@ impl Runtime {
                     self.gen += 1; self.gens.insert(sid.clone(), self.gen << 2 | 2);
                 }
                 Source::Comp(_) => {}   // composited below, once its tracks are drawn
+                Source::Slice(..) => {}  // E6f: cut below, once every other picture is drawn
                 Source::None => { self.pictures.remove(sid); }
             }
         }
         // E3a: the timeline composites, from the tracks' pictures drawn above (comp.rs).
         let comps: Vec<(String, CompSpec)> = doc.sources.iter().filter_map(|(k, s)| if let Source::Comp(c) = s { Some((k.clone(), c.clone())) } else { None }).collect();
         for (sid, spec) in comps { self.composite(&sid, &spec, v); }
+        // E6f: the slices, from the pictures drawn above (a slice of a composite included; slices do not nest).
+        let slices: Vec<(String, String, [f64; 4])> = doc.sources.iter().filter_map(|(k, s)| if let Source::Slice(of, r) = s { Some((k.clone(), of.clone(), *r)) } else { None }).collect();
+        for (sid, of, r) in slices { self.slice(&sid, &of, r); }
         // Twin cameras waiting for the app's picture: resolve with the fingerprint this tick carries, then the
         // document is answered AGAIN (serve.rs) — the engine may own it now.
         #[cfg(windows)]
