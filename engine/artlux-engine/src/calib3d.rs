@@ -18,8 +18,15 @@
 //!     (modelScreens.flippedUv, f32 on the CPU) — both written as three computes them;
 //!   - projected mapping: projectedMapping.ts BODY_VERT / BODY_FRAG (vProjPos from the vertex stage, the edge ramp,
 //!     the facing test, the repeat/offset by hand). Its material is FRONT-sided (the authored one is double-sided).
+//!   - the POST PASS (E6f step 2): ProjectorScene's EffectComposer, mounted for a lens distortion or a blend look — the
+//!     scene then renders LINEAR into an 8× MSAA half-float buffer (@react-three/postprocessing's defaults:
+//!     multisampling 8, HalfFloatType; three writes no OETF into a linear render target), resolved, and ONE merged
+//!     EffectPass draws postprocessing's fullscreen triangle: DistortionEffect's mainUv bends the lookup, the input is
+//!     read there (LinearFilter, clamp), BlendEffect's mainImage applies the soft edge / rig blend / gain / lift in
+//!     PHYSICAL raster space (gl_FragCoord), the NORMAL blend at opacity 1 keeps it, then three's OETF into the 8-bit
+//!     canvas. POST below, line for line from ProjectorScene's distortFrag / blendFrag and blendGlsl.ts.
 //! Not drawn yet (the host refuses them, with the reason): a mesh's own lit material, a timeline layer, occlusion,
-//! lens distortion, the blend pass, a residual warp.
+//! a residual warp.
 
 use crate::compose::Picture;
 use crate::Gpu;
@@ -29,6 +36,9 @@ use std::sync::mpsc::{channel, Receiver, Sender};
 use std::sync::Arc;
 
 pub const SAMPLES: u32 = 4;
+/// The post pass's scene buffer: EffectComposer's `multisampling` default, in its HalfFloatType.
+pub const POST_SAMPLES: u32 = 8;
+const LINEAR: wgpu::TextureFormat = wgpu::TextureFormat::Rgba16Float;
 const DEPTH: wgpu::TextureFormat = wgpu::TextureFormat::Depth24Plus;
 const OBJ_STRIDE: u64 = 256;
 
@@ -48,9 +58,48 @@ pub enum Geo { Plane { w: f64, h: f64 }, Glb { path: String } }
 #[derive(Clone, Debug)]
 pub struct Model { pub id: String, pub geo: Geo, pub meshes: Vec<Xf>, pub src: Vec<Src>, pub mesh_src: Vec<i32> }
 
+/// The blend look, as BlendEffect's uniforms (renderLook.blendValues): soft edge l r t b, gamma, gain, lift, and the
+/// solved rig blend's two 8-bit grids (w, h, alpha, black) — absent, BlendEffect binds white 1×1 and uHasBlend 0.
+#[derive(Clone, Debug)]
+pub struct Blend { pub soft: [f32; 4], pub gamma: f32, pub gain: [f32; 3], pub lift: [f32; 3], pub map: Option<(u32, u32, Vec<u8>, Vec<u8>)>, pub key: u64 }
+
+/// The post pass: DistortionEffect's values (fx fy cx cy k1 k2 k3 p1 p2 — renderLook.distortionValues) and/or the blend.
+#[derive(Clone, Debug)]
+pub struct Post { pub dist: Option<[f32; 9]>, pub blend: Option<Blend> }
+
 /// A calibrated output's venue, from the document's `calib`.
 #[derive(Clone, Debug)]
-pub struct View { pub proj: [f32; 16], pub models: Vec<Model> }
+pub struct View { pub proj: [f32; 16], pub models: Vec<Model>, pub post: Option<Post> }
+
+fn fl<const N: usize>(v: &Value) -> Option<[f32; N]> {
+    let a = v.as_array()?;
+    if a.len() != N { return None; }
+    let mut m = [0f32; N];
+    for (i, x) in a.iter().enumerate() { m[i] = x.as_f64()? as f32; }
+    Some(m)
+}
+
+fn bytes(v: &Value) -> Option<Vec<u8>> { v.as_array()?.iter().map(|x| x.as_u64().map(|b| b.min(255) as u8)).collect() }
+
+fn post_of(v: &Value) -> Option<Post> {
+    if !v.is_object() { return None; }
+    let dist = fl::<9>(&v["dist"]);
+    let blend = v["blend"].as_object().and_then(|b| {
+        let map = b.get("map").and_then(|m| {
+            let (w, h) = (m["w"].as_u64()? as u32, m["h"].as_u64()? as u32);
+            let (a, k) = (bytes(&m["alpha"])?, bytes(&m["black"])?);
+            let n = (w.max(1) * h.max(1)) as usize;
+            if a.len() != n || k.len() != n { return None; }
+            Some((w.max(1), h.max(1), a, k))
+        });
+        use std::hash::{Hash, Hasher};
+        let mut hs = std::collections::hash_map::DefaultHasher::new();
+        map.hash(&mut hs);
+        Some(Blend { soft: fl::<4>(b.get("soft")?)?, gamma: b.get("gamma")?.as_f64()? as f32, gain: fl::<3>(b.get("gain")?)?, lift: fl::<3>(b.get("lift")?)?, map, key: hs.finish() })
+    });
+    if dist.is_none() && blend.is_none() { return None; }
+    Some(Post { dist, blend })
+}
 
 fn m16(v: &Value) -> Option<[f32; 16]> {
     let a = v.as_array()?;
@@ -92,7 +141,7 @@ impl View {
                 _ => return None,
             }
         }
-        Some(View { proj, models })
+        Some(View { proj, models, post: post_of(&v["post"]) })
     }
     /// The surfaces it shows (the presenters need their pictures).
     pub fn surfaces(&self) -> Vec<String> {
@@ -165,6 +214,93 @@ fn oetf(v: vec3<f32>) -> vec3<f32> {
   let c = s.rgb * vis;
   return vec4<f32>(oetf(c), s.a);
 }
+
+// The same material into the post pass's LINEAR render target: three applies no OETF there.
+@fragment fn fs_lin(i: VOut) -> @location(0) vec4<f32> {
+  var uv = i.uv;
+  var vis = 1.0;
+  if (obj.pf.x > 0.5) {
+    if (i.ppos.w <= 0.0) { vis = 0.0; }
+    let ndc = i.ppos.xyz / max(i.ppos.w, 1e-6);
+    uv = vec2<f32>(ndc.x * 0.5 + 0.5, ndc.y * 0.5 + 0.5);
+    uv = uv * vec2<f32>(1.0, -1.0) + vec2<f32>(0.0, 1.0);
+    let e = max(obj.pe.w, 1e-4);
+    let ix = 1.0 - smoothstep(1.0 - e, 1.0, abs(ndc.x));
+    let iy = 1.0 - smoothstep(1.0 - e, 1.0, abs(ndc.y));
+    vis = vis * ix * iy * step(abs(ndc.z), 1.0);
+    let ndl = dot(normalize(i.pnrm), normalize(obj.pe.xyz - i.pworld));
+    vis = vis * mix(1.0, step(0.0, ndl), obj.pf.y);
+  }
+  let s = textureSample(tex, samp, uv);
+  return vec4<f32>(s.rgb * vis, s.a);
+}
+"#;
+
+// THE POST PASS — postprocessing's EffectPass as it merges ProjectorScene's two effects (effect.frag + effect.vert,
+// DistortionEffect's mainUv, BlendEffect's mainImage, blendGlsl.ts's ramp), written out in the same order.
+// u.res = (w, h, distort?, blend?); focal = (fx, fy, cx, cy); radial = (k1, k2, k3, _); tang = (p1, p2, gamma, hasMap).
+const POST: &str = r#"
+struct U { res: vec4<f32>, focal: vec4<f32>, radial: vec4<f32>, tang: vec4<f32>, soft: vec4<f32>, gain: vec4<f32>, lift: vec4<f32> };
+@group(0) @binding(0) var inp: texture_2d<f32>;
+@group(0) @binding(1) var samp: sampler;
+@group(0) @binding(2) var btex: texture_2d<f32>;
+@group(0) @binding(3) var ktex: texture_2d<f32>;
+@group(0) @binding(4) var<uniform> u: U;
+
+struct VO { @builtin(position) pos: vec4<f32>, @location(0) uv: vec2<f32> };
+
+// postprocessing's fullscreen triangle (-1,-1) (3,-1) (-1,3); effect.vert: vUv = position.xy * 0.5 + 0.5,
+// gl_Position = vec4(position.xy, 1.0, 1.0) — then ANGLE's y negate (the bottom-up raster) and depth remap.
+@vertex fn vs(@builtin(vertex_index) i: u32) -> VO {
+  var p = vec2<f32>(-1.0, -1.0);
+  if (i == 1u) { p = vec2<f32>(3.0, -1.0); } else if (i == 2u) { p = vec2<f32>(-1.0, 3.0); }
+  var o: VO;
+  o.uv = p * 0.5 + 0.5;
+  o.pos = vec4<f32>(p.x, -p.y, 1.0, 1.0);
+  return o;
+}
+
+// blendGlsl.ts SOFT_EDGE_GLSL.
+fn softEdgeFeather(d: f32, w: f32) -> f32 { return select(clamp(d / w, 0.0, 1.0), 1.0, w <= 0.0); }
+fn softEdgeShare(uv: vec2<f32>, s: vec4<f32>) -> f32 {
+  return softEdgeFeather(uv.x, s.x) * softEdgeFeather(1.0 - uv.x, s.y)
+       * softEdgeFeather(uv.y, s.z) * softEdgeFeather(1.0 - uv.y, s.w);
+}
+fn blendSignal(share: f32, g: f32) -> f32 { return pow(max(share, 0.0), 1.0 / max(g, 0.1)); }
+// ProjectorScene blendFrag.
+fn blendEncodeSRGB(c0: vec3<f32>) -> vec3<f32> { let c = max(c0, vec3<f32>(0.0)); return mix(c * 12.92, 1.055 * pow(c, vec3<f32>(1.0 / 2.4)) - 0.055, step(vec3<f32>(0.0031308), c)); }
+fn blendDecodeSRGB(c0: vec3<f32>) -> vec3<f32> { let c = max(c0, vec3<f32>(0.0)); return mix(c / 12.92, pow((c + 0.055) / 1.055, vec3<f32>(2.4)), step(vec3<f32>(0.04045), c)); }
+// three's sRGBTransferOETF (colorspace_fragment, ENCODE_OUTPUT).
+fn oetf(v: vec3<f32>) -> vec3<f32> {
+  return mix(pow(v, vec3<f32>(0.41666)) * 1.055 - vec3<f32>(0.055), v * 12.92, vec3<f32>(v <= vec3<f32>(0.0031308)));
+}
+
+@fragment fn fs(i: VO) -> @location(0) vec4<f32> {
+  var uv = i.uv;
+  if (u.res.z > 0.5) {
+    // DistortionEffect mainUv.
+    let px = uv * u.res.xy;
+    let nd = (px - u.focal.zw) / u.focal.xy;
+    let r2 = dot(nd, nd);
+    let radial = 1.0 + u.radial.x * r2 + u.radial.y * r2 * r2 + u.radial.z * r2 * r2 * r2;
+    let dt = vec2<f32>(2.0 * u.tang.x * nd.x * nd.y + u.tang.y * (r2 + 2.0 * nd.x * nd.x),
+                       u.tang.x * (r2 + 2.0 * nd.y * nd.y) + 2.0 * u.tang.y * nd.x * nd.y);
+    let ndd = nd * radial + dt;
+    uv = (ndd * u.focal.xy + u.focal.zw) / u.res.xy;
+  }
+  var color0 = textureSampleLevel(inp, samp, uv, 0.0);
+  if (u.res.w > 0.5) {
+    // BlendEffect mainImage — in physical raster space (gl_FragCoord), v = 0 at the TOP.
+    let suv = vec2<f32>(i.pos.x / u.res.x, 1.0 - i.pos.y / u.res.y);
+    let share = softEdgeShare(suv, u.soft) * mix(1.0, textureSampleLevel(btex, samp, suv, 0.0).r, u.tang.w);
+    let a = blendSignal(share, u.tang.z);
+    let blackW = mix(1.0 - a, textureSampleLevel(ktex, samp, suv, 0.0).r, u.tang.w);
+    let signal = blendEncodeSRGB(color0.rgb) * a * u.gain.rgb + u.lift.rgb * blackW;
+    color0 = vec4<f32>(blendDecodeSRGB(signal), color0.a);
+  }
+  color0.a = clamp(color0.a, 0.0, 1.0);
+  return vec4<f32>(oetf(color0.rgb), color0.a);
+}
 "#;
 
 // PATH C (ProjectorApp): with no residual warp the scene's canvas IS the output, and the output's brightness × the
@@ -187,6 +323,8 @@ struct U { q: vec4<f32> };
 "#;
 
 struct GpuMesh { vb: wgpu::Buffer, ib: wgpu::Buffer, n: u32 }
+/// What the post pass reads: (w, h, blend key) it was made for, and its bind group.
+struct PostBind { key: (u32, u32, u64), bind: wgpu::BindGroup, _texs: Vec<wgpu::Texture> }
 enum GlbState { Loading, Ready(Vec<Option<GpuMesh>>), Failed }
 type Loaded = (String, Result<crate::view3d::CpuGlb, String>);
 
@@ -194,6 +332,13 @@ type Loaded = (String, Result<crate::view3d::CpuGlb, String>);
 pub struct Renderer {
     pipe_double: wgpu::RenderPipeline,
     pipe_front: wgpu::RenderPipeline,
+    /// The same into the post pass's linear 8× buffer.
+    lin_double: wgpu::RenderPipeline,
+    lin_front: wgpu::RenderPipeline,
+    post_samples: u32,
+    post_pipe: wgpu::RenderPipeline,
+    post_buf: wgpu::Buffer,
+    post_bind: Option<PostBind>,
     cam_buf: wgpu::Buffer,
     cam_bind: wgpu::BindGroup,
     obj_layout: wgpu::BindGroupLayout,
@@ -206,7 +351,8 @@ pub struct Renderer {
     loaded_rx: Receiver<Loaded>,
     /// surface id → (picture generation, its texture's sRGB bindings)
     texs: HashMap<String, (u64, wgpu::BindGroup)>,
-    targets: Option<(u32, u32, wgpu::TextureView, wgpu::TextureView)>,
+    /// (w, h, post?, the MSAA colour, its depth, the resolved linear picture the post pass reads)
+    targets: Option<(u32, u32, bool, wgpu::TextureView, wgpu::TextureView, Option<wgpu::TextureView>)>,
     /// Path C's dim: its pipeline and uniform, and the resolved picture it reads (made at the target's size).
     dim_pipe: wgpu::RenderPipeline,
     dim_buf: wgpu::Buffer,
@@ -242,23 +388,38 @@ impl Renderer {
             wgpu::BindGroupLayoutEntry { binding: 1, visibility: wgpu::ShaderStages::FRAGMENT, ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering), count: None },
         ] });
         let layout = d.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor { label: Some("calib3d"), bind_group_layouts: &[Some(&cam_layout), Some(&obj_layout), Some(&tex_layout)], immediate_size: 0 });
-        let mk = |cull: Option<wgpu::Face>| d.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+        // EffectComposer asks 8 samples; three clamps to the context's MAX_SAMPLES (8 on a desktop D3D11 GPU). wgpu
+        // offers 8 only with the adapter-specific format features — where it cannot, 4 (logged: the edges then differ).
+        let ok8 = d.features().contains(wgpu::Features::TEXTURE_ADAPTER_SPECIFIC_FORMAT_FEATURES)
+            && [LINEAR, DEPTH].iter().all(|f| gpu.adapter.get_texture_format_features(*f).flags.sample_count_supported(POST_SAMPLES));
+        let post_samples = if ok8 { POST_SAMPLES } else { eprintln!("artlux-engine: output '{out_id}': no 8x MSAA here — the post pass's edges use 4x"); SAMPLES };
+        let mk = |cull: Option<wgpu::Face>, fmt: wgpu::TextureFormat, samples: u32, fs: &str| d.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
             label: Some("calib3d"), layout: Some(&layout),
             vertex: wgpu::VertexState { module: &module, entry_point: Some("vs"), compilation_options: Default::default(), buffers: &[Some(wgpu::VertexBufferLayout {
                 array_stride: 32, step_mode: wgpu::VertexStepMode::Vertex,
                 attributes: &wgpu::vertex_attr_array![0 => Float32x3, 1 => Float32x3, 2 => Float32x2] })] },
-            fragment: Some(wgpu::FragmentState { module: &module, entry_point: Some("fs"), compilation_options: Default::default(),
-                targets: &[Some(wgpu::TextureFormat::Rgba8Unorm.into())] }),
+            fragment: Some(wgpu::FragmentState { module: &module, entry_point: Some(fs), compilation_options: Default::default(),
+                targets: &[Some(fmt.into())] }),
             // GL's front face is counter-clockwise; with y negated (the bottom-up raster) it is clockwise here — the
             // same flip ANGLE makes.
             primitive: wgpu::PrimitiveState { cull_mode: cull, front_face: wgpu::FrontFace::Cw, ..Default::default() },
             // three: depthTest + depthWrite, LessEqual.
             depth_stencil: Some(wgpu::DepthStencilState { format: DEPTH, depth_write_enabled: Some(true), depth_compare: Some(wgpu::CompareFunction::LessEqual), stencil: Default::default(), bias: Default::default() }),
-            multisample: wgpu::MultisampleState { count: SAMPLES, mask: !0, alpha_to_coverage_enabled: false },
+            multisample: wgpu::MultisampleState { count: samples, mask: !0, alpha_to_coverage_enabled: false },
             multiview_mask: None, cache: None,
         });
-        let pipe_double = mk(None);
-        let pipe_front = mk(Some(wgpu::Face::Back));
+        let pipe_double = mk(None, wgpu::TextureFormat::Rgba8Unorm, SAMPLES, "fs");
+        let pipe_front = mk(Some(wgpu::Face::Back), wgpu::TextureFormat::Rgba8Unorm, SAMPLES, "fs");
+        let lin_double = mk(None, LINEAR, post_samples, "fs_lin");
+        let lin_front = mk(Some(wgpu::Face::Back), LINEAR, post_samples, "fs_lin");
+        let pm = d.create_shader_module(wgpu::ShaderModuleDescriptor { label: Some("calib3d post"), source: wgpu::ShaderSource::Wgsl(POST.into()) });
+        let post_pipe = d.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+            label: Some("calib3d post"), layout: None,
+            vertex: wgpu::VertexState { module: &pm, entry_point: Some("vs"), buffers: &[], compilation_options: Default::default() },
+            fragment: Some(wgpu::FragmentState { module: &pm, entry_point: Some("fs"), targets: &[Some(wgpu::TextureFormat::Rgba8Unorm.into())], compilation_options: Default::default() }),
+            primitive: Default::default(), depth_stencil: None, multisample: Default::default(), multiview_mask: None, cache: None,
+        });
+        let post_buf = d.create_buffer(&wgpu::BufferDescriptor { label: Some("calib3d post"), size: 112, usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST, mapped_at_creation: false });
         let cam_buf = d.create_buffer(&wgpu::BufferDescriptor { label: Some("calib3d cam"), size: 64, usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST, mapped_at_creation: false });
         let cam_bind = d.create_bind_group(&wgpu::BindGroupDescriptor { label: None, layout: &cam_layout, entries: &[wgpu::BindGroupEntry { binding: 0, resource: cam_buf.as_entire_binding() }] });
         // three's LinearFilter both ways, no mipmaps (generateMipmaps false), ClampToEdge.
@@ -274,7 +435,7 @@ impl Renderer {
             primitive: Default::default(), depth_stencil: None, multisample: Default::default(), multiview_mask: None, cache: None,
         });
         let dim_buf = d.create_buffer(&wgpu::BufferDescriptor { label: Some("calib3d dim"), size: 16, usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST, mapped_at_creation: false });
-        Renderer { pipe_double, pipe_front, cam_buf, cam_bind, obj_layout, obj: None, tex_layout, sampler, planes: HashMap::new(), glbs: HashMap::new(),
+        Renderer { pipe_double, pipe_front, lin_double, lin_front, post_samples, post_pipe, post_buf, post_bind: None, cam_buf, cam_bind, obj_layout, obj: None, tex_layout, sampler, planes: HashMap::new(), glbs: HashMap::new(),
             loaded_tx, loaded_rx, texs: HashMap::new(), targets: None, dim_pipe, dim_buf, resolved: None, out_id: out_id.to_string() }
     }
 
@@ -357,11 +518,18 @@ impl Renderer {
     /// `pictures`: surface id → its picture; `dim`: projectorBrightness × the surface's opacity.
     pub fn draw(&mut self, gpu: &Gpu, view: &View, pictures: &HashMap<String, (u64, Arc<Picture>)>, target: &wgpu::TextureView, w: u32, h: u32, dim: f64) {
         let d = &gpu.device;
-        if self.targets.as_ref().map(|t| (t.0, t.1)) != Some((w, h)) {
-            let mk = |format: wgpu::TextureFormat, label: &str| d.create_texture(&wgpu::TextureDescriptor {
-                label: Some(label), size: wgpu::Extent3d { width: w, height: h, depth_or_array_layers: 1 }, mip_level_count: 1, sample_count: SAMPLES,
-                dimension: wgpu::TextureDimension::D2, format, usage: wgpu::TextureUsages::RENDER_ATTACHMENT, view_formats: &[] }).create_view(&Default::default());
-            self.targets = Some((w, h, mk(wgpu::TextureFormat::Rgba8Unorm, "calib3d msaa"), mk(DEPTH, "calib3d depth")));
+        let post = view.post.as_ref();
+        let posted = post.is_some();
+        if self.targets.as_ref().map(|t| (t.0, t.1, t.2)) != Some((w, h, posted)) {
+            let samples = if posted { self.post_samples } else { SAMPLES };
+            let mk = |format: wgpu::TextureFormat, label: &str, samples: u32, usage: wgpu::TextureUsages| d.create_texture(&wgpu::TextureDescriptor {
+                label: Some(label), size: wgpu::Extent3d { width: w, height: h, depth_or_array_layers: 1 }, mip_level_count: 1, sample_count: samples,
+                dimension: wgpu::TextureDimension::D2, format, usage, view_formats: &[] }).create_view(&Default::default());
+            let ra = wgpu::TextureUsages::RENDER_ATTACHMENT;
+            let colour = if posted { LINEAR } else { wgpu::TextureFormat::Rgba8Unorm };
+            self.targets = Some((w, h, posted, mk(colour, "calib3d msaa", samples, ra), mk(DEPTH, "calib3d depth", samples, ra),
+                posted.then(|| mk(LINEAR, "calib3d linear", 1, ra | wgpu::TextureUsages::TEXTURE_BINDING))));
+            self.post_bind = None;
         }
         gpu.queue.write_buffer(&self.cam_buf, 0, &f32s(&view.proj));
         // Path C's dim, as the compositor applies a layer's opacity: quantised to 8 bits (outputs.rs BADGE_OPACITY,
@@ -423,13 +591,55 @@ impl Renderer {
         }
         let (_, obj_buf, obj_bind) = self.obj.as_ref().unwrap();
         if !objs.is_empty() { gpu.queue.write_buffer(obj_buf, 0, &objs); }
-        let (_, _, msaa, depth) = self.targets.as_ref().unwrap();
+        // The post pass's uniforms and what it reads (the linear picture at this size, the rig blend's grids).
+        if let Some(pp) = post {
+            let (dist, bl) = (pp.dist.unwrap_or([1.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]), pp.blend.as_ref());
+            let (soft, gamma, gain, lift, has_map) = match bl {
+                Some(b) => (b.soft, b.gamma, b.gain, b.lift, if b.map.is_some() { 1.0 } else { 0.0 }),
+                None => ([0.0; 4], 2.2, [1.0; 3], [0.0; 3], 0.0),
+            };
+            let u = [w as f32, h as f32, if pp.dist.is_some() { 1.0 } else { 0.0 }, if bl.is_some() { 1.0 } else { 0.0 },
+                dist[0], dist[1], dist[2], dist[3], dist[4], dist[5], dist[6], 0.0, dist[7], dist[8], gamma, has_map,
+                soft[0], soft[1], soft[2], soft[3], gain[0], gain[1], gain[2], 0.0, lift[0], lift[1], lift[2], 0.0];
+            gpu.queue.write_buffer(&self.post_buf, 0, &f32s(&u));
+            let key = (w, h, bl.and_then(|b| b.map.as_ref().map(|_| b.key)).unwrap_or(0));
+            if self.post_bind.as_ref().map(|b| b.key) != Some(key) {
+                let grid = |gw: u32, gh: u32, data: &[u8]| {
+                    let t = d.create_texture(&wgpu::TextureDescriptor {
+                        label: Some("calib3d blend grid"), size: wgpu::Extent3d { width: gw, height: gh, depth_or_array_layers: 1 }, mip_level_count: 1, sample_count: 1,
+                        dimension: wgpu::TextureDimension::D2, format: wgpu::TextureFormat::R8Unorm,
+                        usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST, view_formats: &[] });
+                    // Tight rows, as three uploads a DataTexture (UNPACK_ALIGNMENT 1); write_texture takes any row pitch.
+                    gpu.queue.write_texture(wgpu::TexelCopyTextureInfo { texture: &t, mip_level: 0, origin: wgpu::Origin3d::ZERO, aspect: wgpu::TextureAspect::All },
+                        data, wgpu::TexelCopyBufferLayout { offset: 0, bytes_per_row: Some(gw), rows_per_image: Some(gh) },
+                        wgpu::Extent3d { width: gw, height: gh, depth_or_array_layers: 1 });
+                    t
+                };
+                let (ta, tk) = match bl.and_then(|b| b.map.as_ref()) {
+                    Some((gw, gh, a, k)) => (grid(*gw, *gh, a), grid(*gw, *gh, k)),
+                    None => (grid(1, 1, &[255]), grid(1, 1, &[255])),   // WHITE_1X1
+                };
+                let (va, vk) = (ta.create_view(&Default::default()), tk.create_view(&Default::default()));
+                let lin = self.targets.as_ref().unwrap().5.as_ref().unwrap();
+                let bind = d.create_bind_group(&wgpu::BindGroupDescriptor { label: Some("calib3d post"), layout: &self.post_pipe.get_bind_group_layout(0), entries: &[
+                    wgpu::BindGroupEntry { binding: 0, resource: wgpu::BindingResource::TextureView(lin) },
+                    wgpu::BindGroupEntry { binding: 1, resource: wgpu::BindingResource::Sampler(&self.sampler) },
+                    wgpu::BindGroupEntry { binding: 2, resource: wgpu::BindingResource::TextureView(&va) },
+                    wgpu::BindGroupEntry { binding: 3, resource: wgpu::BindingResource::TextureView(&vk) },
+                    wgpu::BindGroupEntry { binding: 4, resource: self.post_buf.as_entire_binding() },
+                ] });
+                self.post_bind = Some(PostBind { key, bind, _texs: vec![ta, tk] });
+            }
+        }
+        let (_, _, _, msaa, depth, lin) = self.targets.as_ref().unwrap();
         let resolve = if dimmed { &self.resolved.as_ref().unwrap().2 } else { target };
+        // With the post pass the scene resolves into the linear picture, and the pass writes `resolve`.
+        let scene_resolve = lin.as_ref().unwrap_or(resolve);
         let mut enc = d.create_command_encoder(&Default::default());
         {
             let mut pass = enc.begin_render_pass(&wgpu::RenderPassDescriptor {
                 label: Some("calib3d"),
-                color_attachments: &[Some(wgpu::RenderPassColorAttachment { view: msaa, depth_slice: None, resolve_target: Some(resolve),
+                color_attachments: &[Some(wgpu::RenderPassColorAttachment { view: msaa, depth_slice: None, resolve_target: Some(scene_resolve),
                     ops: wgpu::Operations { load: wgpu::LoadOp::Clear(wgpu::Color::BLACK), store: wgpu::StoreOp::Discard } })],
                 depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment { view: depth, depth_ops: Some(wgpu::Operations { load: wgpu::LoadOp::Clear(1.0), store: wgpu::StoreOp::Discard }), stencil_ops: None }),
                 ..Default::default()
@@ -443,13 +653,20 @@ impl Renderer {
                     _ => None,
                 };
                 let Some(mesh) = mesh else { continue };
-                pass.set_pipeline(if dr.front { &self.pipe_front } else { &self.pipe_double });
+                pass.set_pipeline(match (posted, dr.front) { (false, true) => &self.pipe_front, (false, false) => &self.pipe_double, (true, true) => &self.lin_front, (true, false) => &self.lin_double });
                 pass.set_bind_group(1, obj_bind, &[(i as u64 * OBJ_STRIDE) as u32]);
                 pass.set_bind_group(2, tb, &[]);
                 pass.set_vertex_buffer(0, mesh.vb.slice(..));
                 pass.set_index_buffer(mesh.ib.slice(..), wgpu::IndexFormat::Uint32);
                 pass.draw_indexed(0..mesh.n, 0, 0..1);
             }
+        }
+        if let Some(pb) = self.post_bind.as_ref().filter(|_| posted) {
+            let mut pass = enc.begin_render_pass(&wgpu::RenderPassDescriptor { label: Some("calib3d post"), color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                view: resolve, depth_slice: None, resolve_target: None, ops: wgpu::Operations { load: wgpu::LoadOp::Clear(wgpu::Color::BLACK), store: wgpu::StoreOp::Store } })], ..Default::default() });
+            pass.set_pipeline(&self.post_pipe);
+            pass.set_bind_group(0, &pb.bind, &[]);
+            pass.draw(0..3, 0..1);
         }
         if dimmed {
             let mut pass = enc.begin_render_pass(&wgpu::RenderPassDescriptor { label: Some("calib3d dim"), color_attachments: &[Some(wgpu::RenderPassColorAttachment {
@@ -489,5 +706,20 @@ mod tests {
         assert_eq!(p.models.len(), 2);
         assert_eq!(p.surfaces(), vec!["s1".to_string(), "s2".to_string()]);
         assert!(p.models[1].src[0].proj.as_ref().unwrap().cull);
+        assert!(p.post.is_none());
+    }
+    #[test]
+    fn parses_the_post_pass() {
+        let id: Vec<f64> = vec![1., 0., 0., 0., 0., 1., 0., 0., 0., 0., 1., 0., 0., 0., 0., 1.];
+        let v = serde_json::json!({ "proj": id, "models": [], "post": {
+            "dist": [1800, 1800, 960, 540, -0.18, 0.07, 0.01, 0.0015, -0.002],
+            "blend": { "soft": [0.1, 0, 0, 0.05], "gamma": 2.2, "gain": [1, 0.9, 0.8], "lift": [0, 0, 0.01], "map": { "w": 2, "h": 1, "alpha": [255, 128], "black": [0, 255] } } } });
+        let p = View::parse(&v).unwrap().post.unwrap();
+        assert_eq!(p.dist.unwrap()[6], 0.01f32);
+        let b = p.blend.unwrap();
+        assert_eq!(b.map.as_ref().unwrap().2, vec![255u8, 128]);
+        // A grid of the wrong size is no grid (BlendEffect would read past it).
+        let bad = serde_json::json!({ "proj": id, "models": [], "post": { "dist": null, "blend": { "soft": [0, 0, 0, 0], "gamma": 2.2, "gain": [1, 1, 1], "lift": [0, 0, 0], "map": { "w": 3, "h": 1, "alpha": [1], "black": [1] } } } });
+        assert!(View::parse(&bad).unwrap().post.unwrap().blend.unwrap().map.is_none());
     }
 }

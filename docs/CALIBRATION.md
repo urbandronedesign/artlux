@@ -329,7 +329,8 @@ nothing visible** — it only merges the half back into the shared chunk — whi
   that camera, with a lens-distortion post-pass (`@react-three/postprocessing`). With the native engine on, the
   engine draws it instead where it draws the same picture (`engine/artlux-engine/src/calib3d.rs`, described by
   `src/renderer/engine/venueLink.ts`; the rest is refused with a reason — see DEVELOPMENT.md). `renderLook.ts`
-  holds what both ask: the clip planes, `needsBlendPass`, `hasDistortion`.
+  holds what both ask: the clip planes, `needsBlendPass`, `hasDistortion`, and the post pass's values
+  (`distortionValues`, `blendValues`) — ProjectorScene's effects and the engine are built from the same numbers.
 - **Residual warp** — the operator can still bend a calibrated output by hand, because no solve is
   exact on a real wall. `ProjectorScene` offers its canvas to the host through the panel context
   (`setRenderSource`), and `ProjectorApp`'s loop feeds it to the ordinary `ProjectorGL` stage — so the

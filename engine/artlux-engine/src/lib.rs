@@ -199,7 +199,9 @@ impl Gpu {
         // BC (DXT) textures: HAP's frames ARE BC blocks, uploaded as they are (E0d). Every desktop GPU
         // and both software adapters have it; where one does not, HAP takes the CPU-decode fallback.
         // NV12 (item 2c-3b): a hardware decoder's frames are NV12 textures, read as their two planes.
-        let wanted = (wgpu::Features::TEXTURE_COMPRESSION_BC | wgpu::Features::TEXTURE_FORMAT_NV12) & pick.features();
+        // Adapter-specific format features: 8× MSAA on a half-float target — three.js's EffectComposer default, which the
+        // calibrated venue's post pass is held to (calib3d.rs).
+        let wanted = (wgpu::Features::TEXTURE_COMPRESSION_BC | wgpu::Features::TEXTURE_FORMAT_NV12 | wgpu::Features::TEXTURE_ADAPTER_SPECIFIC_FORMAT_FEATURES) & pick.features();
         let (device, queue) = pollster::block_on(pick.request_device(&wgpu::DeviceDescriptor {
             label: Some("artlux-engine"),
             required_features: wanted,

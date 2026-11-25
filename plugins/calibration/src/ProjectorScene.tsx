@@ -6,7 +6,7 @@ import { EffectComposer } from '@react-three/postprocessing';
 import { Effect } from 'postprocessing';
 import * as THREE from 'three';
 import type { Scene3D, SceneModel, ScreenBinding, ProjectorCalibration } from '../../../shared/protocol';
-import { PROJECTOR_NEAR as NEAR, PROJECTOR_FAR as FAR, needsBlendPass, hasDistortion, type BlendLook } from './renderLook';
+import { PROJECTOR_NEAR as NEAR, PROJECTOR_FAR as FAR, needsBlendPass, hasDistortion, distortionValues, blendValues, gridBytes, type BlendLook } from './renderLook';
 import { modelScaleXYZ } from '../../../shared/protocol';
 import { cameraPose, glProjectionMatrix } from './cvCamera';
 import { useLayerTexture } from '@/components/Simulator3D/useLayerTexture'; // host hook — transitional seam
@@ -375,13 +375,14 @@ void mainUv(inout vec2 uv) {
 
 class DistortionEffect extends Effect {
   constructor(calibration: ProjectorCalibration) {
-    const K = calibration.intrinsics, d = calibration.distortion;
+    // The values are renderLook's — the native engine is handed the same ones (calib3d.rs draws this pass too).
+    const [fx, fy, cx, cy, k1, k2, k3, p1, p2] = distortionValues(calibration);
     super('DistortionEffect', distortFrag, {
       uniforms: new Map<string, THREE.Uniform>([
-        ['uFocal', new THREE.Uniform(new THREE.Vector2(K[0], K[4]))],
-        ['uCenter', new THREE.Uniform(new THREE.Vector2(K[2], K[5]))],
-        ['uRadial', new THREE.Uniform(new THREE.Vector3(d[0] || 0, d[1] || 0, d[4] || 0))],
-        ['uTang', new THREE.Uniform(new THREE.Vector2(d[2] || 0, d[3] || 0))],
+        ['uFocal', new THREE.Uniform(new THREE.Vector2(fx, fy))],
+        ['uCenter', new THREE.Uniform(new THREE.Vector2(cx, cy))],
+        ['uRadial', new THREE.Uniform(new THREE.Vector3(k1, k2, k3))],
+        ['uTang', new THREE.Uniform(new THREE.Vector2(p1, p2))],
       ]),
     });
   }
@@ -450,9 +451,7 @@ export { needsBlendPass } from './renderLook';
 // threshold once it has been through share^(1/2.2) and an 8-bit panel, and UNSIGNED_BYTE is the one
 // format whose LINEAR filtering is guaranteed everywhere — a float map sampled NEAREST would band
 // visibly across the whole overlap, which is the opposite of the point.
-function gridTexture(values: number[] | undefined, w: number, h: number): THREE.DataTexture {
-  const data = new Uint8Array(Math.max(1, w * h));
-  if (values) for (let i = 0; i < data.length; i++) data[i] = Math.round(Math.min(1, Math.max(0, values[i] ?? 0)) * 255);
+function gridTexture(data: Uint8Array, w: number, h: number): THREE.DataTexture {
   const tex = new THREE.DataTexture(data, Math.max(1, w), Math.max(1, h), THREE.RedFormat, THREE.UnsignedByteType);
   tex.minFilter = THREE.LinearFilter;
   tex.magFilter = THREE.LinearFilter;
@@ -461,23 +460,21 @@ function gridTexture(values: number[] | undefined, w: number, h: number): THREE.
   tex.needsUpdate = true;
   return tex;
 }
-const WHITE_1X1 = (): THREE.DataTexture => gridTexture([1], 1, 1);
+const WHITE_1X1 = (): THREE.DataTexture => gridTexture(gridBytes([1], 1, 1), 1, 1);
 
 class BlendEffect extends Effect {
   constructor(look: BlendLook) {
-    const se = look.softEdge, b = look.blend ?? null;
-    const g = Math.max(0.1, se?.gamma ?? 2.2);
-    const gain = look.colorGain ?? [1, 1, 1];
-    const lift = look.blackLift ?? [0, 0, 0];
+    // The values are renderLook's — the native engine is handed the same ones (calib3d.rs draws this pass too).
+    const v = blendValues(look), m = v.map;
     super('BlendEffect', blendFrag, {
       uniforms: new Map<string, THREE.Uniform>([
-        ['uSoft', new THREE.Uniform(new THREE.Vector4(se?.left ?? 0, se?.right ?? 0, se?.top ?? 0, se?.bottom ?? 0))],
-        ['uBlendGamma', new THREE.Uniform(g)],
-        ['uColorGain', new THREE.Uniform(new THREE.Vector3(gain[0], gain[1], gain[2]))],
-        ['uBlackLift', new THREE.Uniform(new THREE.Vector3(lift[0], lift[1], lift[2]))],
-        ['uBlendTex', new THREE.Uniform(b ? gridTexture(b.alpha, b.w, b.h) : WHITE_1X1())],
-        ['uBlackTex', new THREE.Uniform(b ? gridTexture(b.black, b.w, b.h) : WHITE_1X1())],
-        ['uHasBlend', new THREE.Uniform(b ? 1 : 0)],
+        ['uSoft', new THREE.Uniform(new THREE.Vector4(...v.soft))],
+        ['uBlendGamma', new THREE.Uniform(v.gamma)],
+        ['uColorGain', new THREE.Uniform(new THREE.Vector3(...v.gain))],
+        ['uBlackLift', new THREE.Uniform(new THREE.Vector3(...v.lift))],
+        ['uBlendTex', new THREE.Uniform(m ? gridTexture(m.alpha, m.w, m.h) : WHITE_1X1())],
+        ['uBlackTex', new THREE.Uniform(m ? gridTexture(m.black, m.w, m.h) : WHITE_1X1())],
+        ['uHasBlend', new THREE.Uniform(m ? 1 : 0)],
       ]),
     });
   }

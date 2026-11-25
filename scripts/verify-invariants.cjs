@@ -9830,6 +9830,10 @@ check(
   'streamed-bitmap UV transform and flippedUv\'s 1 − v, a LinearFilter sRGB texture with no mips, three\'s ' +
   'sRGBTransferOETF (0.41666), the projected material FRONT-sided; and path C\'s dim (brightness × opacity) as ' +
   'the compositor applies a layer opacity — 8-bit, AFTER the resolve (in the shader: 289 648 pixels one level off). ' +
+  'Step 2: the POST PASS — ProjectorScene\'s EffectComposer for a lens distortion or a blend look — is the engine\'s too: ' +
+  'the scene LINEAR into an 8× MSAA half-float buffer, then one pass of distortion → blend → OETF, the values from ' +
+  'renderLook (one definition for both). --calibrated --distort: 2 073 600 / 2 073 600; --calib-blend: 13 pixels by 1; ' +
+  'both + --glb: 5 by 1. ' +
   'It found two app bugs, fixed: a projected mesh drew its content UPSIDE DOWN on the real projector (the texture ' +
   'was handed to the material before it was oriented), and a calibrated output without a residual warp ignored ' +
   'projector brightness and the surface\'s opacity (the canvas element was handed over only with a warp).',
@@ -9838,12 +9842,15 @@ check(
     const nl = read('src/renderer/engine/nativeLink.ts');
     if (/'calibrated \(render-from-projector\)'/.test(nl)) problems.push('nativeLink refuses every calibrated output again');
     for (const [what, re] of [
-      ['a lens distortion', /if \(hasDistortion\(o\.calibration\)\) return \{ why:/],
-      ['the blend pass', /if \(needsBlendPass\(\{ softEdge: eff\.softEdge, colorGain: eff\.colorGain, blackLift: eff\.blackLift, blend: eff\.blend \}\)\) return \{ why:/],
       ['a residual warp', /if \(hasResidualWarp\(eff\.cornerPin, eff\.warp\)\) return \{ why:/],
       ['an NDI send', /if \(o\.ndiSend\) return \{ why:/],
     ]) if (!re.test(nl)) problems.push(`nativeLink no longer refuses a calibrated output with ${what} (the engine does not draw it)`);
     if (!/\.\.\.\(inRender \? \{ calib: /.test(nl)) problems.push('nativeLink no longer hands the engine the venue');
+    // Step 2: the POST PASS — exactly when ProjectorScene mounts its EffectComposer, with the values its effects use.
+    if (!/const distorted = hasDistortion\(o\.calibration\), blended = needsBlendPass\(look\);/.test(nl)) problems.push('nativeLink no longer decides the post pass by ProjectorScene\'s own tests (hasDistortion / needsBlendPass)');
+    if (!/dist: distorted \? distortionValues\(o\.calibration\) : null/.test(nl) || !/const bv = blended \? blendValues\(look\) : null;/.test(nl)) problems.push('nativeLink no longer hands the engine renderLook\'s post-pass values');
+    const ps = read('plugins/calibration/src/ProjectorScene.tsx');
+    if (!/= distortionValues\(calibration\);/.test(ps) || !/const v = blendValues\(look\), m = v\.map;/.test(ps)) problems.push('ProjectorScene\'s effects no longer build their uniforms from renderLook (the engine is handed renderLook\'s values — they would drift)');
     const app = read('src/renderer/App.tsx');
     if (!/const render = projectorOutputs\.filter\(o => o\.enabled && rendersVenue\(o, scene3D\)\)[\s\S]{0,200}nativeLink\.setVenue\(render\.length \? resolveProjectedScene\(scene3D, projectorOutputs\) : null, render, calibratingOutputId\)/.test(app)) problems.push('App no longer hands nativeLink the render-mode outputs through rendersVenue and the scene it sends the windows');
     const vl = read('src/renderer/engine/venueLink.ts');
@@ -9868,6 +9875,13 @@ check(
       ['the clockwise front face (the y flip)', /front_face: wgpu::FrontFace::Cw/],
       ['the projected material\'s front side', /let front = s\.proj\.is_some\(\);/],
       ['path C\'s dim AFTER the resolve', /let resolve = if dimmed \{ &self\.resolved\.as_ref\(\)\.unwrap\(\)\.2 \} else \{ target \};/],
+      ['EffectComposer\'s 8× MSAA', /pub const POST_SAMPLES: u32 = 8;/],
+      ['EffectComposer\'s half-float buffer', /const LINEAR: wgpu::TextureFormat = wgpu::TextureFormat::Rgba16Float;/],
+      ['the linear scene into it (no OETF in a render target)', /@fragment fn fs_lin[\s\S]{0,1200}return vec4<f32>\(s\.rgb \* vis, s\.a\);/],
+      ['postprocessing\'s fullscreen triangle and vUv', /o\.uv = p \* 0\.5 \+ 0\.5;\s*o\.pos = vec4<f32>\(p\.x, -p\.y, 1\.0, 1\.0\);/],
+      ['DistortionEffect\'s radial term as written', /let radial = 1\.0 \+ u\.radial\.x \* r2 \+ u\.radial\.y \* r2 \* r2 \+ u\.radial\.z \* r2 \* r2 \* r2;/],
+      ['BlendEffect in physical raster space', /let suv = vec2<f32>\(i\.pos\.x \/ u\.res\.x, 1\.0 - i\.pos\.y \/ u\.res\.y\);/],
+      ['the blend applied to the encoded signal', /let signal = blendEncodeSRGB\(color0\.rgb\) \* a \* u\.gain\.rgb \+ u\.lift\.rgb \* blackW;/],
     ]) if (!re.test(c)) problems.push(`calib3d.rs no longer has ${what}`);
     const st = read('plugins/calibration/src/useStreamedSurfaceTexture.ts');
     if (!/matchBitmapOrientation\(t\);\s*t\.needsUpdate = true;[\s\S]{0,900}if \(fresh\) cbRef\.current\(t\);/.test(st)) problems.push('useStreamedSurfaceTexture hands the texture over before orienting it again (projected content upside down on the projector)');

@@ -2562,6 +2562,28 @@ fallback until a source/output is proven byte-identical — risk 2):
 >   (verify:invariants, six mutations caught).
 > - **Next for D:** the passes refused above — lens distortion, the blend pass, the residual warp — then occlusion,
 >   a mesh's own lit material and timeline layers on the venue.
+>
+> ✅ **E6f (render-from-projector, step 2) done 2026-11-25 — THE POST PASS: LENS DISTORTION AND THE BLEND.**
+> ProjectorScene mounts an EffectComposer when the calibration carries a lens distortion or the output a blend look
+> (soft edge, colour gain, black lift, a solved rig blend). The engine draws it (`calib3d.rs` POST):
+> - **What the composer does, written out:** @react-three/postprocessing's defaults are `multisampling: 8` and
+>   `HalfFloatType`, and three applies no OETF into a linear render target — so the scene renders LINEAR into an 8×
+>   MSAA Rgba16Float buffer (`fs_lin`), resolved; the two effects MERGE into one EffectPass: postprocessing's
+>   fullscreen triangle (vUv = position × ½ + ½, through ANGLE's y negate), DistortionEffect's `mainUv` bends the
+>   lookup, the input is read there (LinearFilter, clamp), BlendEffect's `mainImage` applies blendGlsl's ramp and the
+>   grids in physical raster space (gl_FragCoord, v = 0 at the top), the NORMAL blend at opacity 1 keeps it, then
+>   three's OETF into the 8-bit canvas. Path C's dim still follows. The device asks the adapter-specific format
+>   features for 8× (logged and 4× where an adapter cannot).
+> - **One definition of the values:** `renderLook.ts` `distortionValues` (OpenCV's k1 k2 p1 p2 k3 → the effect's
+>   order) and `blendValues` (defaults, gamma floor, the grids as the 8-bit texels the texture holds). ProjectorScene's
+>   effects are now built from them, and nativeLink hands the engine the same — it decides the pass with
+>   ProjectorScene's own tests (hasDistortion / needsBlendPass).
+> - `test:native-projectors --calibrated --distort`: **2 073 600 / 2 073 600**; `--calib-blend` (soft edge on two
+>   sides, gain, lift, a 5×3 rig blend with its black grid): **13 pixels by 1**; both `+ --glb`: **5 pixels by 1**;
+>   restarts the same. `--calib-warp` (replaces `--calib-soft`): a residual warp still refused with its reason, the
+>   screen the app's. Plain, `--calibrated --glb` unchanged. Guarded (verify:invariants, five mutations caught).
+> - **Next for D:** the residual warp on a calibrated output (the base stage warps the scene's canvas — ProjectorApp
+>   path B), then occlusion, a mesh's own lit material and timeline layers on the venue.
 
 ## 9d. E4 started early — the 3D view in the engine (owner, 2026-11-24)
 

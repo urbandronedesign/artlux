@@ -1,6 +1,6 @@
 import type { Fixture, FixtureProfile, Surface, Controller, OutputProtocol, SurfaceContent } from '../types';
 import { WINDOWED_DISPLAY, defaultCornerPin, defaultSoftEdge, type ProjectorOutput, type Scene3D } from '../../../shared/protocol';
-import { needsBlendPass, hasDistortion } from '@artlux/plugin-calibration/playback';
+import { needsBlendPass, hasDistortion, distortionValues, blendValues } from '@artlux/plugin-calibration/playback';
 import { hasResidualWarp } from '../projector/warp';
 import * as venueLink from './venueLink';
 import { badgeBitmap } from '../components/brand/badge';
@@ -213,26 +213,36 @@ function effectiveOutput(o: ProjectorOutput) {
 /**
  * E6f: a calibrated output in RENDER mode — the venue as the engine draws it (venueLink.calibDoc), or why not.
  * The scene's own reasons are venueLink's; these are the OUTPUT's, each a pass ProjectorScene / ProjectorApp
- * applies that calib3d.rs does not yet: the lens distortion, the blend pass (soft edge, colour gain, black lift,
- * the solved rig blend — needsBlendPass, ProjectorScene's own test), a residual warp (the base stage then warps the
- * scene's canvas — hasResidualWarp, ProjectorApp's own test), and an NDI send (without a residual warp the app's
- * window returns before its capture and sends nothing). Null: not in render mode.
+ * applies that calib3d.rs does not yet: a residual warp (the base stage then warps the scene's canvas —
+ * hasResidualWarp, ProjectorApp's own test), and an NDI send (without a residual warp the app's window returns
+ * before its capture and sends nothing). Null: not in render mode.
+ *
+ * The POST PASS is the engine's (E6f step 2): ProjectorScene's EffectComposer — the lens distortion, then the blend
+ * (soft edge, colour gain, black lift, the solved rig blend). It runs exactly when ProjectorScene mounts it
+ * (hasDistortion || needsBlendPass, ProjectorScene's own tests), with the values its effects are built from
+ * (renderLook's distortionValues / blendValues — one definition), and the blend look is the one the window's
+ * `config` carries (effectiveOutput: flat under an NVIDIA hardware warp, as App pushes it).
  */
 function calibFor(o: ProjectorOutput, sources: Record<string, contentSource.NativeSource>): { doc: unknown } | { why: string } | null {
   if (!venueRender.has(o.surfaceId) || baked.has(o.surfaceId) || !venueScene || !o.calibration) return null;
   const eff = effectiveOutput(o);
-  if (hasDistortion(o.calibration)) return { why: 'calibrated with a lens distortion (not drawn by the engine yet)' };
-  if (needsBlendPass({ softEdge: eff.softEdge, colorGain: eff.colorGain, blackLift: eff.blackLift, blend: eff.blend })) return { why: 'calibrated with a soft edge, colour match or rig blend (not drawn by the engine yet)' };
   if (hasResidualWarp(eff.cornerPin, eff.warp)) return { why: 'calibrated with a residual warp (not drawn by the engine yet)' };
   if (o.ndiSend) return { why: 'calibrated and sent as NDI (the app sends nothing there without a residual warp)' };
   const r = venueLink.calibDoc(o.calibration, venueScene);
   if ('why' in r) return r;
+  const look = { softEdge: eff.softEdge, colorGain: eff.colorGain, blackLift: eff.blackLift, blend: eff.blend };
+  const distorted = hasDistortion(o.calibration), blended = needsBlendPass(look);
+  const bv = blended ? blendValues(look) : null;
+  const post = distorted || blended ? {
+    dist: distorted ? distortionValues(o.calibration) : null,
+    blend: bv ? { ...bv, map: bv.map ? { w: bv.map.w, h: bv.map.h, alpha: Array.from(bv.map.alpha), black: Array.from(bv.map.black) } : null } : null,
+  } : null;
   for (const sid of r.surfaces) {
     const x = sources[sid];
     if (!x) return { why: `the venue shows surface ${sid}, which is gone` };
     if (x.kind === 'unsupported') return { why: `the venue shows '${sid}': ${'why' in x ? x.why : 'a source the engine does not draw'}` };
   }
-  return { doc: r.doc };
+  return { doc: { ...(r.doc as object), post } };
 }
 
 function projectorEntry(o: ProjectorOutput, surfaces: Surface[], sources: Record<string, contentSource.NativeSource>) {
