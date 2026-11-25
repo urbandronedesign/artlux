@@ -177,6 +177,10 @@ function shipRaster(key: string, r: { bitmap: ImageBitmap; gen: number } | null)
   rasterSent.set(key, r.bitmap);
   window.artlux?.nativeEngineRaster?.(key, ++rasterSeq, w, h, new Uint8Array(px.buffer, px.byteOffset, px.byteLength));
 }
+/** E6i step 4: the venue maps the engine takes from the app (venueLink.venueMapImages) — once each (rasterSent). */
+function shipVenueMaps(): void {
+  for (const [key, img] of venueLink.venueMapImages()) shipRaster(key, { bitmap: img as ImageBitmap, gen: 1 });
+}
 function shipRasters(surfaces: Surface[], sources: Record<string, contentSource.NativeSource>): void {
   for (const s of surfaces) {
     if (sources[s.id]?.kind !== 'raster') { rasterSent.delete(s.id); rasterSent.delete(`${s.id}@proj`); continue; }
@@ -272,6 +276,7 @@ function calibFor(o: ProjectorOutput, sources: Record<string, contentSource.Nati
   if (o.ndiSend && !warped) return { why: 'calibrated and sent as NDI (the app sends nothing there without a residual warp)' };
   const r = venueLink.calibDoc(o.calibration, venueScene);
   if ('why' in r) return r;
+  shipVenueMaps();
   const look = { softEdge: eff.softEdge, colorGain: eff.colorGain, blackLift: eff.blackLift, blend: eff.blend };
   const distorted = hasDistortion(o.calibration), blended = needsBlendPass(look);
   const bv = blended ? blendValues(look) : null;

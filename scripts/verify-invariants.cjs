@@ -9874,6 +9874,9 @@ check(
       ['the EXACT projection of a projected mesh', /engineContent\(cloned, m, true\)/],
       ['three\'s normalMatrix for a mesh in its own material', /entry\.nm = Array\.from\(new THREE\.Matrix3\(\)\.getNormalMatrix\(mvm\)\.elements\);/],
       ['the refusal of an own material the engine\'s reduction does not cover (a texture)', /const map = MAPS\.find\([\s\S]{0,120}if \(map\) return \{ why:/],
+      // E6i step 4: a base-colour map is drawn — only one three uses plainly — and a non-PNG one is the APP's decode.
+      ['the plain-map test (UV 0, no transform, not flipped, sRGB, no anisotropy)', /if \(t\.channel !== 0\)[\s\S]{0,600}if \(t\.anisotropy > 1\)/],
+      ['the app\'s decode of a non-PNG map (JPEG decoders differ — measured up to 4 levels)', /mimeType !== 'image\/png'\) \{[\s\S]{0,300}raster = `vmap:\$\{m\.map\.uuid\}`;/],
       ['the window\'s lights from VENUE_LIGHTS', /hemi\.intensity = VENUE_LIGHTS\.hemisphere; hemi\.groundColor\.set\(VENUE_LIGHTS\.ground\);/],
     ]) if (!re.test(vl)) problems.push(`venueLink no longer uses ${what}`);
     if (!/const NEAR = 0\.05|PROJECTOR_NEAR as NEAR/.test(read('plugins/calibration/src/ProjectorScene.tsx'))) problems.push('ProjectorScene no longer takes its clip planes from renderLook (the engine\'s camera reads the same)');
@@ -9895,8 +9898,10 @@ check(
       ['postprocessing\'s fullscreen triangle and vUv', /o\.uv = p \* 0\.5 \+ 0\.5;\s*o\.pos = vec4<f32>\(p\.x, -p\.y, 1\.0, 1\.0\);/],
       ['DistortionEffect\'s radial term as written', /let radial = 1\.0 \+ u\.radial\.x \* r2 \+ u\.radial\.y \* r2 \* r2 \+ u\.radial\.z \* r2 \* r2 \* r2;/],
       ['projectorDepth\'s map size', /pub const DEPTH_SIZE: u32 = 1024;/],
-      ['an own material\'s RE_IndirectDiffuse (irradiance × BRDF_Lambert(diffuseContribution))', /let diffuseContribution = own\.color\.rgb \* \(1\.0 - own\.color\.w\);[\s\S]{0,900}irradiance = irradiance \+ mix\(own\.ground\.rgb, own\.sky\.rgb, vec3<f32>\(hemiDiffuseWeight\)\);[\s\S]{0,200}let indirectDiffuse = irradiance \* \(0\.3183098861837907 \* diffuseContribution\);/],
+      ['an own material\'s RE_IndirectDiffuse (irradiance × BRDF_Lambert(diffuseContribution))', /let diffuseContribution = diffuse \* \(1\.0 - own\.color\.w\);[\s\S]{0,900}irradiance = irradiance \+ mix\(own\.ground\.rgb, own\.sky\.rgb, vec3<f32>\(hemiDiffuseWeight\)\);[\s\S]{0,200}let indirectDiffuse = irradiance \* \(0\.3183098861837907 \* diffuseContribution\);/],
       ['r3f\'s ACESFilmic on an own material (and none under the composer)', /return vec4<f32>\(oetf\(ACESFilmicToneMapping\(lit\(i, ff\)\)\), 1\.0\);\s*\}\s*@fragment fn fs_lin\(i: OOut, @builtin\(front_facing\) ff: bool\) -> @location\(0\) vec4<f32> \{\s*return vec4<f32>\(lit\(i, ff\), 1\.0\);/],
+      ['map_fragment (diffuseColor × the map\'s texel)', /let texel = textureSample\(omap, osamp, i\.uv\);\s*let diffuse = select\(own\.color\.rgb, own\.color\.rgb \* texel\.rgb, own\.flags\.w > 0\.5\);/],
+      ['generateMipmap ON THE GPU through the sRGB view (a CPU average was off by 1 on the small levels)', /@fragment fn fs\(v: V\) -> @location\(0\) vec4<f32> \{ return textureSampleLevel\(src, s, v\.uv, 0\.0\); \}[\s\S]*for lv in 1\.\.levels \{/],
       ['ACESFilmicToneMapping\'s input matrix', /vec3<f32>\(0\.59719, 0\.07600, 0\.02840\), vec3<f32>\(0\.35458, 0\.90834, 0\.13383\), vec3<f32>\(0\.04823, 0\.01566, 0\.83777\)/],
       ['three\'s side as the cull', /let cull = match side \{ 0 => Some\(wgpu::Face::Back\), 1 => Some\(wgpu::Face::Front\), _ => None \};/],
       ['projectorDepth\'s DEPTH_FAR', /pub const DEPTH_FAR: f32 = 250\.0;/],

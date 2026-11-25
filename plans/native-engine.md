@@ -2788,6 +2788,21 @@ fallback until a source/output is proven byte-identical — risk 2):
 > **860 784 / 860 784**; plain, `--ndi`, `--windowed`, `--partial`, `--calib-refused`, takeover and
 > `test:tracking-wire --bg-still` pass. Left: step 4 (textured / transparent own materials), and the load-time
 > document refusals that still make an emergency (an MP4 colour space, an MJPEG camera, an engine without NDI).
+>
+> ✅ **E6i step 4a done 2026-11-26 — TEXTURED OWN MATERIALS (the base-colour map).** A venue mesh in its own
+> `MeshStandardMaterial` with a `map` is drawn by the engine (`map_fragment`: diffuseColor × texel, in OWN), when three
+> uses the map plainly (UV set 0, no KHR_texture_transform, flipY false, sRGB, no anisotropy — `venueLink.plainMap`;
+> a `roughnessMap` is allowed: with no environment map and no direct light roughness changes nothing). The texture is
+> uploaded sRGB and **mipmapped on the GPU** — each level a bilinear sample at the destination texel's centre through the
+> sRGB view, written through it (`calib3d.rs MIP`), as GenerateMips does; a CPU linear-light box average with its own
+> encode was off by 1 on 1 007 pixels at the minified far end. The glTF sampler as three made it (wrap, mag, min →
+> lod clamp / mip filter). **The decode:** a PNG is read from the GLB by the engine (lossless — identical); anything else
+> is the APP's decode — JPEG decoders differ (measured: the engine's against Chromium's, up to 4 levels on 90 198
+> pixels) — shipped once as a raster `vmap:<texture uuid>` (`nativeLink.shipVenueMaps`, shared memory) and put straight
+> into the presenters' pictures. `test:native-projectors --calibrated --calib-tex` (a written GLB: an oblique wall, a
+> 256² PNG repeated 3 × 2, REPEAT / LINEAR_MIPMAP_LINEAR, warm factor, metalness 0.15): **1 pixel by 1** (the MSAA
+> edge the app has against itself); `--tex-npot` (300 × 200): **identical**; `--tex-jpeg`: **identical**. Still refused:
+> normal / AO / emissive / metalness / alpha maps, vertex colours, transparency, several materials per mesh (step 4b).
 
 ## 9d. E4 started early — the 3D view in the engine (owner, 2026-11-24)
 

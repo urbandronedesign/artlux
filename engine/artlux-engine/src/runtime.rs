@@ -319,6 +319,8 @@ impl Runtime {
                 let pic = Arc::new(Picture::canvas(w, h, px));
                 // E6f: a windowed output's BADGE (`badge:<surface>`) — the presenters composite it (outputs.rs).
                 if sid.starts_with("badge:") { if let Some((_, sh)) = &self.outputs { sh.lock().unwrap().badges.insert(sid.to_string(), (g, pic)); } return; }
+                // E6i step 4: a venue map the APP decoded (venueLink, a JPEG…) — straight to the presenters' pictures.
+                if sid.starts_with("vmap:") { if let Some((_, sh)) = &self.outputs { sh.lock().unwrap().pictures.insert(sid.to_string(), (g, pic)); } return; }
                 self.rasters.insert(sid.to_string(), (g, pic));
             }
             Ok(px) => eprintln!("artlux-engine: raster {sid}: {} bytes for {w}x{h}", px.len()),

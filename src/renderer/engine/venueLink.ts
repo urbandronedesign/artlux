@@ -97,24 +97,54 @@ export function venueLayers(scene: Scene3D): string[] {
  * A mesh's OWN material as three lights it in the projector window — or why the engine cannot. E6f: the window
  * lights a venue file's own materials with an ambient and a hemisphere light and NO environment map, and there three's
  * MeshStandardMaterial reduces to irradiance × diffuse × (1 − metalness) / π + emissive (calib3d.rs OWN). What that
- * reduction does not cover is refused: any texture (base colour, normal, AO, emissive… — each changes the sum),
- * vertex colours, transparency / alpha test, flat shading, a mesh without normals, any other material type (a
+ * reduction does not cover is refused: any texture but the two below (normal, AO, emissive, metalness… — each changes
+ * the sum), vertex colours, transparency / alpha test, flat shading, a mesh without normals, any other material type (a
  * KHR_materials_* extension makes a MeshPhysicalMaterial; unlit a MeshBasicMaterial).
  */
-const MAPS = ['map', 'normalMap', 'aoMap', 'emissiveMap', 'metalnessMap', 'roughnessMap', 'alphaMap', 'lightMap', 'bumpMap', 'displacementMap', 'envMap'] as const;
-function ownMaterial(o: THREE.Mesh): { color: number[]; metalness: number; emissive: number[]; side: number } | { why: string } {
+// E6i step 4: the BASE-COLOUR map is drawn (diffuseColor ×= texel — the engine reads the image from the GLB itself, as
+// GLTFLoader does, and mipmaps it as WebGL does), and a ROUGHNESS map is harmless (roughness only shapes specular, and
+// with no environment map and no direct light there is none). Only a map three uses plainly: UV set 0, no transform
+// (KHR_texture_transform), not flipped (glTF's), sRGB, no anisotropy.
+const MAPS = ['normalMap', 'aoMap', 'emissiveMap', 'metalnessMap', 'alphaMap', 'lightMap', 'bumpMap', 'displacementMap', 'envMap'] as const;
+function plainMap(t: THREE.Texture): string | null {
+  if (t.channel !== 0) return `a map on UV set ${t.channel}`;
+  if (t.offset.x !== 0 || t.offset.y !== 0 || t.repeat.x !== 1 || t.repeat.y !== 1 || t.rotation !== 0) return 'a transformed map';
+  if (t.flipY) return 'a flipped map';
+  if (t.colorSpace !== THREE.SRGBColorSpace) return 'a map not in sRGB';
+  if (t.anisotropy > 1) return 'an anisotropic map';
+  if ((t as THREE.CompressedTexture).isCompressedTexture) return 'a compressed map';
+  return null;
+}
+// A map that is not a PNG is decoded by CHROMIUM for three and by the engine's own decoder otherwise — and JPEG decoders
+// differ (measured: up to 4 levels on 90 198 pixels, chroma upsampling). So the engine gets the APP's decode instead:
+// the picture three uploads, shipped once as a raster `vmap:<texture uuid>` (nativeLink.shipVenueMaps). PNG is
+// lossless and decodes the same everywhere: the engine reads it from the file (measured identical).
+const venueMaps = new Map<string, CanvasImageSource>();
+/** The map pictures the engine takes from the app (key → three's own decoded image). */
+export function venueMapImages(): ReadonlyMap<string, CanvasImageSource> { return venueMaps; }
+function ownMaterial(o: THREE.Mesh): { color: number[]; metalness: number; emissive: number[]; side: number; map?: { wrapS: number; wrapT: number; mag: number; min: number; raster?: string } } | { why: string } {
   const m = o.material as THREE.MeshStandardMaterial | THREE.Material[];
   if (Array.isArray(m)) return { why: 'several materials on one mesh' };
   if (m.type !== 'MeshStandardMaterial') return { why: `a ${m.type}` };
   const map = MAPS.find((k) => (m as unknown as Record<string, unknown>)[k]);
   if (map) return { why: `a material with a ${map}` };
+  const bad = m.map ? plainMap(m.map) : null;
+  if (bad) return { why: bad };
+  let raster: string | undefined;
+  if (m.map && (m.map.userData as { mimeType?: string } | undefined)?.mimeType !== 'image/png') {
+    const img = m.map.image as (CanvasImageSource & { width?: number; height?: number }) | null;
+    if (!img || !img.width || !img.height) return { why: 'a map whose picture has not loaded' };
+    raster = `vmap:${m.map.uuid}`;
+    venueMaps.set(raster, img);
+  }
   if (m.vertexColors) return { why: 'vertex colours' };
   if (m.transparent || m.alphaTest > 0 || m.alphaHash) return { why: 'a transparent material' };
   if (m.flatShading || !o.geometry.getAttribute('normal')) return { why: 'flat shading' };
   if (m.wireframe) return { why: 'a wireframe material' };
   // The uniforms as three uploads them: diffuse = color, emissive = emissive × emissiveIntensity (linear, its
   // working space), metalness; the side decides the culling and the double-sided normal flip.
-  return { color: [m.color.r, m.color.g, m.color.b], metalness: m.metalness, emissive: m.emissive.clone().multiplyScalar(m.emissiveIntensity).toArray(), side: m.side };
+  return { color: [m.color.r, m.color.g, m.color.b], metalness: m.metalness, emissive: m.emissive.clone().multiplyScalar(m.emissiveIntensity).toArray(), side: m.side,
+    ...(m.map ? { map: { wrapS: m.map.wrapS, wrapT: m.map.wrapT, mag: m.map.magFilter, min: m.map.minFilter, ...(raster ? { raster } : {}) } } : {}) };
 }
 
 /** The window's two lights as WebGLLights uploads them for a camera with this view matrix. */

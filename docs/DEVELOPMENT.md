@@ -108,8 +108,11 @@ brightness × opacity dim after the resolve), and the post pass the window mount
 distortion → blend → sRGB in one pass, from `renderLook.ts`'s values), and a **residual warp** on top (the venue
 becomes the warp stage's source, geometry only — and then its NDI send). It also draws projected **occlusion** (the
 projector's depth map, as `projectorDepth.ts` renders it) and a venue mesh in its **own material** (a plain
-`MeshStandardMaterial` — colour, metalness, emissive — lit by the window's ambient + hemisphere lights; a texture,
-vertex colours, transparency or another material type is refused), and a **timeline layer** shown on the venue (a
+`MeshStandardMaterial` — colour, metalness, emissive, and (E6i step 4) a **base-colour map**, mipmapped on the GPU as
+WebGL's generateMipmap does; a PNG map is read from the GLB, any other (a JPEG…) is the APP's decode shipped as a raster
+`vmap:<uuid>`, because JPEG decoders differ — lit by the window's ambient + hemisphere lights; any other texture, a
+transformed / non-UV-0 map, vertex colours, transparency or another material type is refused;
+`test:native-projectors --calibrated --calib-tex [--tex-npot | --tex-jpeg]` proves it), and a **timeline layer** shown on the venue (a
 hidden LAYER surface per bound layer, composited as any timeline surface). It does not draw an NDI send of an
 unwarped calibrated output (the app sends nothing there), nor an output with a calibration session open on it.
 **Projector outputs are owned PER OUTPUT** (E6i step 2): such an output stays in the app's window ALONE and the engine

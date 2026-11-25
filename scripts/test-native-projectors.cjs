@@ -134,6 +134,54 @@ if (CALIB_LAYER) {
   for (let i = 0; i < png.data.length; i += 4) inv.data.set([255 - png.data[i], 255 - png.data[i + 1], 255 - png.data[i + 2], 255], i);
   fs.writeFileSync(layerPicture, PNG.sync.write(inv));
 }
+// --calib-tex (E6i step 4): a venue GLB in its OWN TEXTURED material — written here: an oblique wall wearing a 256×256
+// PNG (a fine checker under colour gradients) through UVs that repeat it 3 × 2, sampled REPEAT / LINEAR_MIPMAP_LINEAR
+// (so the far end reads the mip chain), base colour factor warm, a little metalness — lit by the window's lights.
+const CALIB_TEX = CALIBRATED && process.argv.includes('--calib-tex') ? path.join(WORK, 'textured-wall.glb') : null;
+// --tex-npot: the texture 300 × 200 (odd mip edges). --tex-jpeg: stored as a JPEG (Electron's own encoder) — the engine
+// and Chromium then each DECODE it.
+const TEX_NPOT = process.argv.includes('--tex-npot'), TEX_JPEG = process.argv.includes('--tex-jpeg');
+if (CALIB_TEX) {
+  const [TW, TH] = TEX_NPOT ? [300, 200] : [256, 256], tex = new PNG({ width: TW, height: TH });
+  for (let y = 0; y < TH; y++) for (let x = 0; x < TW; x++) {
+    const i = (y * TW + x) * 4, chk = ((x >> 3) + (y >> 3)) & 1;
+    tex.data.set([chk ? 230 : Math.round(x * 0.9 * 256 / TW), chk ? Math.round(40 + y * 0.6 * 256 / TH) : 30, chk ? 60 : Math.round(255 - y * 0.8 * 256 / TH), 255], i);
+  }
+  let img = PNG.sync.write(tex);
+  if (TEX_JPEG) {
+    const pngf = path.join(WORK, 'tex.png'), jpgf = path.join(WORK, 'tex.jpg'), js = path.join(WORK, 'tojpeg.cjs');
+    fs.writeFileSync(pngf, img);
+    fs.writeFileSync(js, `const { app, nativeImage } = require('electron'); const fs = require('fs'); app.whenReady().then(() => { fs.writeFileSync(${JSON.stringify(jpgf)}, nativeImage.createFromPath(${JSON.stringify(pngf)}).toJPEG(88)); app.quit(); });`);
+    execSync(`"${path.join(ROOT, 'node_modules', 'electron', 'dist', 'electron.exe')}" "${js}"`, { env: env0, stdio: 'ignore' });
+    img = fs.readFileSync(jpgf);
+  }
+  // A 4 m × 2.5 m quad in its own XY plane, normal +Z; UVs 0..3 × 0..2.
+  const pos = new Float32Array([-2, -1.25, 0, 2, -1.25, 0, 2, 1.25, 0, -2, 1.25, 0]);
+  const nrm = new Float32Array([0, 0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 1]);
+  const uv = new Float32Array([0, 2, 3, 2, 3, 0, 0, 0]);
+  const idx = new Uint16Array([0, 1, 2, 0, 2, 3]);
+  const parts = [Buffer.from(pos.buffer), Buffer.from(nrm.buffer), Buffer.from(uv.buffer), Buffer.from(idx.buffer), img];
+  const views = []; let off = 0; const pad = (b) => Buffer.concat([b, Buffer.alloc((4 - (b.length % 4)) % 4)]);
+  const bin = Buffer.concat(parts.map((b) => { views.push({ buffer: 0, byteOffset: off, byteLength: b.length }); const p = pad(b); off += p.length; return p; }));
+  const json = {
+    asset: { version: '2.0' }, scene: 0, scenes: [{ nodes: [0] }], nodes: [{ mesh: 0, name: 'wall' }],
+    meshes: [{ primitives: [{ attributes: { POSITION: 0, NORMAL: 1, TEXCOORD_0: 2 }, indices: 3, material: 0 }] }],
+    materials: [{ pbrMetallicRoughness: { baseColorFactor: [1, 0.92, 0.85, 1], baseColorTexture: { index: 0 }, metallicFactor: 0.15, roughnessFactor: 0.8 } }],
+    textures: [{ source: 0, sampler: 0 }], samplers: [{ magFilter: 9729, minFilter: 9987, wrapS: 10497, wrapT: 10497 }],
+    images: [{ bufferView: 4, mimeType: TEX_JPEG ? 'image/jpeg' : 'image/png' }],
+    accessors: [
+      { bufferView: 0, componentType: 5126, count: 4, type: 'VEC3', min: [-2, -1.25, 0], max: [2, 1.25, 0] },
+      { bufferView: 1, componentType: 5126, count: 4, type: 'VEC3' },
+      { bufferView: 2, componentType: 5126, count: 4, type: 'VEC2' },
+      { bufferView: 3, componentType: 5123, count: 6, type: 'SCALAR' },
+    ],
+    bufferViews: views, buffers: [{ byteLength: bin.length }],
+  };
+  const js = Buffer.from(JSON.stringify(json)); const jp = Buffer.concat([js, Buffer.alloc((4 - (js.length % 4)) % 4, 0x20)]);
+  const head = Buffer.alloc(12); head.write('glTF', 0); head.writeUInt32LE(2, 4); head.writeUInt32LE(12 + 8 + jp.length + 8 + bin.length, 8);
+  const ch = (type, b) => { const h = Buffer.alloc(8); h.writeUInt32LE(b.length, 0); h.write(type, 4); return Buffer.concat([h, b]); };
+  fs.writeFileSync(CALIB_TEX, Buffer.concat([head, ch('JSON', jp), ch('BIN\u0000', bin)]));
+}
 const project = path.join(WORK, 'projectors.artlux');
 fs.writeFileSync(project, JSON.stringify({
   version: '1.2', timestamp: '2026-01-01T00:00:00.000Z',
@@ -185,6 +233,8 @@ fs.writeFileSync(project, JSON.stringify({
     // --glb: the multi-projector example's venue, the still on every mesh of it (its UVs, v flipped as three flips it).
     ...(CALIB_GLB ? [{ id: 'ven', name: 'Venue', kind: 'mesh', path: CALIB_GLB, surfaceId: 'sP', position: { x: 0, y: 2.9, z: -3 }, rotation: { x: 0, y: 0, z: 0 }, scale: 0.5, visible: true,
       ...(CALIB_OCCLUDE ? { uvMode: 'projected', uvProjFrom: PROJ_FROM } : {}) }] : []),
+    // --calib-tex: the textured wall, oblique (its far end minified — the mips), left of the screens.
+    ...(CALIB_TEX ? [{ id: 'tex', name: 'Textured', kind: 'mesh', path: CALIB_TEX, position: { x: -1.4, y: 1.6, z: -1.6 }, rotation: { x: -8, y: 62, z: 0 }, scale: 1, visible: true }] : []),
     ...(CALIB_OWN ? [{ id: 'room', name: 'Room', kind: 'mesh', path: CALIB_OWN, position: { x: 0, y: 1.3, z: -2.5 }, rotation: { x: 0, y: 8, z: 0 }, scale: 0.6, visible: true,
       screens: { screen_main: CALIB_LAYER ? { layerId: 'LV' } : { surfaceId: 'sP' } } }] : []),
   ] } } : {}),

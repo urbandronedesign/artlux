@@ -69,7 +69,13 @@ pub struct Xf { pub mv: [f32; 16], pub world: [f32; 16], pub own: Option<Own> }
 /// A MeshStandardMaterial's uniforms (diffuse, metalness, emissive × emissiveIntensity — linear), its side (three's
 /// FrontSide 0 / BackSide 1 / DoubleSide 2) and the mesh's normal matrix (column-major 3 × 3).
 #[derive(Clone, Debug)]
-pub struct Own { pub color: [f32; 3], pub metalness: f32, pub emissive: [f32; 3], pub side: u8, pub nm: [f32; 9] }
+pub struct Own { pub color: [f32; 3], pub metalness: f32, pub emissive: [f32; 3], pub side: u8, pub nm: [f32; 9], pub map: Option<MapSampler>, pub raster: Option<String> }
+
+/// E6i step 4: a base-colour MAP (the GLB's own baseColorTexture — the engine reads the image from the file, as three's
+/// GLTFLoader does) and three's sampler for it, as its constants: wrapS / wrapT (RepeatWrapping 1000, ClampToEdge 1001,
+/// MirroredRepeat 1002), magFilter / minFilter (Nearest 1003 … LinearMipmapLinear 1008).
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub struct MapSampler { pub wrap_s: u32, pub wrap_t: u32, pub mag: u32, pub min: u32 }
 
 /// The window's two lights as WebGLLights uploads them: ambient, hemisphere sky / ground (× intensity), its direction
 /// in view space.
@@ -99,6 +105,12 @@ fn xf_of(x: &Value) -> Option<Xf> {
     let own = x.get("own").filter(|o| o.is_object()).and_then(|o| Some(Own {
         color: fl::<3>(&o["color"])?, metalness: o["metalness"].as_f64()? as f32, emissive: fl::<3>(&o["emissive"])?,
         side: o["side"].as_u64().unwrap_or(0).min(2) as u8, nm: fl::<9>(&x["nm"])?,
+        map: match o.get("map").filter(|m| m.is_object()) {
+            Some(m) => Some(MapSampler { wrap_s: m["wrapS"].as_u64()? as u32, wrap_t: m["wrapT"].as_u64()? as u32, mag: m["mag"].as_u64()? as u32, min: m["min"].as_u64()? as u32 }),
+            None => None,
+        },
+        // E6i step 4: a map that is not a PNG comes as the APP's decode, a raster under this key (not the file's).
+        raster: o["map"]["raster"].as_str().map(str::to_string),
     }));
     // A mesh that says it wears its own material but whose material did not parse is no mesh (drawn as nothing,
     // never as something else).
@@ -184,6 +196,11 @@ impl View {
         Some(View { proj, models, post: post_of(&v["post"]), warped: v["warped"].as_bool().unwrap_or(false), lights })
     }
     /// The surfaces it shows (the presenters need their pictures).
+    /// E6i step 4: the raster keys of the maps the app decodes for this venue (published to the presenter as is).
+    pub fn maps(&self) -> Vec<String> {
+        let mut v: Vec<String> = self.models.iter().flat_map(|m| m.meshes.iter().filter_map(|x| x.own.as_ref().and_then(|o| o.raster.clone()))).collect();
+        v.sort(); v.dedup(); v
+    }
     pub fn surfaces(&self) -> Vec<String> {
         let mut v: Vec<String> = self.models.iter().flat_map(|m| m.src.iter().map(|s| s.surface.clone())).collect();
         v.sort(); v.dedup(); v
@@ -309,8 +326,11 @@ struct Cam { p: mat4x4<f32> };
 struct Own { mv: mat4x4<f32>, n0: vec4<f32>, n1: vec4<f32>, n2: vec4<f32>, color: vec4<f32>, emissive: vec4<f32>,
              ambient: vec4<f32>, sky: vec4<f32>, ground: vec4<f32>, dir: vec4<f32>, flags: vec4<f32> };
 @group(1) @binding(0) var<uniform> own: Own;
+// E6i step 4: the base-colour map (sRGB-decoded by its format, mipmapped), when flags.w — a 1×1 blank otherwise.
+@group(2) @binding(0) var omap: texture_2d<f32>;
+@group(2) @binding(1) var osamp: sampler;
 
-struct OOut { @builtin(position) pos: vec4<f32>, @location(0) vn: vec3<f32> };
+struct OOut { @builtin(position) pos: vec4<f32>, @location(0) vn: vec3<f32>, @location(1) uv: vec2<f32> };
 
 @vertex fn vs(@location(0) p: vec3<f32>, @location(1) n: vec3<f32>, @location(2) uv: vec2<f32>) -> OOut {
   var o: OOut;
@@ -324,16 +344,23 @@ struct OOut { @builtin(position) pos: vec4<f32>, @location(0) vn: vec3<f32> };
   var tn = mat3x3<f32>(own.n0.xyz, own.n1.xyz, own.n2.xyz) * n;
   if (own.flags.y > 0.5) { tn = -tn; }
   o.vn = normalize(tn);
+  // vMapUv = uv (no transform; the host refuses one). The geometry's v was turned to 1 − v at load (the content
+  // path's flip) — turned back: GLTFLoader's textures are flipY false, so glTF's v samples the image as stored.
+  o.uv = vec2<f32>(uv.x, 1.0 - uv.y);
   return o;
 }
 
 fn lit(i: OOut, ff: bool) -> vec3<f32> {
+  // map_fragment: diffuseColor *= texture2D(map, vMapUv) — sampled unconditionally (uniform control flow), applied
+  // when there is one.
+  let texel = textureSample(omap, osamp, i.uv);
+  let diffuse = select(own.color.rgb, own.color.rgb * texel.rgb, own.flags.w > 0.5);
   // normal_fragment_begin.
   let faceDirection = select(-1.0, 1.0, ff);
   var normal = normalize(i.vn);
   if (own.flags.x > 0.5) { normal = normal * faceDirection; }
   // lights_physical_fragment: diffuseContribution = diffuseColor.rgb * (1 - metalnessFactor).
-  let diffuseContribution = own.color.rgb * (1.0 - own.color.w);
+  let diffuseContribution = diffuse * (1.0 - own.color.w);
   // lights_fragment_begin: irradiance = ambientLightColor; += getHemisphereLightIrradiance(hemi, normal).
   var irradiance = own.ambient.rgb;
   let dotNL = dot(normal, own.dir.xyz);
@@ -513,6 +540,10 @@ pub struct Renderer {
     own_module: wgpu::ShaderModule,
     own_pipes: HashMap<(u8, bool), wgpu::RenderPipeline>,
     blank_tex: wgpu::BindGroup,
+    /// E6i step 4: each venue GLB's images (decoded RGBA) and, by three's mesh slot, its base-colour image — and the
+    /// maps made of them, by (file, image, sampler).
+    glb_imgs: HashMap<String, (Vec<Option<usize>>, Arc<Vec<(u32, u32, Vec<u8>)>>)>,
+    own_texs: HashMap<(String, usize, MapSampler), wgpu::BindGroup>,
     depth_u: Option<(u64, wgpu::Buffer, wgpu::BindGroup)>,
     dmap_layout: wgpu::BindGroupLayout,
     dsamp: wgpu::Sampler,
@@ -532,6 +563,25 @@ pub struct Renderer {
     resolved: Option<(u32, u32, wgpu::TextureView, wgpu::BindGroup)>,
     out_id: String,
 }
+
+/// E6i step 4: one mip level from the one above — a bilinear sample at each destination texel's centre (exactly the
+/// 2×2 average of the source texels under it), read through the sRGB view (decoded to linear before filtering) and
+/// written through it (the hardware's encode): what a GPU's GenerateMips on an sRGB format does. A CPU average with
+/// its own encode was off by 1 on the smallest levels (measured: 1 007 pixels at the far end of a minified wall).
+const MIP: &str = r#"
+@group(0) @binding(0) var src: texture_2d<f32>;
+@group(0) @binding(1) var s: sampler;
+struct V { @builtin(position) p: vec4<f32>, @location(0) uv: vec2<f32> };
+@vertex fn vs(@builtin(vertex_index) i: u32) -> V {
+  let x = f32((i << 1u) & 2u);
+  let y = f32(i & 2u);
+  var o: V;
+  o.p = vec4<f32>(x * 2.0 - 1.0, 1.0 - y * 2.0, 0.0, 1.0);
+  o.uv = vec2<f32>(x, y);
+  return o;
+}
+@fragment fn fs(v: V) -> @location(0) vec4<f32> { return textureSampleLevel(src, s, v.uv, 0.0); }
+"#;
 
 /// three's PlaneGeometry(w, h) (1 × 1 segments), as it builds it: positions in f64 then stored f32, uv (ix, 1 − iy),
 /// indices a b d, b c d.
@@ -656,7 +706,7 @@ impl Renderer {
         let dim_buf = d.create_buffer(&wgpu::BufferDescriptor { label: Some("calib3d dim"), size: 16, usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST, mapped_at_creation: false });
         Renderer { pipe_double, pipe_front, lin_double, lin_front, post_samples, post_pipe, post_buf, post_bind: None, cam_buf, cam_bind, obj_layout, obj: None, tex_layout, sampler,
             depth_pipe, depth_u: None, dmap_layout, dsamp, far_bind, dmaps: HashMap::new(),
-            layout, own_module, own_pipes: HashMap::new(), blank_tex, planes: HashMap::new(), glbs: HashMap::new(),
+            layout, own_module, own_pipes: HashMap::new(), blank_tex, glb_imgs: HashMap::new(), own_texs: HashMap::new(), planes: HashMap::new(), glbs: HashMap::new(),
             loaded_tx, loaded_rx, texs: HashMap::new(), targets: None, dim_pipe, dim_buf, resolved: None, out_id: out_id.to_string() }
     }
 
@@ -683,6 +733,10 @@ impl Renderer {
                         by_slot[pr.slot] = Some(Self::mesh(gpu, &v, &pr.idx));
                     }
                     eprintln!("artlux-engine: output '{}': venue {p} loaded ({n} meshes)", self.out_id);
+                    let mut img_of: Vec<Option<usize>> = vec![None; n];
+                    for pr in &cpu.prims { img_of[pr.slot] = pr.image; }
+                    self.own_texs.retain(|k, _| k.0 != p);
+                    self.glb_imgs.insert(p.clone(), (img_of, Arc::new(cpu.images)));
                     GlbState::Ready(by_slot)
                 }
                 Err(e) => { eprintln!("artlux-engine: output '{}': venue {p}: {e}", self.out_id); GlbState::Failed }
@@ -695,6 +749,72 @@ impl Renderer {
             std::thread::spawn(move || { let r = crate::view3d::load_glb(&p); let _ = tx.send((p, r)); });
         }
         match self.glbs.get(path) { Some(GlbState::Ready(m)) => Some(m), _ => None }
+    }
+
+    /// E6i step 4 — A GLB's base-colour map as three uploads it: SRGB8_ALPHA8 (decoded to linear by the format before
+    /// filtering), generateMipmap (ANGLE on D3D11: GenerateMips on the sRGB format — done on the GPU here, MIP), and
+    /// the glTF sampler three made of it.
+    fn own_map(&self, gpu: &Gpu, key: &(String, usize, MapSampler), pictures: &HashMap<String, (u64, Arc<Picture>)>) -> Option<wgpu::BindGroup> {
+        // usize::MAX: the app's decode, a raster picture (opaque — the bytes as three uploaded them); otherwise the GLB's.
+        let pic;
+        let (w, h, rgba): (&u32, &u32, &Vec<u8>) = if key.1 == usize::MAX {
+            pic = pictures.get(&key.0)?.1.clone();
+            (&pic.w, &pic.h, &pic.rgba)
+        } else {
+            let (_, imgs) = self.glb_imgs.get(&key.0)?;
+            let (w, h, rgba) = imgs.get(key.1)?;
+            (w, h, rgba)
+        };
+        if *w == 0 || *h == 0 || rgba.len() < (*w * *h * 4) as usize { return None; }
+        let d = &gpu.device;
+        let levels = 32 - (*w).max(*h).leading_zeros();   // three: floor(log2(max)) + 1
+        let fmt = wgpu::TextureFormat::Rgba8UnormSrgb;
+        let t = d.create_texture(&wgpu::TextureDescriptor {
+            label: Some("calib3d own map"), size: wgpu::Extent3d { width: *w, height: *h, depth_or_array_layers: 1 }, mip_level_count: levels, sample_count: 1,
+            dimension: wgpu::TextureDimension::D2, format: fmt,
+            usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST | wgpu::TextureUsages::RENDER_ATTACHMENT, view_formats: &[] });
+        gpu.queue.write_texture(wgpu::TexelCopyTextureInfo { texture: &t, mip_level: 0, origin: wgpu::Origin3d::ZERO, aspect: wgpu::TextureAspect::All },
+            &rgba[..(*w * *h * 4) as usize], wgpu::TexelCopyBufferLayout { offset: 0, bytes_per_row: Some(*w * 4), rows_per_image: Some(*h) },
+            wgpu::Extent3d { width: *w, height: *h, depth_or_array_layers: 1 });
+        // generateMipmap, on the GPU (MIP above).
+        let mm = d.create_shader_module(wgpu::ShaderModuleDescriptor { label: Some("calib3d mip"), source: wgpu::ShaderSource::Wgsl(MIP.into()) });
+        let pipe = d.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+            label: Some("calib3d mip"), layout: None,
+            vertex: wgpu::VertexState { module: &mm, entry_point: Some("vs"), buffers: &[], compilation_options: Default::default() },
+            fragment: Some(wgpu::FragmentState { module: &mm, entry_point: Some("fs"), targets: &[Some(fmt.into())], compilation_options: Default::default() }),
+            primitive: Default::default(), depth_stencil: None, multisample: Default::default(), multiview_mask: None, cache: None,
+        });
+        let lin = d.create_sampler(&wgpu::SamplerDescriptor { label: Some("calib3d mip"), mag_filter: wgpu::FilterMode::Linear, min_filter: wgpu::FilterMode::Linear, ..Default::default() });
+        let mut enc = d.create_command_encoder(&Default::default());
+        for lv in 1..levels {
+            let one = |l: u32| t.create_view(&wgpu::TextureViewDescriptor { base_mip_level: l, mip_level_count: Some(1), ..Default::default() });
+            let (sv, dv) = (one(lv - 1), one(lv));
+            let bind = d.create_bind_group(&wgpu::BindGroupDescriptor { label: None, layout: &pipe.get_bind_group_layout(0), entries: &[
+                wgpu::BindGroupEntry { binding: 0, resource: wgpu::BindingResource::TextureView(&sv) },
+                wgpu::BindGroupEntry { binding: 1, resource: wgpu::BindingResource::Sampler(&lin) },
+            ] });
+            let mut pass = enc.begin_render_pass(&wgpu::RenderPassDescriptor { label: Some("calib3d mip"), color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                view: &dv, depth_slice: None, resolve_target: None, ops: wgpu::Operations { load: wgpu::LoadOp::Clear(wgpu::Color::BLACK), store: wgpu::StoreOp::Store } })], ..Default::default() });
+            pass.set_pipeline(&pipe);
+            pass.set_bind_group(0, &bind, &[]);
+            pass.draw(0..3, 0..1);
+        }
+        gpu.queue.submit([enc.finish()]);
+        let s = key.2;
+        let wrap = |m: u32| match m { 1001 => wgpu::AddressMode::ClampToEdge, 1002 => wgpu::AddressMode::MirrorRepeat, _ => wgpu::AddressMode::Repeat };
+        let lin = |f: u32| if matches!(f, 1003 | 1004 | 1005) { wgpu::FilterMode::Nearest } else { wgpu::FilterMode::Linear };
+        // minFilter: Nearest / Linear read the base level only; *MipmapNearest one level, *MipmapLinear two.
+        let mipped = matches!(s.min, 1004 | 1005 | 1007 | 1008);
+        let sampler = d.create_sampler(&wgpu::SamplerDescriptor {
+            label: Some("calib3d own map"), address_mode_u: wrap(s.wrap_s), address_mode_v: wrap(s.wrap_t),
+            mag_filter: lin(s.mag), min_filter: lin(s.min),
+            mipmap_filter: if matches!(s.min, 1005 | 1008) { wgpu::MipmapFilterMode::Linear } else { wgpu::MipmapFilterMode::Nearest },
+            lod_max_clamp: if mipped { 32.0 } else { 0.0 }, ..Default::default() });
+        let view = t.create_view(&Default::default());
+        Some(d.create_bind_group(&wgpu::BindGroupDescriptor { label: None, layout: &self.tex_layout, entries: &[
+            wgpu::BindGroupEntry { binding: 0, resource: wgpu::BindingResource::TextureView(&view) },
+            wgpu::BindGroupEntry { binding: 1, resource: wgpu::BindingResource::Sampler(&sampler) },
+        ] }))
     }
 
     /// The surface's picture as three samples a streamed frame: its visible rect, sRGB-decoded by the format.
@@ -771,24 +891,34 @@ impl Renderer {
         }
         if dimmed { gpu.queue.write_buffer(&self.dim_buf, 0, &f32s(&[q, 0.0, 0.0, 0.0])); }
         // Every draw: (geometry, cull, obj uniform index, texture bind) — gathered first, as the pass borrows.
-        struct Draw { plane: Option<(u64, u64)>, glb: Option<(String, usize)>, front: bool, sid: String, world: [f32; 16], occl: Option<[u32; 16]>, own: Option<u8> }
+        struct Draw { plane: Option<(u64, u64)>, glb: Option<(String, usize)>, front: bool, sid: String, world: [f32; 16], occl: Option<[u32; 16]>, own: Option<u8>, map: Option<(String, usize, MapSampler)> }
         let mut draws: Vec<Draw> = Vec::new();
         let mut objs: Vec<u8> = Vec::new();
+        // The venue files first: a textured own mesh needs its file's images to say which map it wears.
+        for m in &view.models { if let Geo::Glb { path } = &m.geo { let _ = self.glb(gpu, path); } }
         for m in &view.models {
             for (k, xf) in m.meshes.iter().enumerate() {
                 // A mesh in its OWN material: the Own uniform in its slot (mv, normal matrix, material, the lights).
                 if let (Some(o), Geo::Glb { path }, Some(l)) = (&xf.own, &m.geo, &view.lights) {
+                    // E6i step 4: the map this slot wears in the file. Not loaded yet → not drawn yet (as the geometry);
+                    // the host says a map and the file has none → not drawn (never drawn as something else).
+                    let map = match (o.map, &o.raster) {
+                        // The app's decode (a JPEG…): drawn once it has arrived.
+                        (Some(s), Some(key)) => if pictures.contains_key(key) { Some((key.clone(), usize::MAX, s)) } else { continue },
+                        (Some(s), None) => match self.glb_imgs.get(path).and_then(|(of, _)| of.get(k).copied().flatten()) { Some(img) => Some((path.clone(), img, s)), None => continue },
+                        (None, _) => None,
+                    };
                     let mut u: Vec<f32> = Vec::with_capacity(56);
                     u.extend_from_slice(&xf.mv);
                     for c in 0..3 { u.extend_from_slice(&[o.nm[c * 3], o.nm[c * 3 + 1], o.nm[c * 3 + 2], 0.0]); }
                     u.extend_from_slice(&[o.color[0], o.color[1], o.color[2], o.metalness]);
                     u.extend_from_slice(&[o.emissive[0], o.emissive[1], o.emissive[2], 0.0]);
                     for v in [l.ambient, l.sky, l.ground, l.dir] { u.extend_from_slice(&[v[0], v[1], v[2], 0.0]); }
-                    u.extend_from_slice(&[if o.side == 2 { 1.0 } else { 0.0 }, if o.side == 1 { 1.0 } else { 0.0 }, 1.0, 0.0]);
+                    u.extend_from_slice(&[if o.side == 2 { 1.0 } else { 0.0 }, if o.side == 1 { 1.0 } else { 0.0 }, 1.0, if map.is_some() { 1.0 } else { 0.0 }]);
                     let mut b = f32s(&u);
                     b.resize(OBJ_STRIDE as usize, 0);
                     objs.extend_from_slice(&b);
-                    draws.push(Draw { plane: None, glb: Some((path.clone(), k)), front: false, sid: String::new(), world: xf.world, occl: None, own: Some(o.side) });
+                    draws.push(Draw { plane: None, glb: Some((path.clone(), k)), front: false, sid: String::new(), world: xf.world, occl: None, own: Some(o.side), map });
                     continue;
                 }
                 let Some(si) = m.mesh_src.get(k).copied().filter(|&i| i >= 0) else { continue };
@@ -809,8 +939,8 @@ impl Renderer {
                 objs.extend_from_slice(&b);
                 let front = s.proj.is_some();   // the projected material is FRONT-sided, the authored one double
                 match &m.geo {
-                    Geo::Plane { w, h } => draws.push(Draw { plane: Some((w.to_bits(), h.to_bits())), glb: None, front, sid: s.surface.clone(), world: xf.world, occl, own: None }),
-                    Geo::Glb { path } => draws.push(Draw { plane: None, glb: Some((path.clone(), k)), front, sid: s.surface.clone(), world: xf.world, occl, own: None }),
+                    Geo::Plane { w, h } => draws.push(Draw { plane: Some((w.to_bits(), h.to_bits())), glb: None, front, sid: s.surface.clone(), world: xf.world, occl, own: None, map: None }),
+                    Geo::Glb { path } => draws.push(Draw { plane: None, glb: Some((path.clone(), k)), front, sid: s.surface.clone(), world: xf.world, occl, own: None, map: None }),
                 }
             }
         }
@@ -821,6 +951,7 @@ impl Renderer {
             }
             if let Some((p, _)) = &dr.glb { let _ = self.glb(gpu, p); }
             if let Some((g, pic)) = pictures.get(&dr.sid) { let _ = self.texture(gpu, &dr.sid, *g, pic); }
+            if let Some(key) = &dr.map { if !self.own_texs.contains_key(key) { if let Some(b) = self.own_map(gpu, key, pictures) { self.own_texs.insert(key.clone(), b); } } }
             // OWN pipelines: three's side → the cull (FrontSide culls back faces, BackSide front ones, DoubleSide none).
             if let Some(side) = dr.own {
                 if !self.own_pipes.contains_key(&(side, posted)) {
@@ -972,7 +1103,8 @@ impl Renderer {
                     let Some(mesh) = mesh else { continue };
                     pass.set_pipeline(&self.own_pipes[&(side, posted)]);
                     pass.set_bind_group(1, obj_bind, &[(i as u64 * OBJ_STRIDE) as u32]);
-                    pass.set_bind_group(2, &self.blank_tex, &[]);
+                    let map = match &dr.map { Some(k) => match self.own_texs.get(k) { Some(b) => b, None => continue }, None => &self.blank_tex };
+                    pass.set_bind_group(2, map, &[]);
                     pass.set_bind_group(3, &self.far_bind, &[]);
                     pass.set_vertex_buffer(0, mesh.vb.slice(..));
                     pass.set_index_buffer(mesh.ib.slice(..), wgpu::IndexFormat::Uint32);

@@ -622,8 +622,10 @@ fn present(gpu: Arc<Gpu>, window: Arc<Window>, surface: wgpu::Surface<'static>, 
             let s = shared.lock().unwrap();
             // E6f: in render mode, the venue and the pictures of the surfaces it shows.
             let calib = s.calib.get(&spec.id).map(|(_, v)| {
-                let pics: HashMap<String, (u64, Arc<Picture>)> = v.surfaces().into_iter()
+                let mut pics: HashMap<String, (u64, Arc<Picture>)> = v.surfaces().into_iter()
                     .filter_map(|sid| s.pictures.get(&format!("venue:{sid}")).cloned().map(|p| (sid, p))).collect();
+                // E6i step 4: the venue maps the app decoded (`vmap:…`), under their own keys.
+                for k in v.maps() { if let Some(p) = s.pictures.get(&k) { pics.insert(k, p.clone()); } }
                 (v.clone(), pics)
             });
             (s.pictures.get(&spec.surface_id).cloned(), s.opts.get(&spec.id).cloned(), s.booting, spec.badge.as_ref().and_then(|k| s.badges.get(k).cloned()), calib)
