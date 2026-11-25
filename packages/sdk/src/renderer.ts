@@ -806,6 +806,12 @@ export interface ProjectorPanelContext<In = unknown, Out = unknown> {
    * 3D at all — against 60 with it closed.
    */
   fpsCap?: number;
+  /**
+   * E6i step 3: the native engine's own window shows this output (the app's window is COVERED). A panel that owns
+   * its render loop stops drawing — nothing of a covered window draws; its picture is the engine's. False again when
+   * the engine gives the output back (a calibration session opened on it) or an emergency hands it to the app.
+   */
+  paused?: boolean;
 }
 
 export interface ProjectorPanelContribution {

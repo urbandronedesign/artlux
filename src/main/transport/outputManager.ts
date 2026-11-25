@@ -104,6 +104,12 @@ let lastFrame: ArrayBuffer | null = null;
 let wireOwner: (() => boolean) | null = null;
 let muted = false;
 export function setWireOwner(fn: (() => boolean) | null): void { wireOwner = fn; }
+// E6i step 3 — THE APP'S FRAMES STAY OFF THE WIRE while the native engine is in charge (engineHost.appEmergency null),
+// even in the moments it does not own it: at boot before its first frame, and across a restart, where its HELD frame
+// is on the wire. Only an emergency (the engine refused, gave up, is missing, refuses this document) or the quit's
+// blackout lets them through. Null (no engine this run) = never silenced.
+let appSilenced: (() => boolean) | null = null;
+export function setAppSilenced(fn: (() => boolean) | null): void { appSilenced = fn; }
 
 // E6h — THE ENGINE'S LAST FRAME, HELD ACROSS ITS DEATH (main/engineHost.ts; engine hold.rs). The moment an engine
 // that owned the wire dies, engineHost hands its last frame here and it goes out through THIS sender, whose
@@ -148,8 +154,17 @@ export function sendFrame(frame: ArrayBuffer | Uint8Array): void {
     }
     return;
   }
+  if (appSilenced?.()) {
+    if (holding) return;   // the engine's held frame stays on the wire until a restarted engine takes it
+    if (!muted) {
+      muted = true;
+      if (native) native.pushFrame(toBuffer(new Uint8Array(4)));
+      else { artnet.sendFrame({ targets: [] }); sacn.sendFrame({ targets: [] }); }
+    }
+    return;
+  }
   muted = false;
-  holding = false;   // the app's live frame replaces a held one
+  holding = false;   // the app's live frame replaces a held one (an emergency: the engine is not coming back)
   if (native) {
     native.pushFrame(toBuffer(frame)); // hand off to the dedicated send thread
     return;

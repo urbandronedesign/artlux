@@ -28,11 +28,10 @@ topic you last looked at.
 
 **Engine** — the output loop:
 
-- **Native output engine** *(Windows)* — draws your output (LED pixels, light fixtures, projector outputs) in
-  ArtLux's own native engine rather than inside the app window. **On by default.** Anything the engine cannot
-  draw stays with the app, output by output, so a show looks the same either way. Turn it **off** to go back to
-  the app drawing everything — for example if a show behaves differently with it on. **It takes effect the next
-  time ArtLux starts**, never in the middle of a show; the line under the switch says what is running now.
+- **Native output engine** *(Windows)* — ArtLux draws your output (LED pixels, light fixtures, projector outputs)
+  in its own native engine, always; this line says that it is running. There is no switch: if the engine cannot
+  run at all, ArtLux draws the output itself so the show keeps going, and the machine log says why. A projector
+  you are calibrating is drawn by ArtLux's own window while the session is open.
 
 - **FPS** — output frame rate (what goes on the wire).
 - **Engine rate (fps)** — how often a new frame is *made*: composited, sampled for your fixtures and

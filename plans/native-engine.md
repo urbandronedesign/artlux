@@ -2766,6 +2766,28 @@ fallback until a source/output is proven byte-identical — risk 2):
 > 'Other' with its reason, the engine's window = the app's **2 073 600 / 2 073 600, max 0**, the kill and restart
 > retake it identically. The plain, `--ndi`, `--windowed`, `--hold`, `--calibrated --calib-refused` and
 > `--windowed --ndi --partial` runs and `test:engine-hold` pass unchanged.
+>
+> ✅ **E6i step 3 done 2026-11-25 — THE SWITCH-OVER (Windows).** While the engine is in charge the browser engine never
+> drives an output. **Wire:** `outputManager.setAppSilenced(() => appEmergency() === null)` — the app's frames never
+> reach it: nothing at boot until the engine's first frame, the engine's HELD frame across a restart (the app's live
+> frame no longer replaces it). **Projectors:** the app's windows of the engine's outputs never draw — covered, and the
+> calibration panel's render loop PAUSED (`ProjectorPanelContext.paused` → ProjectorScene `frameloop 'never'`); an
+> engine death keeps them covered (`heldIds`, `applyCover`) with the engine's last picture (`HeldPicture`, now inside
+> ProjectorApp under the badge) and a windowed one SHOWN where the engine's was, until the restarted engine's answer
+> drops the holds. **Preferences:** the way off is gone (a saved `nativeEngineOff` is ignored and logged); the
+> section says the engine runs. **Emergency only** (`appEmergency`, logged `[engine] EMERGENCY — the app drives the
+> wire: …`): refused, given up, missing, the app quitting (its blackout), or the ENGINE's own answer that it cannot
+> draw this document (`docRefused` — never main's "hung / exited": found by test:engine-hold, between a hang kill and
+> the exit event the state is still `up`, and the app's live frame replaced the hold on the video universe); a
+> refused / given-up engine also hands its held projector outputs back to the app's drawing (`projectorsEmergency`).
+> Proof: `test:engine-hold` WITHOUT `ARTLUX_NO_APP_WIRE` — only the engine sends, every universe held byte for byte
+> (the moving video too) 144 ms after a kill, longest silence 144 ms / 68 ms across a stall; phase **M**
+> (`ARTLUX_ENGINE_TEST_MISSING=1`): the app's live frames drive every universe and main says why.
+> `test:native-projectors --hold` WITHOUT `ARTLUX_NO_APP_PROJECTOR` (the real ProjectorApp): after the death the screen
+> = the engine's last picture **2 073 600 / 2 073 600**, `--calibrated --hold` the same, `--windowed --hold`
+> **860 784 / 860 784**; plain, `--ndi`, `--windowed`, `--partial`, `--calib-refused`, takeover and
+> `test:tracking-wire --bg-still` pass. Left: step 4 (textured / transparent own materials), and the load-time
+> document refusals that still make an emergency (an MP4 colour space, an MJPEG camera, an engine without NDI).
 
 ## 9d. E4 started early — the 3D view in the engine (owner, 2026-11-24)
 

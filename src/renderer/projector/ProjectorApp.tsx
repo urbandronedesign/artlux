@@ -8,6 +8,7 @@ import { ProjectorGL } from './ProjectorGL';
 import { squareToQuad, applyH } from './homography';
 import { makeBezierWarp, tessellateBezier, evalBezier, hasResidualWarp, BEZIER_CORNERS } from './warp';
 import type { MainToProjector, ProjectorToMain, ProjectorRender } from './bridge';
+import { HeldPicture } from './HeldPicture';
 import { outputTitle } from './outputTitle';
 import { activateRendererPlugins } from '../host/plugins';
 import { keymap } from '../shortcuts/keymapStore';
@@ -199,7 +200,10 @@ export const ProjectorApp: React.FC = () => {
   // for one projector would double the GPU work. Uncovered (the engine gave the output back, or died), the
   // next frame draws as usual: the fallback is this window, already on the display.
   const coveredRef = useRef(false);
-  useEffect(() => window.artlux?.onProjectorCovered?.((c) => { coveredRef.current = c; }), []);
+  // E6i step 3: as state too — the plugin panels (calibration's render-from-projector) own their render loops, and are
+  // told to stop drawing while covered (ProjectorPanelContext.paused): nothing of this window draws under the engine.
+  const [covered, setCovered] = useState(false);
+  useEffect(() => window.artlux?.onProjectorCovered?.((c) => { coveredRef.current = c; setCovered(c); }), []);
   const [boot, setBoot] = useState<{ booting: boolean; ready: number; total: number; phase?: BootPhase }>({ booting: false, ready: 0, total: 0 });
 
   // Re-register this window's surfaces with surfaceMedia. Media is only ACQUIRED for content this
@@ -234,6 +238,7 @@ export const ProjectorApp: React.FC = () => {
   const [panelFpsCap, setPanelFpsCap] = useState(0);
   const panelCtx = useMemo<ProjectorPanelContext>(() => ({
     fpsCap: panelFpsCap,
+    paused: covered,
     onMessage: (cb) => {
       panelMsgSubs.current.add(cb);
       for (const t of PANEL_STATE) { const m = panelStateRef.current.get(t); if (m) cb(m); }
@@ -250,7 +255,7 @@ export const ProjectorApp: React.FC = () => {
       panelSourceRef.current = c;
       consumingPanelRef.current = false; // re-decided on the next frame against the new canvas
     },
-  }), [panelFpsCap]);
+  }), [panelFpsCap, covered]);
   const commit = () => { if (warpRef.current) send({ t: 'warp', warp: warpRef.current }); else send({ t: 'cornerPin', cornerPin: pinRef.current }); };
   const commitDebounced = () => {
     if (commitTimer.current) window.clearTimeout(commitTimer.current);
@@ -966,6 +971,11 @@ export const ProjectorApp: React.FC = () => {
 
           E6f: ONE BITMAP (components/brand/badge.ts), not DOM — the native engine composites the very
           same bitmap in its window of this output, so the two windows agree to the pixel. */}
+      {/* E6i step 3: across an engine restart, the engine's last picture of this output (main hands it; it covers all of
+          the above, which does not draw meanwhile). Under the badge: the engine draws the badge on its window, not
+          into the picture it keeps. */}
+      <HeldPicture />
+
       {windowed && <BadgeCanvas name={name} />}
 
       {/* ALIGNMENT AIDS — the physical-setup patterns. Under Identify and the boot sign (both are

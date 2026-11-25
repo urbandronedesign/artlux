@@ -78,8 +78,8 @@ const HWWARP = process.argv.includes('--hwwarp');
 // OCCLUSION — a blocker screen stands between the projector and the projected one, and (with --glb) the venue GLB is
 // projected too and shadows itself. --calib-refused: an NDI send WITHOUT a residual warp (the app sends nothing
 // there), which the engine leaves alone: the app must KEEP the outputs, with the reason.
-// --hold (E6h): the ENGINE run with ARTLUX_NO_APP_PROJECTOR=1 — the app's projector windows draw nothing of their own,
-// as with no browser engine (E6i) — and a slow restart (ARTLUX_ENGINE_TEST_RESTART_MS): killed, the engine's LAST
+// --hold (E6h, E6i step 3): the ENGINE run — the app's projector windows of the engine's outputs never draw (covered;
+// a death keeps them covered, E6i step 3; it used to take ARTLUX_NO_APP_PROJECTOR=1) — and a slow restart (ARTLUX_ENGINE_TEST_RESTART_MS): killed, the engine's LAST
 // PICTURE must be what the screen shows (main hands it to the app's window, engineHost.holdProjectors), until the
 // restarted engine covers it again.
 const HOLD = process.argv.includes('--hold');
@@ -370,7 +370,7 @@ const lit = (a) => { let n = 0; for (let i = 0; i < a.data.length; i += 4) if (a
 
 function launch(native) {
   const args = [`--user-data-dir=${PROFILE}`, ...(EDITOR ? [] : ['--broadcast']), `--project=${project}`, ...(native ? ['--native-engine'] : ['--no-native-engine'])];
-  const env = native && HOLD ? { ...env0, ARTLUX_NO_APP_PROJECTOR: '1', ARTLUX_ENGINE_TEST_RESTART_MS: '9000' } : env0;
+  const env = native && HOLD ? { ...env0, ARTLUX_ENGINE_TEST_RESTART_MS: '9000' } : env0;
   const child = PACKAGED
     ? spawn(PACKAGED, args, { env, stdio: ['ignore', 'pipe', 'pipe'] })
     : spawn('npm.cmd', ['run', 'dev', '--', '--', ...args], { cwd: ROOT, env, stdio: ['ignore', 'pipe', 'pipe'], shell: true });

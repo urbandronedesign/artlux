@@ -117,7 +117,7 @@ Both keep the direction you are looking from; only the distance (or the zoom, in
 
 ### The 3D view on its own screen
 
-**With the native engine** (on by default on Windows — *Preferences ▸ Engine ▸ Native output engine*), the **window** button in the 3D header
+**With the native engine** (always on on Windows — *Preferences ▸ Engine* says so), the **window** button in the 3D header
 opens the 3D view in **a window of its own**, drawn by the engine rather than by the editor. It is an
 ordinary window: drag it to any screen, resize it, maximise it — moving it costs the editor nothing.
 **It comes back where you left it**: the next time it opens — later in the session, or after ArtLux is

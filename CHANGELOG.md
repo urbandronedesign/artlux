@@ -5,9 +5,10 @@
 ### The native output engine is on by default on Windows
 
 On Windows, ArtLux now draws your output — LED pixels, light fixtures and projector outputs — in its native engine
-by default. Shows look the same: anything the engine cannot draw stays with the app, output by output. To go back to
-the app drawing everything on a machine, turn off **Preferences ▸ Engine ▸ Native output engine**; it takes effect
-the next time ArtLux starts. See [Preferences](docs/user-guide/12-preferences-monitoring.md).
+by default. Shows look the same: anything the engine cannot draw stays with the app, output by output. There is no
+switch to turn it off: if the engine cannot run at all, ArtLux draws the output itself so the show keeps going, and
+the machine log says why. If the engine restarts, your lights and projectors keep its last picture until it is back,
+rather than flicking to a different drawing. See [Preferences](docs/user-guide/12-preferences-monitoring.md).
 
 Projector outputs are decided one by one: calibrating one projector, or an output with no display chosen, keeps only
 that output with the app — the show's other projectors stay on the engine.

@@ -516,6 +516,8 @@ export const ProjectorScene: React.FC<{
    *  laptop: a calibrated output open put the WHOLE app at 17.6 fps, including editor contexts drawing
    *  no 3D at all, against 60 with it closed. Ignored in 'demand' mode, which is already event-driven. */
   fpsCap?: number;
+  /** E6i step 3: the native engine shows this output (the window is covered) — draw NOTHING until uncovered. */
+  paused?: boolean;
   /** Offer this Canvas to the projector window's base GL stage so a residual warp can be applied to
    *  the calibrated render (see PublishCanvas). Set ONLY for render mode — never for the crosshair
    *  underlay, whose pixels are an aiming reference that must stay in true projector raster. */
@@ -524,7 +526,7 @@ export const ProjectorScene: React.FC<{
    *  copy. Separate from onCanvas since E6f: the host also needs the ELEMENT without reading it — path C dims it
    *  by the output's brightness × the surface's opacity (ProjectorApp). Defaults to !!onCanvas. */
   readPixels?: boolean;
-}> = ({ scene3D, modelUrls, calibration, look, meshLook, frameloop = 'always', fpsCap = 0, onCanvas, readPixels = !!onCanvas }) => {
+}> = ({ scene3D, modelUrls, calibration, look, meshLook, frameloop = 'always', fpsCap = 0, onCanvas, readPixels = !!onCanvas, paused = false }) => {
   // A screen authored as a projection PLANE used to be filtered out here entirely, so nothing bound
   // to one could ever appear on a calibrated output — on a venue built mostly of flat screens the
   // render was simply empty. `modelUrls` still gates meshes only: a GLB that has not loaded yet must
@@ -537,7 +539,7 @@ export const ProjectorScene: React.FC<{
   const capped = frameloop === 'always' && fpsCap > 0;
   return (
     <Canvas
-      frameloop={capped ? 'never' : frameloop}
+      frameloop={paused || capped ? 'never' : frameloop}
       // preserveDrawingBuffer ONLY when the host may read this canvas. A WebGL drawing buffer is
       // cleared once presented to the compositor, and the host's loop and this Canvas run on two
       // INDEPENDENT rAFs with no ordering between them — without it the host intermittently samples a
@@ -550,7 +552,7 @@ export const ProjectorScene: React.FC<{
       {onCanvas && <PublishCanvas onCanvas={onCanvas} />}
       {/* The host's shared driver — one implementation with the editor viewport, so a 30 fps cap does
           not silently deliver 20 in one window and not the other. See FrameRateCap.tsx. */}
-      {capped && <FrameRateCap hz={fpsCap} />}
+      {capped && !paused && <FrameRateCap hz={fpsCap} />}
       {frameloop === 'demand' && <RedrawOn dep={calibration} />}
       <color attach="background" args={['#000']} />
       {/* Same rig as Simulator3D's Lighting (env look) — ambient alone left standard materials darker

@@ -311,18 +311,21 @@ export function clearHeld(ids: Iterable<string>): void {
 
 /** E1f-3 / E6i step 2: the outputs the native engine's windows show — those app windows stop drawing (and a windowed
  *  one hides); every other one draws. */
-export function setProjectorsCovered(ids: ReadonlySet<string>): void {
+/** `held` (E6i step 3): covered outputs whose engine window is GONE (a death) and which show its held picture — a
+ *  windowed one of those is SHOWN, not hidden: nothing else is on the screen there. */
+export function setProjectorsCovered(ids: ReadonlySet<string>, held: ReadonlySet<string> = new Set()): void {
   const was = covered;
   covered = new Set(ids);
   for (const [surfaceId, { win, displayId }] of windows) {
     if (win.isDestroyed()) continue;
     const c = covered.has(surfaceId);
-    if (c === was.has(surfaceId)) continue;
-    win.webContents.send(IPC.PROJECTOR_COVERED, c);
     // E6f: a WINDOWED output is not under a topmost engine window — the engine's is an ordinary window the operator
     // moves, so the app's is HIDDEN while covered (two windows of one output, one of them dead, would be a trap) and
     // shown again, where the engine's last was (placeWindowed), when the engine gives the output back or dies.
-    if (displayId === WINDOWED_DISPLAY && win.isVisible() === c) { if (c) win.hide(); else win.showInactive(); }
+    // E6i step 3: hidden only under a LIVE engine window — across a death it is shown, carrying the held picture.
+    const hide = c && !held.has(surfaceId);
+    if (displayId === WINDOWED_DISPLAY && win.isVisible() === hide) { if (hide) win.hide(); else win.showInactive(); }
+    if (c !== was.has(surfaceId)) win.webContents.send(IPC.PROJECTOR_COVERED, c);
   }
 }
 

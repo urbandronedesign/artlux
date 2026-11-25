@@ -1,14 +1,14 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import type { MainToProjector, ProjectorToMain } from './bridge';
 import { outputTitle } from './outputTitle';
 import { BadgeCanvas } from './ProjectorApp';
+import { HeldPicture } from './HeldPicture';
 
 // E6h — WHAT A PROJECTOR WINDOW SHOWS ACROSS AN ENGINE DEATH when it draws nothing of its own (the test hook
 // ARTLUX_NO_APP_PROJECTOR=1 today; with no browser engine, E6i, every window). Black, and — handed by main the moment
 // the engine dies (engineHost.holdProjectors) — the engine's last picture of this output, 1:1 in device pixels (the
 // engine's raster IS this window's drawing size), until main drops it when a restarted engine shows the output again.
 export const HeldOnly: React.FC = () => {
-  const ref = useRef<HTMLCanvasElement>(null);
   // A WINDOWED output wears the badge over its picture — the engine draws it on its window, not into the raster it
   // keeps, so the held picture needs it here exactly as ProjectorApp draws it (the one bitmap, BadgeCanvas).
   const [badge, setBadge] = useState<string | null>(null);
@@ -37,17 +37,9 @@ export const HeldOnly: React.FC = () => {
     window.postMessage('artlux:projector-ready', '*');
     return () => window.removeEventListener('message', onMsg);
   }, []);
-  useEffect(() => window.artlux?.onProjectorHeld?.((held) => {
-    const c = ref.current;
-    if (!c) return;
-    if (!held) { c.width = 1; c.height = 1; c.getContext('2d')?.clearRect(0, 0, 1, 1); return; }
-    c.width = held.w; c.height = held.h;
-    const img = new ImageData(new Uint8ClampedArray(held.data.buffer, held.data.byteOffset, held.data.byteLength), held.w, held.h);
-    c.getContext('2d')?.putImageData(img, 0, 0);
-  }), []);
   return (
     <div style={{ position: 'fixed', inset: 0, background: '#000', overflow: 'hidden', cursor: 'none' }}>
-      <canvas ref={ref} width={1} height={1} style={{ position: 'absolute', left: 0, top: 0, width: '100vw', height: '100vh', imageRendering: 'pixelated' }} />
+      <HeldPicture />
       {badge !== null && <BadgeCanvas name={badge} />}
     </div>
   );

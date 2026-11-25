@@ -3,8 +3,8 @@
 //
 //   node scripts/test-engine-hold.cjs [--packaged <ArtLux.exe>]
 //
-// Drives ArtLux headless with the native engine and ARTLUX_NO_APP_WIRE=1 — the app's own frames never reach the
-// wire, as when the browser engine is gone (E6i) — Art-Net to loopback, and watches WHO sends each packet (its UDP
+// Drives ArtLux headless with the native engine — E6i step 3: the app's own frames never reach the wire while the
+// engine is in charge (it used to take ARTLUX_NO_APP_WIRE=1 to get that) — Art-Net to loopback, and watches WHO sends each packet (its UDP
 // source port → the owning process) and WHAT it carries. Then kills the engine:
 //   1. main puts the engine's LAST FRAME on the wire at once (engine hold.rs → engineHost holdWire →
 //      outputManager.hold), and its keep-alive repeats it — the longest silence on the wire across the death and
@@ -16,6 +16,8 @@
 // Then the same for a RENDER-THREAD STALL (the engine's ARTLUX_ENGINE_TEST_STALL_FILE hook: its render thread stops
 // while its stdin thread still answers pings — only main's "ticks in, no frame out" watch can see it): main holds,
 // kills, restarts, lets go — and the engine's own keep-alive covered the stall itself, so the wire never went dark.
+// Then M. THE EMERGENCY (E6i step 3): ArtLux with NO engine (ARTLUX_ENGINE_TEST_MISSING=1) — the app's own frames DO
+// drive the wire, the video moving, and main says why.
 // Own scratch profile, own process tree only (never by name — the owner's session may be open beside it).
 
 const { spawn, execSync, execFile } = require('node:child_process');
@@ -87,8 +89,8 @@ const who = (p) => { const n = portOwner.get(p.port) ?? 'pending'; return /artlu
 async function waitUntil(pred, ms) { const t0 = Date.now(); while (Date.now() - t0 < ms) { if (pred()) return true; await sleep(50); } return false; }
 
 let running = null;
-function launch() {
-  const env = { ...process.env, ARTLUX_NO_APP_WIRE: '1', ARTLUX_ENGINE_TEST_STALL_FILE: STALL_FILE }; delete env.ELECTRON_RUN_AS_NODE;
+function launch(extraEnv = {}) {
+  const env = { ...process.env, ARTLUX_ENGINE_TEST_STALL_FILE: STALL_FILE, ...extraEnv }; delete env.ELECTRON_RUN_AS_NODE;
   const args = [`--user-data-dir=${PROFILE}`, '--headless', `--project=${project}`, '--native-engine'];
   const child = PACKAGED
     ? spawn(PACKAGED, args, { env, stdio: ['ignore', 'pipe', 'pipe'] })
@@ -106,7 +108,7 @@ function launch() {
   await new Promise((r) => sock.bind(PORT, '127.0.0.1', r));
   try {
     fs.writeFileSync(path.join(PROFILE, 'artlux-prefs.json'), JSON.stringify({ appSettings: { outputEnabled: true, artNetIp: '127.0.0.1', artNetPort: PORT, broadcast: false, protocol: 'artnet', keepAlive: true, fps: 44 } }, null, 2));
-    console.log(`project ${project} · Art-Net 127.0.0.1:${PORT} · ${PACKAGED ? `packaged ${PACKAGED}` : 'dev'} · ARTLUX_NO_APP_WIRE=1`);
+    console.log(`project ${project} · Art-Net 127.0.0.1:${PORT} · ${PACKAGED ? `packaged ${PACKAGED}` : 'dev'}`);
     const app = launch();
     ok(await waitUntil(() => UNIVERSES.every((u) => packets.some((p) => p.u === u && p.data.some((b) => b > 0))), 120000), 'the engine puts every universe on the wire');
     await sleep(5000);   // the video moving; the owner poll has resolved the engine's port
@@ -177,6 +179,18 @@ function launch() {
     let sGap = 0; const sAround = packets.filter((q) => q.at >= stalledAt);
     for (let i = 1; i < sAround.length; i++) sGap = Math.max(sGap, sAround[i].at - sAround[i - 1].at);
     ok(sGap < 250, `S4. the longest silence on the wire across the stall, the kill and the restart: ${sGap} ms`);
+
+    // ── M. the emergency: no engine at all ──────────────────────────────────────────────────────────────
+    try { execSync(`taskkill /PID ${running.pid} /F /T`, { stdio: 'ignore' }); } catch { /* gone */ }
+    await sleep(2000);
+    packets.length = 0;
+    const m = launch({ ARTLUX_ENGINE_TEST_MISSING: '1' });
+    ok(await waitUntil(() => UNIVERSES.every((u) => packets.some((p) => p.u === u && p.data.some((b) => b > 0))), 120000), "M. with NO engine, the app's own frames drive every universe (the emergency)");
+    await sleep(4000);
+    const mv = new Set(packets.filter((p) => p.u === 2).slice(-60).map((p) => p.data.toString('hex'))).size;
+    ok(mv > 3, `M. ...live — the video strip moves (${mv} distinct payloads in its last 60 packets)`);
+    const em = m.lines.find((x) => /\[engine\] EMERGENCY — the app drives the wire: the engine is not installed/.test(x.l));
+    ok(!!em, `M. main says why (${em ? em.l : 'nothing'})`);
   } finally {
     polling = false;
     if (running) { try { execSync(`taskkill /PID ${running.pid} /F /T`, { stdio: 'ignore' }); } catch { /* gone */ } }

@@ -296,7 +296,7 @@ export const CalibProjector: React.FC<{ ctx: ProjectorPanelContext; size: { w: n
           <ProjectorScene
             key={warpSource ? 'warp' : 'plain'}
             scene3D={scene3D} modelUrls={modelUrls} calibration={calibration} look={look} meshLook={meshLook}
-            fpsCap={ctx.fpsCap ?? 0}
+            fpsCap={ctx.fpsCap ?? 0} paused={!!ctx.paused}
             // The ELEMENT always (ProjectorApp's path C dims it by brightness × the surface's opacity — handed over
             // only with a residual warp, a calibrated output ignored both: a cue fading the surface left the
             // projector at full, found by the native engine drawing it, E6f); its PIXELS only with a warp.

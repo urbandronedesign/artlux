@@ -41,8 +41,10 @@ import type { OutputConfig, EngineView3dPlace } from '../../shared/protocol';
  *   1. `--no-native-engine` or ARTLUX_NATIVE_ENGINE=0 — off (a test's app-side reference; a tech's way out);
  *   2. `--native-engine` or ARTLUX_NATIVE_ENGINE=1 — on (any platform: a developer, a test);
  *   3. not Windows — off (E6g);
- *   4. Preferences ▸ Engine ▸ Native output engine off (`Prefs.nativeEngineOff`, per MACHINE) — off;
- *   5. otherwise ON.
+ *   4. otherwise ON.
+ * E6i step 3: there is no Preferences way off any more (it was step 4, `Prefs.nativeEngineOff`): on Windows the engine
+ * IS the output, and the app draws only as an EMERGENCY (appEmergency below). A machine that saved the old switch off
+ * is told so in its log, once.
  * Decided ONCE, on first use (after app ready — the prefs are readable then), for the whole run: the switch takes
  * effect at the next launch, never mid-show.
  */
@@ -52,7 +54,7 @@ function decide(): { on: boolean; why: string } {
   if (process.argv.includes('--native-engine')) return { on: true, why: '--native-engine' };
   if (process.env.ARTLUX_NATIVE_ENGINE === '1') return { on: true, why: 'ARTLUX_NATIVE_ENGINE=1' };
   if (process.platform !== 'win32') return { on: false, why: `not on ${process.platform} yet` };
-  if (getPrefs().nativeEngineOff === true) return { on: false, why: 'turned off in Preferences' };
+  if (getPrefs().nativeEngineOff === true) logger.log('warn', 'engine', 'pref-off-ignored', { why: 'Preferences no longer turns the native engine off (E6i) — --no-native-engine does, for a test or a tech' });
   return { on: true, why: 'the default on Windows' };
 }
 let decided: { on: boolean; why: string } | null = null;
@@ -188,6 +190,9 @@ function holdProjectors(why: string): void {
   const ids = [...(projOwns?.ids ?? [])];
   let held = 0;
   for (const id of ids) { const p = readProjHold(id); if (p && showHeld(id, p)) held++; }
+  // E6i step 3: these windows STAY COVERED across the restart (their own drawing is not the show any more) — what the
+  // room sees is the held picture (or black where there was none) until the engine shows them again, or an emergency.
+  for (const id of ids) heldIds.add(id);
   logger.log(held ? 'info' : 'warn', 'engine', 'projectors-held', { why, held, of: ids.length });
   console.log(`[engine] holding the last picture on ${held} of ${ids.length} projector output(s) (${why})`);
 }
@@ -211,6 +216,34 @@ function setOwns(next: { rev: number; pid: number | null } | null, why: string):
   }
   lastWhy = why;
 }
+/**
+ * E6i step 3 — WHY THE APP MAY DRIVE THE OUTPUT, or null: the engine is in charge, and the app's frames never reach the
+ * wire (outputManager.setAppSilenced) — across a restart the engine's held frame is there, at boot nothing until the
+ * engine's first frame. The app drives only as an EMERGENCY: the engine refused to start, gave up, is missing, the app
+ * is quitting (its blackout), or the engine answered that it cannot draw THIS document (its reason). Logged on change.
+ */
+let lastEmergency: string | null | undefined;
+// The ENGINE's own answer that it cannot draw a document — never main's "the engine hung / exited" (a death is not a
+// refusal: across it the HELD frame is the wire, and the app's live one must not replace it — found by
+// test:engine-hold, the video universe: between a hang kill and the exit event the state is still 'up').
+let docRefused: { rev: number; pid: number | null; why: string } | null = null;
+export function appEmergency(): string | null {
+  const s = status.state;
+  const why = stopping ? 'the app is quitting'
+    : s === 'refused' ? 'the engine refused to start (no usable GPU)'
+    : s === 'gave-up' ? 'the engine died too often and was given up'
+    : s === 'missing' ? 'the engine is not installed'
+    : s === 'off' ? 'the engine is off'
+    : s === 'up' && !owns && docRefused && docRefused.rev === lastDocRev && docRefused.pid === (child?.pid ?? null) ? `the engine cannot draw this show: ${docRefused.why}`
+    : null;
+  if (why !== lastEmergency && !(why === null && lastEmergency === undefined)) {
+    if (why) { logger.log('error', 'engine', 'wire-emergency', { why }); console.error(`[engine] EMERGENCY — the app drives the wire: ${why}`); }
+    else { logger.log('info', 'engine', 'wire-engine', {}); console.log('[engine] the app\'s frames are off the wire again (the engine is in charge)'); }
+  }
+  lastEmergency = why;
+  return why;
+}
+
 /** Does the engine drive the wire right now? (False whenever in doubt: the app's frames then go out.) */
 export function engineOwnsWire(): boolean {
   // ⚠ A NEW DOCUMENT IS NOT A HANDBACK. Requiring the answer for the LATEST revision unmuted the app in the
@@ -367,6 +400,19 @@ export function onProjectorsOwned(cb: (owned: boolean, outputs: ReadonlySet<stri
   return () => { projOwnsListeners.delete(cb); };
 }
 let lastProjWhy = '';
+// E6i step 3: outputs the engine owned when it died, held (covered, its last picture on them) until the restarted
+// engine answers for them — or an EMERGENCY hands them to the app's own drawing (projectorsEmergency).
+const heldIds = new Set<string>();
+function applyCover(): void { setProjectorsCovered(new Set([...(projOwns?.ids ?? []), ...heldIds]), heldIds); }
+/** E6i step 3: the engine will not come back (refused / gave up) — the app's windows draw their outputs again. */
+function projectorsEmergency(why: string): void {
+  if (!heldIds.size) return;
+  logger.log('error', 'engine', 'projectors-emergency', { why, outputs: [...heldIds] });
+  console.error(`[engine] EMERGENCY — the app draws the projector outputs again: ${why}`);
+  clearHeld([...heldIds]);
+  heldIds.clear();
+  applyCover();
+}
 function setProjOwns(next: { rev: number; pid: number | null; ids: ReadonlySet<string> } | null, why: string): void {
   const before = projOwns?.ids ?? NONE, after = next?.ids ?? NONE;
   const changed = before.size !== after.size || [...after].some((id) => !before.has(id));
@@ -384,7 +430,9 @@ function setProjOwns(next: { rev: number; pid: number | null; ids: ReadonlySet<s
   if (changed) {
     // E6h: an output the engine shows again lets go of its held picture.
     clearHeld([...after].filter((id) => !before.has(id)));
-    setProjectorsCovered(after);
+  }
+  applyCover();
+  if (changed) {
     for (const cb of projOwnsListeners) { try { cb(!!next, after); } catch (e) { logger.log('warn', 'engine', 'projectors-owned-listener', {}, e); } }
   }
 }
@@ -470,6 +518,8 @@ export function engineStatus(): EngineStatus { return { ...status }; }
 /** The engine binary: beside the app's resources when packaged, the cargo build output in dev. */
 export function enginePath(): string {
   const exe = process.platform === 'win32' ? 'artlux-engine.exe' : 'artlux-engine';
+  // E6i TEST HOOK (scripts/test-engine-hold.cjs, phase M): an engine that is not there — the EMERGENCY path.
+  if (process.env.ARTLUX_ENGINE_TEST_MISSING === '1') return join(app.getPath('temp'), 'artlux-no-engine', exe);
   return app.isPackaged
     ? join(process.resourcesPath || '', 'engine', exe)
     : join(app.getAppPath(), 'engine', 'target', 'release', exe);
@@ -602,6 +652,9 @@ function spawnEngine(): void {
         const ids = Array.isArray(m.owned) ? (m.owned as unknown[]).filter((x): x is string => typeof x === 'string') : null;
         const all = (): string[] => { try { return ((JSON.parse(lastDoc ?? '{}').projectors ?? []) as { id?: string }[]).map((p) => p.id ?? '').filter(Boolean); } catch { return []; } };
         const owned = m.owns ? new Set(ids ?? all()) : NONE;
+        // E6i step 3: a LIVE answer lets go of every held picture — the outputs it shows again are under its windows,
+        // the ones it keeps for the app are drawn by the app (uncovered just below).
+        if (heldIds.size) { const drop = [...heldIds]; heldIds.clear(); clearHeld(drop); }
         setProjOwns(owned.size ? { rev: m.rev, pid: proc.pid ?? null, ids: owned } : null, m.why ?? '');
       } else if (m.type === 'audio') {
         // E3m: the answer to a relayed audio call.
@@ -616,6 +669,7 @@ function spawnEngine(): void {
       } else if (m.type === 'owns') {
         if (m.rev !== lastDocRev) continue;   // an answer about a document already replaced
         answeredRev = m.rev;
+        docRefused = m.owns ? null : { rev: m.rev, pid: proc.pid ?? null, why: m.why ?? 'no reason given' };
         setOwns(m.owns ? { rev: m.rev, pid: proc.pid ?? null } : null, m.why ?? '');
       }
     }
@@ -656,6 +710,7 @@ function spawnEngine(): void {
       status.lastExit = what;
       logger.log('error', 'engine', 'refused', { detail: errTail.trim() });
       console.error(`[engine] refused to start — not restarting: ${errTail.trim()}`);
+      projectorsEmergency('the engine refused to start');
       return;
     }
     onDeath(proc.pid ?? null, what);
@@ -672,6 +727,7 @@ function onDeath(pid: number | null, what: string): void {
     status.state = 'gave-up';
     logger.log('error', 'engine', 'gave-up', { deathsInAMinute: deaths.length, last: what });
     console.error(`[engine] died ${deaths.length}× in a minute — not restarting`);
+    projectorsEmergency('the engine was given up');
     return;
   }
   status.state = 'restarting';
@@ -774,6 +830,7 @@ function failAudio(why: string): void {
 export function startEngine(): void {
   if (!flag()) { logger.log('info', 'engine', 'off', { why: nativeEngineWhy() }); return; }
   output.setWireOwner(engineOwnsWire);
+  output.setAppSilenced(() => appEmergency() === null);   // E6i step 3
   logger.log('info', 'engine', 'enabled', { path: enginePath(), why: nativeEngineWhy() });
   spawnEngine();
 }

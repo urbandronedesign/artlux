@@ -69,8 +69,8 @@ binary, not an addon: **`npm run build:engine`** (cargo, `engine/target/release/
 **required to PACKAGE on Windows** — it is declared in `build.win.extraResources`, so `verify:resources` fails
 a Windows package without it, and CI builds it. **On Windows it runs by default** (E6e); elsewhere only behind
 **`--native-engine`** (or `ARTLUX_NATIVE_ENGINE=1`). `--no-native-engine` / `ARTLUX_NATIVE_ENGINE=0` turn it off
-anywhere, and so does *Preferences ▸ Engine ▸ Native output engine* (`Prefs.nativeEngineOff`, per machine) on
-Windows — `engineHost.decide()` holds the order, and the machine log says which switch decided
+anywhere — there is no Preferences switch any more (E6i step 3; a saved `Prefs.nativeEngineOff` is ignored and
+logged) — `engineHost.decide()` holds the order, and the machine log says which switch decided
 (`[engine] enabled … why` / `[engine] off … why`). Read once per run: a change takes effect at the next start. A
 parity test's APP-side run must pass `--no-native-engine` (guarded). When on, main spawns it, pings it every
 second, restarts it after a crash or a hang,
@@ -118,6 +118,16 @@ those app windows (`setProjectorsCovered(ids)`), holds only their pictures acros
 only their senders (the SDK's `onProjectorsOwned(cb(owned, outputs))`). The log says which and why:
 `[engine] owns projector output(s) 'sP' (document N) — the app keeps the others: output 'Other': …`, or, when it keeps
 every one, `[engine] the app keeps the projector outputs: …`. `test:native-projectors --partial` proves it.
+**The switch-over (E6i step 3, Windows).** While the engine is in charge (`engineHost.appEmergency()` null) the app's
+frames **never reach the wire** (`outputManager.setAppSilenced`): at boot nothing goes out until the engine's first
+frame, and across a restart the engine's HELD frame stays there (`hold`), not the app's live one. The app's projector
+windows of the engine's outputs never draw — covered, and the calibration panel's render loop paused
+(`ProjectorPanelContext.paused`); an engine death keeps them covered with its last picture (`HeldPicture`,
+`heldIds`) until the restarted engine answers. The app drives the output only as an **EMERGENCY**, logged
+(`[engine] EMERGENCY — the app drives the wire: …`): the engine refused to start, was given up, is missing, answered
+that it cannot draw this document, or the app is quitting (its blackout). `test:engine-hold` proves the wire (no
+`ARTLUX_NO_APP_WIRE` any more; phase M runs with `ARTLUX_ENGINE_TEST_MISSING=1`), `test:native-projectors --hold` the
+windows.
 **A surface the engine cannot draw does not hand the show back** (E6i step 1): `nativeLink.shipFallbacks` turns it
 into a `raster` source and ships the picture the app draws for it (`surfaceMedia.getDrawable` — on a generation
 change, or ≤ 30/s with none, one in flight); the rest of the show stays the engine's. Live frames only — a bake keeps
@@ -222,8 +232,8 @@ not judge frame rates from it):
 npm run dev -- -- --native-engine
 ```
 
-**5. Run with the engine** — on Windows it is ON by default (Preferences ▸ Engine ▸ Native output engine turns it
-off for this machine, from the next start). To force it either way for one run: a shortcut whose **Target** ends
+**5. Run with the engine** — on Windows it is ON, always (E6i step 3: no Preferences switch). To force it either way
+for one run: a shortcut whose **Target** ends
 with ` --native-engine` or ` --no-native-engine` (after the closing quote of the exe path), or
 `set ARTLUX_NATIVE_ENGINE=1` / `=0` before launching.
 

@@ -464,27 +464,22 @@ const BlenderSection: React.FC = () => {
 // per-machine way OFF that needs no command line (a venue tech's way back to the app's own output). Read at
 // LAUNCH only — never mid-show — so the row says what runs now and what the next start will do. Not offered off
 // Windows: there the engine is off unless a developer starts it with --native-engine (E6g).
+// E6i step 3: NO SWITCH ANY MORE (it was E6e's `Prefs.nativeEngineOff`). On Windows the native engine IS the output;
+// the app draws only as an emergency (the engine missing, refused or given up — the machine log says which). What is
+// left here is the line that says what runs. `--no-native-engine` remains, for a test or a tech.
 const NativeEngineSwitch: React.FC = () => {
   const windows = /Windows/i.test(navigator.userAgent);
-  const [off, setOff] = useState<boolean | null>(null);
   const [running, setRunning] = useState<boolean | null>(null);
   useEffect(() => {
-    void window.artlux?.getPrefs?.().then((p) => setOff(p?.nativeEngineOff === true));
     void window.artlux?.nativeEngineEnabled?.().then((v) => setRunning(!!v)).catch(() => setRunning(false));
   }, []);
-  if (!windows || off === null) return null;
-  const next = !off;
+  if (!windows || running === null) return null;
   return (
-    <>
-      <Toggle label="Native output engine" checked={next} onChange={(v) => {
-        setOff(!v);
-        window.artlux?.setPrefs?.({ nativeEngineOff: !v });
-      }} title="Draw the output (LEDs, projectors) in ArtLux's native engine. Off: the app draws it itself, as before. Takes effect at the next start." />
-      <span className="text-mini text-fg-3">
-        {running === null ? '' : `Running now: ${running ? 'on' : 'off'}.`}
-        {running !== null && running !== next ? ` ${next ? 'On' : 'Off'} from the next start.` : ''}
-      </span>
-    </>
+    <span className="text-mini text-fg-3">
+      {running
+        ? 'Native output engine: on. It draws every output; if it cannot run, ArtLux draws the output itself and the log says why.'
+        : 'Native output engine: off for this run (started with --no-native-engine).'}
+    </span>
   );
 };
 

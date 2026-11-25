@@ -9744,7 +9744,7 @@ check(
     if (!at || !eop || Math.round(+at[3] * 255) !== +eop[1]) problems.push('the engine\'s BADGE_OPACITY is not the app\'s opacity quantised to 8 bits (Chromium\'s)');
     if (!/getImageData\(0, 0, cw, ch\)/.test(b)) problems.push('badge.ts no longer takes the straight-alpha round trip the engine takes');
     const pj = read('src/main/projector.ts');
-    if (!/displayId === WINDOWED_DISPLAY && win\.isVisible\(\) === c\) \{ if \(c\) win\.hide\(\); else win\.showInactive\(\); \}/.test(pj)) problems.push('a covered windowed output is no longer hidden (or no longer shown again when uncovered)');
+    if (!/const hide = c && !held\.has\(surfaceId\);\s*if \(displayId === WINDOWED_DISPLAY && win\.isVisible\(\) === hide\) \{ if \(hide\) win\.hide\(\); else win\.showInactive\(\); \}/.test(pj)) problems.push('a covered windowed output is no longer hidden (or no longer shown again when uncovered)');
     if (!/if \(!covered\.has\(surfaceId\)\) win\.showInactive\(\)/.test(pj)) problems.push('a windowed output opened while covered is shown anyway');
     if (!/enginePlace\.set\(surfaceId, physical\)/.test(pj) || !/const placed = enginePlace\.get\(surfaceId\)/.test(pj)) problems.push('the document is rebuilt from the hidden window\'s bounds instead of the engine\'s reported place');
     const eh = read('src/main/engineHost.ts');
@@ -9948,7 +9948,23 @@ check(
     if (!/return \{ on: true, why: 'the default on Windows' \};\s*\}$/.test(body)) problems.push('engineHost decide(): the engine is no longer ON by default on Windows');
     if (!/nativeEngineOff\?: boolean;/.test(read('shared/protocol.ts'))) problems.push('Prefs.nativeEngineOff is gone');
     const pr = read('src/renderer/components/Preferences.tsx');
-    if (!/<Toggle label="Native output engine" checked=\{next\}[\s\S]{0,200}window\.artlux\?\.setPrefs\?\.\(\{ nativeEngineOff: !v \}\);/.test(pr) || !/<NativeEngineSwitch \/>/.test(pr)) problems.push('Preferences ▸ Engine no longer offers the Native output engine switch');
+    // E6i step 3 (the owner, 2026-11-25): the Preferences way off is GONE on Windows — the engine is the output there.
+    if (/setPrefs\?\.\(\{ nativeEngineOff/.test(pr) || /return \{ on: false, why: 'turned off in Preferences' \}/.test(eh)) problems.push('Preferences turns the native engine off again (E6i step 3 removed it on Windows: the app draws only as an emergency)');
+    if (!/<NativeEngineSwitch \/>/.test(pr)) problems.push('Preferences ▸ Engine no longer says whether the native engine runs');
+    // E6i step 3 — THE SWITCH-OVER: while the engine is in charge the app's frames never reach the wire and the app's
+    // projector windows of the engine's outputs never draw (a death: covered, the held picture; only an EMERGENCY —
+    // refused, given up, missing, a document it cannot draw, the quit's blackout — hands the output to the app).
+    {
+      const om = read('src/main/transport/outputManager.ts'), pa = read('src/renderer/projector/ProjectorApp.tsx');
+      if (!/if \(appSilenced\?\.\(\)\) \{\s*if \(holding\) return;/.test(om)) problems.push('outputManager lets the app\'s frames onto the wire while the engine is in charge (or drops the engine\'s held frame for them)');
+      if (!/docRefused = m\.owns \? null :/.test(eh) || /answeredRev === lastDocRev && lastWhy \?/.test(eh)) problems.push('engineHost takes main\'s own "the engine hung / exited" for the engine refusing the document — the app\'s live frames would replace the held one across a death');
+      if (!/output\.setAppSilenced\(\(\) => appEmergency\(\) === null\);/.test(eh)) problems.push('engineHost no longer silences the app\'s frames while the engine is in charge');
+      for (const w of ["stopping ? 'the app is quitting'", "s === 'refused'", "s === 'gave-up'", "s === 'missing'"]) if (!eh.includes(w)) problems.push(`engineHost appEmergency no longer counts ${w} as an emergency — the rig would stay dark`);
+      if (!/for \(const id of ids\) heldIds\.add\(id\);/.test(eh) || !/function applyCover\(\): void \{ setProjectorsCovered\(new Set\(\[\.\.\.\(projOwns\?\.ids \?\? \[\]\), \.\.\.heldIds\]\), heldIds\); \}/.test(eh)) problems.push('an engine death uncovers the app\'s projector windows again (E6i step 3: they stay covered, the held picture on them, until the engine is back or an emergency)');
+      if ((eh.match(/projectorsEmergency\('/g) || []).length < 2) problems.push('a refused / given-up engine no longer hands the held projector outputs back to the app\'s drawing');
+      if (!/<HeldPicture \/>\s*\n\s*\{windowed && <BadgeCanvas/.test(pa) || !/paused: covered,/.test(pa)) problems.push('ProjectorApp no longer shows the held picture (under the badge) or no longer pauses its panels while covered');
+      if (!/frameloop=\{paused \|\| capped \? 'never' : frameloop\}/.test(read('plugins/calibration/src/ProjectorScene.tsx'))) problems.push('render-from-projector keeps drawing in a covered window (the engine shows that output)');
+    }
     const fs = require('fs');
     for (const f of fs.readdirSync(path.join(ROOT, 'scripts'))) {
       if (!/\.cjs$/.test(f)) continue;
@@ -10012,7 +10028,8 @@ check(
     }
     if (!/fnv1a32\(body\) !== sum\) return null;\s*return \{ w, h, data:/.test(eh)) problems.push('engineHost no longer verifies a held projector picture');
     const ho = read('src/renderer/projector/HeldOnly.tsx');
-    if (!/putImageData\(img, 0, 0\)/.test(ho) || !/<BadgeCanvas name=\{badge\} \/>/.test(ho) || !/outputTitle\(label, m\.identity\?\.display\)/.test(ho)) problems.push('HeldOnly no longer shows the held picture 1:1 with the windowed badge and the output\'s own title');
+    const hp = read('src/renderer/projector/HeldPicture.tsx');
+    if (!/putImageData\(img, 0, 0\)/.test(hp) || !/<HeldPicture \/>/.test(ho) || !/<BadgeCanvas name=\{badge\} \/>/.test(ho) || !/outputTitle\(label, m\.identity\?\.display\)/.test(ho)) problems.push('HeldOnly no longer shows the held picture 1:1 with the windowed badge and the output\'s own title');
     return problems.length ? problems.join('; ') : null;
   },
 );
