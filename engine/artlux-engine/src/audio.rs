@@ -283,6 +283,9 @@ pub fn serve(rx: std::sync::mpsc::Receiver<serde_json::Value>) {
     let mut locks: std::collections::HashMap<String, Lock> = Default::default();
     let mut stats = HoldStats::default();
     let mut last_hold = std::time::Instant::now();
+    // E3q: each clip's latest gain (the driver's setClipGain — what the engine starts it at), and an offline render.
+    let mut gains: std::collections::HashMap<String, f64> = Default::default();
+    let mut offline = false;
     // The mutation the test needs (test-engine-audio-show.cjs): the engine wants every clip this far further on.
     let skew = std::env::var("ARTLUX_AUDIO_LOCK_SKEW_MS").ok().and_then(|x| x.parse::<f64>().ok()).unwrap_or(0.0) / 1000.0;
     loop {
@@ -303,11 +306,17 @@ pub fn serve(rx: std::sync::mpsc::Receiver<serde_json::Value>) {
                     eprintln!("artlux-engine: audio: holding {} clip(s) to the engine's clock — within {:.2} ms over {} checks since the last report, {} re-seek(s) in all", locks.len(), stats.worst * 1000.0, stats.checks, stats.seeks);
                     stats.checks = 0; stats.worst = 0.0;
                 }
+                if stats.starts + stats.stops > 0 {
+                    eprintln!("artlux-engine: audio: the engine decided {} start(s) and {} stop(s) in all; the driver sent {} play(s)", stats.starts, stats.stops, stats.driver_plays);
+                }
             }
         }
-        if open && !locks.is_empty() && last_hold.elapsed().as_millis() >= 100 {
+        // E3q: every 20 ms — the engine STARTS clips, so this is also how late a clip can begin after its clock
+        // enters the window (it begins at the right place in its source either way). Not during an offline render:
+        // the bake's frames own time then, and the driver plays them.
+        if open && !offline && !locks.is_empty() && last_hold.elapsed().as_millis() >= 20 {
             last_hold = std::time::Instant::now();
-            if let Some(Ok(a)) = &lib { hold(a, &mut locks, &mut stats, skew); }
+            if let Some(Ok(a)) = &lib { hold(a, &mut locks, &gains, &mut stats, skew); }
         }
         if m.is_null() { continue; }
         let op = m["op"].as_str().unwrap_or("").to_string();
@@ -316,10 +325,20 @@ pub fn serve(rx: std::sync::mpsc::Receiver<serde_json::Value>) {
             // [id, lock | null] — the engine's own; nothing reaches the library.
             match Lock::from_json(&m["args"][1]) {
                 Some(mut l) => {
-                    if let Some(old) = locks.get(&id) { l.landed = old.landed; l.seeks = old.seeks; }
+                    if let Some(old) = locks.get(&id) {
+                        l.landed = old.landed; l.seeks = old.seeks;
+                        // A cue stands only while the window it was cued for does.
+                        if old.a == l.a && old.base == l.base && l.audible { l.cued = old.cued; }
+                        else if old.cued.is_some() { if let Some(Ok(a)) = &lib { let _ = a.call(&serde_json::json!({ "op": "cueClipAt", "args": [id, 0.0, -1, 1.0] })); } }
+                    }
                     locks.insert(id, l);
                 }
-                None => { locks.remove(&id); }
+                None => {
+                    // A clip the ENGINE was deciding leaves the show: the engine stops it (nobody else will).
+                    if locks.remove(&id).is_some_and(|l| l.decide) {
+                        if let Some(Ok(a)) = &lib { let _ = a.call(&serde_json::json!({ "op": "stopClip", "args": [id] })); }
+                    }
+                }
             }
             if let Some(req) = m["req"].as_u64() {
                 let mut o = std::io::stdout().lock();
@@ -328,9 +347,19 @@ pub fn serve(rx: std::sync::mpsc::Receiver<serde_json::Value>) {
             continue;
         }
         match op.as_str() {
-            "playClip" => if let Some(l) = locks.get_mut(&id) { l.landed = false; },
-            "stopClip" | "unloadClip" => { locks.remove(&id); }
-            "stopAll" | "close" | "configure" => locks.clear(),
+            "playClip" => {
+                stats.driver_plays += 1;
+                if let Some(g) = m["args"][2].as_f64() { gains.insert(id.clone(), g); }
+                if let Some(l) = locks.get_mut(&id) { l.landed = false; }
+            }
+            "setClipGain" => if let Some(g) = m["args"][1].as_f64() { gains.insert(id.clone(), g); },
+            "stopClip" => { locks.remove(&id); }
+            "unloadClip" => { locks.remove(&id); gains.remove(&id); }
+            // NOT `configure`: a device re-opened mid-show keeps what the clips are locked to (the driver does not
+            // re-send a lock it already sent — clearing here would leave the engine-decided show silent).
+            "stopAll" | "close" => locks.clear(),
+            "offlineBegin" => offline = true,
+            "offlineEnd" => offline = false,
             _ => {}
         }
         let a = lib.get_or_insert_with(|| {
@@ -386,33 +415,91 @@ pub const HOLD: f64 = 0.002;
 
 /// What a sounding clip is held to: its clock (the show's — a bed — or the scene's), the offset from that clock to
 /// the source (`start − inPoint`), and its window on the clock.
-struct Lock { show: bool, base: f64, a: f64, b: f64, landed: bool, seeks: u64 }
+/// E3q: `audible` (mute / solo / loaded — the driver's rules) and `decide` (the ENGINE starts and stops it; without,
+/// the driver plays it and the engine only holds it — E3p).
+struct Lock { show: bool, base: f64, a: f64, b: f64, landed: bool, seeks: u64, audible: bool, decide: bool, /** a start cued at this mix sample */ cued: Option<i64> }
 impl Lock {
     fn from_json(v: &serde_json::Value) -> Option<Lock> {
         let n = |k: &str| v[k].as_f64();
         let (start, inp, dur) = (n("start")?, n("inPoint")?, n("duration")?);
-        Some(Lock { show: v["clock"] == "show", base: start - inp, a: start, b: start + dur, landed: false, seeks: 0 })
+        Some(Lock { show: v["clock"] == "show", base: start - inp, a: start, b: start + dur, landed: false, seeks: 0,
+            audible: v["audible"].as_bool().unwrap_or(true), decide: v["decide"].as_bool().unwrap_or(false), cued: None })
     }
 }
 #[derive(Default)]
-struct HoldStats { checks: u64, worst: f64, seeks: u64, logged: u64 }
+struct HoldStats { checks: u64, worst: f64, seeks: u64, logged: u64, starts: u64, stops: u64, driver_plays: u64 }
 
-/// One pass: every locked, sounding clip against the engine's clock; a re-seek where it parted.
-fn hold(a: &Audio, locks: &mut std::collections::HashMap<String, Lock>, st: &mut HoldStats, skew: f64) {
+/// One pass: every locked clip against the engine's clock. A clip the engine DECIDES (E3q) is started when its clock
+/// is inside its window and it may sound, and stopped when not (its window left, the clock paused or PARKED — a
+/// frozen clock is never played against); every sounding one is re-seeked where it parted (E3p).
+fn hold(a: &Audio, locks: &mut std::collections::HashMap<String, Lock>, gains: &std::collections::HashMap<String, f64>, st: &mut HoldStats, skew: f64) {
     let ids: Vec<&String> = locks.keys().collect();
     let Ok(v) = a.call(&serde_json::json!({ "op": "clipPositions", "args": [ids] })) else { return };
     for (id, l) in locks.iter_mut() {
         let c = &v[id.as_str()];
-        if c["playing"].as_bool() != Some(true) { continue; }
+        let sounding = c["playing"].as_bool() == Some(true);
+        if !sounding && !l.decide { continue; }
         let (Some(pos), Some(len), Some(at), Some(wall)) = (c["pos"].as_f64(), c["len"].as_f64(), c["at"].as_i64(), c["wall"].as_f64()) else { continue };
         if wall <= 0.0 { continue; }
+        // No clock (no anchor yet, a bake): nothing is decided — a stop here would cut the sound on every hiccup.
         let Some((p, s, playing)) = crate::transport::clocks_at_wall(wall) else { continue };
-        if !playing { continue; }
         let clock = if l.show { s } else { p };
-        // Off its window (a wrap the driver has not answered yet) or past its source: the driver's to decide.
-        if clock < l.a || clock >= l.b { continue; }
         let want = clock - l.base + skew;
-        if want < 0.0 || want >= len - 0.05 { continue; }
+        let fits = clock >= l.a && clock < l.b && want >= 0.0 && want < len - 0.05;
+        if l.decide {
+            // PARKED: the clock not moving while "playing" (the show ended with its loop off; a held state's end).
+            let moving = playing && crate::transport::clocks_at_wall(wall + 0.05).is_some_and(|(p2, s2, _)| (if l.show { s2 } else { p2 }) != clock);
+            let should = l.audible && moving && fits;
+            if sounding { l.cued = None; }
+            // CUE the window's start: when the engine's clock ENTERS the window within the next 100 ms (approaching
+            // it, or through a loop's wrap), the clip is primed now and started by the mix loop at the sample the clock
+            // gets there — so it begins on time, not at the next check. The entry instant is found by bisection on
+            // the clock itself, which knows the wraps and parks.
+            let rate = c["rate"].as_f64().unwrap_or(0.0);
+            let inside = |dt: f64| crate::transport::clocks_at_wall(wall + dt).map(|(p2, s2, _)| if l.show { s2 } else { p2 }).filter(|c2| *c2 >= l.a && *c2 < l.b && *c2 - l.base >= 0.0 && *c2 - l.base < len - 0.05);
+            if !sounding && l.audible && moving && rate > 0.0 && !fits && inside(0.1).is_some() {
+                if l.cued.is_none() {
+                    let (mut lo, mut hi) = (0.0f64, 0.1f64);
+                    for _ in 0..14 { let mid = 0.5 * (lo + hi); if inside(mid).is_some() { hi = mid; } else { lo = mid; } }
+                    let pos = inside(hi).unwrap_or(l.a) - l.base;
+                    if pos >= 0.0 && pos < len - 0.05 {
+                        let s_at = at + (hi * rate).round() as i64;
+                        let g = gains.get(id.as_str()).copied().unwrap_or(1.0);
+                        let _ = a.call(&serde_json::json!({ "op": "cueClipAt", "args": [id, pos, s_at, g] }));
+                        l.cued = Some(s_at); st.starts += 1; l.landed = false;
+                        if st.logged < 60 { st.logged += 1; eprintln!("artlux-engine: audio: the engine cued clip {id} at {pos:.3} s of its source — its window opens in {:.1} ms", hi * 1000.0); }
+                    }
+                }
+                continue;
+            }
+            if let Some(s_at) = l.cued {
+                // Reached only when the window is not about to open: a cue stands while the clock is INSIDE the window
+                // it was cued for (due, or a few ms late, the mix loop starts it); paused, parked, sought away or muted,
+                // it is withdrawn.
+                if !(l.audible && moving && fits) {
+                    let _ = a.call(&serde_json::json!({ "op": "cueClipAt", "args": [id, 0.0, -1, 1.0] }));
+                    l.cued = None;
+                } else if !sounding && at < s_at + (0.05 * rate) as i64 { continue; }
+                else { l.cued = None; }
+            }
+            if should && !sounding {
+                let g = gains.get(id.as_str()).copied().unwrap_or(1.0);
+                let _ = a.call(&serde_json::json!({ "op": "playClipAt", "args": [id, want - skew, at, g] }));
+                st.starts += 1; l.landed = false;
+                if st.logged < 60 { st.logged += 1; eprintln!("artlux-engine: audio: the engine started clip {id} at {want:.3} s of its source — {:.1} ms into its window", (clock - l.a) * 1000.0); }
+                continue;
+            }
+            if !should {
+                if sounding {
+                    let _ = a.call(&serde_json::json!({ "op": "stopClip", "args": [id] }));
+                    st.stops += 1;
+                    if st.logged < 60 { st.logged += 1; eprintln!("artlux-engine: audio: the engine stopped clip {id} — {}", if !l.audible { "it may not sound" } else if !playing { "paused" } else if !moving { "the clock is parked" } else if clock >= l.a && clock < l.b { "its source ran out" } else { "its clock left the window" }); }
+                }
+                continue;
+            }
+        }
+        // Held (E3p): off its window (a wrap the driver has not answered yet) or past its source — the driver's.
+        if !sounding || !playing || !fits { continue; }
         let err = pos - want; // + : the sound is AHEAD of the engine's clock
         if !l.landed {
             l.landed = true;
@@ -468,8 +555,22 @@ pub fn offline_check(args: &[String]) -> Result<serde_json::Value, String> {
         Ok(all)
     };
     let (r1, r2) = (render()?, render()?);
+    // E3q: a bake takes the plays back from the engine with a stopAll while the bed is PLAYING — offline, that must be
+    // the stop FLAG, not JUCE's stop() (which spins up to a second per playing clip with no callback to answer it).
+    // Timed with the pull queued behind it (the stop itself is fire-and-forget), and the block after it silent.
+    a.call(&serde_json::json!({ "op": "offlineBegin", "args": [{ "sampleRate": 48000, "blockSize": 512, "channels": 2 }] }))?;
+    a.call(&serde_json::json!({ "op": "loadClip", "args": ["offline", clip] }))?;
+    a.call(&serde_json::json!({ "op": "playClip", "args": ["offline", 0.0, 1.0] }))?;
+    for _ in 0..4 { a.call(&serde_json::json!({ "op": "offlinePull", "args": [512] }))?; }
+    let t0 = std::time::Instant::now();
+    a.call(&serde_json::json!({ "op": "stopAll", "args": [] }))?;
+    let after = b64_decode(a.call(&serde_json::json!({ "op": "offlinePull", "args": [512] }))?.as_str().unwrap_or(""));
+    let stop_ms = t0.elapsed().as_secs_f64() * 1000.0;
+    let after_loud = after.chunks_exact(4).filter(|c| f32::from_le_bytes([c[0], c[1], c[2], c[3]]).abs() > 1e-4).count();
+    a.call(&serde_json::json!({ "op": "unloadClip", "args": ["offline"] }))?;
+    a.call(&serde_json::json!({ "op": "offlineEnd", "args": [] }))?;
     a.close()?;
     let loud = r1.iter().filter(|x| x.abs() > 1e-4).count();
     let differing = r1.iter().zip(&r2).filter(|(x, y)| x.to_bits() != y.to_bits()).count() + r1.len().abs_diff(r2.len());
-    Ok(serde_json::json!({ "samples": r1.len(), "nonSilent": loud, "peak": r1.iter().fold(0f32, |m, x| m.max(x.abs())), "differing": differing }))
+    Ok(serde_json::json!({ "samples": r1.len(), "nonSilent": loud, "peak": r1.iter().fold(0f32, |m, x| m.max(x.abs())), "differing": differing, "stopAllMs": stop_ms, "loudAfterStop": after_loud }))
 }

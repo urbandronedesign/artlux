@@ -26,6 +26,37 @@ import * as bakeStore from '@/services/bakeStore';
 import * as stateMachine from '@/services/stateMachine';
 import { videoCodecRegistry } from '@/host/registries';
 import { getBakeHost } from './bakeHost';
+import { frameEngine } from '@/engine/frameEngine';
+import * as nativeLink from '@/engine/nativeLink';
+
+// ── E6a: WHO DRAWS THE FRAMES ─────────────────────────────────────────────────────────────────────────────
+// With the native engine on (`--native-engine`) and drawing this surface's content, the ENGINE draws and encodes
+// every frame (engine runtime.rs bake_*, encode.rs — Media Foundation, the GPU's own encoder where it has one):
+// this loop still steps the clock, runs the show at each step and settles the decoders, and hands the engine the
+// frame's tick and sound, waiting until it is in the file. Otherwise the app draws and encodes, as before.
+// Kept by the app: transparency (the matte is a second file the app writes), content the engine does not draw.
+const ENGINE_NEVER = new Set(['unsupported', 'none', 'spout', 'ndi', 'camera', 'blobs']);
+function engineRefusal(surface: Surface, req: BakeRequest): string | null {
+  if (req.via === 'app') return 'asked for the app';
+  if (!nativeLink.isEnabled()) return 'the native engine is off';
+  if (req.alpha) return 'transparency is kept by the app (the matte is a second file)';
+  const k = nativeLink.sourceKind(surface.id);
+  if (!k) return 'the engine has not been sent this surface yet';
+  if (ENGINE_NEVER.has(k.kind)) return k.why ? `the engine does not draw it: ${k.why}` : `the engine does not draw ${k.kind} content`;
+  return null;
+}
+async function engineCall(op: string, body: string): Promise<{ ok: boolean; value?: unknown; error?: string }> {
+  const call = window.artlux?.nativeEngineBake;
+  if (!call) return { ok: false, error: 'no native engine bridge' };
+  return call(op, body);
+}
+/** Interleaved f32 → base64, for the engine's bakeFrame (a frame of stereo 48 kHz is ~13 KB). */
+function pcmBase64(pcm: Float32Array): string {
+  const b = new Uint8Array(pcm.buffer, pcm.byteOffset, pcm.byteLength);
+  let s = '';
+  for (let i = 0; i < b.length; i += 0x8000) s += String.fromCharCode.apply(null, b.subarray(i, i + 0x8000) as unknown as number[]);
+  return btoa(s);
+}
 
 /** Content a render can produce exactly today. Everything else is refused BY NAME. */
 function refusalFor(s: Surface): string | null {
@@ -356,7 +387,17 @@ export async function run(
   if (!outPath) return { kind: 'refused', reason: 'cancelled' };
 
   const id = `bake-${Date.now().toString(36)}`;
-  if (!(await client.open(id, outPath))) return { kind: 'refused', reason: 'could not open that file for writing' };
+  // The render draws the CONTENT, never this surface's own previous bake (bakeStore.setRendering) — and the engine is
+  // asked only once its document says so: the tick below re-sends it with the binding set aside, so the source kind
+  // the choice reads is this render's, not the last live frame's.
+  bakeStore.setRendering(surface.id);
+  const released = (r: BakeResult): BakeResult => { bakeStore.setRendering(null); return r; };
+  frameEngine.bakeTick();
+  const engineWhy = engineRefusal(surface, req);
+  const viaEngine = engineWhy === null;
+  console.info(viaEngine ? '[bake] drawn and encoded by the native engine' : `[bake] drawn and encoded by the app (${engineWhy})`);
+  // The engine writes the file itself; main only makes its folder (and admits the result to the media scheme).
+  if (viaEngine ? !(await client.prepare(outPath)) : !(await client.open(id, outPath))) return released({ kind: 'refused', reason: 'could not open that file for writing' });
 
   // EVEN DIMENSIONS, ALWAYS. H.264 is 4:2:0 — the chroma planes are half resolution in each axis, so
   // an odd width or height has no valid encoding and the encoder simply refuses the configuration.
@@ -381,9 +422,9 @@ export async function run(
   const matte = document.createElement('canvas');
   matte.width = W; matte.height = H;
   const mctx = req.alpha ? matte.getContext('2d', { alpha: false }) : null;
-  if (!ctx || !fctx || (req.alpha && !mctx)) {
+  if (!viaEngine && (!ctx || !fctx || (req.alpha && !mctx))) {
     client.cancelWrite(id);
-    return { kind: 'refused', reason: 'no 2D context for the export canvas' };
+    return released({ kind: 'refused', reason: 'no 2D context for the export canvas' });
   }
 
   // Positional writes: an MP4's moov is patched after the media, so the offsets are not monotonic.
@@ -413,7 +454,7 @@ export async function run(
     if (!(await client.open(matteId, mattePath))) {
       try { await output.cancel(); } catch { /* never started */ }
       client.cancelWrite(id);
-      return { kind: 'refused', reason: 'could not open the matte file for writing' };
+      return released({ kind: 'refused', reason: 'could not open the matte file for writing' });
     }
     const mTarget = new StreamTarget(new WritableStream({
       write(chunk) { client.chunk(matteId as string, chunk.data, chunk.position); },
@@ -463,7 +504,9 @@ export async function run(
       audioClient.offlineBegin({ sampleRate: AUDIO_SR, blockSize: 512, channels: AUDIO_CH }),
       AUDIO_BEGIN_TIMEOUT_MS, 'preparing the audio graph',
     ).catch((e: Error) => ({ ok: false as const, error: e.message }));
-    if (began.ok) {
+    if (began.ok && viaEngine) {
+      audioReady = true;   // the engine's AAC encoder (Media Foundation's — present on every Windows)
+    } else if (began.ok) {
       const supported = typeof AudioEncoder !== 'undefined' && (await AudioEncoder.isConfigSupported({
         codec: 'mp4a.40.2', sampleRate: AUDIO_SR, numberOfChannels: AUDIO_CH, bitrate: 192_000,
       }).then((r) => !!r.supported).catch(() => false));
@@ -499,6 +542,8 @@ export async function run(
   // leaves its encoder and its queued writes alive, and a half-written MP4 on disk is worse than none
   // -- it plays for most of its length and then stops, which reads as a finished file.
   const abandon = async (): Promise<void> => {
+    // Bounded: an engine that stopped answering must not hang the app on its way out of a failed render.
+    if (viaEngine) { await withTimeout(engineCall('bakeCancel', '{}'), 5_000, 'cancelling the bake in the engine').catch(() => undefined); return; }
     try { await output.cancel(); } catch { /* never started, or already gone */ }
     client.cancelWrite(id);
     if (matteOut) { try { await matteOut.cancel(); } catch { /* as above */ } }
@@ -509,10 +554,20 @@ export async function run(
   // the pause happens, so a render refused before it gets that far changes nothing.
   let resumePlaying: boolean | null = null;
 
+  let encoder: string | null = null;
   try {
     console.info(`[bake] starting: ${frames} frames, ${W}x${H} @${req.fps}fps${req.alpha ? ' + matte' : ''} -> ${outPath}`);
-    await withTimeout(output.start(), STEP_TIMEOUT_MS, 'opening the encoder');
-    if (matteOut) await withTimeout(matteOut.start(), STEP_TIMEOUT_MS, 'opening the matte encoder');
+    if (viaEngine) {
+      // The document the frames will name must be the engine's before it is asked to open a bake of it.
+      frameEngine.bakeTick();
+      const began = await withTimeout(engineCall('bakeBegin', JSON.stringify({ surface: surface.id, path: outPath, w: W, h: H, fps: req.fps, bitrate: req.bitrate, audio: audioReady })), STEP_TIMEOUT_MS, 'opening the engine\'s encoder');
+      if (!began.ok) return { kind: 'refused', reason: `the native engine could not start the bake: ${began.error ?? 'no reason given'}` };
+      encoder = (began.value as { encoder?: string } | undefined)?.encoder ?? null;
+      console.info(`[bake] the engine encodes with ${encoder ?? 'an unnamed encoder'}`);
+    } else {
+      await withTimeout(output.start(), STEP_TIMEOUT_MS, 'opening the encoder');
+      if (matteOut) await withTimeout(matteOut.start(), STEP_TIMEOUT_MS, 'opening the matte encoder');
+    }
 
     // Pause everything that decodes on its own clock. A <video> whose currentTime keeps moving makes
     // an awaited seek describe a position we no longer care about.
@@ -570,7 +625,8 @@ export async function run(
       // the device detached for the render that tap reads silence — so every audio-reactive surface
       // would render flat unless the block for this frame has already been pushed through the
       // analyser by the time the frame is drawn.
-      if (audioReady && audioSource) {
+      let pcmB64: string | null = null;
+      if (audioReady && (audioSource || viaEngine)) {
         const want = samplesAt(i + 1) - audioCursor;
         if (want > 0) {
           trace(i, 'audio');
@@ -581,7 +637,8 @@ export async function run(
               if (v > audioPeak) audioPeak = v;
             }
             const frames = pcm.length / AUDIO_CH;
-            audioSource.add(new AudioSample({
+            if (viaEngine) pcmB64 = pcmBase64(pcm);
+            else audioSource.add(new AudioSample({
               data: pcm,
               format: 'f32',
               numberOfChannels: AUDIO_CH,
@@ -611,32 +668,41 @@ export async function run(
         }
       }
 
-      trace(i, 'drawing');
-      const drawable = surfaceMedia.getDrawable(surface);
-      // What the surface actually drew, alpha and all.
-      fctx.clearRect(0, 0, W, H);
-      if (drawable) fctx.drawImage(drawable, 0, 0, W, H);
-      // The colour video: that, over black.
-      ctx.fillStyle = '#000';
-      ctx.fillRect(0, 0, W, H);
-      ctx.drawImage(frame, 0, 0);
-      if (mctx) {
-        // The alpha video: white kept only where `frame` has alpha, laid over black — rgb == alpha.
-        mctx.globalCompositeOperation = 'source-over';
-        mctx.fillStyle = '#000';
-        mctx.fillRect(0, 0, W, H);
-        mctx.save();
-        mctx.globalCompositeOperation = 'source-over';
-        mctx.fillStyle = '#fff';
-        mctx.fillRect(0, 0, W, H);
-        mctx.globalCompositeOperation = 'destination-in';
-        mctx.drawImage(frame, 0, 0);
-        mctx.restore();
-      }
+      if (viaEngine) {
+        // E6a: the ENGINE draws this frame from the tick of the show as it now stands, and encodes it.
+        trace(i, 'drawing in the engine');
+        const tick = frameEngine.bakeTick(clock === 'show' ? { t } : { ph: t });   // the frame's EXACT time (nativeLink.BakeAt)
+        if (!tick) throw new Error('the native engine went away');
+        const r = await withTimeout(engineCall('bakeFrame', `{${pcmB64 ? `"pcm":"${pcmB64}",` : ''}"tick":${tick}}`), STEP_TIMEOUT_MS, 'drawing in the engine');
+        if (!r.ok) { await abandon(); return { kind: 'refused', reason: `the native engine could not draw frame ${i}: ${r.error ?? 'no reason given'}` }; }
+      } else {
+        trace(i, 'drawing');
+        const drawable = surfaceMedia.getDrawable(surface);
+        // What the surface actually drew, alpha and all.
+        fctx.clearRect(0, 0, W, H);
+        if (drawable) fctx.drawImage(drawable, 0, 0, W, H);
+        // The colour video: that, over black.
+        ctx.fillStyle = '#000';
+        ctx.fillRect(0, 0, W, H);
+        ctx.drawImage(frame, 0, 0);
+        if (mctx) {
+          // The alpha video: white kept only where `frame` has alpha, laid over black — rgb == alpha.
+          mctx.globalCompositeOperation = 'source-over';
+          mctx.fillStyle = '#000';
+          mctx.fillRect(0, 0, W, H);
+          mctx.save();
+          mctx.globalCompositeOperation = 'source-over';
+          mctx.fillStyle = '#fff';
+          mctx.fillRect(0, 0, W, H);
+          mctx.globalCompositeOperation = 'destination-in';
+          mctx.drawImage(frame, 0, 0);
+          mctx.restore();
+        }
 
-      trace(i, 'encoding');
-      await withTimeout(source.add(i / req.fps, 1 / req.fps), STEP_TIMEOUT_MS, 'encoding a frame');
-      if (matteSource) await withTimeout(matteSource.add(i / req.fps, 1 / req.fps), STEP_TIMEOUT_MS, 'encoding a matte frame');
+        trace(i, 'encoding');
+        await withTimeout(source.add(i / req.fps, 1 / req.fps), STEP_TIMEOUT_MS, 'encoding a frame');
+        if (matteSource) await withTimeout(matteSource.add(i / req.fps, 1 / req.fps), STEP_TIMEOUT_MS, 'encoding a matte frame');
+      }
 
       done = i + 1;
       // Report on TIME as well as on frame count. Every fifth frame alone looks smooth on a fast
@@ -659,9 +725,17 @@ export async function run(
 
     trace(done, 'finalising');
     console.info(`[bake] cost: ${costSummary()}`);
-    await withTimeout(output.finalize(), STEP_TIMEOUT_MS, 'finalising the file');
-    if (matteOut) await withTimeout(matteOut.finalize(), STEP_TIMEOUT_MS, 'finalising the matte');
-    const written = await client.close(id);
+    let written: string | null;
+    if (viaEngine) {
+      const end = await withTimeout(engineCall('bakeEnd', '{}'), STEP_TIMEOUT_MS, 'finalising the file');
+      if (!end.ok) { await abandon(); return { kind: 'refused', reason: `the native engine could not finish the file: ${end.error ?? 'no reason given'}` }; }
+      console.info(`[bake] engine: ${JSON.stringify(end.value)}`);
+      written = await client.admit(outPath);
+    } else {
+      await withTimeout(output.finalize(), STEP_TIMEOUT_MS, 'finalising the file');
+      if (matteOut) await withTimeout(matteOut.finalize(), STEP_TIMEOUT_MS, 'finalising the matte');
+      written = await client.close(id);
+    }
     if (!written) return { kind: 'refused', reason: 'the file could not be closed' };
     const matteWritten = matteId ? await client.close(matteId) : null;
     if (matteId && !matteWritten) return { kind: 'refused', reason: 'the matte could not be closed' };
@@ -692,7 +766,7 @@ export async function run(
         + 'cause is a track audio strip muted or at zero gain, a clip with its own sound switched off, '
         + 'or Preferences > Audio > Video clip audio being off on this machine.';
     }
-    return { kind: 'ok', path: written, mattePath: matteWritten, frames: done, elapsedMs: Math.round(performance.now() - startedAt), audioNote };
+    return { kind: 'ok', path: written, mattePath: matteWritten, frames: done, elapsedMs: Math.round(performance.now() - startedAt), audioNote, drawnBy: viaEngine ? 'engine' : 'app', encoder };
   } catch (e) {
     await abandon();
     const msg = `${(e as Error).message} (frame ${done}, while ${phase})`;
@@ -712,6 +786,7 @@ export async function run(
     // 2026-10-23 on a looping MP4 surface (plans/mp4-memory-residency.md, step 3). After endOffline, so
     // the live clock is the one that resumes them.
     if (resumePlaying !== null) contentSource.setPlaying(resumePlaying);
+    bakeStore.setRendering(null);   // the surface plays its (new) bake again
     running = false;
   }
 }

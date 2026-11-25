@@ -202,7 +202,31 @@ function projectorEntry(o: ProjectorOutput, surfaces: Surface[], sources: Record
 
 /** One frame. Cheap when nothing changed: a reference compare, one small string, one IPC send. */
 export function frame(inputs: LinkInputs, surfaces: Surface[], fixtures: Fixture[], brightness: number, lightBytes: Record<string, number[]> = {}, lanesView: Surface[] | null = null, lightLive: Record<string, Record<string, number>> = {}): void {
-  if (!enabled) return;
+  const tick = link(inputs, surfaces, fixtures, brightness, lightBytes, lanesView, lightLive);
+  if (tick) window.artlux?.nativeEngineTick?.(tick);
+}
+
+/**
+ * E6a — THE TICK OF A BAKE FRAME. The same document (sent when it changed, as for a live frame) and the same tick,
+ * RETURNED rather than sent: plugins/bake hands it to the engine as a `bakeFrame` request, which is answered once
+ * the frame is drawn and encoded (a live tick is coalesced; a bake frame must never be). frameEngine.bakeTick
+ * builds the frame's effective surfaces exactly as its own tick does. Null when the engine is off.
+ */
+export function bakeTick(inputs: LinkInputs, surfaces: Surface[], fixtures: Fixture[], brightness: number, lightBytes: Record<string, number[]> = {}, lanesView: Surface[] | null = null, lightLive: Record<string, Record<string, number>> = {}, at: BakeAt = {}): string | null {
+  return link(inputs, surfaces, fixtures, brightness, lightBytes, lanesView, lightLive, at);
+}
+
+/** E6a: the bake frame's EXACT time on the clock it steps (`t` the show's, `ph` the playhead's). The timeline's own
+ *  reading of a stepped clock is a float sum a hair off it (0.23999… for 0.24), and an effect that steps on a frame
+ *  boundary then draws the previous step — measured, one frame in a hundred. The app's render uses the exact time. */
+export interface BakeAt { t?: number; ph?: number }
+
+/** E6a: what the engine was last told a surface's content is (`kind`, and `why` when it cannot draw it). */
+let lastKinds: Record<string, { kind: string; why?: string }> = {};
+export function sourceKind(surfaceId: string): { kind: string; why?: string } | undefined { return lastKinds[surfaceId]; }
+
+function link(inputs: LinkInputs, surfaces: Surface[], fixtures: Fixture[], brightness: number, lightBytes: Record<string, number[]>, lanesView: Surface[] | null, lightLive: Record<string, Record<string, number>>, at: BakeAt = {}): string | null {
+  if (!enabled) return null;
   // E3d: `lanesView` — the surfaces WITHOUT the values of the lanes the engine evaluates (frameEngine; null
   // while a scene fade runs over them, or nothing is automated). The document carries the authored values and
   // the lanes; the engine samples them per tick, so a curve no longer re-sends the document every frame.
@@ -234,6 +258,7 @@ export function frame(inputs: LinkInputs, surfaces: Surface[], fixtures: Fixture
     }
     sources[s.id] = { ...c, sources: {} };
   }
+  lastKinds = Object.fromEntries(surfaces.map((s) => { const x = sources[s.id] as { kind: string; why?: string }; return [s.id, { kind: x.kind, ...(x.why ? { why: x.why } : {}) }]; }));
   shipRasters(surfaces, sources);   // E2: before the document that names them
   for (const [key, content] of layerContent) if (sources[key]?.kind === 'raster') shipRaster(key, contentSource.nativeRaster(key, content));
   const sourcesKey = JSON.stringify(sources);
@@ -286,7 +311,7 @@ export function frame(inputs: LinkInputs, surfaces: Surface[], fixtures: Fixture
   // E2: each SHADER surface's uniforms this frame (the plugin's nativeTick — the same taps the app's own draw
   // reads), at the show time the app draws it at.
   const shader: Record<string, unknown> = {};
-  const showT = timeline.getShowTime();
+  const showT = at.t ?? timeline.getShowTime();   // E6a: a bake frame's exact show time
   for (const s of surfaces) {
     if (sources[s.id].kind !== 'shader') continue;
     const u = contentSource.nativeTick(s.id, s.content, showT);
@@ -343,5 +368,5 @@ export function frame(inputs: LinkInputs, surfaces: Surface[], fixtures: Fixture
   // on the previous one (measured: 0.3 s off for two seconds at a show's start). The engine re-anchors only when
   // the revision changes, so a repeat costs it a comparison. ~300 bytes on a tick that already carries kilobytes.
   const tp = timeline.transportAnchor() ?? undefined;
-  window.artlux?.nativeEngineTick?.(JSON.stringify({ rev, t: timeline.getShowTime(), ph: timeline.getPlayhead(), fm: timeline.getFrameTimeMs(), tp, auto, lroles, lcolors, lcue, llive: lightLive, lown, brightness, hap, mp4, ndi, camfp, shader, blobs, comp, times, lights, proj: { brightness: projBrightness, booting: projBooting } }));
+  return JSON.stringify({ rev, t: at.t ?? timeline.getShowTime(), ph: at.ph ?? timeline.getPlayhead(), fm: timeline.getFrameTimeMs(), tp, auto, lroles, lcolors, lcue, llive: lightLive, lown, brightness, hap, mp4, ndi, camfp, shader, blobs, comp, times, lights, proj: { brightness: projBrightness, booting: projBooting } });
 }

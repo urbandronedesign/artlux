@@ -90,6 +90,15 @@ export function setEntries(entries: readonly BakeEntry[] | undefined): void {
 }
 
 export function entryFor(surfaceId: string): BakeEntry | undefined { return bySurface.get(surfaceId); }
+
+/**
+ * THE SURFACE BEING RENDERED NEVER PLAYS ITS OWN BAKE (E6a, found by test:engine-bake). A render draws the surface's
+ * CONTENT; with its binding live it drew the previous FILE instead — a re-bake of unchanged content was a copy of
+ * a copy (an encode's loss each time), and the native engine, which does not play bakes, was handed a surface it
+ * could not draw and wrote black. Set by plugins/bake for the length of a render, cleared after; null for none.
+ */
+let rendering: string | null = null;
+export function setRendering(surfaceId: string | null): void { rendering = surfaceId; }
 export function all(): BakeEntry[] { return [...bySurface.values()]; }
 
 /**
@@ -104,7 +113,7 @@ export function statusFor(s: Surface, timeSec: number, docKey: string):
   | { state: 'live'; entry: BakeEntry } {
   const e = bySurface.get(s.id);
   if (!e) return { state: 'none' };
-  if (!e.enabled) return { state: 'bypassed', entry: e };
+  if (!e.enabled || s.id === rendering) return { state: 'bypassed', entry: e };
   if (e.contentSig !== signatureOf(s.content, docKey)) return { state: 'stale', entry: e };
   if (timeSec < e.startSec || timeSec >= e.endSec) return { state: 'out-of-range', entry: e };
   return { state: 'live', entry: e };

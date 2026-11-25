@@ -14,7 +14,7 @@
 // render that works and one that dies at the end of a long job.
 
 import type { MainPlugin, MainPluginContext } from '@artlux/sdk/main';
-import { closeSync, mkdirSync, openSync, unlinkSync, writeSync } from 'node:fs';
+import { closeSync, existsSync, mkdirSync, openSync, unlinkSync, writeSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { dialog, BrowserWindow } from 'electron';
 import { allowPath } from '../../../src/main/mediaAccess'; // host media-scheme seam (main-side, in-process)
@@ -102,6 +102,20 @@ export const bakeMainPlugin: MainPlugin = {
       console.info(`[bake] wrote ${chunks} chunks, ${(chunkBytes / 1e6).toFixed(2)}MB, ${chunkMs}ms in writeSync`);
       chunks = 0; chunkBytes = 0; chunkMs = 0;
       return f ? f.path : null;
+    });
+
+    // E6a: a bake the NATIVE ENGINE writes (it holds the file itself): its folder made here, as bake:open makes
+    // it, and the finished file admitted to the media scheme, as bake:close admits one — or nothing can open it.
+    ctx.ipc.handle('bake:prepare', (...args: unknown[]) => {
+      const path = String(args[0] ?? '');
+      if (!path) return false;
+      try { mkdirSync(dirname(path), { recursive: true }); return true; } catch (e) { console.warn('[bake] could not make the folder for', path, (e as Error).message); return false; }
+    });
+    ctx.ipc.handle('bake:admit', (...args: unknown[]) => {
+      const path = String(args[0] ?? '');
+      if (!path || !existsSync(path)) return null;
+      allowPath(path);
+      return path;
     });
 
     // A cancelled render leaves no half file behind: a 400 MB MP4 that plays for nine of its ten

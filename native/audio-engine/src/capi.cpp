@@ -292,11 +292,21 @@ ARTLUX_AUDIO_API int artlux_audio_call(const char* json, char* out, int cap) {
           if (!ensureEngine().clipPosition(id, pos, playing, len, at, wall)) continue;
           auto* c = new juce::DynamicObject();
           c->setProperty("pos", pos); c->setProperty("playing", playing); c->setProperty("len", len);
-          c->setProperty("at", (juce::int64) at); c->setProperty("wall", wall);
+          c->setProperty("at", (juce::int64) at); c->setProperty("wall", wall); c->setProperty("rate", ensureEngine().liveRate());
           r->setProperty(juce::Identifier(juce::String(id)), juce::var(c));
         }
       return answer(out, cap, juce::JSON::toString(juce::var(r), true), 0);
     });
+  }
+  if (op == "cueClipAt") {
+    const std::string id = s(0); const double pos = d(1, 0.0); const int64_t at = (int64_t) d(2, -1.0); const double g = d(3, 1.0);
+    runAsync([id, pos, at, g] { ensureEngine().cueClipAt(id, pos, at, (float) g); });
+    return none();
+  }
+  if (op == "playClipAt") {
+    const std::string id = s(0); const double pos = d(1, 0.0); const int64_t at = (int64_t) d(2, 0.0); const double g = d(3, 1.0);
+    runAsync([id, pos, at, g] { ensureEngine().playClipAt(id, pos, at, (float) g); });
+    return none();
   }
   if (op == "seekClipAt") {
     const std::string id = s(0); const double pos = d(1, 0.0); const int64_t at = (int64_t) d(2, 0.0);

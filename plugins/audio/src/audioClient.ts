@@ -50,7 +50,14 @@ export const audioClient = {
   // fader. deviceChannel < 0 stops it. Never call this from the playhead tick.
   setTestTone: (deviceChannel: number, gain = 0.5): void => { ipc?.send('audio:setTestTone', deviceChannel, gain); },
   stopAll: (): void => { ipc?.send('audio:stopAll'); },
+  // E3q: does the native engine decide the plays (the sound is played there — `--engine-audio`)?
+  engineDecides: (): Promise<boolean> =>
+    (ipc?.invoke('audio:engineDecides') as Promise<boolean>) ?? Promise.resolve(false),
+  // True between a successful offlineBegin and its offlineEnd: the engine's clock is not running, so the driver
+  // decides the plays itself for the render.
+  isOffline: (): boolean => offline,
 };
+let offline = false;
 
 // ---- NON-REALTIME RENDERING ---------------------------------------------------------------------
 // Standalone rather than methods on `audioClient`: this is not part of playing a show, and keeping it
@@ -61,7 +68,9 @@ export const audioClient = {
 
 export async function offlineBegin(cfg: { sampleRate: number; blockSize: number; channels: number }): Promise<{ ok: boolean; error?: string }> {
   const r = await ipc?.invoke('audio:offlineBegin', cfg);
-  return (r as { ok: boolean; error?: string } | undefined) ?? { ok: false, error: 'the audio plugin is not loaded' };
+  const res = (r as { ok: boolean; error?: string } | undefined) ?? { ok: false, error: 'the audio plugin is not loaded' };
+  if (res.ok) offline = true;
+  return res;
 }
 
 /** INTERLEAVED frames (frames * channels). Short or empty when the graph is not rendering. */
@@ -70,4 +79,4 @@ export async function offlinePull(frames: number): Promise<Float32Array> {
   return r instanceof Float32Array ? r : new Float32Array(0);
 }
 
-export async function offlineEnd(): Promise<void> { await ipc?.invoke('audio:offlineEnd'); }
+export async function offlineEnd(): Promise<void> { try { await ipc?.invoke('audio:offlineEnd'); } finally { offline = false; } }

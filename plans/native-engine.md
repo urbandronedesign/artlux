@@ -2275,6 +2275,77 @@ fallback until a source/output is proven byte-identical — risk 2):
 >   loop wrap or a seek the sound restarts where the APP's clock says and the engine corrects it a check later
 >   (≤100 ms, as measured above). Moving the decisions themselves into the engine (the clips as document) is the last
 >   audio step; it needs the driver's mute / solo / fade / scene-container rules ported, as E3d–E3f ported the lanes.
+>   → **E3q, below** — without porting those rules: the app keeps them and sends their RESULT.
+>
+> ✅ **E3q done 2026-11-25 — THE ENGINE DECIDES THE PLAYS.** With the sound in the engine (`--engine-audio`), the
+> driver no longer starts, stops or re-seeks a single clip. The split is the one the lanes have: the app keeps the
+> RULES (which clips may sound — mute, solo, loaded, scene membership, fades and automation into a gain) and sends
+> their result as document; the engine keeps TIME (when a clip sounds, from where):
+> - **App:** in engine mode `reconcileContainer` describes and never acts — every clip of both containers gets its
+>   lock with `audible` and `decide: true`, its gain while it is in its window; `stopSounding` / `stopAllSounding`
+>   drop only the driver's bookkeeping (a stop is the engine's); a clip leaving both containers gets a null lock. The
+>   mode is asked once (`audio:engineDecides`) and dropped during an offline render (`audioClient.isOffline`, set by
+>   offlineBegin / offlineEnd): the engine's clock does not run during a bake, so the driver decides the render's
+>   plays as before. Switching who decides stops everything and starts the new decider from nothing.
+> - **Engine** (`audio.rs hold`, every 20 ms): a decided clip SHOULD sound when it may, its clock is running and
+>   MOVING (a parked clock — the show ended with its loop off, a held state's end — is told from a running one by
+>   reading the clock 50 ms on), and the clock is in the window with source left. Should and not sounding → started at
+>   the mix sample it was read at (`playClipAt`); sounding and should not → stopped (with the reason in the log); a
+>   lock dropped → stopped. A start the clock is about to REACH — approaching the window, or through a loop's wrap —
+>   is CUED: the entry instant is found by bisection on the engine's clock (which knows the wraps and parks), the
+>   clip primed at its source position now and started by the MIX LOOP at the block nearest that sample
+>   (`cueClipAt` → `Clip.startAt`), so it begins on time rather than at the next check; a cue whose window is gone
+>   (paused, parked, sought away, muted, retimed) is withdrawn.
+> - **Measured** (`test:engine-audio-show`, the bed — a 3 s tone in a 6 s window of a 6 s loop): the driver sent
+>   **0 plays**; every pass of the window was cued 71–98 ms ahead through the wrap and landed **0.0–0.1 ms** from the
+>   engine's clock (once 1.3 ms: within the half block the mix loop starts at); held within 0.08–0.12 ms with **0
+>   re-seeks**; stopped where the source runs out; the restarted engine is handed the lock alone ("1 held by the
+>   engine") and starts the bed itself. The E3p mutation still bites (starts use the true place; only the hold's
+>   comparison is skewed). Before cueing, starts at the window were 16–29 ms late (the 20 ms check).
+> - **Found on the way:** `SpatialBus::stopAll` during an offline render called JUCE's `stop()` on each playing clip —
+>   which spins up to a second with no callback to answer it. Unreachable before (the driver stopped clips one by one,
+>   which takes the offline flag); E3q's hand-back to the driver at a bake's first frame reaches it with the bed
+>   playing. Now the same flag as stopClip: `test:engine-audio` measured **1199 ms and the clip still loud → 0.3 ms,
+>   silent**.
+> - `verify:invariants`: the driver hands the plays over only off a bake, describes and continues, never stops a clip
+>   itself in engine mode, drops the lock of a clip leaving both containers; the engine starts and cues, tells a parked
+>   clock, stops a decided clip whose lock goes; the mix loop fires a cue at its sample (mutation-tested: the bake
+>   gate, the parked-clock test). transport-clock, light-bytes, native-takeover, test:engine-audio and the addon's
+>   offline + effects tests pass on the rebuilt core.
+> - **Not yet:** a scene recall's cross-container hand-over is still the driver's decision a frame at a time (the
+>   lock change arrives with the app's frame, not at the engine's instant); a clip's FADE envelope is still sampled
+>   by the app per frame into the gain. **Still opt-in** (`--engine-audio`). Next: E6.
+
+> ✅ **E6a done 2026-11-25 — A BAKE DRAWN AND ENCODED BY THE ENGINE.** With `--native-engine`, a bake of content the
+> engine draws is drawn and encoded in the engine: H.264 + AAC through Media Foundation's sink writer (`encode.rs`),
+> the GPU's own encoder where it has one (here NVIDIA's MFT), the picture never crossing a process.
+> - **The split:** the app keeps the ORCHESTRATION (bakeRunner steps renderClock, runs the show — state machine,
+>   scenes, automation — at each step, settles its decoders, pulls the sound) and sends each frame as a `bakeFrame`
+>   request: the frame's tick (`frameEngine.bakeTick` → `nativeLink.bakeTick`, the live tick returned instead of
+>   sent, at the frame's EXACT time) + its PCM. The engine draws the surface at that stepped clock (`draw_at` the
+>   app's — its own clock does not run in a bake), scales it (`bakescale.rs`: one pipeline, target and readback
+>   buffer per bake), encodes. Answered per frame, never coalesced (`engineHost.engineBake`). Kept by the app:
+>   transparency (the matte file), content the engine does not draw, the engine off.
+> - **Measured** (`test:engine-bake`, venice_alley 1080p25): every frame the film's own at its time — luma 0.81 mean
+>   / 1.10 worst (the app's own bake 0.79 / 1.05), 0 early or late; an effect frame for frame the app's (0.03); the
+>   sound 96 000 of 96 000 samples, audible; a re-bake of a bound surface draws the content. Encoder self-test
+>   (`--encode-selftest`): 4K 29.97 on NVENC 5.5 ms a frame, and the software encoder, both frame-exact, no B-frames.
+>   Per frame: draw 3.3 ms, read back 1.4 ms (18.7 through the projector's offscreen path), encode 2.6 ms — but
+>   100 frames took **1.4 s against the app's 0.5 s**: a round trip through main per frame.
+> - **Found on the way:** (1) a texture without COPY_SRC made wgpu PANIC the render thread while the stdin thread
+>   kept answering pings — the app waited forever; a panicking render thread now ends the engine (exit 70, main
+>   restarts it), and an abandon is bounded. (2) The software encoder kept B-frames set through ICodecAPI (a frame
+>   off at each key frame) — the settings now go in as encoding parameters. (3) A re-bake rendered the surface's
+>   OWN previous file (in the app too: a copy of a copy) and the engine, which does not play bakes, wrote black —
+>   the surface being rendered now never plays its bake. (4) The timeline's reading of a stepped clock is a float
+>   a hair off: an effect stepping on a frame boundary drew the previous step once in 100 — frames carry their exact time.
+> - `verify:invariants` (mutation-tested): drawn at the stepped clock, answered not coalesced, a panicking render
+>   thread exits, content textures are copy sources, the encoder's settings at configure time, frame time a function
+>   of the index, pending bakes fail on exit, a bounded abandon, transparency kept by the app, bakeTick builds only,
+>   the rendered surface never plays its own bake, the engine refuses a surface it no longer draws, the exact time.
+> - **Not yet:** frames pipelined (the round trip dominates); the app's decoders still settle each frame of an
+>   engine-drawn bake (the engine decodes its own); the matte in the engine; macOS (AVFoundation). Next in E6: SDK
+>   v2 for render contributions, then deleting the browser engine.
 
 ## 9d. E4 started early — the 3D view in the engine (owner, 2026-11-24)
 

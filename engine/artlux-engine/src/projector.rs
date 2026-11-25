@@ -182,7 +182,7 @@ pub fn content_texture(gpu: &Gpu, w: u32, h: u32, rgba: &[u8]) -> wgpu::Texture 
     let tex = d.create_texture(&wgpu::TextureDescriptor {
         label: Some("projector content"), size: wgpu::Extent3d { width: w, height: h, depth_or_array_layers: 1 },
         mip_level_count: levels, sample_count: 1, dimension: wgpu::TextureDimension::D2, format: wgpu::TextureFormat::Rgba8Unorm,
-        usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST | wgpu::TextureUsages::RENDER_ATTACHMENT, view_formats: &[],
+        usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST | wgpu::TextureUsages::COPY_SRC | wgpu::TextureUsages::RENDER_ATTACHMENT, view_formats: &[],
     });
     gpu.queue.write_texture(tex.as_image_copy(), rgba, wgpu::TexelCopyBufferLayout { offset: 0, bytes_per_row: Some(w * 4), rows_per_image: Some(h) },
         wgpu::Extent3d { width: w, height: h, depth_or_array_layers: 1 });
@@ -190,6 +190,9 @@ pub fn content_texture(gpu: &Gpu, w: u32, h: u32, rgba: &[u8]) -> wgpu::Texture 
     tex
 }
 
+/// (COPY_SRC on both: a content texture is a SOURCE too — a single timeline track's picture IS one, and a bake
+/// copies it again, E6a; without it wgpu's validation panics the render thread.)
+///
 /// Item 2c-4: the same content texture, level 0 COPIED ON THE GPU from a picture already there — an MP4
 /// frame's RGBA (yuv.rs GpuConvert, the coded size), its VISIBLE rect. That is exactly what the app's window
 /// gets: createImageBitmap(VideoFrame) is the visible picture, converted as drawImage converts it
@@ -200,7 +203,7 @@ pub fn content_texture_from(gpu: &Gpu, src: &wgpu::Texture, crop: [u32; 4]) -> w
     let tex = gpu.device.create_texture(&wgpu::TextureDescriptor {
         label: Some("projector content (gpu)"), size: wgpu::Extent3d { width: w, height: h, depth_or_array_layers: 1 },
         mip_level_count: levels, sample_count: 1, dimension: wgpu::TextureDimension::D2, format: wgpu::TextureFormat::Rgba8Unorm,
-        usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST | wgpu::TextureUsages::RENDER_ATTACHMENT, view_formats: &[],
+        usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST | wgpu::TextureUsages::COPY_SRC | wgpu::TextureUsages::RENDER_ATTACHMENT, view_formats: &[],
     });
     let mut enc = gpu.device.create_command_encoder(&Default::default());
     enc.copy_texture_to_texture(

@@ -11,6 +11,8 @@
 //!   engine → main   {"type":"sent","n":N,"d":D,"pps":P,"fps":F,"u":U}  a frame went to the wire (the liveness main
 //!                   mutes the app on); N frames drawn so far, D ticks dropped by coalescing so far, and the sender's
 //!                   own counters (packets/s, frames/s incl. keep-alive, universes) — the app output engine's numbers
+//!   main → engine   {"type":"bakeBegin"|"bakeFrame"|"bakeEnd"|"bakeCancel","req":N,…}   E6a: a bake drawn and encoded here
+//!   engine → main   {"type":"bake","req":N,"ok":b,"value"|"error":…}   its answer, one per message
 //!   engine → main   {"type":"projOwns","rev":r,"owns":b,"why":"...","open":n}   E1f-3: whether the engine's
 //!                                          own windows now show the projector outputs (main covers the app's)
 //! stdin closing (main gone, crashed or quit) also ends it: the engine never outlives the app.
@@ -75,6 +77,11 @@ pub fn run(policy: AdapterPolicy) -> ExitCode {
     let render = {
         let gpu = gpu.clone();
         std::thread::Builder::new().name("render".into()).spawn(move || {
+          // A PANICKING RENDER THREAD ENDS THE PROCESS (E6a, found by test:engine-bake: a wgpu validation error panics).
+          // The stdin thread would otherwise go on answering pings, so main saw a live engine that would never draw
+          // again or answer anything it waits on (a bake frame: the app hung). Exiting makes it a crash, and main
+          // restarts the engine — the watchdog rung every other failure already takes.
+          let body = std::panic::AssertUnwindSafe(move || {
             let mut rt = crate::runtime::Runtime::new(gpu.clone());
             // E1f-3: the projector outputs' windows thread. Its report (which outputs actually opened) is
             // the answer main waits for: {"type":"projOwns",...} for the document that asked.
@@ -130,6 +137,18 @@ pub fn run(policy: AdapterPolicy) -> ExitCode {
                     Some("scene3d") => rt.scene3d(&m),
                     Some("raster") => rt.raster(&m),
                     Some("view3d") => rt.view3d(&m),
+                    // E6a: a bake drawn and encoded here (runtime.rs) -- every message answered, in order, never
+                    // coalesced: the app waits on each frame before it steps its clock to the next.
+                    Some(op @ ("bakeBegin" | "bakeFrame" | "bakeEnd" | "bakeCancel")) => {
+                        let r = match op { "bakeBegin" => rt.bake_begin(&m), "bakeFrame" => rt.bake_frame(&m), "bakeEnd" => rt.bake_end(), _ => rt.bake_cancel() };
+                        let req = m["req"].as_u64().unwrap_or(0);
+                        let line = match r {
+                            Ok(v) => serde_json::json!({ "type": "bake", "req": req, "ok": true, "value": v }),
+                            Err(e) => serde_json::json!({ "type": "bake", "req": req, "ok": false, "error": e }),
+                        };
+                        let mut o = std::io::stdout().lock();
+                        let _ = writeln!(o, "{line}").and_then(|_| o.flush());
+                    }
                     _ => {}
                 };
                 handle(&mut rt, first, &mut tick, &mut dropped);
@@ -158,6 +177,11 @@ pub fn run(policy: AdapterPolicy) -> ExitCode {
                 }
             }
             rt.close();
+          });
+          if std::panic::catch_unwind(body).is_err() {
+              eprintln!("artlux-engine: the render thread panicked — exiting, so main restarts the engine");
+              std::process::exit(70);
+          }
         }).expect("render thread")
     };
     for line in std::io::stdin().lock().lines() {

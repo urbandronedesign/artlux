@@ -43,6 +43,11 @@ export interface BakeRequest {
    * refused when the project has never been saved — there is no folder to be relative to yet.
    */
   intoProject?: boolean;
+  /**
+   * E6a: who draws and encodes the frames. Absent: the native engine when it is on and draws this content (and no
+   * transparency is kept), else the app. `'app'` forces the app's own render (a comparison, a fallback).
+   */
+  via?: 'engine' | 'app';
 }
 
 /** Progress, pushed from the renderer to whatever is watching. */
@@ -81,6 +86,9 @@ export interface BakeSuccess {
    * still worth having; it just must not be mistaken for one WITH sound.
    */
   audioNote?: string | null;
+  /** E6a: who drew and encoded it, and (the engine's) which encoder wrote the file. */
+  drawnBy?: 'engine' | 'app';
+  encoder?: string | null;
 }
 
 export type BakeResult = BakeSuccess | BakeRefusal;

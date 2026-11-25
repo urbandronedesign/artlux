@@ -64,6 +64,14 @@ native/audio-engine/
                         lock) and re-seeks one more than 2 ms off its own clock (`seekClipAt`, landing at that
                         mix sample). A play lands 5–10 ms late through the relay; that is now corrected once,
                         and a restart's resumed clip (a wall estimate) lands exactly. The addon ignores locks.
+                        THE ENGINE DECIDES THE PLAYS (E3q): with the sound in the engine, the driver no longer
+                        starts, stops or re-seeks anything — it describes EVERY clip of both containers (its
+                        lock plus `audible`: mute / solo / loaded, and its gain), and the engine starts a clip
+                        when its clock enters the playable part of the window (CUED ahead, through a loop's
+                        wrap too: `cueClipAt` primes it and the mix loop starts it on the sample), stops it when
+                        the window or the source ends, the clock pauses or PARKS, and drops it when its lock
+                        goes (a clip leaving both containers). A bake takes the plays back: the engine's clock
+                        is not running offline, so the driver decides for the render (`audioClient.isOffline`).
   src/effects.h         the DSP: GainFx / FilterFx / ReverbFx / DelayFx / CompFx, and EffectChain.
                         build() ALLOCATES (the control thread, never under the lock); setParams()/process() are
                         allocation-free and run under it. `buildable()` is where a master reverb is

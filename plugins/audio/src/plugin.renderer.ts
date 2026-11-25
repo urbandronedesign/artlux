@@ -450,6 +450,14 @@ export const plugin: RendererPlugin = {
     // engine, the engine holds the clip to its OWN clock from this (audio.rs `hold`) — reading where the clip really
     // is, which the drift re-lock below never does. The addon ignores it.
     const sentLock = new Map<string, string>();
+    // E3q — THE ENGINE DECIDES THE PLAYS. With the sound in the native engine, the driver no longer starts, stops or
+    // re-seeks anything: it DESCRIBES every clip of both containers (its clock, its place, whether it may sound —
+    // mute / solo / loaded) and its gain, and the engine starts it when ITS clock enters the window, stops it when it
+    // leaves or the clock parks or pauses, and holds it in between (audio.rs `hold`). During an offline render (a
+    // bake) the engine's clock is not running, so the driver decides as before. Asked once; false until answered.
+    let engineDecides = false;
+    void audioClient.engineDecides().then((v) => { engineDecides = v === true; });
+    let decides = false;   // this frame's mode: engineDecides and not rendering offline
     const sentSpatial = new Map<string, string>(); // last ambisonic position pushed ('' = non-spatial)
     const sentEffects = new Map<string, string>(); // last effect chain pushed, per clip (JSON)
     let sentMaster = '';                           // last master chain pushed (JSON)
@@ -593,14 +601,24 @@ export const plugin: RendererPlugin = {
 
     const startClip = (clip: BedClip, srcOffset: number, tLocal: number, nowMs: number) => {
       const g = effGain(clip, tLocal);
-      audioClient.playClip(clip.id, srcOffset, g); // playClip seek is a SOURCE offset
+      if (decides) audioClient.setClipGain(clip.id, g);   // E3q: the engine starts it — it needs only the gain
+      else audioClient.playClip(clip.id, srcOffset, g); // playClip seek is a SOURCE offset
       sounding.add(clip.id); sentGain.set(clip.id, g); sentOffset.set(clip.id, srcOffset); sentWallMs.set(clip.id, nowMs);
     };
+    // E3q: with the engine deciding, a stop is the engine's (its clock left the window, parked or paused) and the
+    // clip's lock stays — a mute arrives as `audible: false`, a clip leaving both containers as a null lock
+    // (pruneOrphans). Only the driver's own bookkeeping is dropped.
     const stopSounding = (id: string) => {
-      audioClient.stopClip(id);
-      sounding.delete(id); sentGain.delete(id); sentOffset.delete(id); sentWallMs.delete(id); sentLock.delete(id);
+      if (!decides) { audioClient.stopClip(id); sentLock.delete(id); }
+      sounding.delete(id); sentGain.delete(id); sentOffset.delete(id); sentWallMs.delete(id);
     };
     const stopAllSounding = () => {
+      if (!decides) { audioClient.stopAll(); sentLock.clear(); }
+      sounding.clear(); sentGain.clear(); sentOffset.clear(); sentWallMs.clear();
+    };
+    // Switching who decides (a bake starting or ending): everything stops, every lock is forgotten, and the new
+    // decider starts from nothing.
+    const resetAll = () => {
       audioClient.stopAll();
       sounding.clear(); sentGain.clear(); sentOffset.clear(); sentWallMs.clear(); sentLock.clear();
     };
@@ -830,10 +848,10 @@ export const plugin: RendererPlugin = {
     // `clock` — NOT "playhead". Naming it `playhead` would be a standing invitation to feed the bound doc's
     // time to the bed again (the bed takes st.showTime; the bound timeline's audio takes the playhead).
     // `clockName` travels with `clock`: which of the engine's two clocks the container's clips are held to.
-    const lockClip = (clip: BedClip, clockName: 'show' | 'scene') => {
-      const key = `${clockName}|${clip.start}|${clip.inPoint}|${clip.duration}`;
+    const lockClip = (clip: BedClip, clockName: 'show' | 'scene', audible = true) => {
+      const key = `${clockName}|${clip.start}|${clip.inPoint}|${clip.duration}|${audible}|${decides}`;
       if (sentLock.get(clip.id) === key) return;
-      audioClient.lockClip(clip.id, { clock: clockName, start: clip.start, inPoint: clip.inPoint, duration: clip.duration });
+      audioClient.lockClip(clip.id, { clock: clockName, start: clip.start, inPoint: clip.inPoint, duration: clip.duration, audible, decide: decides });
       sentLock.set(clip.id, key);
     };
     const reconcileContainer = (clips: BedClip[], tracks: BedTrack[], clock: number, clockName: 'show' | 'scene', nowMs: number) => {
@@ -842,6 +860,17 @@ export const plugin: RendererPlugin = {
         const isSounding = sounding.has(clip.id);
         const tLocal = clock - clip.start;   // clip-local time — the fade envelope's input
         const ok = audibleIn(clip, tracks);
+        if (decides) {
+          // E3q: describe, never act. Every clip of the container (a clip about to enter its window must already
+          // be known to the engine, or it starts a frame late), its gain while it is in its window here.
+          lockClip(clip, clockName, ok);
+          if (inWindow && ok) {
+            const g = effGain(clip, tLocal);
+            if (sentGain.get(clip.id) !== g) { audioClient.setClipGain(clip.id, g); sentGain.set(clip.id, g); }
+            sounding.add(clip.id);
+          } else if (isSounding) { sounding.delete(clip.id); sentGain.delete(clip.id); }
+          continue;
+        }
         if (inWindow && ok && !isSounding) {
           startClip(clip, clip.inPoint + tLocal, tLocal, nowMs);
           lockClip(clip, clockName);
@@ -941,9 +970,11 @@ export const plugin: RendererPlugin = {
       prevBedClips = bed.clips; prevTlClips = tlAudio.clips; prevVidClips = vidAudio.clips;
       syncClips();                       // what the engine ALREADY holds: correct it NOW, before reconcile() starts it
       void syncLoaded().then(syncClips); // the containers moved: load what arrived, unload what left
-      if (sounding.size === 0) return;
+      if (sounding.size === 0 && sentLock.size === 0) return;
       const live = new Set(allClips().map((c) => c.id));
       for (const id of [...sounding]) if (!live.has(id)) stopSounding(id);
+      // E3q: …and with the engine deciding, its lock goes — which is what stops it there.
+      for (const id of [...sentLock.keys()]) if (!live.has(id)) { audioClient.lockClip(id, null); sentLock.delete(id); }
     };
 
     // THE TWO CLOCKS, ROUTED, AND EACH WITH ITS OWN PARK.
@@ -1039,6 +1070,8 @@ export const plugin: RendererPlugin = {
       // synchronously, in this very frame; the container and the playhead must never be a frame apart.
       // Then silence anything that just left both containers, before any clock is looked at.
       refreshTlAudio();
+      const nowDecides = engineDecides && !audioClient.isOffline();
+      if (nowDecides !== decides) { resetAll(); decides = nowDecides; prevPlaying = false; }
       pruneOrphans();
       // The automation sampler ran moments ago, in the same frame (timeline.ts calls it just before it
       // notifies its subscribers, of which this is one — so a curve's value reaches the engine on the

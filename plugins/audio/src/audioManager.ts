@@ -188,6 +188,7 @@ export function useEngineAudio(relay: { call(op: string, args: unknown[], answer
     offlineEnd: () => ask<void>('offlineEnd', []),
   };
   available = true;
+  inEngine = true;
   console.log('[audio] playing through the native engine (E3m)');
 }
 
@@ -225,7 +226,16 @@ export function stopClip(id: string): void { native?.stopClip(id); }
  * is inside `[start, start + duration)`. The native engine re-seeks the clip to its OWN clock from this (audio.rs
  * `hold`); the addon has no such clock and ignores it.
  */
-export interface ClipLock { clock: 'show' | 'scene'; start: number; inPoint: number; duration: number }
+export interface ClipLock {
+  clock: 'show' | 'scene'; start: number; inPoint: number; duration: number;
+  /** E3q: may it sound (mute / solo / loaded) — the engine starts it only if so. Absent: true. */
+  audible?: boolean;
+  /** E3q: the ENGINE starts and stops it (the driver only describes); false/absent: the driver plays it (E3p). */
+  decide?: boolean;
+}
+let inEngine = false;
+/** E3q: the sound plays in the native engine, so the engine decides the plays (the driver describes them). */
+export function playsInEngine(): boolean { return inEngine; }
 export function lockClip(id: string, lock: ClipLock | null): void { native?.lockClip?.(id, lock); }
 export function setClipGain(id: string, gain: number): void { native?.setClipGain(id, gain); }
 // `omni` is OPTIONAL all the way down to the addon, which defaults it to false — so a venue running an

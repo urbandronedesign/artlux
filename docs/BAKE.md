@@ -114,6 +114,25 @@ HRTF or speaker decode the venue hears. There is no second mixer to drift from t
   would not reach the file. It speaks about the *tracks*, not the file — the bed and the scene's own
   sound arrive by another route and are unaffected by a muted track.
 
+## Who renders it
+
+**With the native engine on, the engine renders the bake** — it draws the surface itself and encodes the file
+with the graphics card's own video encoder where there is one (NVIDIA, Intel and AMD cards all have one), the
+Windows software encoder otherwise. The app still runs the show frame by frame underneath, exactly as before,
+so what ends up in the file is the same show; only who draws and encodes it changes. The result names the
+encoder that wrote the file.
+
+The app renders it instead, as it always has, when:
+
+- **transparency is kept** — the matte file is still the app's;
+- the engine **does not draw that content** (a slice, a baked surface's own video, a live source);
+- the native engine is off.
+
+Either way the file is the same kind of file: H.264 with a key frame every second, BT.709, AAC stereo sound.
+
+**Re-baking a surface that already plays its bake renders the content again**, never the previous file.
+(Before, a re-bake of unchanged content re-encoded the old file — a copy of a copy, a little softer each time.)
+
 ## After the bake
 
 The surface plays the file, and the panel offers:
@@ -194,6 +213,37 @@ the same range are byte-identical.
 
 Design record and the traps found while building it: [`plans/offline-bake.md`](../plans/offline-bake.md).
 
+### The engine's render (E6a)
+
+With `--native-engine` on and the engine drawing the content, `bakeRunner` keeps the **orchestration** — it
+steps `renderClock`, runs the show at each step, settles the app's decoders and pulls the sound — and hands
+each frame to the engine as a `bakeFrame` request: the frame's tick (`frameEngine.bakeTick` builds it exactly as
+a live frame's, `nativeLink.bakeTick` returns it instead of sending it, with the frame's **exact** time) and its
+sound. The engine (`runtime.rs bake_*`) draws the surface at that stepped clock — never its own, which does not
+run during a bake — scales it to the file's size (`bakescale.rs`) and encodes it through Media Foundation's sink
+writer (`encode.rs`). One request per frame, answered once the frame is in the encoder: a live tick is coalesced,
+a bake frame never is (`engineHost.engineBake`).
+
+Traps, each now a `verify:invariants` rule:
+
+- **The encoder's settings go in while it is configured** (`SetInputMediaType`'s encoding parameters). Set
+  afterwards through `ICodecAPI`, the Microsoft software encoder keeps its B-frames and the decoded file is a frame
+  off at every key frame; NVENC refuses the call outright. The colour (BT.709 limited) is written into the stream's
+  VUI from the media types — NVENC writes it; the software encoder writes none, which both the engine and the
+  app read as BT.709 limited.
+- **A panicking render thread ends the engine** (`serve.rs`, exit 70 → main restarts it). A wgpu validation error
+  is a panic; before, the stdin thread went on answering pings and the app waited on a frame forever.
+- **The surface being rendered never plays its own bake** (`bakeStore.setRendering`), and the engine is chosen
+  only after the document says so — a re-bake sent the engine a surface it does not draw, and it wrote black.
+- **The frame's exact time**, not the timeline's reading of the stepped clock: a float sum a hair under it
+  (0.23999… for 0.24) made an effect that steps on a frame boundary draw the previous step, once in a hundred.
+
+Measured (`npm run test:engine-bake`, RTX 5090, a 1080p25 film): every frame the film's own at its time (luma 0.81
+levels mean, the app's own bake 0.79), none early or late; an effect frame for frame the app's (0.03); sound
+exact to the sample. Per frame: draw 3.3 ms, read back 1.4 ms, encode 2.6 ms — but the whole render took 1.4 s
+for 100 frames against the app's 0.5 s, because each frame is a round trip through main. Not yet: pipelining
+frames, and the app's own decoders still settle every frame for an engine-drawn bake.
+
 ## Testing it
 
 ```
@@ -201,6 +251,7 @@ npm run test:frame-exact    # encode a counter video, decode it back frame-exact
 npm run test:audio-offline  # the offline audio graph, no device, determinism
 npm run test:renderclock    # the clock's refusals
 npm run test:matte-gl       # colour + matte back into the alpha it started with
+npm run test:engine-bake -- --packaged <ArtLux.exe> --mp4 <film.mp4>   # the engine's render, frame by frame against the film
 ```
 
 `window.__artluxBake({ ... })` in the renderer console runs a render without the panel — the same idiom

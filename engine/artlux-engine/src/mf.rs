@@ -68,7 +68,7 @@ impl Frame {
 /// what the engine draws is decided on the APP's VideoFrame.colorSpace.
 pub struct Colour { pub matrix: &'static str, pub full_range: Option<bool>, pub primaries: &'static str, pub transfer: &'static str }
 
-fn startup() -> Result<(), String> {
+pub(crate) fn startup() -> Result<(), String> {
     static S: OnceLock<Result<(), String>> = OnceLock::new();
     S.get_or_init(|| unsafe { MFStartup(MF_VERSION, MFSTARTUP_FULL).map_err(|e| format!("Media Foundation: {e}")) }).clone()
 }

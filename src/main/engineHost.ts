@@ -231,6 +231,26 @@ export function noteDoc(json: string, rev: number): void {
   if (process.env.ARTLUX_ENGINE_DOC_DUMP) { try { writeFileSync(process.env.ARTLUX_ENGINE_DOC_DUMP, json); } catch { /* a test aid */ } }
   if (status.state === 'up') write(`{"type":"doc","doc":${json}}`);
 }
+// ── E6a: A BAKE DRAWN BY THE ENGINE ────────────────────────────────────────────────────────────────────────
+// plugins/bake's frames, one request each: the renderer has stepped its clock and settled its decoders, sends the
+// frame's tick, and waits for the engine to have drawn and encoded it before it steps again. NOT a tick: a tick
+// is coalesced (only the newest is drawn) and a bake frame must never be. A death fails every waiting request,
+// and the bake is refused with the reason (the file is incomplete; the runner deletes it).
+let bakeReq = 0;
+const bakePending = new Map<number, (r: { ok: boolean; value?: unknown; error?: string }) => void>();
+export function engineBake(op: string, body: string): Promise<{ ok: boolean; value?: unknown; error?: string }> {
+  if (!FLAG || status.state !== 'up' || !child) return Promise.resolve({ ok: false, error: 'the native engine is not running' });
+  if (!/^bake(Begin|Frame|End|Cancel)$/.test(op) || !body.startsWith('{')) return Promise.resolve({ ok: false, error: `not a bake message: ${op}` });
+  const req = ++bakeReq;
+  const p = new Promise<{ ok: boolean; value?: unknown; error?: string }>((resolve) => bakePending.set(req, resolve));
+  write(`{"type":${JSON.stringify(op)},"req":${req}${body === '{}' ? '' : ',' + body.slice(1, -1)}}`);
+  return p;
+}
+function failBakes(why: string): void {
+  for (const r of bakePending.values()) r({ ok: false, error: why });
+  bakePending.clear();
+}
+
 /** One frame. Sent only while the engine is up; a tick is never queued for a future engine. */
 export function noteTick(json: string): void {
   if (!FLAG || status.state !== 'up') return;
@@ -383,6 +403,11 @@ function spawnEngine(): void {
         const a = m as { req?: number; ok?: boolean; value?: unknown; error?: string };
         const p = a.req !== undefined ? audioPending.get(a.req) : undefined;
         if (p) { audioPending.delete(a.req!); if (a.ok) p.resolve(a.value); else p.reject(new Error(a.error ?? 'audio call failed')); }
+      } else if (m.type === 'bake') {
+        // E6a: the answer to a bake message.
+        const b = m as { req?: number; ok?: boolean; value?: unknown; error?: string };
+        const r = b.req !== undefined ? bakePending.get(b.req) : undefined;
+        if (r) { bakePending.delete(b.req!); r({ ok: !!b.ok, value: b.value, error: b.error }); }
       } else if (m.type === 'owns') {
         if (m.rev !== lastDocRev) continue;   // an answer about a document already replaced
         answeredRev = m.rev;
@@ -417,6 +442,7 @@ function spawnEngine(): void {
     if (owns && owns.pid === (proc.pid ?? null)) setOwns(null, 'the engine exited');
     if (projOwns && projOwns.pid === (proc.pid ?? null)) setProjOwns(null, 'the engine exited');
     failAudio('the engine exited');   // E3m: an answer that will never come
+    failBakes('the engine exited during the bake');   // E6a: the same
     const what = signal ? `signal ${signal}` : `code ${code}`;
     if (stopping) { status.state = 'off'; status.pid = null; return; }
     if (code === EXIT_REFUSED) {
@@ -513,7 +539,7 @@ function replayAudio(): void {
   if (aud.gain !== undefined) send('setMasterGain', [aud.gain]);
   if (aud.effects !== undefined) send('setMasterEffects', [aud.effects]);
   if (aud.tone) send('setTestTone', aud.tone);
-  let sounding = 0;
+  let sounding = 0, held = 0;
   const now = Date.now();
   for (const [id, c] of aud.clips) {
     if (!queuedLoads.has(id)) send('loadClip', [id, c.path]);
@@ -521,12 +547,13 @@ function replayAudio(): void {
     if (c.spatial) send('setClipSpatial', [id, ...c.spatial]);
     if (c.playing) { send('playClip', [id, c.playing.seek + (now - c.playing.at) / 1000, c.playing.gain]); sounding++; }
     // E3p: …and held to the new engine's clock again — which puts it back exactly, where the resume is a wall estimate.
-    if (c.playing && c.lock) send('lockClip', [id, c.lock]);
+    // E3q: with the engine deciding there is no play to resume — the lock alone starts it, where its clock says.
+    if (c.lock) { send('lockClip', [id, c.lock]); held++; }
     if (c.gain !== undefined) send('setClipGain', [id, c.gain]);
   }
   if (aud.configure || aud.clips.size) {
-    logger.log('info', 'engine', 'audio-replayed', { clips: aud.clips.size, sounding });
-    console.log(`[engine] audio replayed to the restarted engine: the device, ${aud.clips.size} clip(s), ${sounding} sounding`);
+    logger.log('info', 'engine', 'audio-replayed', { clips: aud.clips.size, sounding, held });
+    console.log(`[engine] audio replayed to the restarted engine: the device, ${aud.clips.size} clip(s), ${sounding} sounding, ${held} held by the engine`);
   }
 }
 function flushAudio(): void {

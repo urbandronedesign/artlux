@@ -659,6 +659,33 @@ class FrameEngine {
   }
 
   /**
+   * E6a — A BAKE FRAME'S TICK FOR THE NATIVE ENGINE (plugins/bake, when the engine draws the surface). The frame's
+   * EFFECTIVE surfaces built exactly as tick() builds them — automation laid over the committed state, then a
+   * running scene fade over that — and handed to nativeLink, which returns the tick instead of sending it. Nothing
+   * else of tick() runs: no sampling, no packing, nothing on the wire (a bake renders a file, not the show). The
+   * offline gate stops the loop, not this: the bake calls it once per stepped frame. Null when the engine is off.
+   */
+  bakeTick(at: nativeLink.BakeAt = {}): string | null {
+    if (!nativeLink.isEnabled()) return null;
+    let effSurfaces = this.inputs.surfaces;
+    let effFixtures = this.inputs.fixtures;
+    let effBrightness = livePreview.brightness;
+    let lanesView: Surface[] | null = null;
+    if (automationOverlay.isActive()) {
+      lanesView = automationOverlay.applyExcept({ surfaces: effSurfaces, fixtures: effFixtures, globalBrightness: effBrightness }, nativeLink.engineLane).surfaces;
+      const v = automationOverlay.apply({ surfaces: effSurfaces, fixtures: effFixtures, globalBrightness: effBrightness });
+      effSurfaces = v.surfaces; effFixtures = v.fixtures; effBrightness = v.globalBrightness;
+    }
+    const fade = transitions.sample(renderClock.now());
+    if (fade) {
+      lanesView = null;
+      const v = fade.apply({ surfaces: effSurfaces, fixtures: effFixtures, globalBrightness: effBrightness });
+      effSurfaces = v.surfaces; effFixtures = v.fixtures; effBrightness = v.globalBrightness;
+    }
+    return nativeLink.bakeTick(this.inputs, effSurfaces, effFixtures, effBrightness, this.lightBytes, lanesView, this.lightLive, at);
+  }
+
+  /**
    * The engine's own 512² composite target, created on first use. 512 because the backing buffer maps
    * 1:1 to a normalized UV square — surfaces and LEDs are in 0–1 coords, so sampling is unaffected by
    * whatever size the operator's viewport happens to be.

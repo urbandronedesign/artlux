@@ -178,7 +178,14 @@ pub struct Runtime {
     /// E4b: what every light is doing this tick (lightpack Head::resolve), for the 3D view's beams — resolved only
     /// while a view is open, from the same stack its bytes were packed with.
     light_beams: HashMap<String, crate::lightpack::Beam>,
+    /// E6a: the bake in flight — one surface drawn at the app's stepped clock and encoded here (encode.rs).
+    #[cfg(windows)]
+    bake: Option<Bake>,
 }
+
+/// E6a: one bake — the file being written and what each frame cost (drawing, reading back, encoding).
+#[cfg(windows)]
+struct Bake { out: crate::encode::Mp4Out, scaler: crate::bakescale::Scaler, surface: String, w: u32, h: u32, draw_ms: f64, read_ms: f64, enc_ms: f64, started: std::time::Instant, blank: u64 }
 
 #[derive(Clone, Copy, PartialEq)]
 enum AutoLeaf { Opacity, Speed, Intensity }
@@ -195,7 +202,8 @@ impl Runtime {
             #[cfg(feature = "ndi")] ndis: HashMap::new(),
             #[cfg(windows)] mp4s: HashMap::new(), conv: None,
             #[cfg(windows)] cams: HashMap::new(), resolved: HashMap::new(), pending_cams: HashMap::new(), last_doc: None, redo: false,
-            view: None, view_scene_ver: 0, view_published: HashMap::new(), view_colors_gen: 0, view_last_summary: String::new(), clock_diffs: 0, transport: Default::default(), draw_at: None, draw_stats: (0, 0, 0), draw_max_step: 0, comp_draw: (0, 0), vids: HashMap::new(), frame_agree: (0, 0), clock_ticks: 0, comp_sub: HashMap::new(), next_drawn: 0, handovers: 0, clip_bad: Default::default(), src_paths: HashMap::new(), judge: Default::default(), clock_rev: 0, lanes: Vec::new(), auto_fx: HashMap::new(), auto_diffs: 0, auto_ticks: 0, show: Default::default(), light_diffs: 0, light_ticks: 0, rig: None, light_fix: HashMap::new(), byte_diffs: 0, byte_ticks: 0, light_solved: HashMap::new(), light_beams: HashMap::new() }
+            view: None, view_scene_ver: 0, view_published: HashMap::new(), view_colors_gen: 0, view_last_summary: String::new(), clock_diffs: 0, transport: Default::default(), draw_at: None, draw_stats: (0, 0, 0), draw_max_step: 0, comp_draw: (0, 0), vids: HashMap::new(), frame_agree: (0, 0), clock_ticks: 0, comp_sub: HashMap::new(), next_drawn: 0, handovers: 0, clip_bad: Default::default(), src_paths: HashMap::new(), judge: Default::default(), clock_rev: 0, lanes: Vec::new(), auto_fx: HashMap::new(), auto_diffs: 0, auto_ticks: 0, show: Default::default(), light_diffs: 0, light_ticks: 0, rig: None, light_fix: HashMap::new(), byte_diffs: 0, byte_ticks: 0, light_solved: HashMap::new(), light_beams: HashMap::new(),
+            #[cfg(windows)] bake: None }
     }
 
     /// E4a: the 3D view's shared state and its open flag (serve.rs makes them; the windows thread shares them).
@@ -1028,8 +1036,17 @@ impl Runtime {
         // E4a: an open 3D view needs the pictures and the LED colours too, owned wire or not.
         let viewing = self.view_open();
         if (!doc.owns && self.projectors.is_empty() && !viewing) || v["rev"].as_u64() != Some(doc.rev) { return Ok(()); }
-        let t = v["t"].as_f64().unwrap_or(0.0);
         let brightness = v["brightness"].as_f64().unwrap_or(1.0) as f32;
+        self.draw_sources(doc, v)?;
+        self.publish_projectors(doc, v);
+        if !doc.owns && !viewing { return Ok(()); }
+        self.place_and_send(doc, v, brightness, viewing)
+    }
+
+    /// Every source's picture for this tick (`pictures`), the timeline composites last — what the wire, the
+    /// projectors, the 3D view and (E6a) a bake all read.
+    fn draw_sources(&mut self, doc: &mut Doc, v: &Value) -> Result<(), String> {
+        let t = v["t"].as_f64().unwrap_or(0.0);
         for (sid, src) in &doc.sources {
             match src {
                 Source::Image(p) => {
@@ -1261,8 +1278,10 @@ impl Runtime {
                 if let Some(fp) = v["camfp"][&sid].as_array() { if self.try_resolve(&sid, &c, fp) { self.pending_cams.remove(&sid); self.redo = true; } }
             }
         }
-        self.publish_projectors(doc, v);
-        if !doc.owns && !viewing { return Ok(()); }
+        Ok(())
+    }
+
+    fn place_and_send(&mut self, doc: &mut Doc, v: &Value, brightness: f32, viewing: bool) -> Result<(), String> {
         // E3f: each light's channels as the ENGINE solved them this tick (lightpack.rs, checked against the
         // app's). E1f-2's fallback: the host's, as ITS precedence stack wrote them — for a tick the engine did not
         // solve (a document it does not have yet, an older host with no profiles). None at all = a light nobody
@@ -1295,6 +1314,127 @@ impl Runtime {
         if let Some(o) = self.out.take() { o.close(); }
         if let Some((proxy, _)) = &self.outputs { let _ = proxy.send_event(crate::outputs::Cmd::Quit); }
     }
+}
+
+// ── E6a: A BAKE DRAWN BY THE ENGINE ──────────────────────────────────────────────────────────────────────────
+// The app keeps the bake's ORCHESTRATION (plugins/bake bakeRunner.ts): it steps its clock frame by frame, runs the
+// show's evaluation at each step (the state machine, scenes, automation) and settles its own decoders, so the
+// document and the tick it sends describe exactly that frame. The engine draws the surface from them — the same
+// sources the wire and the projectors read, at the app's STEPPED clock (never its own: a bake's clock does not
+// run) — scales it to the file's size and encodes it (encode.rs). The picture never crosses a process; one frame
+// is one request, answered when it is in the encoder, so nothing is coalesced and nothing dropped.
+#[cfg(windows)]
+impl Runtime {
+    /// `{"type":"bakeBegin", surface, path, w, h, fps, bitrate, audio}` → the encoder's name.
+    pub fn bake_begin(&mut self, m: &Value) -> Result<Value, String> {
+        if self.bake.is_some() { return Err("a bake is already in flight in the engine".into()); }
+        let doc = self.doc.as_ref().ok_or("the engine has no document yet")?;
+        let sid = m["surface"].as_str().ok_or("no surface named")?.to_string();
+        match doc.sources.get(&sid) {
+            None => return Err(format!("the engine's document has no surface {sid}")),
+            Some(Source::None) => return Err("the engine does not draw this surface's content".into()),
+            Some(Source::Spout(_) | Source::Ndi(_) | Source::Camera(_) | Source::Blobs(..)) => return Err("a live source — it shows whatever arrives, and stepping a clock does not move it".into()),
+            _ => {}
+        }
+        let s = crate::encode::Settings {
+            w: m["w"].as_u64().unwrap_or(0) as u32, h: m["h"].as_u64().unwrap_or(0) as u32,
+            fps: m["fps"].as_f64().unwrap_or(0.0), bitrate: m["bitrate"].as_u64().unwrap_or(8_000_000) as u32,
+            audio: m["audio"].as_bool().unwrap_or(false),
+        };
+        let path = m["path"].as_str().ok_or("no file named")?;
+        let out = crate::encode::Mp4Out::create(path, &s)?;
+        let encoder = out.encoder().to_string();
+        eprintln!("artlux-engine: bake: surface {sid} → {path} ({}x{} @ {} fps, {encoder}{})", s.w, s.h, s.fps, if s.audio { ", AAC" } else { "" });
+        self.bake = Some(Bake { out, scaler: crate::bakescale::Scaler::new(&self.gpu, s.w, s.h), surface: sid, w: s.w, h: s.h, draw_ms: 0.0, read_ms: 0.0, enc_ms: 0.0, started: std::time::Instant::now(), blank: 0 });
+        Ok(serde_json::json!({ "encoder": encoder }))
+    }
+
+    /// `{"type":"bakeFrame", tick, pcm?}` — `tick` is exactly the live tick for this frame (nativeLink.frame), `pcm`
+    /// this frame's sound (interleaved stereo f32, base64), written before the picture as the app's bake does.
+    pub fn bake_frame(&mut self, m: &Value) -> Result<Value, String> {
+        let Some(mut doc) = self.doc.take() else { return Err("the engine has no document".into()) };
+        let r = self.bake_frame_with(&mut doc, m);
+        self.doc = Some(doc);
+        r
+    }
+
+    fn bake_frame_with(&mut self, doc: &mut Doc, m: &Value) -> Result<Value, String> {
+        use base64::Engine as _;
+        if self.bake.is_none() { return Err("no bake in flight".into()); }
+        let v = &m["tick"];
+        if v["rev"].as_u64() != Some(doc.rev) { return Err(format!("a frame of document {} — the engine has document {}", v["rev"], doc.rev)); }
+        let (Some(ph), Some(st)) = (v["ph"].as_f64(), v["t"].as_f64()) else { return Err("a frame with no time".into()) };
+        // The surface must still be one the engine draws: a document that changed under the bake (the surface's
+        // content swapped, a binding made live) would otherwise record black frames that look like a finished file.
+        match doc.sources.get(&self.bake.as_ref().unwrap().surface) {
+            None | Some(Source::None) => return Err("the engine no longer draws this surface — its content changed under the bake".into()),
+            _ => {}
+        }
+        let t0 = std::time::Instant::now();
+        // AT THE APP'S STEPPED CLOCK: the lanes, the clips and the video frames all from (ph, t) as sent.
+        self.draw_at = Some((ph, st));
+        self.evaluate_lanes(doc, v);
+        let ev = self.evaluate_clock(doc, v);
+        self.draw_sources(doc, ev.as_ref().unwrap_or(v))?;
+        let t1 = std::time::Instant::now();
+        let b = self.bake.as_mut().unwrap();
+        let (w, h) = (b.w, b.h);
+        let px = match self.pictures.get(&b.surface) {
+            // The picture at the file's size (bakescale.rs): the CONTENT only, filling the frame — the warp, blend
+            // and calibration stay live and apply to the file later (docs/BAKE.md).
+            Some(p) => b.scaler.frame(&self.gpu, p, self.gens.get(&b.surface).copied().unwrap_or(0))?,
+            None => { b.blank += 1; vec![0u8; (w * h * 4) as usize] }   // drew nothing this frame: black, as the app's canvas
+        };
+        let t2 = std::time::Instant::now();
+        if let Some(s) = m["pcm"].as_str() {
+            let raw = base64::engine::general_purpose::STANDARD.decode(s).map_err(|e| format!("sound: {e}"))?;
+            let pcm: Vec<f32> = raw.chunks_exact(4).map(|q| f32::from_le_bytes([q[0], q[1], q[2], q[3]])).collect();
+            b.out.audio(&pcm)?;
+        }
+        // The pictures are premultiplied (and opaque where a video is): the colour video is the surface over black.
+        b.out.frame(&px, true)?;
+        let t3 = std::time::Instant::now();
+        b.draw_ms += (t1 - t0).as_secs_f64() * 1000.0;
+        b.read_ms += (t2 - t1).as_secs_f64() * 1000.0;
+        b.enc_ms += (t3 - t2).as_secs_f64() * 1000.0;
+        Ok(serde_json::json!({ "frame": b.out.frames() }))
+    }
+
+    /// `{"type":"bakeEnd"}` → the file is closed; what it holds and what it cost.
+    pub fn bake_end(&mut self) -> Result<Value, String> {
+        let b = self.bake.take().ok_or("no bake in flight")?;
+        let (frames, audio, encoder, path) = (b.out.frames(), b.out.audio_samples(), b.out.encoder().to_string(), b.out.path.clone());
+        let f0 = std::time::Instant::now();
+        b.out.finish()?;
+        let n = frames.max(1) as f64;
+        let secs = b.started.elapsed().as_secs_f64();
+        eprintln!("artlux-engine: bake: {frames} frame(s){} written to {path} in {secs:.1} s ({encoder}); per frame: draw {:.2} ms, read back {:.2} ms, encode {:.2} ms; finalise {:.0} ms{}",
+            if audio > 0 { format!(" + {audio} sample(s) of sound") } else { String::new() },
+            b.draw_ms / n, b.read_ms / n, b.enc_ms / n, f0.elapsed().as_secs_f64() * 1000.0,
+            if b.blank > 0 { format!("; {} frame(s) the surface drew nothing (black)", b.blank) } else { String::new() });
+        Ok(serde_json::json!({ "frames": frames, "audioSamples": audio, "encoder": encoder, "path": path, "blank": b.blank,
+            "drawMs": b.draw_ms / n, "readMs": b.read_ms / n, "encodeMs": b.enc_ms / n, "seconds": secs }))
+    }
+
+    /// `{"type":"bakeCancel"}`: the encoder is dropped unfinished and the half file deleted — a file that plays for
+    /// most of its length and then stops reads as a finished one.
+    pub fn bake_cancel(&mut self) -> Result<Value, String> {
+        if let Some(b) = self.bake.take() {
+            let path = b.out.path.clone();
+            drop(b);
+            let _ = std::fs::remove_file(&path);
+            eprintln!("artlux-engine: bake: cancelled, {path} removed");
+        }
+        Ok(Value::Null)
+    }
+}
+
+#[cfg(not(windows))]
+impl Runtime {
+    pub fn bake_begin(&mut self, _m: &Value) -> Result<Value, String> { Err("the engine encodes a bake with Media Foundation — Windows only so far".into()) }
+    pub fn bake_frame(&mut self, _m: &Value) -> Result<Value, String> { Err("no bake in flight".into()) }
+    pub fn bake_end(&mut self) -> Result<Value, String> { Err("no bake in flight".into()) }
+    pub fn bake_cancel(&mut self) -> Result<Value, String> { Ok(Value::Null) }
 }
 
 #[cfg(windows)]

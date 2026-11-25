@@ -27,6 +27,8 @@ pub mod mp4demux;
 #[cfg(windows)]
 pub mod mf;
 #[cfg(windows)]
+pub mod encode;
+#[cfg(windows)]
 pub mod cam;
 #[cfg(windows)]
 pub mod camshared;
@@ -44,6 +46,7 @@ pub mod ao;
 pub mod shader;
 pub mod blobs;
 pub mod comp;
+pub mod bakescale;
 pub mod eval;
 pub mod transport;
 pub mod audio;

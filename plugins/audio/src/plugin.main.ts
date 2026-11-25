@@ -62,6 +62,7 @@ export const plugin: MainPlugin = {
     // Fire-and-forget control (renderer send).
     ipc.on('audio:unloadClip', (id) => engine.unloadClip(String(id)));
     ipc.on('audio:playClip', (id, seek, gain) => engine.playClip(String(id), Number(seek) || 0, gain == null ? 1 : Number(gain)));
+    ipc.handle('audio:engineDecides', () => engine.playsInEngine());
     ipc.on('audio:lockClip', (id, lock) => engine.lockClip(String(id), (lock ?? null) as engine.ClipLock | null));
     ipc.on('audio:stopClip', (id) => engine.stopClip(String(id)));
     ipc.on('audio:setClipGain', (id, gain) => engine.setClipGain(String(id), gain == null ? 1 : Number(gain)));

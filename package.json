@@ -102,7 +102,8 @@
     "test:transport-clock": "node scripts/test-transport-clock.cjs",
     "test:video-frame-clock": "node scripts/test-video-frame-clock.cjs",
     "test:engine-audio": "node scripts/test-engine-audio.cjs",
-    "test:engine-audio-show": "node scripts/test-engine-audio-show.cjs"
+    "test:engine-audio-show": "node scripts/test-engine-audio-show.cjs",
+    "test:engine-bake": "node scripts/test-engine-bake.cjs"
   },
   "dependencies": {
     "@codemirror/autocomplete": "^6.20.3",

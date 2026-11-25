@@ -10,6 +10,8 @@
 //!   artlux-engine --light-cases <in.json>  the lighting evaluators on a list of cases (E3e parity)
 //!   artlux-engine --pack-cases <in.json>   the light byte solve on a list of cases (E3f parity)
 //!   artlux-engine --audio-selftest [--seconds N] [--clip f.wav] [--gain g]   JUCE in this process: the audio clock vs the wall (E3)
+//!   artlux-engine --encode-selftest <out.mp4> [--size WxH] [--fps F] [--frames N]   the MP4 encoder, round-tripped (E6a)
+//!   artlux-engine --mp4-compare <bake.mp4> <ref.mp4> [--start S]   a bake frame by frame against its source (E6a)
 //!   artlux-engine --serve                     ArtLux main's child: hello / ping / pong / quit on stdio (E1a)
 //!   artlux-engine --info                      every adapter the native API offers, best first
 //!   artlux-engine --selftest                  the headless test on the best HARDWARE adapter
@@ -259,6 +261,26 @@ fn main() -> ExitCode {
         };
     }
     #[cfg(windows)]
+    #[cfg(windows)]
+    if let Some(i) = args.iter().position(|a| a == "--mp4-compare") {
+        // E6a: a bake held frame by frame against its source (or another bake) — encode.rs compare.
+        let (Some(a), Some(b)) = (args.get(i + 1), args.get(i + 2)) else { eprintln!("usage: --mp4-compare <bake.mp4> <ref.mp4> [--start S]"); return ExitCode::from(2); };
+        let start = args.iter().position(|x| x == "--start").and_then(|k| args.get(k + 1)).and_then(|s| s.parse::<f64>().ok()).unwrap_or(0.0);
+        let r = artlux_engine::encode::compare(a, b, start);
+        println!("{r}");
+        return if r["ok"] == true { ExitCode::SUCCESS } else { ExitCode::from(1) };
+    }
+    #[cfg(windows)]
+    if let Some(i) = args.iter().position(|a| a == "--encode-selftest") {
+        // E6a: the engine's MP4 encoder (encode.rs) — a counter video + tone, encoded and decoded back.
+        let Some(out) = args.get(i + 1) else { eprintln!("usage: --encode-selftest <out.mp4> [--size WxH] [--fps F] [--frames N]"); return ExitCode::from(2); };
+        let (w, h) = args.iter().position(|a| a == "--size").and_then(|k| args.get(k + 1)).and_then(|s| s.split_once('x')).and_then(|(a, b)| Some((a.parse().ok()?, b.parse().ok()?))).unwrap_or((1280u32, 720u32));
+        let fps = args.iter().position(|a| a == "--fps").and_then(|k| args.get(k + 1)).and_then(|s| s.parse::<f64>().ok()).unwrap_or(30.0);
+        let frames = args.iter().position(|a| a == "--frames").and_then(|k| args.get(k + 1)).and_then(|s| s.parse::<u64>().ok()).unwrap_or(90);
+        let r = artlux_engine::encode::selftest(out, w, h, fps, frames);
+        println!("{r}");
+        return if r["ok"] == true { ExitCode::SUCCESS } else { ExitCode::from(1) };
+    }
     if let Some(i) = args.iter().position(|a| a == "--mp4-frames") {
         // Item 2c-2: the engine's OWN decode of an MP4 (mf.rs), frames asked for by timestamp (µs) IN THE
         // ORDER GIVEN — so a backward one exercises the seek. Each lands as `<out>.f<k>.nv12.json` + planes,

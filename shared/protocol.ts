@@ -282,6 +282,9 @@ export const IPC = {
   NATIVE_ENGINE_DISPLAYS: 'native-engine:displays',
   NATIVE_ENGINE_DOC: 'native-engine:doc',
   NATIVE_ENGINE_TICK: 'native-engine:tick',
+  /** E6a — a bake drawn and encoded by the native engine: renderer → main → engine, one invoke per message
+   *  (bakeBegin / bakeFrame / bakeEnd / bakeCancel), answered by the engine once it is done (engineHost.engineBake). */
+  NATIVE_ENGINE_BAKE: 'native-engine:bake',
   /** Renderer → main: an output's calibration map for the native engine, once per map (main writes it to a
    *  file the engine reads; the document names it by key). Item 3, engine/nativeLink.ts. */
   NATIVE_ENGINE_BAKED_MAP: 'native-engine:baked-map',
@@ -1976,6 +1979,8 @@ export interface ArtluxApi {
   nativeEngineDoc?(json: string, rev: number): void;
   /** E1f: one frame for the native engine — `{"rev":…,"t":…,"brightness":…,"hap":{…}}` as JSON. */
   nativeEngineTick?(json: string): void;
+  /** E6a: one bake message for the native engine — `op` and its body as JSON (`{…}`); the engine's answer. */
+  nativeEngineBake?(op: string, body: string): Promise<{ ok: boolean; value?: unknown; error?: string }>;
   /** Item 3: an output's calibration map for the native engine (once per map). */
   nativeEngineBakedMap?(key: string, w: number, h: number, uv: Float32Array, alpha: { w: number; h: number; data: Uint8Array } | null): void;
   /** E4a: the scene the engine's 3D view draws, as JSON (Simulator3D/engineView.ts). */

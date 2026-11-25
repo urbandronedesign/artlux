@@ -30,6 +30,7 @@ const api: ArtluxApi = {
     nativeEngineDisplays: () => ipcRenderer.invoke(IPC.NATIVE_ENGINE_DISPLAYS) as Promise<Record<string, [number, number]>>,
     nativeEngineDoc: (json: string, rev: number) => ipcRenderer.send(IPC.NATIVE_ENGINE_DOC, json, rev),
     nativeEngineTick: (json: string) => ipcRenderer.send(IPC.NATIVE_ENGINE_TICK, json),
+    nativeEngineBake: (op: string, body: string) => ipcRenderer.invoke(IPC.NATIVE_ENGINE_BAKE, op, body),
     nativeEngineBakedMap: (key: string, w: number, h: number, uv: Float32Array, alpha: { w: number; h: number; data: Uint8Array } | null) =>
         ipcRenderer.send(IPC.NATIVE_ENGINE_BAKED_MAP, key, w, h, uv, alpha),
     nativeEngineScene3d: (json: string) => ipcRenderer.send(IPC.NATIVE_ENGINE_SCENE3D, json),

@@ -48,6 +48,8 @@ if (!oj) { console.log((o.stderr ?? '').trim()); check('the offline render ran i
 else {
   check('the offline render is the clip, not silence', oj.nonSilent > oj.samples / 2, `${oj.nonSilent} of ${oj.samples} samples, peak ${oj.peak}`);
   check('two offline renders are byte-identical', oj.differing === 0, `${oj.differing} differing samples`);
+  // E3q: the stopAll a bake sends when it takes the plays back from the engine — the offline FLAG, not a spinning stop.
+  check('a stopAll during an offline render is instant and silences the clip', oj.stopAllMs < 200 && oj.loudAfterStop === 0, `${(+oj.stopAllMs).toFixed(1)} ms, ${oj.loudAfterStop} loud samples after`);
 }
 console.log(failed ? `\nengine audio: ${failed} FAILED` : '\nengine audio OK');
 process.exit(failed ? 1 : 0);

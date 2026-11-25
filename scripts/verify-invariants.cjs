@@ -4365,7 +4365,7 @@ check(
     if (bd.length !== 4 || be.length !== 4 || bd.some((v, i) => v !== be[i])) problems.push('BEZ_DEFAULT differs between automation.ts and eval.rs');
     if (!/base \* clipFadeAlpha\(c, playhead - c\.start\)/.test(fnBody(t, 'layerAlpha') ?? '')) problems.push('layerAlpha changed — re-port it to eval.rs clip_alpha');
     if (!/time: c \? playhead - c\.start \+ c\.inPoint : 0/.test(t)) problems.push('the clip-local time nativeLayers reports changed — re-port it to eval.rs clip_time');
-    if (!/ph: timeline\.getPlayhead\(\)/.test(read(N))) problems.push('the tick no longer carries the playhead the engine evaluates from');
+    if (!/ph: (at\.ph \?\? )?timeline\.getPlayhead\(\)/.test(read(N))) problems.push('the tick no longer carries the playhead the engine evaluates from');
     return problems.length ? problems.join('; ') : null;
   },
 );
@@ -4476,7 +4476,18 @@ check(
     if (!/crate::transport::clocks_at_wall\(wall\)/.test(r) || !/"op": "seekClipAt", "args": \[id, want, at\]/.test(r)) problems.push('the engine no longer holds a clip to its own clock at the mix sample it read');
     if (!/pos \+ \(double\) \(mixed - at\) \/ sampleRate/.test(read('native/audio-engine/src/core.h'))) problems.push('seekClipAt no longer lands at the mix sample the decision was made for');
     if (!/self\.transport\.publish\(\);/.test(RT)) problems.push('the render thread no longer hands its clock to the audio thread');
-    if (!/if \(c\.playing && c\.lock\) send\('lockClip'/.test(read('src/main/engineHost.ts'))) problems.push('a restarted engine is no longer told what its clips are held to');
+    if (!/if \(c\.lock\) \{ send\('lockClip'/.test(read('src/main/engineHost.ts'))) problems.push('a restarted engine is no longer told what its clips are held to');
+    // E3q: THE ENGINE DECIDES THE PLAYS — with the sound in the engine the driver describes and never acts (except
+    // during an offline render, when the engine's clock is not running); the engine starts, cues and stops on its own
+    // clock, never plays against a parked one, and stops a clip whose lock goes.
+    if (!/const nowDecides = engineDecides && !audioClient\.isOffline\(\);/.test(dr)) problems.push('the driver no longer hands the plays to the engine (or keeps them during a bake)');
+    if (!/if \(decides\) \{[\s\S]{0,400}?lockClip\(clip, clockName, ok\);[\s\S]{0,400}?continue;/.test(dr)) problems.push('with the engine deciding, the driver no longer only describes each clip');
+    if (!/if \(!decides\) \{ audioClient\.stopClip\(id\);/.test(dr)) problems.push('with the engine deciding, the driver still stops clips itself');
+    if (!/if \(!live\.has\(id\)\) \{ audioClient\.lockClip\(id, null\);/.test(dr)) problems.push('a clip leaving both containers keeps its lock — the engine would play it on');
+    if (!/"op": "playClipAt"/.test(r) || !/"op": "cueClipAt", "args": \[id, pos, s_at, g\]/.test(r)) problems.push('the engine no longer starts (or cues) the clips it decides');
+    if (!/clocks_at_wall\(wall \+ 0\.05\)/.test(r)) problems.push('the engine no longer tells a parked clock from a running one — it would play against a frozen clock');
+    if (!/is_some_and\(\|l\| l\.decide\)/.test(r)) problems.push('a clip the engine decides is not stopped when its lock goes');
+    if (!/c\.startAt >= 0 && c\.startAt <= \(mixed - n\) \+ n \/ 2/.test(read('native/audio-engine/src/core.h'))) problems.push('a cued start is no longer fired by the mix loop at its sample');
     if (!/if \(ctx\.engineAudio\) engine\.useEngineAudio\(ctx\.engineAudio\);/.test(read('plugins/audio/src/plugin.main.ts'))) problems.push('the audio plugin no longer switches to the engine when the app asks');
     const eh = read('src/main/engineHost.ts');
     if (!/failAudio\('the engine exited'\)/.test(eh)) problems.push('an audio call pending when the engine dies would never settle');
@@ -9583,6 +9594,46 @@ check(
     const AO = read('engine/artlux-engine/src/ao.rs');
     if (!/aoPass\.resolutionScale = 0\.5;/.test(rm) || !/width: \(w \/ 2\)\.max\(1\)/.test(AO)) problems.push('the occlusion resolution differs (half in the editor)');
     if (!/const glow = bloom\(lit/.test(rm) || !/down_binds\.push\(bind\(if i == 0 \{ &lit \}/.test(p)) problems.push('the occlusion is no longer laid in before the bloom');
+    return problems.length ? problems.join('; ') : null;
+  },
+);
+
+check(
+  'a bake the native engine draws is drawn at the app\'s stepped clock, never dropped, and never hangs the app',
+  'E6a: with the engine on, plugins/bake hands each stepped frame\'s tick to the engine (bakeFrame) and waits until it ' +
+  'is drawn and encoded. Each rule here is a bug of that path: a frame drawn at the engine\'s OWN clock (which does not ' +
+  'run during a bake) records the wrong picture; a bake frame sent as a TICK is coalesced away; a render thread that ' +
+  'panicked while the stdin thread answered pings hung the app on its first frame (test:engine-bake, a texture without ' +
+  'COPY_SRC); an abandon that waits on that dead engine without a bound hung it again on the way out; an encoder left to ' +
+  'its own B-frames shifted the software encoder\'s file by a frame at every key frame; a frame time accumulated drifts.',
+  () => {
+    const problems = [];
+    const rt = read('engine/artlux-engine/src/runtime.rs');
+    if (!/fn bake_frame_with[\s\S]{0,900}?self\.draw_at = Some\(\(ph, st\)\);[\s\S]{0,300}?self\.draw_sources\(/.test(rt)) problems.push('a bake frame is no longer drawn at the app\'s stepped clock (draw_at) before its sources');
+    const sv = read('engine/artlux-engine/src/serve.rs');
+    if (!/Some\(op @ \("bakeBegin" \| "bakeFrame" \| "bakeEnd" \| "bakeCancel"\)\)/.test(sv)) problems.push('the engine no longer answers each bake message itself (a bake frame would be coalesced as a tick)');
+    if (!/std::panic::catch_unwind\(body\)\.is_err\(\)[\s\S]{0,200}?std::process::exit\(70\)/.test(sv)) problems.push('a panicking render thread no longer ends the engine — main would see it alive and wait forever');
+    const pr = read('engine/artlux-engine/src/projector.rs');
+    if ((pr.match(/TextureUsages::COPY_DST \| wgpu::TextureUsages::COPY_SRC \| wgpu::TextureUsages::RENDER_ATTACHMENT/g) ?? []).length < 2) problems.push('a projector content texture is no longer a copy source — a bake of a single timeline track panics the engine');
+    const en = read('engine/artlux-engine/src/encode.rs');
+    if (!/\(CODECAPI_AVEncMPVDefaultBPictureCount, 0\)/.test(en) || !/SetInputMediaType\(video, &inp, &enc\)/.test(en)) problems.push('the encoder\'s settings are no longer handed over while it is configured (the software encoder then writes B-frames)');
+    if (!/pub fn frame_time\(i: u64, fps: f64\) -> i64 \{ \(\(i as f64\) \* 1e7 \/ fps\)\.round\(\) as i64 \}/.test(en)) problems.push('a frame\'s time is no longer a function of its index');
+    const eh = read('src/main/engineHost.ts');
+    if (!/failBakes\('the engine exited during the bake'\)/.test(eh)) problems.push('a bake frame pending when the engine dies would never settle');
+    const br = read('plugins/bake/src/bakeRunner.ts');
+    if (!/if \(viaEngine\) \{ await withTimeout\(engineCall\('bakeCancel', '\{\}'\), 5_000/.test(br)) problems.push('abandoning an engine bake is no longer bounded — a dead engine hangs the app');
+    if (!/if \(req\.alpha\) return 'transparency/.test(br)) problems.push('a bake that keeps transparency would go to the engine, which writes no matte');
+    // A render draws the CONTENT, never the surface's own previous bake — and the engine choice reads this render's
+    // document (the binding set aside), not the last live frame's: a re-bake sent the engine a surface it could not draw.
+    if (!/s\.id === rendering\) return \{ state: 'bypassed'/.test(read('src/renderer/services/bakeStore.ts'))) problems.push('the surface being rendered plays its own bake again (a re-bake is a copy of a copy, and black in the engine)');
+    if (!/bakeStore\.setRendering\(surface\.id\);[\s\S]{0,200}?frameEngine\.bakeTick\(\);\s*const engineWhy = engineRefusal/.test(br)) problems.push('the engine is chosen before the document says what this render draws');
+    if (!/bakeStore\.setRendering\(null\);   \/\/ the surface plays its \(new\) bake again/.test(br)) problems.push('a render no longer gives the surface its bake back when it ends');
+    if (!/None \| Some\(Source::None\) => return Err\("the engine no longer draws this surface/.test(rt)) problems.push('an engine bake whose surface it no longer draws would write black frames instead of refusing');
+    if (!/frameEngine\.bakeTick\(clock === 'show' \? \{ t \} : \{ ph: t \}\)/.test(br)) problems.push('a bake frame no longer carries its exact time (an effect on a frame boundary draws the previous step)');
+    const fe = read('src/renderer/engine/frameEngine.ts');
+    const at = fe.indexOf('  bakeTick(at: nativeLink.BakeAt = {}): string | null {');
+    const bt = at < 0 ? '' : fe.slice(at, at + 1600);
+    if (!bt.includes('nativeLink.bakeTick(') || /packAndPublish|mapper\./.test(bt)) problems.push('frameEngine.bakeTick must build the tick only — no sampling, nothing on the wire');
     return problems.length ? problems.join('; ') : null;
   },
 );

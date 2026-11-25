@@ -40,6 +40,18 @@ export async function close(id: string): Promise<string | null> {
   return ((await ipc.invoke('bake:close', id)) as string | null) ?? null;
 }
 
+/** E6a: the engine writes the file itself — main only makes sure its folder exists. */
+export async function prepare(path: string): Promise<boolean> {
+  if (!ipc) return false;
+  return (await ipc.invoke('bake:prepare', path)) === true;
+}
+
+/** E6a: a file the engine wrote, admitted to the media scheme (as close() does for the app's). Its path, or null. */
+export async function admit(path: string): Promise<string | null> {
+  if (!ipc) return null;
+  return ((await ipc.invoke('bake:admit', path)) as string | null) ?? null;
+}
+
 /** Abandon a render: closes the descriptor and deletes the partial file. */
 export function cancelWrite(id: string): void {
   ipc?.send('bake:cancel', id);

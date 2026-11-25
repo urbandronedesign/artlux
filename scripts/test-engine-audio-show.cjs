@@ -90,7 +90,7 @@ async function run(engineAudio, restart = false, extraEnv = {}) {
   const ups = E.filter((l) => /\[engine\] up \(pid/.test(l)).length;
   check('the engine was killed mid-show and restarted', ups >= 2, `${ups} start(s)`);
   const replay = E.find((l) => /audio replayed to the restarted engine/.test(l));
-  check('the audio state was replayed to the restarted engine', !!replay && !/ 0 sounding/.test(replay), replay?.replace(/^.*engine: /, ''));
+  check('the audio state was replayed to the restarted engine', !!replay && (!/ 0 sounding/.test(replay) || !/ 0 held/.test(replay)), replay?.replace(/^.*engine: /, ''));
   check('the restarted engine opened the device again', E.filter((l) => /audio: device opened in the engine/.test(l)).length >= 2);
   // The clock reports of the NEW engine: from the first report whose clock went BACKWARDS (a fresh process).
   const restartAt = clocks.findIndex((c, i) => i > 0 && c.n < clocks[i - 1].n);
@@ -107,6 +107,17 @@ async function run(engineAudio, restart = false, extraEnv = {}) {
   check('the engine held the bed to its clock', H.length >= 3 && H.every((h) => h.ms <= 2.5), `${H.length} reports, within ${Math.max(0, ...H.map((h) => h.ms)).toFixed(2)} ms at worst, ${H.length ? H[H.length - 1].seeks : 0} re-seek(s)`);
   const ri = E.findIndex((l) => /audio replayed to the restarted engine/.test(l));
   check('…and again on the restarted engine', ri > 0 && E.slice(ri).some((l) => /audio: clip \S+ landed/.test(l)) && holds(E.slice(ri)).length >= 1);
+  // E3q: THE ENGINE DECIDES THE PLAYS — the bed (a 3 s tone in a 6 s window of a 6 s loop) is started by the engine
+  // at each pass of its window and stopped where its source runs out, and the driver sends no play at all.
+  const starts = E.map((l) => l.match(/the engine started clip (\S+) at ([\d.]+) s of its source — ([\d.]+) ms into its window/)).filter(Boolean).map((m) => ({ src: +m[2], into: +m[3] }));
+  const decided = E.map((l) => l.match(/the engine decided (\d+) start\(s\) and (\d+) stop\(s\) in all; the driver sent (\d+) play/)).filter(Boolean).map((m) => ({ starts: +m[1], stops: +m[2], plays: +m[3] }));
+  // Each pass of the window is CUED ahead (through the loop's wrap) and started by the mix loop on the sample — the
+  // landing that follows reads where it really began (half a block at most: 5 ms at 480 / 48 kHz).
+  const cues = E.map((l) => l.match(/the engine cued clip (\S+) at ([\d.]+) s of its source — its window opens in ([\d.]+) ms/)).filter(Boolean).map((m) => ({ src: +m[2], ahead: +m[3] }));
+  check('the engine cues the bed at each pass of its window', cues.length >= 2 && cues.every((c) => c.src < 0.01), `${cues.length} cue(s), ${cues.map((c) => c.ahead.toFixed(1) + ' ms ahead').join(', ')}; ${starts.length} late start(s)`);
+  check('…and each cued start lands on the engine\'s clock', landed.length >= cues.length && landed.every((x) => Math.abs(x) <= 5.5), `landed ${landed.map((x) => x.toFixed(2)).join(', ')} ms`);
+  check('the engine stops it where its source runs out', E.some((l) => /the engine stopped clip \S+ — its source ran out/.test(l)));
+  check('the driver sent no play — the engine decided them all', decided.length >= 1 && decided.every((d) => d.plays === 0), decided.length ? `last: ${JSON.stringify(decided[decided.length - 1])}` : 'never reported');
 
   // The mutation: the engine wants every clip 40 ms further on than the app played it — it must find that, re-seek,
   // and HOLD the clip there (a correction that did not land would be re-seeked on every check).

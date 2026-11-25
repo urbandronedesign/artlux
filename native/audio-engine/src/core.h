@@ -135,6 +135,11 @@ struct Clip {
   std::unique_ptr<EffectChain> chain;
   /** Stopped DURING A RENDER — see SpatialBus::stopClip for why this is a flag and not a stop(). */
   bool silencedOffline = false;
+  // E3q — A CUED START: the mix sample this clip starts at, and the source position it starts from (-1: none). The
+  // mix loop starts it at the block nearest that sample, so a clip the engine decides begins on its clock's
+  // instant — not at the next 20 ms check. Under the bus lock.
+  int64_t startAt = -1;
+  double startPos = 0.0;
 };
 
 // Pulls every clip, encodes the spatial ones into one shared B-format, binaurally decodes that, and
@@ -323,6 +328,14 @@ public:
       // The transport applies the clip's gain, so the chain below is POST-FADER: riding a clip's gain
       // moves the signal through its own compressor's threshold. Correct for a bed player, but worth
       // knowing before you automate both at once.
+      // E3q: a cued start falls due — at the block whose start is nearest its sample (within half a block), from the
+      // position it was primed at plus however far this block starts past the cue.
+      if (c.startAt >= 0 && c.startAt <= (mixed - n) + n / 2) {
+        const double late = (double) ((mixed - n) - c.startAt) / sampleRate;
+        if (late > 0.0) c.transport->setPosition(c.startPos + late);
+        c.transport->start();
+        c.startAt = -1;
+      }
       c.transport->getNextAudioBlock(si); // silent while stopped — but the chain still runs, so tails ring out
 
       if (c.spatial && c.encoder != nullptr) {
@@ -512,7 +525,7 @@ public:
 
   void stopClip(const std::string& id) {
     Clip* c = nullptr;
-    { const juce::ScopedLock sl(lock); c = find(id); }
+    { const juce::ScopedLock sl(lock); c = find(id); if (c != nullptr) c->startAt = -1; }   // a stop cancels a cue
     if (c == nullptr) return;
     if (renderingOffline.load()) {
       // ⚠ DO NOT CALL stop() HERE — and taking the lock first does not help, which was the first
@@ -550,6 +563,32 @@ public:
   // E3p — PUT A SOUNDING CLIP WHERE IT SHOULD BE: `pos` was right at mix sample `at`; by the time this runs the mix
   // has moved on, so it lands at pos + what was mixed since — exact, however long the call waited in the queue.
   // A stopped clip is left alone (a stop the driver sent after the decision wins).
+  // E3q — THE ENGINE STARTS A CLIP: at `pos` as of mix sample `at` (so it lands where its clock is, however long the
+  // call queued), at `gain` (already bounded by the caller).
+  // E3q — CUE a stopped clip to start at mix sample `at` from source `pos`: positioned NOW (so its read-ahead fills
+  // before it is due), started by the mix loop. `at` < 0 cancels a cue.
+  void cueClipAt(const std::string& id, double pos, int64_t at, float gain) {
+    const juce::ScopedLock sl(lock);
+    Clip* c = find(id);
+    if (c == nullptr || !c->transport) return;
+    if (at < 0) { c->startAt = -1; return; }
+    if (c->transport->isPlaying()) return;
+    c->silencedOffline = false;
+    c->transport->setGain(gain);
+    c->transport->setPosition(juce::jmax(0.0, pos));
+    c->startPos = juce::jmax(0.0, pos);
+    c->startAt = at;
+  }
+  void playClipAt(const std::string& id, double pos, int64_t at, float gain) {
+    const juce::ScopedLock sl(lock);
+    Clip* c = find(id);
+    if (c == nullptr || !c->transport || sampleRate <= 0.0) return;
+    c->startAt = -1;
+    c->silencedOffline = false;
+    c->transport->setGain(gain);
+    c->transport->setPosition(juce::jmax(0.0, pos + (double) (mixed - at) / sampleRate));
+    c->transport->start();
+  }
   void seekClipAt(const std::string& id, double pos, int64_t at) {
     const juce::ScopedLock sl(lock);
     Clip* c = find(id);
@@ -714,6 +753,14 @@ public:
     std::vector<Clip*> cs;
     {
       const juce::ScopedLock sl(lock);
+      // During a render, the same FLAG stopClip uses (see there): a real stop() spins up to a second per playing
+      // clip with no callback to acknowledge it. E3q made this reachable — the driver stops everything when a bake
+      // takes the plays back from the native engine, which was playing the bed until that frame.
+      if (renderingOffline.load()) {
+        for (auto& kv : clips) { kv.second->startAt = -1; if (kv.second->transport->isPlaying()) kv.second->silencedOffline = true; }
+        return;
+      }
+      for (auto& kv : clips) kv.second->startAt = -1;
       cs.reserve(clips.size());
       for (auto& kv : clips) cs.push_back(kv.second.get());
     }
@@ -1332,6 +1379,8 @@ public:
   // E3p: a clip's real position, and the seek that lands at a given mix sample (SpatialBus).
   bool clipPosition(const std::string& id, double& pos, bool& playing, double& len, int64_t& at, double& wall) { return bus.clipPosition(id, pos, playing, len, at, wall); }
   void seekClipAt(const std::string& id, double pos, int64_t at) { bus.seekClipAt(id, pos, at); }
+  void playClipAt(const std::string& id, double pos, int64_t at, float gain) { bus.playClipAt(id, pos, at, boundedGain(gain)); }
+  void cueClipAt(const std::string& id, double pos, int64_t at, float gain) { bus.cueClipAt(id, pos, at, boundedGain(gain)); }
   double liveRate() const { return liveSampleRate.load(); }
   std::atomic<double> liveSampleRate { 0.0 };
   bool takeClipped() { return meterClipped.exchange(false); } // read-and-clear: "has it clipped since you last asked"
