@@ -442,7 +442,8 @@ fn bytes(v: &[f32]) -> Vec<u8> { v.iter().flat_map(|x| x.to_le_bytes()).collect(
 // ── glTF, loaded off the presenter thread ───────────────────────────────────────────────────────────
 
 /// `slot`: this primitive's index among the file's three.js MESHES (see `Content`).
-pub(crate) struct CpuPrim { pub(crate) local: [f32; 16], pub(crate) verts: Vec<f32>, pub(crate) idx: Vec<u32>, pub(crate) color: [f32; 4], pub(crate) image: Option<usize>, pub(crate) unlit: bool, pub(crate) slot: usize }
+/// `maps` (E6i step 4): the images of its base-colour, emissive, metallic-roughness and occlusion textures.
+pub(crate) struct CpuPrim { pub(crate) local: [f32; 16], pub(crate) verts: Vec<f32>, pub(crate) idx: Vec<u32>, pub(crate) color: [f32; 4], pub(crate) image: Option<usize>, pub(crate) unlit: bool, pub(crate) slot: usize, pub(crate) maps: [Option<usize>; 4] }
 pub(crate) struct CpuGlb { pub(crate) prims: Vec<CpuPrim>, pub(crate) images: Vec<(u32, u32, Vec<u8>)> }
 
 fn node_matrix(n: &gltf::Node) -> [f32; 16] {
@@ -506,6 +507,12 @@ pub(crate) fn load_glb(path: &str) -> Result<CpuGlb, String> {
                     local: world, verts, idx, color: pbr.base_color_factor(),
                     image: pbr.base_color_texture().map(|t| t.texture().source().index()),
                     unlit: mat.unlit(), slot,
+                    maps: [
+                        pbr.base_color_texture().map(|t| t.texture().source().index()),
+                        mat.emissive_texture().map(|t| t.texture().source().index()),
+                        pbr.metallic_roughness_texture().map(|t| t.texture().source().index()),
+                        mat.occlusion_texture().map(|t| t.texture().source().index()),
+                    ],
                 });
             }
         }

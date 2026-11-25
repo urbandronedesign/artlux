@@ -10,8 +10,9 @@ switch to turn it off: if the engine cannot run at all, ArtLux draws the output 
 the machine log says why. If the engine restarts, your lights and projectors keep its last picture until it is back,
 rather than flicking to a different drawing. See [Preferences](docs/user-guide/12-preferences-monitoring.md).
 
-Calibrated projectors whose venue model has image textures on its walls, floor or props (PNG or JPEG) now stay on
-the engine too, and look the same as before.
+Calibrated projectors whose venue model has image textures on its walls, floor or props (PNG or JPEG), glowing
+(emissive) textures, glass or other see-through materials, or cut-outs now stay on the engine too, and look the same as
+before.
 
 Projector outputs are decided one by one: calibrating one projector, or an output with no display chosen, keeps only
 that output with the app — the show's other projectors stay on the engine.

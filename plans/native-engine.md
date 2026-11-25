@@ -2803,6 +2803,21 @@ fallback until a source/output is proven byte-identical — risk 2):
 > 256² PNG repeated 3 × 2, REPEAT / LINEAR_MIPMAP_LINEAR, warm factor, metalness 0.15): **1 pixel by 1** (the MSAA
 > edge the app has against itself); `--tex-npot` (300 × 200): **identical**; `--tex-jpeg`: **identical**. Still refused:
 > normal / AO / emissive / metalness / alpha maps, vertex colours, transparency, several materials per mesh (step 4b).
+>
+> ✅ **E6i step 4b done 2026-11-26 — MORE MAPS, AND TRANSPARENCY.** The OWN pipelines' group 2 now holds four maps (each a
+> texture + its own sampler; white 1×1 where there is none): `map` and `emissiveMap` (sRGB), `metalnessMap` and `aoMap`
+> (linear) — glTF's base colour, emissive, metallic-roughness and occlusion textures, the loader reading each image
+> (`CpuPrim.maps`); the shader applies emissivemap (×), metalnessmap (×.b) and aomap ((r − 1) × intensity + 1 on the
+> indirect diffuse) as three's chunks do. **Transparency** as WebGLRenderer draws it: diffuseColor = (diffuse,
+> opacity) × texel; an ALPHA TEST discards below it (glTF MASK); a TRANSPARENT material (glTF BLEND, depthWrite
+> false) blends NormalBlending straight-alpha, after every opaque object, FAR TO NEAR by three's own sort depth (the
+> geometry's bounding-sphere centre through matrixWorld and the projection-view — computed by the host,
+> `own.z`), and a double-sided one twice, BackSide then FrontSide (renderObject's two passes). Refused: alpha hash,
+> alpha to coverage, a blending other than normal or premultiplied, a render order, a depth test / colour write of
+> its own. `--tex-full` (the wall with all four maps; a MASK cut-out with holes and half-alpha rings; two BLEND panes,
+> one double-sided, overlapping each other and the cut-out): **identical, 2 073 600 / 2 073 600**; the sort reversed
+> as a probe: 10 298 pixels by up to 25 — the order is load-bearing and right. Still refused: normal maps (three's
+> tangent-space maths), vertex colours, several materials on one mesh, alpha / light / bump maps.
 
 ## 9d. E4 started early — the 3D view in the engine (owner, 2026-11-24)
 

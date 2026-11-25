@@ -140,7 +140,7 @@ if (CALIB_LAYER) {
 const CALIB_TEX = CALIBRATED && process.argv.includes('--calib-tex') ? path.join(WORK, 'textured-wall.glb') : null;
 // --tex-npot: the texture 300 × 200 (odd mip edges). --tex-jpeg: stored as a JPEG (Electron's own encoder) — the engine
 // and Chromium then each DECODE it.
-const TEX_NPOT = process.argv.includes('--tex-npot'), TEX_JPEG = process.argv.includes('--tex-jpeg');
+const TEX_NPOT = process.argv.includes('--tex-npot'), TEX_JPEG = process.argv.includes('--tex-jpeg'), TEX_FULL = process.argv.includes('--tex-full');
 if (CALIB_TEX) {
   const [TW, TH] = TEX_NPOT ? [300, 200] : [256, 256], tex = new PNG({ width: TW, height: TH });
   for (let y = 0; y < TH; y++) for (let x = 0; x < TW; x++) {
@@ -155,20 +155,44 @@ if (CALIB_TEX) {
     execSync(`"${path.join(ROOT, 'node_modules', 'electron', 'dist', 'electron.exe')}" "${js}"`, { env: env0, stdio: 'ignore' });
     img = fs.readFileSync(jpgf);
   }
-  // A 4 m × 2.5 m quad in its own XY plane, normal +Z; UVs 0..3 × 0..2.
+  // --tex-full (E6i step 4b): the wall also wears an EMISSIVE map, a METALLIC-ROUGHNESS map and an OCCLUSION map, and
+  // in front of it stand a CUT-OUT (alphaMode MASK: an RGBA PNG with holes and half-alpha rings, double-sided) and two
+  // GLASS panes (alphaMode BLEND — one double-sided, one not), overlapping, so the far-to-near sort decides the picture.
+  const png = (w, h, f) => { const q = new PNG({ width: w, height: h }); for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) q.data.set(f(x, y), (y * w + x) * 4); return PNG.sync.write(q); };
+  const images = [img];
+  if (TEX_FULL) {
+    images.push(png(64, 64, (x, y) => ((x >> 2) % 5 === 0 || (y >> 3) % 6 === 0) ? [255, 200 - y, 80 + x, 255] : [0, 0, 0, 255]));   // emissive
+    images.push(png(128, 128, (x, y) => [0, 60 + y, Math.round(255 * Math.abs(Math.sin(x / 9))), 255]));                         // metallic (B), roughness (G)
+    images.push(png(128, 128, (x, y) => { const r = Math.hypot(x - 64, y - 64); return [Math.max(40, Math.min(255, Math.round(r * 4))), 0, 0, 255]; }));   // occlusion (R)
+    images.push(png(128, 128, (x, y) => { const r = Math.hypot((x % 32) - 16, (y % 32) - 16); return [40 + x, 200 - y, 120, r < 6 ? 0 : r < 9 ? 90 : 255]; }));   // cut-out
+  }
+  // A 4 m × 2.5 m quad in its own XY plane, normal +Z; UVs 0..3 × 0..2 — every mesh here is this quad, placed by its node.
   const pos = new Float32Array([-2, -1.25, 0, 2, -1.25, 0, 2, 1.25, 0, -2, 1.25, 0]);
   const nrm = new Float32Array([0, 0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 1]);
   const uv = new Float32Array([0, 2, 3, 2, 3, 0, 0, 0]);
   const idx = new Uint16Array([0, 1, 2, 0, 2, 3]);
-  const parts = [Buffer.from(pos.buffer), Buffer.from(nrm.buffer), Buffer.from(uv.buffer), Buffer.from(idx.buffer), img];
+  const parts = [Buffer.from(pos.buffer), Buffer.from(nrm.buffer), Buffer.from(uv.buffer), Buffer.from(idx.buffer), ...images];
   const views = []; let off = 0; const pad = (b) => Buffer.concat([b, Buffer.alloc((4 - (b.length % 4)) % 4)]);
   const bin = Buffer.concat(parts.map((b) => { views.push({ buffer: 0, byteOffset: off, byteLength: b.length }); const p = pad(b); off += p.length; return p; }));
+  const quat = (deg) => [0, Math.sin(deg * Math.PI / 360), 0, Math.cos(deg * Math.PI / 360)];
+  const materials = [{ pbrMetallicRoughness: { baseColorFactor: [1, 0.92, 0.85, 1], baseColorTexture: { index: 0 }, metallicFactor: TEX_FULL ? 0.8 : 0.15, roughnessFactor: 0.8,
+    ...(TEX_FULL ? { metallicRoughnessTexture: { index: 2 } } : {}) },
+    ...(TEX_FULL ? { emissiveTexture: { index: 1 }, emissiveFactor: [0.6, 0.5, 0.3], occlusionTexture: { index: 3, strength: 0.7 } } : {}) }];
+  const nodes = [{ mesh: 0, name: 'wall' }];
+  if (TEX_FULL) {
+    materials.push({ pbrMetallicRoughness: { baseColorTexture: { index: 4 }, metallicFactor: 0 }, alphaMode: 'MASK', alphaCutoff: 0.5, doubleSided: true });
+    materials.push({ pbrMetallicRoughness: { baseColorFactor: [0.2, 0.6, 1, 0.45], metallicFactor: 0 }, alphaMode: 'BLEND', doubleSided: true });
+    materials.push({ pbrMetallicRoughness: { baseColorFactor: [1, 0.3, 0.2, 0.5], metallicFactor: 0.3 }, alphaMode: 'BLEND' });
+    nodes.push({ mesh: 1, name: 'cut', translation: [0.9, 0.85, 0.6], scale: [0.25, 0.3, 1] });
+    nodes.push({ mesh: 2, name: 'glassA', translation: [-0.3, 0.9, 1.0], rotation: quat(30), scale: [0.25, 0.3, 1] });
+    nodes.push({ mesh: 3, name: 'glassB', translation: [-0.35, 0.8, 1.5], rotation: quat(-15), scale: [0.22, 0.28, 1] });
+  }
   const json = {
-    asset: { version: '2.0' }, scene: 0, scenes: [{ nodes: [0] }], nodes: [{ mesh: 0, name: 'wall' }],
-    meshes: [{ primitives: [{ attributes: { POSITION: 0, NORMAL: 1, TEXCOORD_0: 2 }, indices: 3, material: 0 }] }],
-    materials: [{ pbrMetallicRoughness: { baseColorFactor: [1, 0.92, 0.85, 1], baseColorTexture: { index: 0 }, metallicFactor: 0.15, roughnessFactor: 0.8 } }],
-    textures: [{ source: 0, sampler: 0 }], samplers: [{ magFilter: 9729, minFilter: 9987, wrapS: 10497, wrapT: 10497 }],
-    images: [{ bufferView: 4, mimeType: TEX_JPEG ? 'image/jpeg' : 'image/png' }],
+    asset: { version: '2.0' }, scene: 0, scenes: [{ nodes: nodes.map((_, k) => k) }], nodes,
+    meshes: materials.map((_, k) => ({ primitives: [{ attributes: { POSITION: 0, NORMAL: 1, TEXCOORD_0: 2 }, indices: 3, material: k }] })),
+    materials,
+    textures: images.map((_, k) => ({ source: k, sampler: 0 })), samplers: [{ magFilter: 9729, minFilter: 9987, wrapS: 10497, wrapT: 10497 }],
+    images: images.map((_, k) => ({ bufferView: 4 + k, mimeType: k === 0 && TEX_JPEG ? 'image/jpeg' : 'image/png' })),
     accessors: [
       { bufferView: 0, componentType: 5126, count: 4, type: 'VEC3', min: [-2, -1.25, 0], max: [2, 1.25, 0] },
       { bufferView: 1, componentType: 5126, count: 4, type: 'VEC3' },

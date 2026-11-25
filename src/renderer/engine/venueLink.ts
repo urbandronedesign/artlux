@@ -97,20 +97,23 @@ export function venueLayers(scene: Scene3D): string[] {
  * A mesh's OWN material as three lights it in the projector window — or why the engine cannot. E6f: the window
  * lights a venue file's own materials with an ambient and a hemisphere light and NO environment map, and there three's
  * MeshStandardMaterial reduces to irradiance × diffuse × (1 − metalness) / π + emissive (calib3d.rs OWN). What that
- * reduction does not cover is refused: any texture but the two below (normal, AO, emissive, metalness… — each changes
- * the sum), vertex colours, transparency / alpha test, flat shading, a mesh without normals, any other material type (a
+ * reduction does not cover is refused (E6i step 4 drew maps and transparency — see below): a normal map, vertex
+ * colours, flat shading, a mesh without normals, any other material type (a
  * KHR_materials_* extension makes a MeshPhysicalMaterial; unlit a MeshBasicMaterial).
  */
-// E6i step 4: the BASE-COLOUR map is drawn (diffuseColor ×= texel — the engine reads the image from the GLB itself, as
-// GLTFLoader does, and mipmaps it as WebGL does), and a ROUGHNESS map is harmless (roughness only shapes specular, and
-// with no environment map and no direct light there is none). Only a map three uses plainly: UV set 0, no transform
-// (KHR_texture_transform), not flipped (glTF's), sRGB, no anisotropy.
-const MAPS = ['normalMap', 'aoMap', 'emissiveMap', 'metalnessMap', 'alphaMap', 'lightMap', 'bumpMap', 'displacementMap', 'envMap'] as const;
-function plainMap(t: THREE.Texture): string | null {
+// E6i step 4 — MAPS. Drawn: the BASE-COLOUR map (diffuseColor ×= texel), the EMISSIVE map (totalEmissiveRadiance ×=
+// texel), the METALNESS map (metalnessFactor ×= texel.b) and the AO map (indirectDiffuse ×= (texel.r − 1) × intensity
+// + 1) — glTF's base colour, emissive, metallic-roughness and occlusion textures, the engine reading each image from the
+// GLB itself as GLTFLoader does and mipmapping it as WebGL does. A ROUGHNESS map is harmless (roughness only shapes
+// specular, and with no environment map and no direct light there is none). Only a map three uses plainly: UV set 0,
+// no transform (KHR_texture_transform), not flipped (glTF's), the colour space its slot expects, no anisotropy.
+// Still refused: normal (three's tangent-space maths), alpha, light, bump, displacement, env maps.
+const MAPS = ['normalMap', 'alphaMap', 'lightMap', 'bumpMap', 'displacementMap', 'envMap'] as const;
+function plainMap(t: THREE.Texture, srgb: boolean): string | null {
   if (t.channel !== 0) return `a map on UV set ${t.channel}`;
   if (t.offset.x !== 0 || t.offset.y !== 0 || t.repeat.x !== 1 || t.repeat.y !== 1 || t.rotation !== 0) return 'a transformed map';
   if (t.flipY) return 'a flipped map';
-  if (t.colorSpace !== THREE.SRGBColorSpace) return 'a map not in sRGB';
+  if (srgb ? t.colorSpace !== THREE.SRGBColorSpace : t.colorSpace === THREE.SRGBColorSpace) return srgb ? 'a colour map not in sRGB' : 'a data map in sRGB';
   if (t.anisotropy > 1) return 'an anisotropic map';
   if ((t as THREE.CompressedTexture).isCompressedTexture) return 'a compressed map';
   return null;
@@ -122,29 +125,52 @@ function plainMap(t: THREE.Texture): string | null {
 const venueMaps = new Map<string, CanvasImageSource>();
 /** The map pictures the engine takes from the app (key → three's own decoded image). */
 export function venueMapImages(): ReadonlyMap<string, CanvasImageSource> { return venueMaps; }
-function ownMaterial(o: THREE.Mesh): { color: number[]; metalness: number; emissive: number[]; side: number; map?: { wrapS: number; wrapT: number; mag: number; min: number; raster?: string } } | { why: string } {
+type MapSpec = { wrapS: number; wrapT: number; mag: number; min: number; raster?: string };
+function mapSpec(t: THREE.Texture | null, srgb: boolean): MapSpec | null | { why: string } {
+  if (!t) return null;
+  const bad = plainMap(t, srgb);
+  if (bad) return { why: bad };
+  let raster: string | undefined;
+  if ((t.userData as { mimeType?: string } | undefined)?.mimeType !== 'image/png') {
+    const img = t.image as (CanvasImageSource & { width?: number; height?: number }) | null;
+    if (!img || !img.width || !img.height) return { why: 'a map whose picture has not loaded' };
+    raster = `vmap:${t.uuid}`;
+    venueMaps.set(raster, img);
+  }
+  return { wrapS: t.wrapS, wrapT: t.wrapT, mag: t.magFilter, min: t.minFilter, ...(raster ? { raster } : {}) };
+}
+type OwnSpec = {
+  color: number[]; metalness: number; emissive: number[]; side: number; maps: (MapSpec | null)[];
+  opacity: number; alphaTest: number; transparent: boolean; depthWrite: boolean; forceSinglePass: boolean; aoMapIntensity: number; z?: number;
+};
+function ownMaterial(o: THREE.Mesh): OwnSpec | { why: string } {
   const m = o.material as THREE.MeshStandardMaterial | THREE.Material[];
   if (Array.isArray(m)) return { why: 'several materials on one mesh' };
   if (m.type !== 'MeshStandardMaterial') return { why: `a ${m.type}` };
-  const map = MAPS.find((k) => (m as unknown as Record<string, unknown>)[k]);
-  if (map) return { why: `a material with a ${map}` };
-  const bad = m.map ? plainMap(m.map) : null;
-  if (bad) return { why: bad };
-  let raster: string | undefined;
-  if (m.map && (m.map.userData as { mimeType?: string } | undefined)?.mimeType !== 'image/png') {
-    const img = m.map.image as (CanvasImageSource & { width?: number; height?: number }) | null;
-    if (!img || !img.width || !img.height) return { why: 'a map whose picture has not loaded' };
-    raster = `vmap:${m.map.uuid}`;
-    venueMaps.set(raster, img);
+  const other = MAPS.find((k) => (m as unknown as Record<string, unknown>)[k]);
+  if (other) return { why: `a material with a ${other}` };
+  const maps: (MapSpec | null)[] = [];
+  for (const [t, srgb] of [[m.map, true], [m.emissiveMap, true], [m.metalnessMap, false], [m.aoMap, false]] as const) {
+    const r = mapSpec(t, srgb);
+    if (r && 'why' in r) return { why: r.why };
+    maps.push(r as MapSpec | null);
   }
   if (m.vertexColors) return { why: 'vertex colours' };
-  if (m.transparent || m.alphaTest > 0 || m.alphaHash) return { why: 'a transparent material' };
+  // E6i step 4b — TRANSPARENCY as three draws it: NormalBlending (straight alpha), after the opaque, far to near; an
+  // alpha test (glTF MASK) discards. What else changes the blend or the order is refused.
+  if (m.alphaHash) return { why: 'an alpha-hashed material' };
+  if (m.alphaToCoverage) return { why: 'alpha to coverage' };
+  if (m.transparent && (m.blending !== THREE.NormalBlending || m.premultipliedAlpha)) return { why: 'a blending other than normal' };
+  if (o.renderOrder !== 0) return { why: 'a render order' };
+  if (!m.depthTest || m.depthFunc !== THREE.LessEqualDepth || !m.colorWrite) return { why: 'a depth test or colour write of its own' };
   if (m.flatShading || !o.geometry.getAttribute('normal')) return { why: 'flat shading' };
   if (m.wireframe) return { why: 'a wireframe material' };
   // The uniforms as three uploads them: diffuse = color, emissive = emissive × emissiveIntensity (linear, its
   // working space), metalness; the side decides the culling and the double-sided normal flip.
-  return { color: [m.color.r, m.color.g, m.color.b], metalness: m.metalness, emissive: m.emissive.clone().multiplyScalar(m.emissiveIntensity).toArray(), side: m.side,
-    ...(m.map ? { map: { wrapS: m.map.wrapS, wrapT: m.map.wrapT, mag: m.map.magFilter, min: m.map.minFilter, ...(raster ? { raster } : {}) } } : {}) };
+  return {
+    color: [m.color.r, m.color.g, m.color.b], metalness: m.metalness, emissive: m.emissive.clone().multiplyScalar(m.emissiveIntensity).toArray(), side: m.side,
+    maps, opacity: m.opacity, alphaTest: m.alphaTest, transparent: m.transparent, depthWrite: m.depthWrite, forceSinglePass: m.forceSinglePass, aoMapIntensity: m.aoMapIntensity,
+  };
 }
 
 /** The window's two lights as WebGLLights uploads them for a camera with this view matrix. */
@@ -183,6 +209,7 @@ export function calibDoc(cal: ProjectorCalibration, scene: Scene3D): { doc: unkn
   cam.position.set(position[0], position[1], position[2]);
   cam.quaternion.set(quaternion[0], quaternion[1], quaternion[2], quaternion[3]);
   cam.updateMatrixWorld(true);
+  const projScreen = new THREE.Matrix4().fromArray(glProjectionMatrix(cal.intrinsics, cal.imageSize, PROJECTOR_NEAR, PROJECTOR_FAR)).multiply(cam.matrixWorldInverse);
   const mv = (o: THREE.Object3D) => els(new THREE.Matrix4().multiplyMatrices(cam.matrixWorldInverse, o.matrixWorld));
   const models: unknown[] = [];
   const surfaces = new Set<string>();
@@ -233,6 +260,13 @@ export function calibDoc(cal: ProjectorCalibration, scene: Scene3D): { doc: unkn
         const own = ownMaterial(o as THREE.Mesh);
         if ('why' in own) { refused = `a mesh of '${name}' shows its own material, ${own.why} (not drawn by the engine yet)`; return; }
         const mvm = new THREE.Matrix4().multiplyMatrices(cam.matrixWorldInverse, o.matrixWorld);
+        // E6i step 4b: a transparent mesh's sort depth, as WebGLRenderer.projectObject takes it — the geometry's
+        // bounding-sphere centre through matrixWorld and the projection-view (divided by w).
+        if (own.transparent) {
+          const g = (o as THREE.Mesh).geometry;
+          if (!g.boundingSphere) g.computeBoundingSphere();
+          own.z = g.boundingSphere!.center.clone().applyMatrix4(o.matrixWorld).applyMatrix4(projScreen).z;
+        }
         entry.own = own;
         entry.nm = Array.from(new THREE.Matrix3().getNormalMatrix(mvm).elements);
       }
