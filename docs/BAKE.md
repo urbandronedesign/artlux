@@ -218,7 +218,7 @@ Design record and the traps found while building it: [`plans/offline-bake.md`](.
 
 ### The engine's render (E6a)
 
-With `--native-engine` on and the engine drawing the content, `bakeRunner` keeps the **orchestration** — it
+With the native engine on and drawing the content, `bakeRunner` keeps the **orchestration** — it
 steps `renderClock`, runs the show at each step, settles the app's decoders and pulls the sound — and hands
 each frame to the engine as a `bakeFrame` request: the frame's tick (`frameEngine.bakeTick` builds it exactly as
 a live frame's, `nativeLink.bakeTick` returns it instead of sending it, with the frame's **exact** time) and its

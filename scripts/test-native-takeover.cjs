@@ -167,7 +167,7 @@ const settle = () => sleep(800);
 
 function launch(native) {
   const env = { ...process.env, ARTLUX_ENGINE_DOC_DUMP: path.join(WORK, 'doc.json') }; delete env.ELECTRON_RUN_AS_NODE;
-  const args = [`--user-data-dir=${PROFILE}`, '--headless', `--project=${project}`, ...(native ? ['--native-engine'] : [])];
+  const args = [`--user-data-dir=${PROFILE}`, '--headless', `--project=${project}`, ...(native ? ['--native-engine'] : ['--no-native-engine'])];
   const child = PACKAGED
     ? spawn(PACKAGED, args, { env, stdio: ['ignore', 'pipe', 'pipe'] })
     : spawn('npm.cmd', ['run', 'dev', '--', '--', ...args], { cwd: ROOT, env, stdio: ['ignore', 'pipe', 'pipe'], shell: true });

@@ -79,7 +79,7 @@ async function run(native) {
   const logf = path.join(WORK, `run-${native ? 'engine' : 'app'}.log`);
   const log = fs.openSync(logf, 'w');
   const env = { ...process.env }; delete env.ELECTRON_RUN_AS_NODE;
-  const child = spawn(EXE, [`--user-data-dir=${PROFILE}`, '--headless', `--project=${project}`, ...(native ? ['--native-engine'] : [])], { env, stdio: ['ignore', log, log] });
+  const child = spawn(EXE, [`--user-data-dir=${PROFILE}`, '--headless', `--project=${project}`, ...(native ? ['--native-engine'] : ['--no-native-engine'])], { env, stdio: ['ignore', log, log] });
   try { await sleep(36000); } finally { try { execSync(`taskkill /PID ${child.pid} /T /F`, { stdio: 'ignore' }); } catch { /* gone */ } sock.close(); }
   // The first seconds are boot (black, then the engine taking over): judged from the first lit frame + 2 s.
   fs.writeFileSync(path.join(WORK, `levels-${native ? 'engine' : 'app'}.json`), JSON.stringify(levels));

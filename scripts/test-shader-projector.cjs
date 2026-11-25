@@ -74,7 +74,7 @@ const lit = (a) => { let n = 0; for (let i = 0; i < a.data.length; i += 4) if (a
 async function runOnce(native) {
   fs.rmSync(PROFILE, { recursive: true, force: true }); fs.mkdirSync(PROFILE, { recursive: true });
   fs.writeFileSync(path.join(PROFILE, 'artlux-prefs.json'), JSON.stringify({ appSettings: { outputEnabled: false } }));
-  const child = spawn(EXE, [`--user-data-dir=${PROFILE}`, '--broadcast', `--project=${project}`, ...(native ? ['--native-engine'] : [])], { env: env0, stdio: ['ignore', 'pipe', 'pipe'] });
+  const child = spawn(EXE, [`--user-data-dir=${PROFILE}`, '--broadcast', `--project=${project}`, ...(native ? ['--native-engine'] : ['--no-native-engine'])], { env: env0, stdio: ['ignore', 'pipe', 'pipe'] });
   const lines = [];
   const take = (d) => { for (const l of String(d).split(/\r?\n/)) if (l.trim()) lines.push(l.trim()); };
   child.stdout.on('data', take); child.stderr.on('data', take);

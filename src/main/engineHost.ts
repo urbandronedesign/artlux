@@ -10,9 +10,11 @@ import { screen } from 'electron';
 import { setProjectorsCovered, windowedContent, placeWindowed, closeWindowedByOperator, onWindowedPlaced } from './projector';
 import type { OutputConfig, EngineView3dPlace } from '../../shared/protocol';
 
-// THE NATIVE ENGINE AS ARTLUX'S CHILD (plans/native-engine.md §9c, E1a). Behind a flag until it carries
-// output: `--native-engine` on the command line, or ARTLUX_NATIVE_ENGINE=1. Without it nothing here runs
-// and the app is exactly what it was.
+// THE NATIVE ENGINE AS ARTLUX'S CHILD (plans/native-engine.md §9c, E1a). E6e: ON BY DEFAULT ON WINDOWS — the
+// platform where it draws everything the app's output does (E6f closed the projector refusals there); OFF elsewhere
+// (macOS: no MP4 decode, camera, Syphon or bake encode in the engine yet — E6g). See `decide()` for the switches.
+// Off, nothing here runs and the app is exactly what it was. On, the app's own path is still the per-surface /
+// per-output FALLBACK: anything the engine refuses, it refuses with a reason and the app keeps it.
 //
 // What main does for it — the engine's WATCHDOG RUNG:
 //   - spawns `artlux-engine --serve` (engine/artlux-engine/src/serve.rs) and waits for its `hello`;
@@ -34,13 +36,35 @@ import type { OutputConfig, EngineView3dPlace } from '../../shared/protocol';
 // document, ownership is false again and the app's next frame goes out: the app's path IS the fallback.
 // A restarted engine is handed the last output settings and document at once.
 
-const FLAG = process.argv.includes('--native-engine') || process.env.ARTLUX_NATIVE_ENGINE === '1';
+/**
+ * E6e — IS THE NATIVE ENGINE ON FOR THIS RUN, and which switch said so. In order, the first that speaks wins:
+ *   1. `--no-native-engine` or ARTLUX_NATIVE_ENGINE=0 — off (a test's app-side reference; a tech's way out);
+ *   2. `--native-engine` or ARTLUX_NATIVE_ENGINE=1 — on (any platform: a developer, a test);
+ *   3. not Windows — off (E6g);
+ *   4. Preferences ▸ Engine ▸ Native output engine off (`Prefs.nativeEngineOff`, per MACHINE) — off;
+ *   5. otherwise ON.
+ * Decided ONCE, on first use (after app ready — the prefs are readable then), for the whole run: the switch takes
+ * effect at the next launch, never mid-show.
+ */
+function decide(): { on: boolean; why: string } {
+  if (process.argv.includes('--no-native-engine')) return { on: false, why: '--no-native-engine' };
+  if (process.env.ARTLUX_NATIVE_ENGINE === '0') return { on: false, why: 'ARTLUX_NATIVE_ENGINE=0' };
+  if (process.argv.includes('--native-engine')) return { on: true, why: '--native-engine' };
+  if (process.env.ARTLUX_NATIVE_ENGINE === '1') return { on: true, why: 'ARTLUX_NATIVE_ENGINE=1' };
+  if (process.platform !== 'win32') return { on: false, why: `not on ${process.platform} yet` };
+  if (getPrefs().nativeEngineOff === true) return { on: false, why: 'turned off in Preferences' };
+  return { on: true, why: 'the default on Windows' };
+}
+let decided: { on: boolean; why: string } | null = null;
+const flag = (): boolean => (decided ??= decide()).on;
+/** Why the engine is on or off for this run (the machine log, Preferences). */
+export function nativeEngineWhy(): string { return (decided ??= decide()).why; }
 // E3m: the SOUND from the engine too (its JUCE, artlux_audio.dll) — only with the engine, and only when asked.
-const AUDIO_FLAG = FLAG && (process.argv.includes('--engine-audio') || process.env.ARTLUX_ENGINE_AUDIO === '1');
+const audioFlag = (): boolean => flag() && (process.argv.includes('--engine-audio') || process.env.ARTLUX_ENGINE_AUDIO === '1');
 /** Does plugins/audio play through the native engine (E3m) rather than its own addon? */
-export function engineAudioEnabled(): boolean { return AUDIO_FLAG; }
-/** Is the native engine on for this run (--native-engine / ARTLUX_NATIVE_ENGINE=1)? */
-export function nativeEngineEnabled(): boolean { return FLAG; }
+export function engineAudioEnabled(): boolean { return audioFlag(); }
+/** Is the native engine on for this run (see decide())? */
+export function nativeEngineEnabled(): boolean { return flag(); }
 const RESTART_DELAY_MS = 200;
 const RESTART_LIMIT = 5;
 const HELLO_TIMEOUT_MS = 10_000;   // opening the GPU device on a cold machine can take a few seconds
@@ -139,7 +163,7 @@ export function engineWireStats(): { fps: number; universes: number; pps: number
 // can read it and the document names it by key — so a document change never re-ships a map.
 const bakedFiles = new Map<string, { w: number; h: number; uv: string; alpha?: { w: number; h: number; file: string } }>();
 export function noteBakedMap(key: string, w: number, h: number, uv: Float32Array, alpha: { w: number; h: number; data: Uint8Array } | null): void {
-  if (!FLAG) return;
+  if (!flag()) return;
   const dir = join(app.getPath('temp'), 'artlux-native-engine');
   try {
     mkdirSync(dir, { recursive: true });
@@ -163,7 +187,7 @@ export function noteBakedMap(key: string, w: number, h: number, uv: Float32Array
 // surface is kept: a restarted engine is given every raster BEFORE the document that names them.
 const rasterMsgs = new Map<string, { msg: string; file: string }>();
 export function noteRaster(surfaceId: string, gen: number, w: number, h: number, rgba: Uint8Array): void {
-  if (!FLAG) return;
+  if (!flag()) return;
   const dir = join(app.getPath('temp'), 'artlux-native-engine');
   try {
     mkdirSync(dir, { recursive: true });
@@ -213,7 +237,7 @@ function withDisplayBounds(json: string): string {
 }
 
 // E6f: a windowed output's app window opened or was laid out by main — the document carries its rect.
-onWindowedPlaced(() => { if (FLAG && lastDocRaw) noteDoc(lastDocRaw, lastDocRev); });
+onWindowedPlaced(() => { if (flag() && lastDocRaw) noteDoc(lastDocRaw, lastDocRev); });
 
 // E1f-3: whether the engine's windows show the projector outputs (the app's are then COVERED: told to stop
 // drawing, kept open underneath — the engine's are topmost — so an engine that dies uncovers them at once).
@@ -246,13 +270,13 @@ function write(line: string): void { try { child?.stdin?.write(line + '\n'); } c
 
 /** The output engine's settings (IPC.CONFIGURE) — the engine sends with the same ones. */
 export function noteOutputConfig(cfg: OutputConfig): void {
-  if (!FLAG) return;
+  if (!flag()) return;
   lastOutput = JSON.stringify({ type: 'output', broadcast: !!cfg.broadcast, fps: cfg.fps ?? 44, keepAlive: cfg.keepAlive ?? true, sync: cfg.sync ?? false });
   if (status.state === 'up') write(lastOutput);
 }
 /** The effective document, as the renderer serialised it (it carries its own `rev`). */
 export function noteDoc(json: string, rev: number): void {
-  if (!FLAG) return;
+  if (!flag()) return;
   lastDocRaw = json;
   lastDoc = withDisplayBounds(json); lastDocRev = rev;
   json = lastDoc;
@@ -269,7 +293,7 @@ export function noteDoc(json: string, rev: number): void {
 let bakeReq = 0;
 const bakePending = new Map<number, (r: { ok: boolean; value?: unknown; error?: string }) => void>();
 export function engineBake(op: string, body: string): Promise<{ ok: boolean; value?: unknown; error?: string }> {
-  if (!FLAG || status.state !== 'up' || !child) return Promise.resolve({ ok: false, error: 'the native engine is not running' });
+  if (!flag() || status.state !== 'up' || !child) return Promise.resolve({ ok: false, error: 'the native engine is not running' });
   if (!/^bake(Begin|Frame|End|Cancel)$/.test(op) || !body.startsWith('{')) return Promise.resolve({ ok: false, error: `not a bake message: ${op}` });
   const req = ++bakeReq;
   const p = new Promise<{ ok: boolean; value?: unknown; error?: string }>((resolve) => bakePending.set(req, resolve));
@@ -283,7 +307,7 @@ function failBakes(why: string): void {
 
 /** One frame. Sent only while the engine is up; a tick is never queued for a future engine. */
 export function noteTick(json: string): void {
-  if (!FLAG || status.state !== 'up') return;
+  if (!flag() || status.state !== 'up') return;
   write(`{"type":"tick",${json.slice(1)}`);
 }
 
@@ -294,13 +318,13 @@ let lastScene3d: string | null = null;
 let view3dOpen: { camera: unknown } | null = null;   // while the view is open: the camera it was opened at
 /** The scene the engine's 3D view draws (renderer: Simulator3D/engineView.ts). */
 export function noteScene3d(json: string): void {
-  if (!FLAG) return;
+  if (!flag()) return;
   lastScene3d = json;
   if (status.state === 'up') write(`{"type":"scene3d",${json.slice(1)}`);
 }
 /** Open the engine's 3D view at the editor's camera, or close it. */
 export function noteView3d(open: boolean, camera: unknown): void {
-  if (!FLAG) return;
+  if (!flag()) return;
   view3dOpen = open ? { camera: camera ?? null } : null;
   if (status.state === 'up') write(view3dMessage(open, camera ?? null));
 }
@@ -315,7 +339,7 @@ function view3dClosedByOperator(): void {
   for (const w of BrowserWindow.getAllWindows()) if (!w.isDestroyed()) w.webContents.send(IPC.NATIVE_ENGINE_VIEW3D_CLOSED);
 }
 
-export function engineEnabled(): boolean { return FLAG; }
+export function engineEnabled(): boolean { return flag(); }
 export function engineStatus(): EngineStatus { return { ...status }; }
 
 /** The engine binary: beside the app's resources when packaged, the cargo build output in dev. */
@@ -607,9 +631,9 @@ function failAudio(why: string): void {
 
 /** Start the engine if the flag asks for it. Safe to call once at startup in any mode. */
 export function startEngine(): void {
-  if (!FLAG) return;
+  if (!flag()) { logger.log('info', 'engine', 'off', { why: nativeEngineWhy() }); return; }
   output.setWireOwner(engineOwnsWire);
-  logger.log('info', 'engine', 'enabled', { path: enginePath() });
+  logger.log('info', 'engine', 'enabled', { path: enginePath(), why: nativeEngineWhy() });
   spawnEngine();
 }
 

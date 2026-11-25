@@ -67,7 +67,7 @@ async function run(native) {
   const logf = path.join(WORK, `run-${native ? 'engine' : 'app'}.log`);
   const log = fs.openSync(logf, 'w');
   const env = { ...process.env }; delete env.ELECTRON_RUN_AS_NODE;
-  const child = spawn(EXE, [`--user-data-dir=${PROFILE}`, '--headless', `--project=${project}`, ...(native ? ['--native-engine'] : [])], { env, stdio: ['ignore', log, log] });
+  const child = spawn(EXE, [`--user-data-dir=${PROFILE}`, '--headless', `--project=${project}`, ...(native ? ['--native-engine'] : ['--no-native-engine'])], { env, stdio: ['ignore', log, log] });
   try {
     await sleep(14000);
     for (const k of [...all.keys()]) all.set(k, []);   // keep only the settled tail

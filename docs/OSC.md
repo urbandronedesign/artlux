@@ -98,7 +98,7 @@ streamed to the projector under the locally-rendered blobs.
 
 ---
 
-**With the native engine** (`--native-engine`), the engine draws the blobs, trails and direction arrows
+**With the native engine** (on by default on Windows), the engine draws the blobs, trails and direction arrows
 itself — on the fixtures, its projector outputs and its 3D view — from exactly the positions ArtLux worked
 out this frame, so they look the same as in the editor. Two settings keep a tracking surface in the editor
 instead (the engine then leaves the outputs to it, as for any source it does not draw yet): **Calibration**

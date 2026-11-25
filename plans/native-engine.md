@@ -2652,6 +2652,19 @@ fallback until a source/output is proven byte-identical — risk 2):
 > - **What is left of D on Windows:** an NDI send of an UNWARPED calibrated output (the app sends nothing there —
 >   both are silent, by design) and an open calibration SESSION (authoring: patterns, crosshair, verify looks). Next:
 >   E6e (default-on — the owner's OK), E6g (macOS), E6h (crash fallback), E6i (delete the browser engine).
+>
+> ✅ **E6e done 2026-11-25 (the owner's OK) — THE ENGINE IS ON BY DEFAULT ON WINDOWS.** Inventory item A.
+> `engineHost.decide()`, once per run (after app ready, so the prefs are readable; a change takes effect at the next
+> start, never mid-show), the first switch that speaks wins: `--no-native-engine` / `ARTLUX_NATIVE_ENGINE=0` (off),
+> `--native-engine` / `=1` (on, any platform), not Windows (off — E6g), *Preferences ▸ Engine ▸ Native output
+> engine* off (`Prefs.nativeEngineOff`, per machine, named for the polarity so absence means on), else ON. The
+> machine log says which (`engine enabled|off {why}`). The per-surface / per-output fallback is unchanged: whatever
+> the engine refuses, it refuses with a reason and the app keeps it. Every parity test's APP-side run now passes
+> `--no-native-engine` (11 scripts) — with the engine on by default, an app run that merely omitted the flag would
+> have compared the engine with itself; guarded. Usage: user guide ch. 12 (the switch), ch. 9 and the topic pages
+> that said "`--native-engine`"; CHANGELOG.
+> - **Still to prove:** a real show at a venue on default-on (the plan's "run on real shows"). Next: E6g (macOS),
+>   E6h (the crash fallback), E6i.
 
 ## 9d. E4 started early — the 3D view in the engine (owner, 2026-11-24)
 

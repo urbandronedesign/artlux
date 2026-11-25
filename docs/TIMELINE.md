@@ -302,7 +302,7 @@ what it should do; the hold covers a decoder opening mid-cut and nothing else.
 
 ## With the native engine
 
-When ArtLux runs with the native engine (`--native-engine`), the engine can draw a surface fed by the
+When ArtLux runs with the native engine (on by default on Windows), the engine can draw a surface fed by the
 timeline — a single track, a stack of tracks, or the whole program — on the fixtures, its projector outputs
 and its 3D view. ArtLux still decides which clip plays and which tracks are muted or soloed; the engine works
 out each clip's **fades** and its position in time from the playhead itself, draws each track's clip and

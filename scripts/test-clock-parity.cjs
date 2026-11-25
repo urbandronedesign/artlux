@@ -79,7 +79,7 @@ async function run(native, skewMs = 0) {
   const log = fs.openSync(logf, 'w');
   const env = { ...process.env }; delete env.ELECTRON_RUN_AS_NODE;
   if (skewMs) env.ARTLUX_TRANSPORT_SKEW_MS = String(skewMs);
-  const child = spawn(EXE, [`--user-data-dir=${PROFILE}`, '--headless', `--project=${project}`, ...(native ? ['--native-engine'] : [])], { env, stdio: ['ignore', log, log] });
+  const child = spawn(EXE, [`--user-data-dir=${PROFILE}`, '--headless', `--project=${project}`, ...(native ? ['--native-engine'] : ['--no-native-engine'])], { env, stdio: ['ignore', log, log] });
   try {
     await sleep(10000);
     for (const k of [...all.keys()]) all.set(k, []);   // keep the playing tail: two loops and more

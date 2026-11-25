@@ -460,6 +460,34 @@ const BlenderSection: React.FC = () => {
   );
 };
 
+// E6e — THE NATIVE OUTPUT ENGINE SWITCH (main/engineHost.ts decide()). On by default on Windows; this is the
+// per-machine way OFF that needs no command line (a venue tech's way back to the app's own output). Read at
+// LAUNCH only — never mid-show — so the row says what runs now and what the next start will do. Not offered off
+// Windows: there the engine is off unless a developer starts it with --native-engine (E6g).
+const NativeEngineSwitch: React.FC = () => {
+  const windows = /Windows/i.test(navigator.userAgent);
+  const [off, setOff] = useState<boolean | null>(null);
+  const [running, setRunning] = useState<boolean | null>(null);
+  useEffect(() => {
+    void window.artlux?.getPrefs?.().then((p) => setOff(p?.nativeEngineOff === true));
+    void window.artlux?.nativeEngineEnabled?.().then((v) => setRunning(!!v)).catch(() => setRunning(false));
+  }, []);
+  if (!windows || off === null) return null;
+  const next = !off;
+  return (
+    <>
+      <Toggle label="Native output engine" checked={next} onChange={(v) => {
+        setOff(!v);
+        window.artlux?.setPrefs?.({ nativeEngineOff: !v });
+      }} title="Draw the output (LEDs, projectors) in ArtLux's native engine. Off: the app draws it itself, as before. Takes effect at the next start." />
+      <span className="text-mini text-fg-3">
+        {running === null ? '' : `Running now: ${running ? 'on' : 'off'}.`}
+        {running !== null && running !== next ? ` ${next ? 'On' : 'Off'} from the next start.` : ''}
+      </span>
+    </>
+  );
+};
+
 const GpuSection: React.FC = () => {
   const [forced, setForced] = useState(false);
   const [active, setActive] = useState('');
@@ -724,6 +752,7 @@ export const Preferences: React.FC<Props> = ({ settings, onChange }) => {
               keep-alive). Lower this if the preview stutters on heavy video; raise it on a fast rig. */}
           <NumberField label="Engine rate (fps)" labelWidth={LBL} value={settings.engineFps ?? 30} step={1} min={1} max={120}
             onChange={(v) => onChange({ engineFps: Math.max(1, Math.min(120, Math.round(v))) })} />
+          <NativeEngineSwitch />
         </>
     ) },
     { id: 'gpu', title: 'GPU rendering', group: 'output', icon: <Cpu size={14} />, body: <GpuSection /> },

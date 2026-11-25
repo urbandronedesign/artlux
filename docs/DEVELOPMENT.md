@@ -67,8 +67,13 @@ absent (see [INSTALL.md](INSTALL.md) for the packaged-resources list).
 **The native render engine** (`engine/`, [plans/native-engine.md](../plans/native-engine.md)) is a separate
 binary, not an addon: **`npm run build:engine`** (cargo, `engine/target/release/artlux-engine.exe`). It is
 **required to PACKAGE on Windows** — it is declared in `build.win.extraResources`, so `verify:resources` fails
-a Windows package without it, and CI builds it — but it runs only behind **`--native-engine`** (or
-`ARTLUX_NATIVE_ENGINE=1`): main then spawns it, pings it every second, restarts it after a crash or a hang,
+a Windows package without it, and CI builds it. **On Windows it runs by default** (E6e); elsewhere only behind
+**`--native-engine`** (or `ARTLUX_NATIVE_ENGINE=1`). `--no-native-engine` / `ARTLUX_NATIVE_ENGINE=0` turn it off
+anywhere, and so does *Preferences ▸ Engine ▸ Native output engine* (`Prefs.nativeEngineOff`, per machine) on
+Windows — `engineHost.decide()` holds the order, and the machine log says which switch decided
+(`[engine] enabled … why` / `[engine] off … why`). Read once per run: a change takes effect at the next start. A
+parity test's APP-side run must pass `--no-native-engine` (guarded). When on, main spawns it, pings it every
+second, restarts it after a crash or a hang,
 leaves it stopped if it refuses (no hardware adapter), and logs all of it under the `engine` category. Its
 packaged-app proof is `engine/scripts/probe-engine-host.ps1`.
 
@@ -190,9 +195,10 @@ not judge frame rates from it):
 npm run dev -- -- --native-engine
 ```
 
-**5. Run with the engine** — the flag is off by default; nothing changes without it. A shortcut whose
-**Target** ends with ` --native-engine` (after the closing quote of the exe path), or
-`"C:\Program Files\ArtLux\ArtLux.exe" --native-engine`, or `set ARTLUX_NATIVE_ENGINE=1` before launching.
+**5. Run with the engine** — on Windows it is ON by default (Preferences ▸ Engine ▸ Native output engine turns it
+off for this machine, from the next start). To force it either way for one run: a shortcut whose **Target** ends
+with ` --native-engine` or ` --no-native-engine` (after the closing quote of the exe path), or
+`set ARTLUX_NATIVE_ENGINE=1` / `=0` before launching.
 
 **6. Check that the engine has the show** — in the log (`%APPDATA%\artlux\logs\`, see [LOGGING.md](LOGGING.md)):
 `[engine] owns the wire (document N)` means the engine is sending; `[engine] the app keeps the wire: <reason>`

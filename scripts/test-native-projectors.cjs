@@ -360,7 +360,7 @@ let ndiA = null;
 const lit = (a) => { let n = 0; for (let i = 0; i < a.data.length; i += 4) if (a.data[i] + a.data[i + 1] + a.data[i + 2] > 30) n++; return n / (a.data.length / 4); };
 
 function launch(native) {
-  const args = [`--user-data-dir=${PROFILE}`, ...(EDITOR ? [] : ['--broadcast']), `--project=${project}`, ...(native ? ['--native-engine'] : [])];
+  const args = [`--user-data-dir=${PROFILE}`, ...(EDITOR ? [] : ['--broadcast']), `--project=${project}`, ...(native ? ['--native-engine'] : ['--no-native-engine'])];
   const child = PACKAGED
     ? spawn(PACKAGED, args, { env: env0, stdio: ['ignore', 'pipe', 'pipe'] })
     : spawn('npm.cmd', ['run', 'dev', '--', '--', ...args], { cwd: ROOT, env: env0, stdio: ['ignore', 'pipe', 'pipe'], shell: true });

@@ -816,7 +816,7 @@ is on. Everything you built is already in the project.
 
 ## With the native engine
 
-When ArtLux runs with the native engine (`--native-engine`), the engine draws your shaders itself — on
+When ArtLux runs with the native engine (on by default on Windows), the engine draws your shaders itself — on
 the fixtures, on its projector outputs and in its own 3D view window — from the same code, the same
 parameters, the same sound and the same people as the editor. Nothing about writing a shader changes, and
 there is nothing to switch on.

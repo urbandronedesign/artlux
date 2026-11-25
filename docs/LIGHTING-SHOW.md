@@ -181,7 +181,7 @@ back to its authored values instead of latching on the final pose.
 A take shorter than its clip **repeats**, which is what makes a two-second movement usable as a
 thirty-second look — and is required anyway, since a phase-delayed fixture is sampled past the end.
 
-**With the native engine** (`--native-engine`), the engine evaluates the same show itself — every lighting
+**With the native engine** (on by default on Windows), the engine evaluates the same show itself — every lighting
 clip's roles (takes, generated effects, pose sequences, the spread, scale, offset and mirror, HTP against LTP
 across clips) and every colour lane — from the playhead, with a port of these players
 ([engine light.rs](../engine/artlux-engine/src/light.rs)) — and then **solves every light's DMX itself**:

@@ -1686,6 +1686,9 @@ export interface Prefs {
   /** Show the startup splash (credits + licence + the plugin/native boot console). Default: true.
       Editor mode only — headless/broadcast never open it regardless (see main/splashWindow.ts). */
   showSplash?: boolean;
+  /** E6e: the native output engine OFF on this machine (Preferences ▸ Engine ▸ Native output engine). Named for the
+   *  polarity so ABSENCE means on — the default on Windows (main/engineHost.ts decide()); read at launch only. */
+  nativeEngineOff?: boolean;
   /** Device-pixel ratio for the 3D Scene canvas (0.5–2.0). Per-MACHINE, not per-project: it describes
       what this GPU can afford, so it must not travel to the venue inside a show file. Absent = 1.
       Halving it quarters the fragment work in that viewport — the largest fill-rate lever there is. */

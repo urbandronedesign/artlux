@@ -8829,18 +8829,18 @@ check(
 );
 
 check(
-  'the native engine is a supervised child: flag-gated, restarted after a crash or a hang, never after a refusal, shipped in the Windows package',
+  'the native engine is a supervised child: switch-gated, restarted after a crash or a hang, never after a refusal, shipped in the Windows package',
   'plans/native-engine.md E1a. A child process with no supervisor is a show that goes dark and stays dark; ' +
   'a supervisor that restarts a REFUSING engine (no hardware adapter: exit 2) forks it in a loop for ' +
   'nothing; a hung engine looks alive, so silence on the ping must kill it; and an engine that is not in ' +
   'the package is a feature that works in dev only (electron-builder skips a missing extraResources file ' +
-  'silently — verify:resources catches it only if it is DECLARED). Until it carries output it runs only ' +
-  'behind --native-engine / ARTLUX_NATIVE_ENGINE=1.',
+  'silently — verify:resources catches it only if it is DECLARED). Whether it runs is decided ONCE per run ' +
+  '(engineHost decide(), E6e): on by default on Windows, off elsewhere, and the switches in that order.',
   () => {
     const problems = [];
     const eh = read('src/main/engineHost.ts');
-    if (!/const FLAG = process\.argv\.includes\('--native-engine'\) \|\| process\.env\.ARTLUX_NATIVE_ENGINE === '1';/.test(eh)) problems.push('engineHost: the flag gate changed');
-    if (!/export function startEngine\(\): void \{\s*if \(!FLAG\) return;/.test(eh)) problems.push('engineHost: startEngine no longer returns early without the flag');
+    if (!/let decided: \{ on: boolean; why: string \} \| null = null;\s*const flag = \(\): boolean => \(decided \?\?= decide\(\)\)\.on;/.test(eh)) problems.push('engineHost: the engine switch is no longer decided once per run');
+    if (!/export function startEngine\(\): void \{\s*if \(!flag\(\)\) \{ logger\.log\('info', 'engine', 'off', \{ why: nativeEngineWhy\(\) \}\); return; \}/.test(eh)) problems.push('engineHost: startEngine no longer returns early (and logs why) when the engine is off');
     if (!/if \(code === EXIT_REFUSED\) \{[\s\S]{0,400}?return;\s*\}\s*onDeath\(/.test(eh)) problems.push('engineHost: a refusing engine (exit 2) is no longer left stopped');
     if (!/if \(now - lastPong > PONG_TIMEOUT_MS\) \{[\s\S]{0,400}?proc\.kill\(\);/.test(eh)) problems.push('engineHost: a hung engine (no pong) is no longer killed');
     if (!/const late = now - lastTick > 2 \* PING_MS;\s*lastTick = now;\s*if \(late\) lastPong = now;/.test(eh)) problems.push('engineHost: a late ping tick (main stalled) would judge the engine hung — it must restart the clock instead');
@@ -9922,6 +9922,37 @@ check(
     const lt = read('src/renderer/components/Simulator3D/useLayerTexture.ts');
     if (!/matchBitmapOrientation\(t\);[^\n]*\n\s*t\.needsUpdate = true;[\s\S]{0,300}if \(fresh\) cbRef\.current\(t\);/.test(lt)) problems.push('useLayerTexture hands the texture over before orienting it again');
     if (!/onCanvas=\{publishCanvas\} readPixels=\{warpSource\}/.test(read('plugins/calibration/src/CalibProjector.tsx'))) problems.push('CalibProjector hands its canvas over only with a residual warp again (path C then ignores brightness and opacity)');
+    return problems.length ? problems.join('; ') : null;
+  },
+);
+
+check(
+  'the native engine is ON BY DEFAULT ON WINDOWS, with a per-machine way off and the switches in a fixed order',
+  'plans/native-engine.md E6e. Default-on is the step that puts the engine under every Windows show, so the ' +
+  'ways back must be explicit and must not drift: --no-native-engine / ARTLUX_NATIVE_ENGINE=0 (a test\'s app-side ' +
+  'reference, a tech at a venue) beat everything; --native-engine / =1 force it on anywhere; off any platform but ' +
+  'Windows (E6g: no MP4 / camera / Syphon / bake encode in the engine on macOS yet); then the per-machine ' +
+  'Preferences ▸ Engine ▸ Native output engine (Prefs.nativeEngineOff — named for the polarity so ABSENCE means on). ' +
+  'And every parity test that compares the engine with the app must launch its APP run with --no-native-engine: with ' +
+  'the engine on by default, an app run that just omits --native-engine silently compares the engine with itself.',
+  () => {
+    const problems = [];
+    const eh = read('src/main/engineHost.ts');
+    const order = ["'--no-native-engine'", "ARTLUX_NATIVE_ENGINE === '0'", "'--native-engine'", "ARTLUX_NATIVE_ENGINE === '1'", "process.platform !== 'win32'", 'getPrefs().nativeEngineOff === true', "why: 'the default on Windows'"];
+    const body = (eh.match(/function decide\(\)[\s\S]*?\n\}/) || [''])[0];
+    let at = -1;
+    for (const o of order) { const i = body.indexOf(o); if (i < 0 || i < at) { problems.push(`engineHost decide(): "${o}" is missing or out of order`); break; } at = i; }
+    if (!/if \(process\.platform !== 'win32'\) return \{ on: false,/.test(body)) problems.push('engineHost decide(): off any platform but Windows (E6g)');
+    if (!/return \{ on: true, why: 'the default on Windows' \};\s*\}$/.test(body)) problems.push('engineHost decide(): the engine is no longer ON by default on Windows');
+    if (!/nativeEngineOff\?: boolean;/.test(read('shared/protocol.ts'))) problems.push('Prefs.nativeEngineOff is gone');
+    const pr = read('src/renderer/components/Preferences.tsx');
+    if (!/<Toggle label="Native output engine" checked=\{next\}[\s\S]{0,200}window\.artlux\?\.setPrefs\?\.\(\{ nativeEngineOff: !v \}\);/.test(pr) || !/<NativeEngineSwitch \/>/.test(pr)) problems.push('Preferences ▸ Engine no longer offers the Native output engine switch');
+    const fs = require('fs');
+    for (const f of fs.readdirSync(path.join(ROOT, 'scripts'))) {
+      if (!/\.cjs$/.test(f)) continue;
+      const src = fs.readFileSync(path.join(ROOT, 'scripts', f), 'utf8');
+      if (/\(native \? \['--native-engine'\] : \[\]\)/.test(src)) problems.push(`scripts/${f}: an app-side run no longer says --no-native-engine (it would run the engine too)`);
+    }
     return problems.length ? problems.join('; ') : null;
   },
 );
