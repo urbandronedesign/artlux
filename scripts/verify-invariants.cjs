@@ -9745,7 +9745,7 @@ check(
     if (!/getImageData\(0, 0, cw, ch\)/.test(b)) problems.push('badge.ts no longer takes the straight-alpha round trip the engine takes');
     const pj = read('src/main/projector.ts');
     if (!/displayId === WINDOWED_DISPLAY && win\.isVisible\(\) === c\) \{ if \(c\) win\.hide\(\); else win\.showInactive\(\); \}/.test(pj)) problems.push('a covered windowed output is no longer hidden (or no longer shown again when uncovered)');
-    if (!/if \(!covered\) win\.showInactive\(\)/.test(pj)) problems.push('a windowed output opened while covered is shown anyway');
+    if (!/if \(!covered\.has\(surfaceId\)\) win\.showInactive\(\)/.test(pj)) problems.push('a windowed output opened while covered is shown anyway');
     if (!/enginePlace\.set\(surfaceId, physical\)/.test(pj) || !/const placed = enginePlace\.get\(surfaceId\)/.test(pj)) problems.push('the document is rebuilt from the hidden window\'s bounds instead of the engine\'s reported place');
     const eh = read('src/main/engineHost.ts');
     if (/noteDoc\(lastDoc,/.test(eh)) problems.push('engineHost re-sends the ANNOTATED document (stale reasons stick) — rebuild from lastDocRaw');
@@ -9783,7 +9783,9 @@ check(
     const o = raw('engine/artlux-engine/src/outputs.rs');
     if (!/ndi_fit\(size\.width, size\.height, \*max\)/.test(o) || !/\[0\.0, size\.height as f64, size\.width as f64, -\(size\.height as f64\)\]/.test(o)) problems.push('the engine no longer captures its window as the app does (fitted, flipped)');
     if (!/an NDI send — \{w\}/.test(raw('engine/artlux-engine/src/runtime.rs'))) problems.push('an engine without NDI no longer refuses an NDI send (the app must keep it)');
-    if (!/ctx\.nativeEngine\?\.onProjectorsOwned\(\(owned\) => ndi\.setSendersSuspended\(owned\)\)/.test(read('plugins/ndi/src/plugin.main.ts'))) problems.push('plugins/ndi no longer stands its senders down while the engine sends');
+    if (!/ctx\.nativeEngine\?\.onProjectorsOwned\(\(_owned, outputs\) => ndi\.setSendersSuspended\(outputs\)\)/.test(read('plugins/ndi/src/plugin.main.ts'))) problems.push('plugins/ndi no longer stands its senders down while the engine sends');
+    // E6i step 2: PER OUTPUT — only the senders of the outputs the engine shows stand down.
+    if (!/if \(suspended\.has\(id\)\) \{ release\(id\);/.test(read('plugins/ndi/src/ndiManager.ts')) || !/if \(!suspended\.has\(id\) && !senders\.has\(id\)\) \{ create\(id, name\);/.test(read('plugins/ndi/src/ndiManager.ts'))) problems.push('plugins/ndi no longer stands down ONLY the senders of the outputs the engine shows (an output the app kept would lose its NDI)');
     if (!/for \(const cb of projOwnsListeners\)/.test(read('src/main/engineHost.ts'))) problems.push('engineHost no longer tells plugins who shows the projector outputs');
     return problems.length ? problems.join('; ') : null;
   },
@@ -9996,7 +9998,18 @@ check(
     for (const site of ['the engine exited', 'the engine hung', 'the render thread stalled']) {
       if (!new RegExp(`\\{ holdProjectors\\('${site}'\\); setProjOwns\\(null, '${site}'\\); \\}`).test(eh)) problems.push(`engineHost no longer hands the app's projector windows the engine's last picture when ${site} (before uncovering them)`);
     }
-    if (!/if \(next\) clearHeld\(\);/.test(eh)) problems.push('engineHost no longer drops the held projector pictures when the engine owns the outputs again');
+    if (!/clearHeld\(\[\.\.\.after\]\.filter\(\(id\) => !before\.has\(id\)\)\);/.test(eh)) problems.push('engineHost no longer drops the held projector pictures when the engine owns the outputs again');
+    // E6i step 2 — PROJECTOR OUTPUTS OWNED PER OUTPUT (the owner, 2026-11-25: E6i on Windows). One output the engine
+    // cannot show (a calibration session open on it, a source it refuses) used to put EVERY output back in the app's
+    // windows. Now the engine opens the rest and the app keeps that one.
+    {
+      const rt = raw('engine/artlux-engine/src/runtime.rs'), sv = raw('engine/artlux-engine/src/serve.rs'), pj2 = read('src/main/projector.ts');
+      if (!/let list: Vec<Value> = all\.into_iter\(\)\.filter\(/.test(rt) || /list\.iter\(\)\.find_map\(\|p\| p\["why"\]/.test(rt)) problems.push('the engine refuses EVERY projector output again when one has a reason (E6i step 2: per output)');
+      if (!/let owns = !open\.is_empty\(\);/.test(sv) || !/"owned": open/.test(sv)) problems.push('the engine no longer reports WHICH projector outputs it shows');
+      if (!/const owned = m\.owns \? new Set\(ids \?\? all\(\)\) : NONE;/.test(eh)) problems.push('engineHost no longer takes the engine\'s per-output answer');
+      if (!/const c = covered\.has\(surfaceId\);/.test(pj2)) problems.push('main covers every projector window again rather than the ones the engine shows');
+      if (!/const ids = \[\.\.\.\(projOwns\?\.ids \?\? \[\]\)\];/.test(eh)) problems.push('engineHost holds a picture on an output the APP drew (only the engine\'s outputs are held across its death)');
+    }
     if (!/fnv1a32\(body\) !== sum\) return null;\s*return \{ w, h, data:/.test(eh)) problems.push('engineHost no longer verifies a held projector picture');
     const ho = read('src/renderer/projector/HeldOnly.tsx');
     if (!/putImageData\(img, 0, 0\)/.test(ho) || !/<BadgeCanvas name=\{badge\} \/>/.test(ho) || !/outputTitle\(label, m\.identity\?\.display\)/.test(ho)) problems.push('HeldOnly no longer shows the held picture 1:1 with the windowed badge and the output\'s own title');

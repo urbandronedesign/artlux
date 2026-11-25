@@ -125,7 +125,8 @@ export function stopRecv(): void {
 // under the same names, so the app's senders are released — and re-created from `wanted` when it stops.
 const wanted = new Map<string, string>();
 const senders = new Set<string>();
-let suspended = false;
+// E6f / E6i step 2: the outputs whose NDI the native engine sends (by output id) — the app's sender stands down for those.
+let suspended: ReadonlySet<string> = new Set();
 
 function create(outputId: string, name: string): void {
   if (!native || senders.has(outputId)) return;
@@ -142,7 +143,7 @@ export function sendConfigure(outputId: string, enabled: boolean, name: string):
   if (!native) return;
   if (enabled) {
     wanted.set(outputId, name);
-    if (!suspended) create(outputId, name);
+    if (!suspended.has(outputId)) create(outputId, name);
   } else {
     sendDestroy(outputId);
   }
@@ -163,10 +164,13 @@ export function stopAllSenders(): void {
   for (const id of [...senders]) release(id);
 }
 
-/** E6f: release every sender while the native engine sends the outputs (`true`); re-create them after (`false`). */
-export function setSendersSuspended(on: boolean): void {
-  if (suspended === on) return;
-  suspended = on;
-  if (on) { for (const id of [...senders]) release(id); console.log(`[ndi] the engine sends the projector outputs — ${wanted.size} app sender(s) stood down`); }
-  else { for (const [id, name] of wanted) create(id, name); if (wanted.size) console.log(`[ndi] the app sends the projector outputs again (${wanted.size})`); }
+/** E6f / E6i step 2: the outputs the native engine shows (and so sends): their app senders are released, every other
+ *  wanted sender is (re)created. */
+export function setSendersSuspended(outputs: ReadonlySet<string>): void {
+  suspended = new Set(outputs);
+  let down = 0, up = 0;
+  for (const id of [...senders]) if (suspended.has(id)) { release(id); down++; }
+  for (const [id, name] of wanted) if (!suspended.has(id) && !senders.has(id)) { create(id, name); up++; }
+  if (down) console.log(`[ndi] the engine sends ${down} projector output(s) — the app's sender(s) stood down`);
+  if (up) console.log(`[ndi] the app sends ${up} projector output(s) again`);
 }

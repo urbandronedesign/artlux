@@ -95,7 +95,7 @@ follows: the hidden window moves with it, a close turns the output off), and the
 bitmap in both (`components/brand/badge.ts`). Dragging the corner pins ON the output window is the app
 window's — with the engine showing it, align from the editor. An **NDI send** of an output is the engine's as
 well: it captures its own window as the app does (same cap, same scaling) and sends under the same name, while the
-app's sender of that name stands down (`[ndi] the engine sends the projector outputs`) and comes back if the
+app's sender of that name stands down (`[ndi] the engine sends 1 projector output(s)`) and comes back if the
 engine stops — an engine built without NDI (`cargo build` rather than `npm run build:engine`) refuses instead.
 An output with **NVIDIA hardware warp** is the engine's too: NVAPI warps the display at scanout, whichever window is
 on it, so the engine draws the output flat exactly when the app's window would (App's `hwOwnsGeometry`, handed to
@@ -111,8 +111,13 @@ projector's depth map, as `projectorDepth.ts` renders it) and a venue mesh in it
 `MeshStandardMaterial` — colour, metalness, emissive — lit by the window's ambient + hemisphere lights; a texture,
 vertex colours, transparency or another material type is refused), and a **timeline layer** shown on the venue (a
 hidden LAYER surface per bound layer, composited as any timeline surface). It does not draw an NDI send of an
-unwarped calibrated output (the app sends nothing there) — that keeps every output with the app, and so does an open calibration session; the log says why
-(`[engine] the app keeps the projector outputs: …`).
+unwarped calibrated output (the app sends nothing there), nor an output with a calibration session open on it.
+**Projector outputs are owned PER OUTPUT** (E6i step 2): such an output stays in the app's window ALONE and the engine
+shows the rest — `projOwns` names the outputs it opened (`owned`) and the ones the app keeps (`kept`); main covers only
+those app windows (`setProjectorsCovered(ids)`), holds only their pictures across a death, and plugins/ndi stands down
+only their senders (the SDK's `onProjectorsOwned(cb(owned, outputs))`). The log says which and why:
+`[engine] owns projector output(s) 'sP' (document N) — the app keeps the others: output 'Other': …`, or, when it keeps
+every one, `[engine] the app keeps the projector outputs: …`. `test:native-projectors --partial` proves it.
 **A surface the engine cannot draw does not hand the show back** (E6i step 1): `nativeLink.shipFallbacks` turns it
 into a `raster` source and ships the picture the app draws for it (`surfaceMedia.getDrawable` — on a generation
 change, or ≤ 30/s with none, one in flight); the rest of the show stays the engine's. Live frames only — a bake keeps

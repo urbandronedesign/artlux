@@ -2737,6 +2737,7 @@ fallback until a source/output is proven byte-identical — risk 2):
 > matrix median 0.17 against the app's own step 0.47, strip 0.00. (`--overlay --ids`: the id labels number tracks as
 > they appear — not the same numbers in two runs, so not comparable run against run.) Not yet measured: the cost of a
 > video-rate fallback (a 1080p frame through getImageData, IPC and a file per frame) — a shared-memory transport if it
+> shows.
 >
 > ✅ **E6i step 1b done 2026-11-25 — RASTERS THROUGH SHARED MEMORY (the owner: "I need shared memory").** On Windows a
 > raster no longer crosses as a FILE (8 MB written by main and read back by the engine per 1080p frame). Main copies
@@ -2750,7 +2751,21 @@ fallback until a source/output is proven byte-identical — risk 2):
 > every channel EQUAL, `--overlay` the engine owns the wire within the app's step. Measured (a 2048×960 fallback,
 > 7.9 MB, 30 a second — 236 MB/s): the app's processes **90 % → 71 %** of a core, the engine **29.5 % → 23 %**. What
 > is left on the app's side is the renderer's own readback (createImageBitmap → getImageData), not the transport.
-> shows.
+>
+> ✅ **E6i step 2 done 2026-11-25 — PROJECTOR OUTPUTS OWNED PER OUTPUT.** One output the engine could not show (a
+> calibration session open on it, a calibrated NDI send without a residual warp, no display chosen, an NDI send on an
+> engine without NDI) used to hand EVERY output of the show back to the app's windows. Now `runtime.projectors`
+> filters the refused outputs out and opens the rest; their reasons ride beside the windows that opened
+> (`outputs::Shared.refused` → `App::set`'s report) and `projOwns` names them: `owned` (the windows open) and `kept`.
+> Main keeps the set (`engineHost` `projOwns.ids`): `setProjectorsCovered(ids)` covers — and, windowed, hides — only
+> those app windows, a window reloading starts covered only if its output is owned, the E6h held pictures are handed
+> to (and cleared from) only the engine's outputs, and the SDK's `onProjectorsOwned(cb(owned, outputs))` tells
+> plugins which: plugins/ndi stands down ONLY the senders of the engine's outputs. Main's log says which it keeps:
+> `[engine] owns projector output(s) 'sP' (document N) — the app keeps the others: output 'Other': no display chosen`.
+> `test:native-projectors --partial` (a second enabled output with no display): the engine owns 'Wall', main names
+> 'Other' with its reason, the engine's window = the app's **2 073 600 / 2 073 600, max 0**, the kill and restart
+> retake it identically. The plain, `--ndi`, `--windowed`, `--hold`, `--calibrated --calib-refused` and
+> `--windowed --ndi --partial` runs and `test:engine-hold` pass unchanged.
 
 ## 9d. E4 started early — the 3D view in the engine (owner, 2026-11-24)
 

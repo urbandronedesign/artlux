@@ -83,6 +83,10 @@ const HWWARP = process.argv.includes('--hwwarp');
 // PICTURE must be what the screen shows (main hands it to the app's window, engineHost.holdProjectors), until the
 // restarted engine covers it again.
 const HOLD = process.argv.includes('--hold');
+// --partial (E6i step 2): a SECOND enabled output the engine cannot show (no display chosen — the app keeps it). Owned
+// per output, the engine must still take 'Wall' (it used to hand EVERY output back for one refusal), main must say
+// which it keeps and why, and the screen must still equal A.
+const PARTIAL = process.argv.includes('--partial');
 const CALIBRATED = process.argv.includes('--calibrated');
 const CALIB_WARP = CALIBRATED && process.argv.includes('--calib-warp');
 const CALIB_OCCLUDE = CALIBRATED && process.argv.includes('--calib-occlude');
@@ -134,12 +138,12 @@ const project = path.join(WORK, 'projectors.artlux');
 fs.writeFileSync(project, JSON.stringify({
   version: '1.2', timestamp: '2026-01-01T00:00:00.000Z',
   surfaces: [{ id: 'sP', name: 'Projected', x: 0.1, y: 0.1, width: 0.5, height: 0.28125, rotation: 0, zIndex: 0, content: MP4 ? { type: 'VIDEO', url: MP4, opacity: 1 } : { type: 'IMAGE', url: picture, opacity: 1 } },
-    ...(CALIB_OCCLUDE ? [{ id: 'sQ', name: 'Other', x: 0.6, y: 0.6, width: 0.3, height: 0.16875, rotation: 0, zIndex: 1, content: { type: 'IMAGE', url: picture, opacity: 1 } }] : [])],
+    ...(CALIB_OCCLUDE || PARTIAL ? [{ id: 'sQ', name: 'Other', x: 0.6, y: 0.6, width: 0.3, height: 0.16875, rotation: 0, zIndex: 1, content: { type: 'IMAGE', url: picture, opacity: 1 } }] : [])],
   fixtures: [], controllers: [], groups: [], scenes: [], cueBanks: [],
   ...(CALIB_LAYER ? { timeline: { duration: 10, fps: 25, loop: false, layers: [{ id: 'LV', name: 'Venue layer', opacity: 1 }],
     clips: [{ id: 'cV', layerId: 'LV', name: 'still', path: '', content: { type: 'IMAGE', url: layerPicture, opacity: 1 }, start: 0, duration: 10, inPoint: 0 }], markers: [], inPoint: null, outPoint: null } } : {}),
   projectorBrightness: 0.9,
-  projectorOutputs: [...(CALIB_OCCLUDE ? [{
+  projectorOutputs: [...(PARTIAL && !CALIB_OCCLUDE ? [{ surfaceId: 'sQ', name: 'Other', enabled: true, displayId: null }] : []), ...(CALIB_OCCLUDE ? [{
     // The projecting projector of --calib-occlude: calibrated, NOT enabled (nothing to show — it only throws content).
     surfaceId: 'sQ', name: 'Other', enabled: false, displayId: null, useCalibration: true,
     calibration: { intrinsics: [1800, 0, 960, 0, 1800, 540, 0, 0, 1], distortion: [0, 0, 0, 0, 0], rotation: Q_R, translation: Q_t, imageSize: [1920, 1080], poseRms: 0.4 },
@@ -437,8 +441,9 @@ async function stopAll() {
       console.log(fails ? `\nNATIVE PROJECTORS FAILED: ${fails}` : '\nNATIVE PROJECTORS OK');
       process.exit(fails ? 1 : 0);
     }
-    const owned = await waitFor(() => said(app, /\[engine\] owns the projector outputs/), 120000);
-    ok(owned, `B. main logged the engine owning the projector outputs${owned ? '' : ` — ${(said(app, /keeps the projector outputs/) || { l: 'no answer' }).l}`}`);
+    const OWNS = PARTIAL ? /\[engine\] owns projector output\(s\) 'sP' \(document \d+\) — the app keeps the others: output 'Other': no display chosen/ : /\[engine\] owns the projector outputs/;
+    const owned = await waitFor(() => said(app, OWNS), 120000);
+    ok(owned, `B. main logged the engine owning the projector output${PARTIAL ? " 'Wall' — and the app keeping 'Other', with its reason" : 's'}${owned ? '' : ` — ${(said(app, /keeps the|owns /) || { l: 'no answer' }).l}`}`);
     await sleep(6000);
     if (WINDOWED) {
       const said = engineRect(app);
@@ -471,7 +476,7 @@ async function stopAll() {
     const dAB = diff(A, B);
     if (NDI) {
       const nB = await ndiGrab('B-engine');
-      ok(said(app, /NDI send 'ArtLux — Projected' up/) && said(app, /\[ndi\] the engine sends the projector outputs/), `B. the ENGINE sends the NDI source and the app's sender stood down (${said(app, /NDI send '.*' up/)?.l ?? 'the engine did not say'})`);
+      ok(said(app, /NDI send 'ArtLux — Projected' up/) && said(app, /\[ndi\] the engine sends 1 projector output/), `B. the ENGINE sends the NDI source and the app's sender stood down (${said(app, /NDI send '.*' up/)?.l ?? 'the engine did not say'})`);
       ok(nB.n === 1, `B. exactly ONE source named '${NDI_NAME}' (${nB.n})`);
       const d = ndiDiff(ndiA, nB);
       ok(d.n === 0, `B. THE ENGINE'S NDI FRAME = THE APP'S: ${d.n < 0 ? `not comparable (app ${ndiA?.w}x${ndiA?.h}, engine ${nB.w}x${nB.h})` : `${d.of - d.n} of ${d.of} pixels identical (max ${d.max})`}`);
@@ -515,10 +520,10 @@ async function stopAll() {
     // ENGINE'S window, so "the engine = the app" compared the engine with ITSELF (found 2026-11-22: a copy
     // shifted by one pixel still passed, and the shot 3 s later was the same picture). What it can say is
     // main's log, above. The app's window is judged where nothing else can be on the screen: run A, and A2.
-    const retook = await waitFor(() => app.lines.some((x) => x.at > killedAt && /\[engine\] owns the projector outputs/.test(x.l)), 15000);
+    const retook = await waitFor(() => app.lines.some((x) => x.at > killedAt && OWNS.test(x.l)), 15000);
     ok(retook, 'C. the restarted engine takes the projector outputs back');
     if (NDI) {
-      ok(app.lines.some((x) => x.at > killedAt && /\[ndi\] the app sends the projector outputs again/.test(x.l)), "C. engine killed: the app's NDI sender came back");
+      ok(app.lines.some((x) => x.at > killedAt && /\[ndi\] the app sends 1 projector output\(s\) again/.test(x.l)), "C. engine killed: the app's NDI sender came back");
       const nD = await ndiGrab('D-engine');
       const d = ndiDiff(ndiA, nD);
       ok(nD.n === 1 && d.n === 0, `C. ...and the restarted engine's NDI frame = the app's again (${nD.n} source(s); ${d.n < 0 ? 'not comparable' : `${d.of - d.n} of ${d.of}, max ${d.max}`})`);

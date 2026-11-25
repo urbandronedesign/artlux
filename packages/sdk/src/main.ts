@@ -44,13 +44,15 @@ export interface MainPluginContext {
    */
   engineAudio?: { call(op: string, args: unknown[], answer: boolean): Promise<unknown> | void };
   /**
-   * E6f — THE NATIVE ENGINE SHOWS THE PROJECTOR OUTPUTS. Present only with the native engine on: `cb(true)` while
-   * the engine's own windows show them (the app's are covered and stop drawing), `cb(false)` when it gives them
-   * back or dies — called once at once with the current state. A plugin that publishes something FROM the app's
-   * projector windows stands down while owned, because the engine publishes it: plugins/ndi releases its NDI
-   * senders (the engine sends under the same names). Returns an unsubscribe.
+   * E6f — THE NATIVE ENGINE SHOWS THE PROJECTOR OUTPUTS. Present only with the native engine on: `cb(true, ids)`
+   * while the engine's own windows show the outputs `ids` (by surface id — E6i step 2: PER OUTPUT; the app's windows
+   * of those are covered and stop drawing, every other output stays the app's), `cb(false, ∅)` when it gives them
+   * all back or dies — called once at once with the current state, then on every change of the set. A plugin that
+   * publishes something FROM the app's projector windows stands down for the outputs owned, because the engine
+   * publishes it: plugins/ndi releases those NDI senders (the engine sends under the same names). Returns an
+   * unsubscribe.
    */
-  nativeEngine?: { onProjectorsOwned(cb: (owned: boolean) => void): () => void };
+  nativeEngine?: { onProjectorsOwned(cb: (owned: boolean, outputs: ReadonlySet<string>) => void): () => void };
 }
 
 export interface MainPlugin {

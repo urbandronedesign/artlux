@@ -230,7 +230,7 @@ function createProjectorWindow(getMain: () => BrowserWindow | null, surfaceId: s
   win.webContents.on('did-finish-load', () => {
     bridge(getMain, win, surfaceId);
     // A window that (re)loads while the native engine shows the outputs starts COVERED (E1f-3).
-    if (covered) win.webContents.send(IPC.PROJECTOR_COVERED, true);
+    if (covered.has(surfaceId)) win.webContents.send(IPC.PROJECTOR_COVERED, true);
   });
 
   const devUrl = rendererDevUrl();
@@ -272,7 +272,7 @@ function openProjector(getMain: () => BrowserWindow | null, surfaceId: string, d
     // After the reveal rather than immediately: showInactive() on Windows can nudge a window's
     // position, so the layout has to be the last thing applied or it gets partly undone.
     // E6f: COVERED (the engine shows this output in its own window), it is laid out but stays hidden.
-    revealOnEveryPath(win, () => { if (!covered) win.showInactive(); layoutWindowedOutputs(); });
+    revealOnEveryPath(win, () => { if (!covered.has(surfaceId)) win.showInactive(); layoutWindowedOutputs(); });
   } else {
     const display = findDisplay(displayId) ?? screen.getPrimaryDisplay();
     // Re-resolve the display at reveal time: a backstop firing seconds later must target the monitor
@@ -295,7 +295,8 @@ function closeProjector(surfaceId: string): void {
 // window stays open and keeps its last frame but stops DRAWING — two windows rendering one projector would
 // double the GPU work for a picture nobody sees. Uncovered (the engine gave the outputs back, or died) it
 // draws on its next frame: the fallback is a window that is already on the display.
-let covered = false;
+// E6i step 2: PER OUTPUT — the outputs the engine shows; the others the app's windows draw as ever.
+let covered: ReadonlySet<string> = new Set();
 /** E6h: hand a projector window the engine's last picture of its output (null: drop it). */
 export function showHeld(surfaceId: string, held: { w: number; h: number; data: Uint8Array } | null): boolean {
   const e = windows.get(surfaceId);
@@ -303,15 +304,20 @@ export function showHeld(surfaceId: string, held: { w: number; h: number; data: 
   e.win.webContents.send(IPC.PROJECTOR_HELD, held);
   return true;
 }
-/** E6h: drop every held picture (the engine owns the outputs again). */
-export function clearHeld(): void {
-  for (const { win } of windows.values()) if (!win.isDestroyed()) win.webContents.send(IPC.PROJECTOR_HELD, null);
+/** E6h: drop the held pictures of these outputs (the engine shows them again). */
+export function clearHeld(ids: Iterable<string>): void {
+  for (const id of ids) { const e = windows.get(id); if (e && !e.win.isDestroyed()) e.win.webContents.send(IPC.PROJECTOR_HELD, null); }
 }
 
-export function setProjectorsCovered(c: boolean): void {
-  covered = c;
-  for (const { win, displayId } of windows.values()) {
+/** E1f-3 / E6i step 2: the outputs the native engine's windows show — those app windows stop drawing (and a windowed
+ *  one hides); every other one draws. */
+export function setProjectorsCovered(ids: ReadonlySet<string>): void {
+  const was = covered;
+  covered = new Set(ids);
+  for (const [surfaceId, { win, displayId }] of windows) {
     if (win.isDestroyed()) continue;
+    const c = covered.has(surfaceId);
+    if (c === was.has(surfaceId)) continue;
     win.webContents.send(IPC.PROJECTOR_COVERED, c);
     // E6f: a WINDOWED output is not under a topmost engine window — the engine's is an ordinary window the operator
     // moves, so the app's is HIDDEN while covered (two windows of one output, one of them dead, would be a trap) and

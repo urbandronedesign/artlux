@@ -9,6 +9,9 @@ by default. Shows look the same: anything the engine cannot draw stays with the 
 the app drawing everything on a machine, turn off **Preferences ▸ Engine ▸ Native output engine**; it takes effect
 the next time ArtLux starts. See [Preferences](docs/user-guide/12-preferences-monitoring.md).
 
+Projector outputs are decided one by one: calibrating one projector, or an output with no display chosen, keeps only
+that output with the app — the show's other projectors stay on the engine.
+
 ### Projected content on a calibrated projector is the right way up
 
 On a calibrated projector drawing the venue, a mesh set to **projected** mapping showed its picture upside down on

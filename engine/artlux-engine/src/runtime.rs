@@ -423,12 +423,23 @@ impl Runtime {
     /// the engine lacks...) it opens NONE and the app keeps every output. Err(why) when it will not drive
     /// them; Ok(n) when it asked the windows thread for n outputs (whose report answers main).
     pub fn projectors(&mut self, d: &Value) -> Result<usize, String> {
-        let list = d["projectors"].as_array().cloned().unwrap_or_default();
+        let all = d["projectors"].as_array().cloned().unwrap_or_default();
+        // E6i step 2 — OWNED PER OUTPUT. An output the engine cannot show (its `why`, or an NDI send without NDI here)
+        // stays the app's, ALONE: the others are still the engine's. It used to be all-or-nothing — one calibration
+        // session open put every output of the show back in the app's windows.
+        let name = |p: &Value| p["name"].as_str().unwrap_or(p["id"].as_str().unwrap_or("?")).to_string();
+        let mut refused: Vec<(String, String)> = Vec::new();
+        let list: Vec<Value> = all.into_iter().filter(|p| {
+            let w = p["why"].as_str().map(str::to_string)
+                // E6f: an NDI SEND needs NDI here — built with it, and its runtime on this machine (else the app sends it).
+                .or_else(|| if p["ndi"].is_object() { Self::ndi_ready().err().map(|w| format!("an NDI send — {w}")) } else { None });
+            match w { Some(w) => { refused.push((p["id"].as_str().unwrap_or_default().to_string(), format!("output '{}': {w}", name(p)))); false } None => true }
+        }).collect();
         let why = if self.outputs.is_none() { Some("the engine has no window system here".to_string()) }
-            else if list.is_empty() { Some("no projector output is enabled".to_string()) }
-            else { list.iter().find_map(|p| p["why"].as_str().map(|w| format!("output '{}': {w}", p["name"].as_str().unwrap_or(p["id"].as_str().unwrap_or("?"))))) }
-            // E6f: an NDI SEND needs NDI here — built with it, and its runtime on this machine (else the app sends it).
-            .or_else(|| list.iter().find(|p| p["ndi"].is_object()).and_then(|p| Self::ndi_ready().err().map(|w| format!("output '{}': an NDI send — {w}", p["name"].as_str().unwrap_or("?")))));
+            else if list.is_empty() && refused.is_empty() { Some("no projector output is enabled".to_string()) }
+            // Every output refused: the answer is the refusals themselves (no window opens to report them).
+            else if list.is_empty() { Some(refused.iter().map(|r| r.1.clone()).collect::<Vec<_>>().join("; ")) }
+            else { None };
         let specs: Vec<crate::outputs::Spec> = if why.is_some() { Vec::new() } else { list.iter().map(|p| crate::outputs::Spec {
             id: p["id"].as_str().unwrap_or_default().to_string(),
             surface_id: p["surfaceId"].as_str().unwrap_or_default().to_string(),
@@ -465,6 +476,8 @@ impl Runtime {
         if let Some((_, shared)) = &self.outputs {
             let mut sh = shared.lock().unwrap();
             sh.calib.clear();
+            // Reported with the windows that opened (outputs.rs App::set), as the outputs the app keeps.
+            sh.refused = if why.is_none() { refused.clone() } else { Vec::new() };
             if why.is_none() {
                 for p in &list {
                     if p["calib"].is_null() { continue; }

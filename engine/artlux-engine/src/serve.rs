@@ -13,8 +13,9 @@
 //!                   own counters (packets/s, frames/s incl. keep-alive, universes) — the app output engine's numbers
 //!   main → engine   {"type":"bakeBegin"|"bakeFrame"|"bakeEnd"|"bakeCancel","req":N,…}   E6a: a bake drawn and encoded here
 //!   engine → main   {"type":"bake","req":N,"ok":b,"value"|"error":…}   its answer, one per message
-//!   engine → main   {"type":"projOwns","rev":r,"owns":b,"why":"...","open":n}   E1f-3: whether the engine's
-//!                                          own windows now show the projector outputs (main covers the app's)
+//!   engine → main   {"type":"projOwns","rev":r,"owns":b,"why":"...","open":n,"owned":[id…],"kept":[id…]}   E1f-3:
+//!                   which outputs the engine's own windows now show (main covers those app windows) — E6i step 2:
+//!                   PER OUTPUT; `kept` the ones the app keeps, `why` their reasons, `owns` = at least one shown
 //! stdin closing (main gone, crashed or quit) also ends it: the engine never outlives the app.
 //!
 //! Exit codes main acts on: 0 clean, 2 REFUSED (no usable hardware adapter — restarting would refuse
@@ -97,10 +98,13 @@ pub fn run(policy: AdapterPolicy) -> ExitCode {
                     // answer (rt.projectors) already said why the app keeps the outputs.
                     if open.is_empty() && refused.is_empty() { return; }
                     let rev = pr.load(std::sync::atomic::Ordering::SeqCst);
-                    let owns = refused.is_empty() && !open.is_empty();
-                    let why = refused.iter().map(|(id, w)| format!("output '{id}': {w}")).collect::<Vec<_>>().join("; ");
+                    // E6i step 2: per output — the engine owns the ones that opened, the app keeps the rest.
+                    let owns = !open.is_empty();
+                    let why = refused.iter().map(|(id, w)| if w.starts_with("output '") { w.clone() } else { format!("output '{id}': {w}") }).collect::<Vec<_>>().join("; ");
+                    let line = serde_json::json!({ "type": "projOwns", "rev": rev, "owns": owns, "why": why, "open": open.len(),
+                        "owned": open, "kept": refused.iter().map(|r| r.0.clone()).collect::<Vec<_>>() });
                     let mut o = std::io::stdout().lock();
-                    let _ = writeln!(o, r#"{{"type":"projOwns","rev":{rev},"owns":{owns},"why":{},"open":{}}}"#, json_str(&why), open.len()).and_then(|_| o.flush());
+                    let _ = writeln!(o, "{line}").and_then(|_| o.flush());
                 });
                 // E4a: the 3D view's state, shared by this thread (it publishes), the windows thread (the window,
                 // the mouse) and its presenter. Closing the window from its title bar tells main.

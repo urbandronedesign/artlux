@@ -184,8 +184,8 @@ function readProjHold(output: string): { w: number; h: number; data: Uint8Array 
 /** E6h: an engine that OWNED the projector outputs is gone — hand each app window the engine's last picture of it,
  *  BEFORE the windows are uncovered, so what the room sees is that picture until the engine is back. */
 function holdProjectors(why: string): void {
-  let ids: string[] = [];
-  try { ids = ((JSON.parse(lastDoc ?? '{}').projectors ?? []) as { id?: string }[]).map((p) => p.id ?? '').filter(Boolean); } catch { /* none */ }
+  // E6i step 2: only the outputs the ENGINE showed — one the app kept was drawn by the app all along.
+  const ids = [...(projOwns?.ids ?? [])];
   let held = 0;
   for (const id of ids) { const p = readProjHold(id); if (p && showHeld(id, p)) held++; }
   logger.log(held ? 'info' : 'warn', 'engine', 'projectors-held', { why, held, of: ids.length });
@@ -355,29 +355,37 @@ onWindowedPlaced(() => { if (flag() && lastDocRaw) noteDoc(lastDocRaw, lastDocRe
 
 // E1f-3: whether the engine's windows show the projector outputs (the app's are then COVERED: told to stop
 // drawing, kept open underneath — the engine's are topmost — so an engine that dies uncovers them at once).
-let projOwns: { rev: number; pid: number | null } | null = null;
-// E6f: told when the engine takes / gives back the projector outputs (the SDK's `nativeEngine.onProjectorsOwned`).
-const projOwnsListeners = new Set<(owned: boolean) => void>();
-export function onProjectorsOwned(cb: (owned: boolean) => void): () => void {
+// E6i step 2 — PER OUTPUT: `ids` the outputs the engine's windows show; every other output of the document stays the
+// app's (a calibration session open on one output keeps that one, not the show, in the app's window).
+let projOwns: { rev: number; pid: number | null; ids: ReadonlySet<string> } | null = null;
+// E6f: told when the engine takes / gives back projector outputs (the SDK's `nativeEngine.onProjectorsOwned`).
+const projOwnsListeners = new Set<(owned: boolean, outputs: ReadonlySet<string>) => void>();
+const NONE: ReadonlySet<string> = new Set();
+export function onProjectorsOwned(cb: (owned: boolean, outputs: ReadonlySet<string>) => void): () => void {
   projOwnsListeners.add(cb);
-  try { cb(!!projOwns); } catch (e) { logger.log('warn', 'engine', 'projectors-owned-listener', {}, e); }
+  try { cb(!!projOwns, projOwns?.ids ?? NONE); } catch (e) { logger.log('warn', 'engine', 'projectors-owned-listener', {}, e); }
   return () => { projOwnsListeners.delete(cb); };
 }
 let lastProjWhy = '';
-function setProjOwns(next: { rev: number; pid: number | null } | null, why: string): void {
-  const was = !!projOwns;
+function setProjOwns(next: { rev: number; pid: number | null; ids: ReadonlySet<string> } | null, why: string): void {
+  const before = projOwns?.ids ?? NONE, after = next?.ids ?? NONE;
+  const changed = before.size !== after.size || [...after].some((id) => !before.has(id));
   projOwns = next;
   // Logged on a change of owner OR of reason, like the wire: "the app keeps the outputs: output 'Wall':
   // calibrated" is the line a venue tech needs, and it is not a transition.
-  if (was !== !!next || (!next && why !== lastProjWhy)) {
-    logger.log('info', 'engine', next ? 'owns-projectors' : 'app-has-projectors', next ? { rev: next.rev } : { why });
-    console.log(next ? `[engine] owns the projector outputs (document ${next.rev})` : `[engine] the app keeps the projector outputs: ${why}`);
+  if (changed || why !== lastProjWhy) {
+    const ids = [...after].map((x) => `'${x}'`).join(', ');
+    logger.log('info', 'engine', !next ? 'app-has-projectors' : why ? 'owns-some-projectors' : 'owns-projectors', next ? { rev: next.rev, outputs: [...after], ...(why ? { why } : {}) } : { why });
+    console.log(!next ? `[engine] the app keeps the projector outputs: ${why}`
+      : why ? `[engine] owns projector output(s) ${ids} (document ${next.rev}) — the app keeps the others: ${why}`
+      : `[engine] owns the projector outputs (document ${next.rev})`);
   }
-  lastProjWhy = next ? '' : why;
-  if (was !== !!next) {
-    if (next) clearHeld();   // E6h: the engine shows the outputs again — the held pictures go
-    setProjectorsCovered(!!next);
-    for (const cb of projOwnsListeners) { try { cb(!!next); } catch (e) { logger.log('warn', 'engine', 'projectors-owned-listener', {}, e); } }
+  lastProjWhy = why;
+  if (changed) {
+    // E6h: an output the engine shows again lets go of its held picture.
+    clearHeld([...after].filter((id) => !before.has(id)));
+    setProjectorsCovered(after);
+    for (const cb of projOwnsListeners) { try { cb(!!next, after); } catch (e) { logger.log('warn', 'engine', 'projectors-owned-listener', {}, e); } }
   }
 }
 
@@ -503,7 +511,7 @@ function spawnEngine(): void {
       const line = buf.slice(0, i).trim();
       buf = buf.slice(i + 1);
       if (!line) continue;
-      let m: { type?: string; adapter?: string; version?: string; backend?: string; pid?: number; n?: number; u?: number; d?: number; pps?: number; fps?: number; rev?: number; owns?: boolean; why?: string; id?: string | null; add?: boolean; place?: EngineView3dPlace; phase?: string; delta?: number[]; rot?: number[]; scale?: number[]; model?: string | null; x?: number; y?: number; w?: number; h?: number };
+      let m: { type?: string; adapter?: string; version?: string; backend?: string; pid?: number; n?: number; u?: number; d?: number; pps?: number; fps?: number; rev?: number; owns?: boolean; owned?: unknown; why?: string; id?: string | null; add?: boolean; place?: EngineView3dPlace; phase?: string; delta?: number[]; rot?: number[]; scale?: number[]; model?: string | null; x?: number; y?: number; w?: number; h?: number };
       try { m = JSON.parse(line); } catch { console.log(`[engine] ${line}`); continue; }
       if (m.type === 'hello') {
         if (helloTimer) { clearTimeout(helloTimer); helloTimer = null; }
@@ -590,7 +598,11 @@ function spawnEngine(): void {
         if (typeof m.pps === 'number') sentWire = { pps: m.pps, fps: m.fps ?? 0, universes: m.u ?? 0 };
       } else if (m.type === 'projOwns') {
         if (m.rev !== lastDocRev) continue;
-        setProjOwns(m.owns ? { rev: m.rev, pid: proc.pid ?? null } : null, m.why ?? '');
+        // E6i step 2: `owned` — the outputs that opened (an older engine sends none: then `owns` meant all of them).
+        const ids = Array.isArray(m.owned) ? (m.owned as unknown[]).filter((x): x is string => typeof x === 'string') : null;
+        const all = (): string[] => { try { return ((JSON.parse(lastDoc ?? '{}').projectors ?? []) as { id?: string }[]).map((p) => p.id ?? '').filter(Boolean); } catch { return []; } };
+        const owned = m.owns ? new Set(ids ?? all()) : NONE;
+        setProjOwns(owned.size ? { rev: m.rev, pid: proc.pid ?? null, ids: owned } : null, m.why ?? '');
       } else if (m.type === 'audio') {
         // E3m: the answer to a relayed audio call.
         const a = m as { req?: number; ok?: boolean; value?: unknown; error?: string };

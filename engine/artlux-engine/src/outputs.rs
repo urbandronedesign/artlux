@@ -108,6 +108,9 @@ pub struct Shared {
     /// E6f: output id → (version, venue) of each calibrated output in RENDER mode (calib3d.rs) — drawn instead of
     /// its surface. The surfaces the venue shows are published in `pictures` as `venue:<surface id>`.
     pub calib: HashMap<String, (u64, Arc<crate::calib3d::View>)>,
+    /// E6i step 2: output id → why, for each output of the document the engine does NOT show (the app keeps it) —
+    /// reported beside the windows that opened.
+    pub refused: Vec<(String, String)>,
 }
 
 /// E4a: `View3d(true)` opens the engine's 3D view window (view3d.rs), `false` closes it.
@@ -186,7 +189,7 @@ impl App {
             o.spec.title = spec.title.clone();
             o.window.set_title(&spec.title);
         }
-        let mut refused = Vec::new();
+        let mut refused = self.shared.lock().unwrap().refused.clone();
         for spec in specs {
             if self.outs.contains_key(&spec.id) { continue; }
             let (attrs, place) = if let Some((x, y, w, h)) = spec.window {
