@@ -391,8 +391,14 @@ function spawnEngine(): void {
     }
   });
   let errTail = '';
+  // A pipe chunk ends anywhere, mid-line included: keep the unfinished tail for the next chunk (as stdout does), or a
+  // line is logged as two halves and no reader (a log search, a test) ever sees it whole.
+  let errBuf = '';
   proc.stderr?.on('data', (d: Buffer) => {
-    for (const line of d.toString('utf8').split(/\r?\n/)) {
+    errBuf += d.toString('utf8');
+    const lines = errBuf.split(/\r?\n/);
+    errBuf = lines.pop() ?? '';
+    for (const line of lines) {
       if (!line.trim()) continue;
       errTail = (errTail + '\n' + line).slice(-600);
       console.error(`[engine] ${line}`);
@@ -451,17 +457,79 @@ function onDeath(pid: number | null, what: string): void {
 // rejected if the engine dies first.
 let audioReq = 0;
 const audioPending = new Map<number, { resolve: (v: unknown) => void; reject: (e: Error) => void }>();
-const audioQueue: string[] = [];
+const audioQueue: { op: string; args: unknown[]; req?: number; line: string }[] = [];
 /** Relay one audio call to the engine. `answer`: a promise of its answer; otherwise fire-and-forget, in order. */
 export function audioCall(op: string, args: unknown[], answer: boolean): Promise<unknown> | void {
   const req = answer ? ++audioReq : undefined;
   const line = JSON.stringify({ type: 'audio', op, args, ...(req ? { req } : {}) });
   const p = req ? new Promise<unknown>((resolve, reject) => audioPending.set(req, { resolve, reject })) : undefined;
+  trackAudio(op, args);
   if (status.state === 'up') write(line);
-  else if (audioQueue.length < 10_000) audioQueue.push(line);
+  else if (audioQueue.length < 10_000) audioQueue.push({ op, args, req, line });
   return p;
 }
-function flushAudio(): void { for (const l of audioQueue.splice(0)) write(l); }
+
+// ── E3n: A RESTARTED ENGINE GETS ITS SOUND BACK ───────────────────────────────────────────────────────────────
+// The audio driver (plugins/audio) keeps its own view — which clips it loaded, which are sounding, at what offset —
+// and never re-sends what it believes done. A restarted engine knows nothing, so the show would go SILENT until the
+// driver's next reload. So main keeps the audio STATE the calls describe — the device, the master, each loaded clip
+// with its gain / position / chain and, if sounding, where it was started and when — and hands it to a restarted
+// engine before anything else, exactly as it re-sends the document. A sounding clip resumes where it would be NOW
+// (its seek + the time since); the driver's own drift lock (a 50 ms source-offset test) still holds it from there.
+interface ClipAudio { path: string; gain?: number; spatial?: unknown[]; effects?: unknown; playing?: { seek: number; gain: number; at: number } }
+const aud = { configure: null as unknown[] | null, clips: new Map<string, ClipAudio>(), gain: undefined as number | undefined, effects: undefined as unknown, tone: undefined as unknown[] | undefined };
+function trackAudio(op: string, args: unknown[]): void {
+  const id = String(args[0] ?? '');
+  const c = aud.clips.get(id);
+  switch (op) {
+    case 'configure': aud.configure = args; break;
+    case 'loadClip': aud.clips.set(id, { path: String(args[1] ?? '') }); break;   // a reload is a new clip: no chain, not sounding
+    case 'unloadClip': aud.clips.delete(id); break;
+    case 'playClip': if (c) { c.playing = { seek: Number(args[1]) || 0, gain: Number(args[2] ?? 1), at: Date.now() }; c.gain = Number(args[2] ?? 1); } break;
+    case 'stopClip': if (c) c.playing = undefined; break;
+    case 'setClipGain': if (c) c.gain = Number(args[1]); break;
+    case 'setClipSpatial': if (c) c.spatial = args.slice(1); break;
+    case 'clearClipSpatial': if (c) c.spatial = undefined; break;
+    case 'setClipEffects': if (c) c.effects = args[1]; break;
+    case 'setMasterGain': aud.gain = Number(args[0]); break;
+    case 'setMasterEffects': aud.effects = args[0]; break;
+    case 'setTestTone': aud.tone = args; break;
+    case 'stopAll': for (const x of aud.clips.values()) x.playing = undefined; break;
+    case 'close': aud.configure = null; aud.clips.clear(); aud.gain = undefined; aud.effects = undefined; aud.tone = undefined; break;
+    default: break;   // reads (meters, spectrum, devices) and the offline render change nothing to replay
+  }
+}
+/** On every hello after the first: the calls that are still waiting for an answer (the latest intents), then the
+ *  state — minus what those calls already do. Queued fire-and-forget calls are DROPPED: the state holds their effect,
+ *  and replaying an old playClip after the state's would move a resumed clip back to where it was minutes ago. */
+function replayAudio(): void {
+  const reqs = audioQueue.filter((q) => q.req !== undefined);
+  audioQueue.length = 0;
+  for (const q of reqs) write(q.line);
+  const send = (op: string, args: unknown[]) => write(JSON.stringify({ type: 'audio', op, args }));
+  const queuedLoads = new Set(reqs.filter((q) => q.op === 'loadClip').map((q) => String(q.args[0])));
+  if (aud.configure && !reqs.some((q) => q.op === 'configure')) send('configure', aud.configure);
+  if (aud.gain !== undefined) send('setMasterGain', [aud.gain]);
+  if (aud.effects !== undefined) send('setMasterEffects', [aud.effects]);
+  if (aud.tone) send('setTestTone', aud.tone);
+  let sounding = 0;
+  const now = Date.now();
+  for (const [id, c] of aud.clips) {
+    if (!queuedLoads.has(id)) send('loadClip', [id, c.path]);
+    if (c.effects !== undefined) send('setClipEffects', [id, c.effects]);
+    if (c.spatial) send('setClipSpatial', [id, ...c.spatial]);
+    if (c.playing) { send('playClip', [id, c.playing.seek + (now - c.playing.at) / 1000, c.playing.gain]); sounding++; }
+    if (c.gain !== undefined) send('setClipGain', [id, c.gain]);
+  }
+  if (aud.configure || aud.clips.size) {
+    logger.log('info', 'engine', 'audio-replayed', { clips: aud.clips.size, sounding });
+    console.log(`[engine] audio replayed to the restarted engine: the device, ${aud.clips.size} clip(s), ${sounding} sounding`);
+  }
+}
+function flushAudio(): void {
+  if (status.starts > 1) { replayAudio(); return; }
+  for (const q of audioQueue.splice(0)) write(q.line);
+}
 function failAudio(why: string): void {
   for (const [, p] of audioPending) p.reject(new Error(why));
   audioPending.clear();

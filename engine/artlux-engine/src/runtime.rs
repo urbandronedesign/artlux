@@ -685,6 +685,12 @@ impl Runtime {
 
     /// One frame at show time `t`. Nothing is sent unless the engine owns the wire for document `rev`.
     pub fn tick(&mut self, v: &Value) -> Result<(), String> {
+        // E3o: the audio clock's rate, read each tick (two atomics in the audio library — no waiting on its thread).
+        // The device callback's own STAMP (sample index + the wall time it ran): exact pairs, not a buffer-coarse count.
+        match crate::audio::audio_stamp() {
+            Some((n, wall, rate)) => self.transport.audio.feed(wall, n as f64 / rate),
+            None => if self.transport.audio.measured() > 0.0 { self.transport.audio.clear(); },
+        }
         self.transport.tick(v);   // E3: the engine's own clock, before anything needs a document
         self.draw_at = self.draw_clock(v);
         let Some(mut doc) = self.doc.take() else { return Ok(()) };

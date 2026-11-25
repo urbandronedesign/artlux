@@ -35,7 +35,7 @@ fs.writeFileSync(project, JSON.stringify({
   stateMachine: { enabled: true, initialStateId: 'st', states: [{ id: 'st', name: 'Play', x: 100, y: 100, entry: [{ kind: 'play' }] }], transitions: [], regions: [] },
 }, null, 2));
 
-async function run(engineAudio) {
+async function run(engineAudio, restart = false) {
   for (let i = 0; ; i++) {
     try { fs.rmSync(PROFILE, { recursive: true, force: true }); break; } catch (e) { if (i >= 20) throw e; await sleep(500); }
   }
@@ -45,7 +45,17 @@ async function run(engineAudio) {
   const env = { ...process.env }; delete env.ELECTRON_RUN_AS_NODE;
   const args = [`--user-data-dir=${PROFILE}`, '--headless', `--project=${project}`, '--native-engine', ...(engineAudio ? ['--engine-audio'] : [])];
   const child = spawn(EXE, args, { env, stdio: ['ignore', log, log] });
-  try { await sleep(20000); }
+  try {
+    if (!restart) await sleep(20000);
+    else {
+      // E3n: kill the ENGINE (our own run's child, by the pid main logged) mid-show; main restarts it, and the audio
+      // state must come back with it — or the show is silent from here on.
+      await sleep(12000);
+      const up = fs.readFileSync(logf, 'utf8').match(/\[engine\] up \(pid (\d+)/);
+      if (up) { try { execSync(`taskkill /PID ${up[1]} /F`, { stdio: 'ignore' }); } catch { /* gone */ } }
+      await sleep(14000);
+    }
+  }
   finally { try { execSync(`taskkill /PID ${child.pid} /T /F`, { stdio: 'ignore' }); } catch { /* gone */ } }
   return fs.readFileSync(logf, 'utf8').split(/\r?\n/);
 }
@@ -53,7 +63,7 @@ async function run(engineAudio) {
 (async () => {
   let failed = 0;
   const check = (name, ok, extra = '') => { console.log(`${ok ? 'ok  ' : 'FAIL'} ${name}${extra ? ' — ' + extra : ''}`); if (!ok) failed++; };
-  const E = await run(true);
+  const E = await run(true, true);
   check('the audio plugin plays through the engine', E.some((l) => /\[audio\] playing through the native engine/.test(l)));
   const loaded = E.find((l) => /audio: .*artlux_audio\.dll loaded/.test(l));
   check('the engine loaded its audio library', !!loaded, loaded?.replace(/^.*audio: /, ''));
@@ -67,6 +77,25 @@ async function run(engineAudio) {
   }
   const loud = clocks.filter((c) => c.peak > 0.001).length;
   check('the bed is on the engine\'s output', loud >= 2, `${loud} of ${clocks.length} reports above silence (peak up to ${Math.max(0, ...clocks.map((c) => c.peak)).toFixed(4)})`);
+  // E3o: THE PICTURE ON THE AUDIO CLOCK — the engine's own clock advances at the sound card's rate (measured against
+  // the wall), and the checks against the app's playhead (at the app's instant) stay clean.
+  const follows = E.map((l) => l.match(/the engine's clock follows the audio clock — ([+-][\d.]+) ppm against the wall \(±([\d.]+)\), over ([\d.]+) s/)).filter(Boolean);
+  const f = follows[follows.length - 1];
+  // Against SYSTEM time (the clock the engine reads; NTP-disciplined) — not the monotonic timer test:engine-audio
+  // measures against, so the two numbers differ by however far Windows' time sync has the two apart.
+  check('the engine\'s clock follows the audio clock', !!f && Math.abs(+f[1]) < 200 && +f[2] < 2, f ? `${f[1]} ppm ±${f[2]} against system time, fitted over ${f[3]} s of device callbacks` : 'never reported');
+  const tdiff = E.filter((l) => /transport: differs/.test(l)).length;
+  check('the transport checks stay clean on the audio clock', tdiff === 0, `${tdiff} difference line(s)`);
+  // E3n: after the kill — the replay, the device reopened, and sound again from the NEW engine.
+  const ups = E.filter((l) => /\[engine\] up \(pid/.test(l)).length;
+  check('the engine was killed mid-show and restarted', ups >= 2, `${ups} start(s)`);
+  const replay = E.find((l) => /audio replayed to the restarted engine/.test(l));
+  check('the audio state was replayed to the restarted engine', !!replay && !/ 0 sounding/.test(replay), replay?.replace(/^.*engine: /, ''));
+  check('the restarted engine opened the device again', E.filter((l) => /audio: device opened in the engine/.test(l)).length >= 2);
+  // The clock reports of the NEW engine: from the first report whose clock went BACKWARDS (a fresh process).
+  const restartAt = clocks.findIndex((c, i) => i > 0 && c.n < clocks[i - 1].n);
+  const after = restartAt > 0 ? clocks.slice(restartAt) : [];
+  check('the bed sounds again from the restarted engine', after.filter((c) => c.peak > 0.001).length >= 1, `${after.length} report(s) after the restart, peak up to ${Math.max(0, ...after.map((c) => c.peak)).toFixed(4)}`);
   const relayErr = E.filter((l) => /audio: .* failed|no audio library|audio call failed/.test(l));
   check('no relayed call failed', relayErr.length === 0, relayErr.slice(0, 2).join(' | '));
 

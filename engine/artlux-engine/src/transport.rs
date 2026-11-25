@@ -94,12 +94,57 @@ pub struct Transport {
     /// The engine's own clock against the app's frame, while playing: (count, sum, max) of
     /// `engine's playhead when the tick arrives − the app's playhead for that frame`, in ms.
     lead: (u64, f64, f64),
+    /// E3o: the audio clock's RATE against the wall (1 = no device / not measured yet) — what the engine's own
+    /// clock advances at from each anchor, so picture, lights and lanes follow the sound card.
+    pub audio: AudioRate,
     last_report: u64,
     anchors: u64,
     unreadable: u64,
 }
 
 static SKEW: std::sync::OnceLock<f64> = std::sync::OnceLock::new();
+
+/// E3o — THE AUDIO CLOCK'S RATE AGAINST THE WALL, measured continuously. One reading of the audio clock is a whole
+/// device buffer coarse (480 samples = 10 ms at 48 kHz), far too coarse to draw at; its RATE, fitted over the last
+/// WINDOW seconds of readings (least squares; ±0.3 ppm over 300 s of 10 ms readings at 60 Hz — the precision grows as
+/// span^1.5, and a crystal's rate moves only with temperature) and moves slowly — so the engine's clock
+/// runs at the card's rate from each anchor, smoothly. Readings reset when the clock goes backwards (a reopened
+/// device) or stalls; a rate further than LIMIT from the wall is refused (a wrong reading, not a crystal).
+pub struct AudioRate { pts: std::collections::VecDeque<(f64, f64)>, pub ratio_set: bool, pub ratio: f64, feeds: u64, /** the fit's standard error */ pub se: f64, last_audio: f64 }
+// By hand: a derived Default would start the ratio at 0 — a clock that does not move.
+impl Default for AudioRate { fn default() -> Self { AudioRate { pts: Default::default(), ratio_set: false, ratio: 1.0, feeds: 0, se: f64::INFINITY, last_audio: f64::NAN } } }
+impl AudioRate {
+    pub const WINDOW: f64 = 300.0;
+    pub const LIMIT: f64 = 1e-3;
+    pub const MIN_SPAN: f64 = 3.0;
+    /// The rate is APPLIED only once the fit's standard error is below this: a rate less certain than the drift it
+    /// corrects would move the picture further from the sound than the wall does.
+    pub const MAX_SE: f64 = 2e-6;
+    /// One reading: wall seconds, audio seconds.
+    pub fn feed(&mut self, wall: f64, audio: f64) {
+        if audio == self.last_audio { return; }   // the same callback's stamp, read again
+        self.last_audio = audio;
+        if let Some(&(w0, a0)) = self.pts.back() {
+            if audio < a0 || wall - w0 > 1.0 { self.pts.clear(); }   // a new device, or a gap: start over
+        }
+        self.pts.push_back((wall, audio));
+        while self.pts.front().is_some_and(|&(w, _)| wall - w > Self::WINDOW) { self.pts.pop_front(); }
+        self.feeds += 1;
+        if self.feeds % 30 == 0 && self.raw_span() >= Self::MIN_SPAN {
+            let v: Vec<(f64, f64)> = self.pts.iter().copied().collect();
+            let (s, se) = crate::audio::slope_se(&v);
+            self.se = se;
+            if s.is_finite() && (s - 1.0).abs() < Self::LIMIT && se < Self::MAX_SE { self.ratio = s; self.ratio_set = true; }
+        }
+    }
+    /// No device: the wall again.
+    pub fn clear(&mut self) { self.pts.clear(); self.ratio = 1.0; self.ratio_set = false; self.se = f64::INFINITY; self.last_audio = f64::NAN; }
+    /// Readings so far (seconds), whether or not the rate is applied yet.
+    pub fn measured(&self) -> f64 { self.raw_span() }
+    /// Seconds of readings the rate is fitted over (0 = none).
+    pub fn span(&self) -> f64 { if self.ratio_set { self.raw_span() } else { 0.0 } }
+    fn raw_span(&self) -> f64 { match (self.pts.front(), self.pts.back()) { (Some(a), Some(b)) => b.0 - a.0, _ => 0.0 } }
+}
 
 /// How far the engine's clock may sit from the app's at the SAME instant. The two run the same IEEE
 /// operations on the same numbers, so this is float noise with room to spare — a missed event is a
@@ -144,11 +189,13 @@ impl Transport {
     /// anchor, during a bake, or without a wall epoch.
     pub fn own_playhead(&self) -> Option<f64> { self.own().map(|(p, _)| p) }
 
-    /// BOTH clocks off the engine's own wall clock, now (E3h: what the engine DRAWS lanes and lights at).
+    /// BOTH clocks off the engine's own clock, now (E3h: what the engine DRAWS lanes and lights at). E3o: from the
+    /// anchor on, that clock advances at the AUDIO clock's rate when a device is open (`audio.ratio`) — the sound
+    /// card's crystal, not the wall's — so what is drawn stays with what is heard between events.
     pub fn own(&self) -> Option<(f64, f64)> {
         let a = self.anchor.as_ref()?;
         if a.off || !a.w0.is_finite() { return None; }
-        let now = render_now(a.w0);
+        let now = a.at + (render_now(a.w0) - a.at) * self.audio.ratio;
         let (mut o, mut so) = (self.o, self.so);
         Some((step_one(&mut o, now, a.playing, a.p, a.a, a.b, a.lp, a.f), step_one(&mut so, now, a.playing, a.s, a.ga, a.gb, a.glp, a.gf)))
     }
@@ -184,6 +231,8 @@ impl Transport {
             self.last_report = self.checked;
             let (n, sum, max) = self.lead;
             let mean = if n > 0 { sum / n as f64 } else { 0.0 };
+            if self.audio.span() > 0.0 { eprintln!("artlux-engine: transport: the engine's clock follows the audio clock — {:+.2} ppm against the wall (±{:.2}), over {:.1} s of device readings", (self.audio.ratio - 1.0) * 1e6, self.audio.se * 1e6, self.audio.span()); }
+            else if self.audio.measured() > 0.0 { eprintln!("artlux-engine: transport: measuring the audio clock — {:.1} s of device readings, ±{:.1} ppm so far (applied below ±{:.0})", self.audio.measured(), self.audio.se * 1e6, AudioRate::MAX_SE * 1e6); }
             eprintln!("artlux-engine: transport: {} frame(s) run by the engine's clock, {} differing ({} before their anchor); own clock vs the app's frame: mean {mean:.2} ms, extreme {max:.2} ms over {n} playing tick(s)", self.checked, self.diffs, self.skipped);
         }
     }
@@ -222,6 +271,34 @@ mod tests {
         assert_eq!(t.step(400.0), None);
         assert_eq!(t.skipped, 1);
         assert_eq!(t.step(9000.0).unwrap().0, 4.25);
+    }
+    #[test]
+    fn the_clock_follows_the_audio_rate() {
+        // A card 10 ppm slow, read in 10 ms buffer steps at ~60 Hz ticks (jittered, as a real frame loop is) for 300 s:
+        // the fit finds the rate, not the steps.
+        let mut r = AudioRate::default();
+        assert_eq!(r.ratio, 1.0);
+        let mut seed: u64 = 12345;
+        for i in 0..18000 {
+            seed = seed.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407);
+            let jitter = (seed >> 33) as f64 / (1u64 << 31) as f64 * 0.004;
+            let wall = i as f64 * 0.0167 + jitter;
+            let audio = ((wall * (1.0 - 10e-6)) / 0.01).floor() * 0.01;
+            r.feed(wall, audio);
+        }
+        assert!(((r.ratio - 1.0) * 1e6 + 10.0).abs() < 1.0, "ratio {} ppm", (r.ratio - 1.0) * 1e6);
+        // …and the engine's clock advances at it from the anchor: 1000 s after a playing anchor, 10 ms behind the wall.
+        // The app's clock epoch 1000 s ago, the anchor playing from 0 at its start: the wall says 1000 s, the card ~999.99.
+        let mut t = Transport::default();
+        let mut x = tp(true, 0.0, 0.0, 0.0, 1e9, false);
+        x["w0"] = (render_now(0.0) - 1_000_000.0).into();
+        t.set(&x);
+        t.audio = r;
+        let (p, _) = t.own().unwrap();
+        assert!((p - 1000.0 * (1.0 - 10e-6)).abs() < 0.003, "{p}: the wall says ~1000, the card 999.990");
+        // A reading going backwards (a reopened device) starts the fit over; clearing returns to the wall.
+        t.audio.clear();
+        assert_eq!(t.audio.ratio, 1.0);
     }
     #[test]
     fn underrun_clamps_to_the_in_point() {

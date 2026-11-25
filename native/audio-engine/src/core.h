@@ -27,6 +27,7 @@
 #include <algorithm>
 #include <array>
 #include <atomic>
+#include <chrono>
 #include <cmath>
 #include <memory>
 #include <string>
@@ -840,7 +841,31 @@ public:
   // E3 — THE AUDIO CLOCK: every sample the output has been handed, counted where the device pulls them. Read
   // from any thread (Engine::renderedSamples); an offline render counts too, which nobody reads it for.
   std::atomic<int64_t> rendered { 0 };
+  // E3o: THE CLOCK STAMP — the sample index this block starts at and the WALL time (epoch seconds) the device asked
+  // for it, written together under a sequence counter (odd while writing) so a reader on any thread gets a matching
+  // pair. A reading of `rendered` alone is a whole buffer coarse (10 ms at 480 / 48 kHz); this pair is exact to the
+  // callback's scheduling jitter, which is what lets the engine fit the card's RATE in seconds rather than minutes.
+  std::atomic<uint32_t> stampSeq { 0 };
+  std::atomic<int64_t> stampN { 0 };
+  std::atomic<double> stampWall { 0.0 };
+  bool stamp(int64_t& n, double& wall) const {
+    for (int tries = 0; tries < 8; ++tries) {
+      const uint32_t a = stampSeq.load(std::memory_order_acquire);
+      if (a & 1u) continue;
+      n = stampN.load(std::memory_order_relaxed); wall = stampWall.load(std::memory_order_relaxed);
+      std::atomic_thread_fence(std::memory_order_acquire);
+      if (stampSeq.load(std::memory_order_relaxed) == a) return a != 0;
+    }
+    return false;
+  }
   void getNextAudioBlock(const juce::AudioSourceChannelInfo& info) override {
+    {
+      const double wall = std::chrono::duration<double>(std::chrono::system_clock::now().time_since_epoch()).count();
+      stampSeq.fetch_add(1, std::memory_order_acq_rel);
+      stampN.store(rendered.load(std::memory_order_relaxed), std::memory_order_relaxed);
+      stampWall.store(wall, std::memory_order_relaxed);
+      stampSeq.fetch_add(1, std::memory_order_release);
+    }
     src.getNextAudioBlock(info);
     rendered.fetch_add(info.numSamples, std::memory_order_relaxed);
     float peak = 0.0f, sumSq = 0.0f;
@@ -1272,6 +1297,8 @@ public:
   int deviceChannels() const { return bus.observedChannels(); }
   // E3: the audio clock — samples rendered to the device, and the rate they play at (0 with no device open).
   int64_t renderedSamples() const { return metering.rendered.load(std::memory_order_relaxed); }
+  // E3o: the last callback's (sample index, wall seconds) — false before the first callback.
+  bool clockStamp(int64_t& n, double& wall) const { return metering.stamp(n, wall); }
   double liveRate() const { return liveSampleRate.load(); }
   std::atomic<double> liveSampleRate { 0.0 };
   bool takeClipped() { return meterClipped.exchange(false); } // read-and-clear: "has it clipped since you last asked"

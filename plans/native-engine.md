@@ -2195,8 +2195,51 @@ fallback until a source/output is proven byte-identical — risk 2):
 > - `verify:invariants`: every op the relay sends has its case in artlux_audio_call (mutation-tested), the plugin
 >   switches on the context's `engineAudio`, a pending call is failed when the engine exits.
 > - **Not yet:** an engine RESTART does not replay the loaded clips (the driver believes them loaded — the show is
->   silent until its next reload), so the flag stays opt-in; the transport on the audio clock; the plays themselves
+>   silent until its next reload) → **done in E3n, below**; the transport on the audio clock; the plays themselves
 >   as document (the driver still decides every play and re-seek per frame).
+>
+> ✅ **E3n done 2026-11-25 — A RESTARTED ENGINE GETS ITS SOUND BACK.** The audio driver keeps its own view of what it
+> loaded and what is sounding, and never re-sends what it believes done — so a restarted engine (a crash, a hang the
+> watchdog killed) left the show SILENT until the driver's next reload. Main now keeps the audio STATE the relayed
+> calls describe (`engineHost.trackAudio`: the device, the master gain / chain / test tone, each loaded clip with its
+> gain, position, chain and — when sounding — its seek and when it was given) and hands it to every restarted engine
+> before anything else, as it re-sends the document (`replayAudio`): the calls still awaiting an answer first (the
+> latest intents), then the state minus what those already do; queued fire-and-forget calls are dropped (the state
+> holds their effect — replaying an old play after it would move a resumed clip back). A sounding clip resumes where
+> it would be NOW (seek + the time since); the driver's 50 ms drift lock holds it from there.
+> - **Proof:** `test:engine-audio-show` now KILLS THE ENGINE mid-show (its own run's child, by the pid main logged):
+>   main restarts it, the state is replayed ("the device, 1 clip(s), 1 sounding"), the new engine opens the device
+>   again and the bed is on its output again (peak 0.05 after the restart). The earlier gates are unchanged.
+> - `verify:invariants`: audioCall records the state, every state-changing op the relay sends is tracked for the
+>   replay, a restarted engine is given it (mutation-tested: setClipEffects untracked).
+> - **Still opt-in** (`--engine-audio`), like the native engine itself. **Next:** the transport on the audio clock,
+>   and the plays as document. → **the transport on the audio clock: E3o, below.**
+>
+> ✅ **E3o done 2026-11-25 — THE ENGINE'S CLOCK ON THE AUDIO CLOCK.** Found first, reading the driver: its drift
+> lock compares `sentOffset + wall elapsed` with the show clock — BOTH on the wall — so it never sees the card's real
+> position, and the card's crystal drift (≈9 ppm here, ~30 ms an hour) is never corrected: between seeks and loops the
+> sound slowly parts from the picture. So the picture goes to the sound:
+> - **The stamp:** the device callback (`MeteringAudioSource`) writes the sample index it starts at and the WALL time it
+>   ran (epoch seconds) as one pair under a sequence counter; `artlux_audio_clock_stamp` reads a matching pair from any
+>   thread. A plain sample count is a whole buffer coarse (10 ms at 480 / 48 kHz) — a fit on it was measured off by
+>   tens of ppm over 10 s, WORSE than the drift it corrects; the stamps are exact to the callback's jitter.
+> - **The rate:** each render tick feeds the latest stamp to `transport.rs AudioRate` (least squares over the last 300
+>   s, readings of one callback counted once, reset on a reopened device); the rate is APPLIED only once the fit's
+>   standard error is under 2 ppm. From each anchor the engine's own clock then advances at it —
+>   `a.at + (now − a.at) × ratio` — so what the engine DRAWS (lanes, lights, the composite: E3h / E3i) follows what is
+>   heard between events. The checks stay at the app's instant and its clock.
+> - **Measured:** `test:engine-audio-show` — "the engine's clock follows the audio clock — +12.36 ppm ±0.29 against
+>   system time, fitted over 9.6 s of device callbacks", the transport checks 0 differing. Three runs gave +7.3, +10.4
+>   and +12.4 ppm: the run-to-run spread is larger than each fit's ±0.3 — the reference is SYSTEM time, which Windows'
+>   time sync slews (test:engine-audio, against the monotonic timer, reads −8 to −10 ppm: the two references are
+>   ~16 ppm apart here). The engine uses system time on both sides of its ratio, so it is consistent.
+> - **Found on the way:** engineHost split each stderr CHUNK into lines without keeping the unfinished tail, so an
+>   engine log line crossing a pipe boundary was logged as two halves (seen before as a truncated anchor line). Fixed.
+> - `verify:invariants`: the stamp written as a matched pair, the clock advancing at the ratio, the 2 ppm gate, the
+>   render thread feeding stamps (mutation-tested: the wall-only clock). Unit test: a card 10 ppm slow read in 10 ms
+>   steps at jittered 60 Hz ticks for 300 s — the fit within 1 ppm, the clock 10 ms behind the wall after 1000 s.
+> - **Not yet:** the plays as document (the driver still decides every play and re-seek per frame, against the
+>   wall) — the step that lets the ENGINE re-seek sound against its own clock instead of the picture following it.
 
 ## 9d. E4 started early — the 3D view in the engine (owner, 2026-11-24)
 

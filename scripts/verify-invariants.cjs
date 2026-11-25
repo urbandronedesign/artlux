@@ -4449,6 +4449,13 @@ check(
     }
     if (/#include <napi\.h>/.test(c)) problems.push('core.h includes N-API — the C library would need Node');
     if (!/rendered\.fetch_add\(info\.numSamples/.test(c)) problems.push('the audio clock is no longer counted where the device pulls samples (MeteringAudioSource)');
+    // E3o: the engine's clock follows the CARD's rate — fitted on exact (sample index, wall time) stamps written by the
+    // device callback under a sequence counter, and applied only once the fit is certain.
+    if (!/stampSeq\.fetch_add\(1, std::memory_order_acq_rel\);[\s\S]{0,200}stampWall\.store\(wall[\s\S]{0,80}stampSeq\.fetch_add\(1, std::memory_order_release\);/.test(c)) problems.push('the clock stamp is no longer written as a matched pair under its sequence counter');
+    const T = read('engine/artlux-engine/src/transport.rs'), RT = read('engine/artlux-engine/src/runtime.rs');
+    if (!/let now = a\.at \+ \(render_now\(a\.w0\) - a\.at\) \* self\.audio\.ratio;/.test(T)) problems.push("the engine's own clock no longer advances at the audio clock's rate");
+    if (!/se < Self::MAX_SE/.test(T) || !/pub const MAX_SE: f64 = 2e-6;/.test(T)) problems.push('a measured audio rate is applied before the fit is certain (or the bound moved)');
+    if (!/crate::audio::audio_stamp\(\)/.test(RT)) problems.push('the render thread no longer feeds the device callback stamps to the transport');
     if (!/set\(SOURCE_FILES src\/engine\.cpp\)/.test(m) || !/add_library\(artlux_audio SHARED src\/capi\.cpp\)/.test(m)) problems.push('CMakeLists no longer builds the two front doors from their own files');
     const abiC = (a.match(/artlux_audio_abi\(\) \{ return (\d+); \}/) ?? [])[1], abiR = (r.match(/Ok\(f\) if unsafe \{ f\(\) \} == (\d+)/) ?? [])[1];
     if (!abiC || abiC !== abiR) problems.push(`the C API's ABI (${abiC}) is not the one audio.rs speaks (${abiR})`);
@@ -4459,7 +4466,13 @@ check(
     if (ops.length < 15) problems.push(`useEngineAudio no longer relays the addon's calls (${ops.length} found)`);
     for (const op of ops) if (!a.includes(`op == "${op}"`)) problems.push(`the relay sends '${op}' but artlux_audio_call has no case for it`);
     if (!/if \(ctx\.engineAudio\) engine\.useEngineAudio\(ctx\.engineAudio\);/.test(read('plugins/audio/src/plugin.main.ts'))) problems.push('the audio plugin no longer switches to the engine when the app asks');
-    if (!/failAudio\('the engine exited'\)/.test(read('src/main/engineHost.ts'))) problems.push('an audio call pending when the engine dies would never settle');
+    const eh = read('src/main/engineHost.ts');
+    if (!/failAudio\('the engine exited'\)/.test(eh)) problems.push('an audio call pending when the engine dies would never settle');
+    // E3n: a restarted engine gets its sound back — every call that CHANGES the sound is recorded for the replay.
+    if (!/trackAudio\(op, args\);/.test(eh)) problems.push('audioCall no longer records the audio state a restarted engine is given');
+    const reads = new Set(['getDevices', 'getMeters', 'getSpectrum', 'offlineBegin', 'offlinePull', 'offlineEnd']);
+    for (const op of ops) if (!reads.has(op) && !eh.includes(`case '${op}':`)) problems.push(`the relay sends '${op}' but a restarted engine would not get it back (engineHost trackAudio)`);
+    if (!/if \(status\.starts > 1\) \{ replayAudio\(\); return; \}/.test(eh)) problems.push('a restarted engine is no longer given the audio state');
     const pkg = JSON.parse(raw('package.json'));
     const win = pkg.build?.win?.extraResources ?? [];
     if (!win.some((x) => x.from === 'native/audio-engine/artlux_audio.dll' && x.to === 'engine/artlux_audio.dll')) problems.push('the Windows package no longer ships artlux_audio.dll next to the engine');

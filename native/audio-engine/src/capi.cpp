@@ -134,6 +134,17 @@ ARTLUX_AUDIO_API long long artlux_audio_clock(double* rate) {
   return (long long) gEngine->renderedSamples();
 }
 
+// THE CLOCK STAMP (E3o): the sample index the last device callback started at and the wall time (epoch seconds) it
+// ran — a matching pair, exact to the callback's jitter. Answers the rate (0: no device, or no callback yet).
+ARTLUX_AUDIO_API double artlux_audio_clock_stamp(long long* n, double* wall) {
+  if (!gEngine) return 0.0;
+  int64_t nn = 0; double w = 0.0;
+  if (!gEngine->clockStamp(nn, w)) return 0.0;
+  if (n) *n = (long long) nn;
+  if (wall) *wall = w;
+  return gEngine->liveRate();
+}
+
 // getMeters() — { peak, rms } (the rest of the addon's meters follow with the driver).
 ARTLUX_AUDIO_API int artlux_audio_meters(char* out, int cap) {
   return runSync([&]() -> int {

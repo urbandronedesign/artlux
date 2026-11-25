@@ -51,7 +51,12 @@ native/audio-engine/
                         (or ARTLUX_NATIVE_ENGINE=1 + ARTLUX_ENGINE_AUDIO=1), plugins/audio relays EVERY call —
                         live and offline — to that library inside the engine (audioManager.useEngineAudio →
                         engineHost.audioCall → the engine's audio thread → artlux_audio_call) and never opens
-                        the addon's device. Not yet: an engine restart does not replay the loaded clips
+                        the addon's device. A RESTARTED engine is handed the audio state (engineHost trackAudio /
+                        replayAudio: the device, the master, every loaded clip, each sounding one resumed where
+                        it would be now) before anything else, as it is handed the document.
+                        THE ENGINE'S CLOCK ON THE AUDIO CLOCK (E3o): the device callback stamps (sample
+                        index, wall time) as a pair; the engine fits the card's rate and its playhead
+                        advances at it, so what it draws follows what is heard
   src/effects.h         the DSP: GainFx / FilterFx / ReverbFx / DelayFx / CompFx, and EffectChain.
                         build() ALLOCATES (the control thread, never under the lock); setParams()/process() are
                         allocation-free and run under it. `buildable()` is where a master reverb is
