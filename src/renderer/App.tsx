@@ -4921,7 +4921,11 @@ const App: React.FC = () => {
   };
   // E1f-3: the native engine's projector outputs read the same outputs, brightness and cold-start hold as
   // the app's own windows (engine/nativeLink.ts; a no-op unless --native-engine).
-  useEffect(() => { nativeLink.setProjectors(projectorOutputs, projectorBrightness ?? 1); }, [projectorOutputs, projectorBrightness]);
+  // E6f: and which outputs the NVIDIA SCANOUT warps (hwOwnsGeometry — the one predicate): the engine draws those FLAT,
+  // exactly as pushProjectorState tells this app's window to, and the scanout warps whichever window is on the display.
+  useEffect(() => { nativeLink.setProjectors(projectorOutputs, projectorBrightness ?? 1, projectorOutputs.filter(o => hwOwnsGeometry(o)).map(o => o.surfaceId)); },
+      // eslint-disable-next-line react-hooks/exhaustive-deps -- hwOwnsGeometry reads exactly nvAvailable + displays
+      [projectorOutputs, projectorBrightness, nvAvailable, displays]);
   useEffect(() => bootGate.subscribe((p) => nativeLink.setBooting(p.booting)), []);
   // The same push, driven by a slider in ANOTHER window (E5/W4, live/broker.ts). A client that vanishes
   // mid-drag leaves the projectors at the committed value, not at wherever its hand was.

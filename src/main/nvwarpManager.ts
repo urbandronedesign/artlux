@@ -35,10 +35,20 @@ function loadNative(): NvWarpNative | null {
 }
 
 const native = loadNative();
-const hw = (() => { try { return !!native?.available(); } catch { return false; } })();
+// ARTLUX_NVWARP_PRETEND — TEST ONLY (scripts/test-native-projectors.cjs): `1` answers "available", `0` answers
+// "absent", and BOTH skip every scanout call — nothing reaches NVAPI. `1` drives the app's hardware-owned path (the
+// projector window and the native engine both drawing the output FLAT for the scanout to warp) on a box without
+// NVAPI; `0` the GLSL fallback on a box WITH it. ⚠ A test must never reach the real thing: a GeForce RTX 5090 on
+// driver 621 answered available() TRUE (2026-11-25 — this file used to say "Quadro/RTX-pro" only), the test's
+// keystone went onto the operator's primary display at SCANOUT, invisible to every screen capture (they read the
+// framebuffer before it), and a test's forced kill skips clearAll — it stayed until cleared by hand.
+const pretendEnv = process.env.ARTLUX_NVWARP_PRETEND;
+const pretend = pretendEnv === '1' || pretendEnv === '0';
+const hw = pretend ? pretendEnv === '1' : (() => { try { return !!native?.available(); } catch { return false; } })();
+if (pretend) console.log(`[nvwarp] PRETEND (ARTLUX_NVWARP_PRETEND=${pretendEnv}): reported ${hw ? 'available' : 'absent'}, scanout calls skipped`);
 console.log(
   native
-    ? hw ? '[nvwarp] NVAPI warp/blend available (Quadro/RTX-pro)'
+    ? hw ? '[nvwarp] NVAPI warp/blend available'
          : '[nvwarp] addon loaded, NVAPI unavailable (stub build / non-pro GPU) — GLSL fallback'
     : '[nvwarp] addon missing — GLSL fallback',
 );
@@ -69,6 +79,7 @@ function nvIdForElectron(electronId: number): number | null {
 }
 
 export function setWarp(electronId: number, verts: number[], src: number[]): boolean {
+  if (pretend) return true;
   if (!native) return false;
   const id = nvIdForElectron(electronId);
   if (id == null) return false;
@@ -76,6 +87,7 @@ export function setWarp(electronId: number, verts: number[], src: number[]): boo
 }
 
 export function setIntensity(electronId: number, w: number, h: number, rgb: number[]): boolean {
+  if (pretend) return true;
   if (!native) return false;
   const id = nvIdForElectron(electronId);
   if (id == null) return false;
@@ -83,6 +95,7 @@ export function setIntensity(electronId: number, w: number, h: number, rgb: numb
 }
 
 export function clearDisplay(electronId: number): boolean {
+  if (pretend) return true;
   if (!native) return false;
   const id = nvIdForElectron(electronId);
   if (id == null) return false;
@@ -92,7 +105,7 @@ export function clearDisplay(electronId: number): boolean {
 // Remove warp + intensity from every NVAPI display — called on quit so a crash/exit never leaves a
 // projector (or the operator's screen) stuck with a scanout warp the app can no longer clear.
 export function clearAll(): void {
-  if (!native || !hw) return;
+  if (!native || !hw || pretend) return;
   try { for (const d of native.listDisplays()) native.clear(d.displayId); }
   catch (e) { console.warn('[nvwarp] clearAll failed:', (e as Error)?.message ?? e); }
 }

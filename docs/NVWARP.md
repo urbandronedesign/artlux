@@ -1,7 +1,8 @@
 # NVAPI scanout warp & blend (`native/nvwarp`)
 
 Hardware geometry **warp** + edge/brightness **blend** applied at the GPU scanout via **NVIDIA NVAPI**,
-on **Quadro / RTX-pro** GPUs. It's the application layer for the multi-projector auto-align system
+on **Quadro / RTX-pro** GPUs — and on at least some GeForce cards (an RTX 5090 on driver 621 answers
+`available()` true), so check the log rather than the card's name. It's the application layer for the multi-projector auto-align system
 (Phases 1–3 of the calibration plan); the camera-driven *computation* of the warp/blend lives in the
 calibration pipeline (see [CALIBRATION.md](CALIBRATION.md)).
 
@@ -15,6 +16,9 @@ and NVAPI's jobs are:
 - **Edge blend** between overlapping projectors (`NvAPI_GPU_SetScanoutIntensity`, RGB + black-level).
 - **Lens distortion** / fine 2D correction (`NvAPI_GPU_SetScanoutWarping`).
 - **Persistence + content-agnostic** application (warps the whole display at the driver level).
+
+With the native engine showing the outputs, nothing changes for a hardware-warped output: the scanout warps
+whichever window is on the display, and the engine draws the output flat exactly as the app's window does.
 
 ArtLux also has a **GLSL warp/blend** engine; the addon is **optional**. When NVAPI is unavailable
 (non-pro GPU, no driver, or a stub build), `available()` returns false and ArtLux uses GLSL instead.
@@ -55,7 +59,7 @@ stub is harmless on any machine (loads, `available()=false`, GLSL fallback); the
 - **No `nvapi64.dll` import** at the PE level — the stub doesn't link the driver lib (that's why it
   loads on non-NVIDIA hosts).
 - **Runtime log** — `[nvwarp] addon loaded, NVAPI unavailable (stub build / non-pro GPU) — GLSL
-  fallback` (stub) vs. `NVAPI warp/blend available` (real, on a Quadro).
+  fallback` (stub) vs. `NVAPI warp/blend available` (real, where the driver offers it).
 
 > Note: NVAPI resolves its functions by ID through `nvapi_QueryInterface`, so an ASCII grep for
 > `NvAPI_Initialize` / `SetScanoutWarping` does **not** reliably distinguish stub from real (the names

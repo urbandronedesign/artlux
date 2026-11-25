@@ -1,5 +1,5 @@
 import type { Fixture, FixtureProfile, Surface, Controller, OutputProtocol, SurfaceContent } from '../types';
-import { WINDOWED_DISPLAY, type ProjectorOutput } from '../../../shared/protocol';
+import { WINDOWED_DISPLAY, defaultCornerPin, defaultSoftEdge, type ProjectorOutput } from '../../../shared/protocol';
 import { badgeBitmap } from '../components/brand/badge';
 import { ndiCap } from '../projector/ndiCap';
 // The app's own broadcast flag (App.tsx BROADCAST): a broadcast machine sends NDI at up to 1080p.
@@ -121,13 +121,20 @@ let lastSources = '';
 // App hands these in (they are not frame-engine inputs): the outputs, the projector master brightness
 // (committed and live drags) and the cold-start hold. The engine draws an output only when it can draw
 // it EXACTLY as ProjectorApp's plain warp path does (projector.rs, identical to ProjectorGL — E1e-1), so an
-// output with anything else on it — live calibration (render-from-projector; a baked map IS drawn), NVIDIA
-// hardware warp — is listed WITH THE REASON and the app keeps every output (all or nothing,
-// runtime.rs). A mask, a blend map, a windowed output and an NDI send are the engine's (E6f — see projectorEntry).
+// output with anything else on it — live calibration (render-from-projector; a baked map IS drawn) — is listed
+// WITH THE REASON and the app keeps every output (all or nothing, runtime.rs). A mask, a blend map, a windowed
+// output, an NDI send and an NVIDIA hardware warp are the engine's (E6f — see projectorEntry).
+// `hwOwned`: the outputs whose geometry + blend the NVIDIA SCANOUT applies (App's hwOwnsGeometry — not re-derived
+// here: it needs the NVAPI answer and the displays' `internal`, and two predicates would drift).
 let projOutputs: ProjectorOutput[] = [];
 let projBrightness = 1;
 let projBooting = false;
-export function setProjectors(outputs: ProjectorOutput[], brightness: number): void { projOutputs = outputs; projBrightness = brightness; refreshDisplays(); }
+let projHw = new Set<string>();
+let projHwKey = '';
+export function setProjectors(outputs: ProjectorOutput[], brightness: number, hwOwned: string[] = []): void {
+  projOutputs = outputs; projBrightness = brightness; projHw = new Set(hwOwned); projHwKey = [...projHw].sort().join(',');
+  refreshDisplays();
+}
 
 // ── E2: RASTER SOURCES (text first) ─────────────────────────────────────────────────────────────────
 // A picture this app draws and the engine shows (plans/native-engine.md §2: "the app rasterises, the engine
@@ -192,7 +199,11 @@ function projectorEntry(o: ProjectorOutput, surfaces: Surface[], sources: Record
     // A calibration MAP is played (item 3) — it supersedes the venue render inside the window too. Calibration
     // WITHOUT a map is the live render-from-projector, which stays the app's.
     : !baked.has(o.surfaceId) && (o.calibration || o.useCalibration) ? 'calibrated (render-from-projector)'
-    : o.hwWarp ? 'NVIDIA hardware warp'
+    // E6f: an NVIDIA HARDWARE WARP is the engine's too. NVAPI warps + blends the DISPLAY at scanout — whatever window is
+    // on it, the engine's topmost one included — and the app's window then draws the output FLAT (App
+    // pushProjectorState: identity corner-pin, no warp, no soft edge, unit gain, no lift; gamma stays), so the
+    // engine is handed the same flat output below. `hwWarp` on an output NVAPI does NOT own (a non-pro GPU, the
+    // built-in panel, a window) is ignored by the app, which draws the GLSL warp — and so is it here.
     // E6f: NOT refused — a projection MASK (`projMask`) and a BLEND MAP (`blend`). The app's projector window applies
     // neither: the mask is the NVIDIA scanout path's (nvwarpApply), the blend map render-from-projector's
     // (ProjectorScene) — both refused above. Without them the app draws the plain warp, which the engine draws the
@@ -213,7 +224,9 @@ function projectorEntry(o: ProjectorOutput, surfaces: Surface[], sources: Record
     ...(windowed ? { badge: `badge:${o.surfaceId}` } : {}),
     // The app's sender name and capture cap (App's NDI reconcile, ProjectorApp captureNdi — ndiFullRes = broadcast).
     ...(o.ndiSend && s ? { ndi: { name: `ArtLux — ${s.name}`, maxW: ndiCap(BROADCAST)[0], maxH: ndiCap(BROADCAST)[1] } } : {}),
-    output: { cornerPin: o.cornerPin, warp: o.warp ?? null, softEdge: o.softEdge, gamma: o.gamma, colorGain: o.colorGain, blackLift: o.blackLift },
+    output: projHw.has(o.surfaceId)
+      ? { cornerPin: defaultCornerPin(), warp: null, softEdge: defaultSoftEdge(), gamma: o.gamma, colorGain: [1, 1, 1], blackLift: [0, 0, 0], scanout: true }
+      : { cornerPin: o.cornerPin, warp: o.warp ?? null, softEdge: o.softEdge, gamma: o.gamma, colorGain: o.colorGain, blackLift: o.blackLift },
     ...(baked.has(o.surfaceId) ? { baked: { key: baked.get(o.surfaceId)!.key } } : {}),
     ...(why ? { why } : {}),
   };
@@ -281,7 +294,7 @@ function link(inputs: LinkInputs, surfaces: Surface[], fixtures: Fixture[], brig
   shipRasters(surfaces, sources);   // E2: before the document that names them
   for (const [key, content] of layerContent) if (sources[key]?.kind === 'raster') shipRaster(key, contentSource.nativeRaster(key, content));
   const sourcesKey = JSON.stringify(sources);
-  const refs = [surfaces, fixtures, inputs.fixtureProfiles, inputs.controllers, inputs.protocol, inputs.targetIp, inputs.broadcast, inputs.gamma, inputs.artNetPort, inputs.outputEnabled, projOutputs, bakedSeq, ...lightingRefs()];
+  const refs = [surfaces, fixtures, inputs.fixtureProfiles, inputs.controllers, inputs.protocol, inputs.targetIp, inputs.broadcast, inputs.gamma, inputs.artNetPort, inputs.outputEnabled, projOutputs, projHwKey, bakedSeq, ...lightingRefs()];
   if (sourcesKey !== lastSources || lanesKey !== lastLanes || refs.length !== lastRefs.length || refs.some((r, i) => r !== lastRefs[i])) {
     lastRefs = refs; lastSources = sourcesKey; lastLanes = lanesKey; rev++;
     const ln = lanesView ? timeline.nativeLanes(engineLane) : { gen: 0, lanes: [] };

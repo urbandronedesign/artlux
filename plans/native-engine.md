@@ -2495,6 +2495,31 @@ fallback until a source/output is proven byte-identical — risk 2):
 >   restarted engine's frame is identical again. Guarded (verify:invariants; four mutations caught).
 > - **Remaining D refusals on Windows: live calibration (render-from-projector) and NVIDIA hardware warp.**
 
+> ✅ **E6f (NVIDIA hardware warp) done 2026-11-25 — THE SCANOUT WARPS WHICHEVER WINDOW IS THERE.** Inventory item D's
+> "NVIDIA hardware warp". NVAPI warps + blends a DISPLAY at scanout, so it applies to the engine's topmost window as
+> it does to the app's; what differs is only what each draws. With NVAPI owning an output, App's pushProjectorState
+> hands its window a FLAT output (identity corner-pin, no warp, no soft edge, unit gain, no lift; gamma kept) — the
+> double-warp guard. nativeLink now hands the engine the same flat output for the same outputs: App passes the set
+> from its ONE predicate (`hwOwnsGeometry` — NVAPI's answer, not the built-in panel, not a window) to
+> `setProjectors`; hwWarp on an output NVAPI does not own is ignored by both. No engine change. The scanout apply
+> itself (App → main nvwarpApply) is untouched: it never depended on which window draws.
+> - **A GeForce has NVAPI scanout warp.** NVWARP.md said Quadro/RTX-pro only; an **RTX 5090, driver 621**
+>   answers `available()` true. Found the hard way: the first `--hwwarp` run without a pretend put the test's
+>   keystone on the owner's primary display AT SCANOUT — invisible to every capture (they read the framebuffer) —
+>   and the forced kill skipped `clearAll`; cleared by hand (the addon's `clear`, NVAPI_OK). So
+>   `ARTLUX_NVWARP_PRETEND` (main/nvwarpManager.ts, test only): `1` reports available, `0` absent, and both skip
+>   every scanout call; test-native-projectors sets it on EVERY launch. Guarded.
+> - **The taskbar over the app's fullscreen output.** From this afternoon Windows drew the taskbar over the app's
+>   fullscreen (not topmost) projector window on the primary display — every run, plain ones too; the engine's
+>   topmost window covers it (92 160 px = 1920×48). Not the output's pixels: the test asks Windows whether the
+>   taskbar is the top window at its centre and, if so, leaves its rect out of every comparison and says so.
+>   (A venue output is a secondary display; noted, not chased.)
+> - `test:native-projectors --hwwarp` (pretend available): the app's window draws flat (100% lit vs 82% keystoned),
+>   **the engine's window = the app's, 2 073 600 / 2 073 600**, restart identical, A2 identical; `--hwwarp
+>   --no-nvapi`: keystoned, identical; plain and `--windowed` still identical (the plain run's old 11-pixel soft-edge
+>   by-1 is 0 today). Guarded (verify:invariants; four mutations caught).
+> - **Remaining D refusal on Windows: live calibration (render-from-projector).**
+
 ## 9d. E4 started early — the 3D view in the engine (owner, 2026-11-24)
 
 > **Owner, 2026-11-24: "start E4's 3D now"** — for the detachable 3D view (plans/3d-workbench.md §5/Phase 4),

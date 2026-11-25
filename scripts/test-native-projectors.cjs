@@ -34,6 +34,13 @@
 // uncapped) from the app in A and from the ENGINE in B and after the restart: the engine's NDI frame must equal the
 // app's, there must be exactly ONE source of that name while the engine sends (the app's sender stood down), and the
 // app's sender comes back when the engine dies.
+// --hwwarp (E6f): the output has NVIDIA HARDWARE WARP on. With NVAPI owning it the app's window draws the output FLAT
+// (the scanout warps the display — whichever window is on it) and the engine must draw the same flat picture.
+// --hwwarp --no-nvapi: NVAPI absent — the app IGNORES hwWarp and draws the GLSL warp, and so must the engine.
+// ⚠ NO RUN EVER REACHES REAL NVAPI: every launch sets ARTLUX_NVWARP_PRETEND (main/nvwarpManager.ts) — `1` for
+// --hwwarp (reported available), `0` otherwise (absent) — and main then skips every scanout call. A GeForce RTX 5090
+// answered available() TRUE (2026-11-25): the first --no-pretend run put its keystone on the operator's primary
+// display AT SCANOUT (no screen capture sees it — they read the framebuffer), and the forced kill skipped the clear.
 
 const { spawn, execFile, execSync } = require('node:child_process');
 const fs = require('node:fs');
@@ -48,7 +55,7 @@ const PROFILE = path.join(WORK, 'profile');
 const PREFS = path.join(PROFILE, 'artlux-prefs.json');
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const { PNG } = require(path.join(ROOT, 'node_modules', 'pngjs'));
-const env0 = { ...process.env }; delete env0.ELECTRON_RUN_AS_NODE;
+const env0 = { ...process.env }; delete env0.ELECTRON_RUN_AS_NODE; delete env0.ARTLUX_NVWARP_PRETEND;
 const pk = process.argv.indexOf('--packaged');
 const PACKAGED = pk > 0 ? path.resolve(process.argv[pk + 1]) : null;
 // --baked: the output plays an imported CALIBRATION MAP (item 3) — a real .mpcdi, written by the app's own
@@ -61,6 +68,9 @@ const BAKED = process.argv.includes('--baked');
 const mk = process.argv.indexOf('--mp4');
 const WINDOWED = process.argv.includes('--windowed');
 const NDI = process.argv.includes('--ndi');
+const HWWARP = process.argv.includes('--hwwarp');
+const PRETEND = HWWARP && !process.argv.includes('--no-nvapi');
+env0.ARTLUX_NVWARP_PRETEND = PRETEND ? '1' : '0';   // ALWAYS set — see the header (never the real scanout)
 // --editor: launch WITHOUT --broadcast (the editor's window opens too). With --ndi that is the editor's 720p NDI cap,
 // so a 1080p output is SCALED DOWN for the send — the path broadcast (1080p cap) never takes.
 const EDITOR = process.argv.includes('--editor');
@@ -87,7 +97,7 @@ fs.writeFileSync(project, JSON.stringify({
   fixtures: [], controllers: [], groups: [], scenes: [], cueBanks: [],
   projectorBrightness: 0.9,
   projectorOutputs: [{
-    surfaceId: 'sP', name: 'Wall', enabled: true, displayId: WINDOWED ? -1 : disp.id, ...(NDI ? { ndiSend: true } : {}),
+    surfaceId: 'sP', name: 'Wall', enabled: true, displayId: WINDOWED ? -1 : disp.id, ...(NDI ? { ndiSend: true } : {}), ...(HWWARP ? { hwWarp: true } : {}),
     cornerPin: { tl: [0.05, 0.1], tr: [0.93, 0.02], br: [0.97, 0.95], bl: [0.02, 0.88] },
     softEdge: { left: 0.15, right: 0, top: 0, bottom: 0.1, gamma: 2.2 }, gamma: 1, colorGain: [1, 0.95, 0.9], blackLift: [0.01, 0.01, 0.02],
     // E6f: drawn by neither the app's window nor the engine (see the header) — present to prove the engine takes it.
@@ -120,17 +130,53 @@ if (BAKED) {
 const CAP = path.join(WORK, 'cap.ps1');
 fs.writeFileSync(CAP, `param([string]$Out)
 Add-Type -AssemblyName System.Drawing
-Add-Type -Name D -Namespace N -MemberDefinition '[DllImport("user32.dll")] public static extern bool SetProcessDPIAware();'
-[void][N.D]::SetProcessDPIAware()
+Add-Type @"
+using System; using System.Runtime.InteropServices;
+public static class N {
+  [StructLayout(LayoutKind.Sequential)] public struct R { public int L, T, Rt, B; }
+  [StructLayout(LayoutKind.Sequential)] public struct P { public int X, Y; }
+  [DllImport("user32.dll")] public static extern bool SetProcessDPIAware();
+  [DllImport("user32.dll")] public static extern IntPtr FindWindow(string c, string t);
+  [DllImport("user32.dll")] public static extern bool GetWindowRect(IntPtr h, out R r);
+  [DllImport("user32.dll")] public static extern IntPtr WindowFromPoint(P p);
+  [DllImport("user32.dll")] public static extern IntPtr GetAncestor(IntPtr h, uint f);
+}
+"@
+[void][N]::SetProcessDPIAware()
 $bmp = New-Object System.Drawing.Bitmap ${disp.b.width}, ${disp.b.height}
 $g = [System.Drawing.Graphics]::FromImage($bmp); $g.CopyFromScreen(${disp.b.x}, ${disp.b.y}, 0, 0, $bmp.Size); $g.Dispose()
 $bmp.Save($Out, [System.Drawing.Imaging.ImageFormat]::Png); $bmp.Dispose()
+# The taskbar, IF it is the top window at its own centre (over the capture), as "x y w h" — else nothing.
+$t = [N]::FindWindow('Shell_TrayWnd', $null)
+if ($t -ne [IntPtr]::Zero) {
+  $r = New-Object N+R; [void][N]::GetWindowRect($t, [ref]$r)
+  $c = New-Object N+P; $c.X = [int](($r.L + $r.Rt) / 2); $c.Y = [int](($r.T + $r.B) / 2)
+  if ([N]::GetAncestor([N]::WindowFromPoint($c), 2) -eq $t) { Write-Output "TASKBAR $($r.L) $($r.T) $($r.Rt - $r.L) $($r.B - $r.T)" }
+}
 `);
+// THE TASKBAR, when Windows draws it OVER the app's fullscreen output (seen 2026-11-25 on the primary display: the
+// app's window is fullscreen but not topmost, and from that afternoon the taskbar stayed on top of it — A and A2
+// carried it, the engine's TOPMOST window covers it: 92 160 pixels, exactly the taskbar's 1920x48). Not the output's
+// pixels, so once a capture SEES it on top (asked of Windows, not guessed from the pixels) its rect is left out of
+// every comparison, on both sides — and the run says so.
+const MASKED = [];
+const noteTaskbar = (out) => {
+  const m = /TASKBAR (-?\d+) (-?\d+) (\d+) (\d+)/.exec(out || '');
+  if (!m) return;
+  const r = { x: +m[1] - disp.b.x, y: +m[2] - disp.b.y, w: +m[3], h: +m[4] };
+  if (MASKED.some((q) => q.x === r.x && q.y === r.y && q.w === r.w && q.h === r.h)) return;
+  MASKED.push(r);
+  console.log(`     the taskbar is drawn over the capture (${r.w}x${r.h} at ${r.x}, ${r.y}) — left out of the comparisons`);
+};
 const capture = (name, region = REGION) => new Promise((res) => {
   const f = path.join(WORK, `${name}.png`);
-  execFile('powershell', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', CAP, '-Out', f], { windowsHide: true }, () => res(crop(PNG.sync.read(fs.readFileSync(f)), region)));
+  execFile('powershell', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', CAP, '-Out', f], { windowsHide: true, encoding: 'utf8' }, (_e, out) => {
+    noteTaskbar(out);
+    res(crop(PNG.sync.read(fs.readFileSync(f)), region));
+  });
 });
-const diff = (a, b) => { let n = 0, max = 0; for (let i = 0; i < a.data.length; i += 4) { let d = 0; for (let k = 0; k < 3; k++) d = Math.max(d, Math.abs(a.data[i + k] - b.data[i + k])); if (d) n++; max = Math.max(max, d); } return { n, max, of: a.data.length / 4 }; };
+const masked = (a, i) => { if (!MASKED.length) return false; const x = (i / 4) % a.width + (a.ox ?? 0), y = Math.floor(i / 4 / a.width) + (a.oy ?? 0); return MASKED.some((r) => x >= r.x && x < r.x + r.w && y >= r.y && y < r.y + r.h); };
+const diff = (a, b) => { let n = 0, max = 0; for (let i = 0; i < a.data.length; i += 4) { if (masked(a, i)) continue; let d = 0; for (let k = 0; k < 3; k++) d = Math.max(d, Math.abs(a.data[i + k] - b.data[i + k])); if (d) n++; max = Math.max(max, d); } return { n, max, of: a.data.length / 4 }; };
 // A capture held to `ref`, RETAKEN while it differs (up to 4 times, 4 s apart): a fullscreen D3D window that has just
 // appeared gets the NVIDIA app's own toast ("Alt+Z to open the overlay", top right, ~10 s) drawn OVER it by the
 // system — not our pixels (seen 2026-11-25: 23 662 pixels by up to 231, exactly that box). A difference that
@@ -149,6 +195,7 @@ const DWM_CORNER = 8;
 const crop = (a, r) => {
   if (!r) return a;
   const o = new PNG({ width: r.w, height: r.h });
+  o.ox = r.x; o.oy = r.y;   // where it sits on the display (MASKED)
   for (let y = 0; y < r.h; y++) a.data.copy(o.data, y * r.w * 4, ((r.y + y) * a.width + r.x) * 4, ((r.y + y) * a.width + r.x + r.w) * 4);
   for (let y = r.h - DWM_CORNER; y < r.h; y++) for (const x0 of [0, r.w - DWM_CORNER]) o.data.fill(0, (y * r.w + x0) * 4, (y * r.w + x0 + DWM_CORNER) * 4);
   return o;
@@ -280,6 +327,14 @@ async function stopAll() {
       if (w[0]) { aRect = { x: w[0].x - disp.b.x, y: w[0].y - disp.b.y, w: w[0].w, h: w[0].h }; A = crop(Afull, aRect); }
     }
     ok(lit(A) > 0.3, `A. the app's projector output is on the screen (${(100 * lit(A)).toFixed(0)}% of it lit)`);
+    if (HWWARP) {
+      // The keystone + soft edges leave ~18% of the screen dark (82% lit, measured); drawn FLAT for the scanout, the
+      // whole screen is picture. (Not one corner pixel: the test picture's own top-left is near black.)
+      const flat = lit(A) > 0.97;
+      ok(!!said(app, /\[nvwarp\] PRETEND/) && (PRETEND ? flat : !flat), PRETEND
+        ? `A. NVAPI owns the output (pretended) — the app's window draws it FLAT for the scanout (${(100 * lit(A)).toFixed(0)}% lit)`
+        : `A. no NVAPI — the app ignores hwWarp and draws the GLSL keystone (${(100 * lit(A)).toFixed(0)}% lit)`);
+    }
     if (NDI) {
       ndiA = await ndiGrab('A-app');
       ok(!!ndiA.data && ndiA.n === 1, `A. the app sends the output as NDI '${NDI_NAME}' (${ndiA.data ? `${ndiA.w}x${ndiA.h}, ${ndiA.n} source(s)` : `nothing received${ndiA.err ? `: ${ndiA.err}` : ''}`})`);

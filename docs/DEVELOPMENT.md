@@ -92,12 +92,18 @@ window's — with the engine showing it, align from the editor. An **NDI send** 
 well: it captures its own window as the app does (same cap, same scaling) and sends under the same name, while the
 app's sender of that name stands down (`[ndi] the engine sends the projector outputs`) and comes back if the
 engine stops — an engine built without NDI (`cargo build` rather than `npm run build:engine`) refuses instead.
-Anything else — live calibration, NVIDIA hardware warp — keeps every output with the app, and the log says which
-and why (`[engine] the app keeps the projector outputs: …`).
+An output with **NVIDIA hardware warp** is the engine's too: NVAPI warps the display at scanout, whichever window is
+on it, so the engine draws the output flat exactly when the app's window would (App's `hwOwnsGeometry`, handed to
+`nativeLink.setProjectors`). Only **live calibration** (render-from-projector) still keeps every output with the
+app, and the log says why (`[engine] the app keeps the projector outputs: …`).
 Proof: `node scripts/test-engine-runtime.cjs` (the engine alone, over stdio) and
 `node scripts/test-native-takeover.cjs [--packaged <ArtLux.exe>]` (the real app: who sends each packet, and
-the bytes) and `node scripts/test-native-projectors.cjs [--windowed] [--ndi [--editor]]` (the real app in broadcast mode, read
-from the SCREEN — ⚠ it covers display 0 for ~15 s at a time; on a scratch profile, killing only its own processes).
+the bytes) and `node scripts/test-native-projectors.cjs [--windowed] [--ndi [--editor]] [--hwwarp [--no-nvapi]]` (the real app in
+broadcast mode, read from the SCREEN — ⚠ it covers display 0 for ~15 s at a time; on a scratch profile, killing only
+its own processes). It sets `ARTLUX_NVWARP_PRETEND` on every launch (`1` available / `0` absent, scanout calls
+skipped), because **a GeForce can have NVAPI scanout warp** (an RTX 5090 on driver 621 does) and a screen capture
+cannot see a scanout warp — a run that reached it once left its keystone on the primary display until cleared by
+hand (`node -e "const a=require('./native/nvwarp/nvwarp.node');for(const d of a.listDisplays())a.clear(d.displayId)"`).
 
 Each piece the engine will take over is held to today's app by a comparison test that runs the app's REAL
 code beside it — `npm run test:pack-parity`, `test:sampling-parity -- --gpu`, `test:wire-parity`,

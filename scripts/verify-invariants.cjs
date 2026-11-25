@@ -9103,8 +9103,8 @@ check(
     const nl = read('src/renderer/engine/nativeLink.ts');
     // (A projection mask and a blend map are no longer refused — E6f: the app's window applies neither; see the
     // 'masked or blend-mapped projector output' check, which fails the day it does. Nor a WINDOWED output, nor an NDI
-    // SEND — see the 'windowed projector output' and 'NDI send' checks.)
-    for (const w of ['calibrated (render-from-projector)', 'NVIDIA hardware warp']) {
+    // SEND, nor an NVIDIA HARDWARE WARP — see the 'windowed projector output', 'NDI send' and 'hardware warp' checks.)
+    for (const w of ['calibrated (render-from-projector)']) {
       if (!nl.includes(`'${w}'`)) problems.push(`nativeLink no longer refuses an output with ${w}`);
     }
     return problems.length ? problems.join('; ') : null;
@@ -9785,6 +9785,36 @@ check(
     if (!/an NDI send — \{w\}/.test(raw('engine/artlux-engine/src/runtime.rs'))) problems.push('an engine without NDI no longer refuses an NDI send (the app must keep it)');
     if (!/ctx\.nativeEngine\?\.onProjectorsOwned\(\(owned\) => ndi\.setSendersSuspended\(owned\)\)/.test(read('plugins/ndi/src/plugin.main.ts'))) problems.push('plugins/ndi no longer stands its senders down while the engine sends');
     if (!/for \(const cb of projOwnsListeners\)/.test(read('src/main/engineHost.ts'))) problems.push('engineHost no longer tells plugins who shows the projector outputs');
+    return problems.length ? problems.join('; ') : null;
+  },
+);
+
+check(
+  'an NVIDIA-hardware-warped projector output is the engine\'s, drawn FLAT exactly when the app\'s window draws it flat',
+  'E6f: NVAPI warps and blends the DISPLAY at scanout — whatever window is on it, the engine\'s topmost one too — and ' +
+  'App\'s pushProjectorState then hands its own window a FLAT output (identity corner-pin, no warp, no soft edge, unit ' +
+  'gain, no lift; gamma kept), or the correction is applied twice. The engine must be handed the same flat output for ' +
+  'the same outputs: ONE predicate (App.hwOwnsGeometry) decides both, passed to nativeLink.setProjectors — a second ' +
+  'one would drift (it needs the NVAPI answer and the display\'s `internal`). hwWarp on an output NVAPI does not own ' +
+  'is ignored by both. test:native-projectors --hwwarp (ARTLUX_NVWARP_PRETEND: main answers available, skips every ' +
+  'scanout call) and --hwwarp --no-pretend: the engine\'s window = the app\'s.',
+  () => {
+    const problems = [];
+    const nl = read('src/renderer/engine/nativeLink.ts');
+    if (/'NVIDIA hardware warp'/.test(nl)) problems.push('nativeLink refuses an NVIDIA hardware warp again');
+    if (!/projHw\.has\(o\.surfaceId\)\s*\?\s*\{ cornerPin: defaultCornerPin\(\), warp: null, softEdge: defaultSoftEdge\(\), gamma: o\.gamma, colorGain: \[1, 1, 1\], blackLift: \[0, 0, 0\]/.test(nl)) problems.push('nativeLink no longer hands the engine the FLAT output the app\'s window draws under a scanout warp');
+    if (!/projOutputs, projHwKey, bakedSeq/.test(nl)) problems.push('a change of which outputs NVAPI owns no longer re-sends the document');
+    const app = read('src/renderer/App.tsx');
+    if (!/nativeLink\.setProjectors\(projectorOutputs, projectorBrightness \?\? 1, projectorOutputs\.filter\(o => hwOwnsGeometry\(o\)\)/.test(app)) problems.push('App no longer tells nativeLink which outputs NVAPI owns through hwOwnsGeometry (the one predicate)');
+    if (!/cornerPin: hwGeom \? defaultCornerPin\(\)/.test(app) || !/softEdge: hwGeom \? defaultSoftEdge\(\)/.test(app) || !/colorGain: hwGeom \? \[1, 1, 1\]/.test(app) || !/blackLift: hwGeom \? \[0, 0, 0\]/.test(app) || !/warp: hwGeom \? null/.test(app)) problems.push('the app\'s window no longer draws a hardware-owned output flat the way nativeLink tells the engine to');
+    const nv = read('src/main/nvwarpManager.ts');
+    for (const f of ['setWarp', 'setIntensity', 'clearDisplay']) {
+      if (!new RegExp(String.raw`export function ${f}\([^)]*\): boolean \{\s*if \(pretend\) return true;`).test(nv)) problems.push(`ARTLUX_NVWARP_PRETEND no longer skips ${f} — a test run would reach NVAPI`);
+    }
+    // A GeForce RTX 5090 HAS NVAPI scanout warp (2026-11-25): a test run that reached it warped the operator's primary
+    // display at scanout, invisible to captures, and its forced kill skipped the clear. Every run pretends.
+    if (!/const pretend = pretendEnv === '1' \|\| pretendEnv === '0';/.test(nv)) problems.push('ARTLUX_NVWARP_PRETEND=0 no longer pretends NVAPI absent (the --no-nvapi run would reach the real scanout)');
+    if (!/env0\.ARTLUX_NVWARP_PRETEND = PRETEND \? '1' : '0';/.test(read('scripts/test-native-projectors.cjs'))) problems.push('test-native-projectors no longer sets ARTLUX_NVWARP_PRETEND on EVERY launch — a run could reach the real NVAPI scanout');
     return problems.length ? problems.join('; ') : null;
   },
 );
