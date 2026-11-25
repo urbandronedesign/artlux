@@ -100,13 +100,14 @@ with the editor's functions, every mesh's model-view computed as three computes 
 three.js does (its vertex maths, the streamed-bitmap UVs, a no-mip sRGB texture, three's OETF, 4× MSAA, the
 brightness × opacity dim after the resolve), and the post pass the window mounts for a **lens distortion** or a
 **soft edge / colour match / rig blend** (EffectComposer: the scene linear into an 8× MSAA half-float buffer, then
-distortion → blend → sRGB in one pass, from `renderLook.ts`'s values). It does not draw yet a residual warp, an NDI
-send of a calibrated output, a mesh in its own material, a timeline layer on the venue or projected occlusion —
-those keep every output with the app, and so does an open calibration session; the log says why
+distortion → blend → sRGB in one pass, from `renderLook.ts`'s values), and a **residual warp** on top (the venue
+becomes the warp stage's source, geometry only — and then its NDI send). It does not draw yet an NDI send of an
+unwarped calibrated output (the app sends nothing there), a mesh in its own material, a timeline layer on the venue
+or projected occlusion — those keep every output with the app, and so does an open calibration session; the log says why
 (`[engine] the app keeps the projector outputs: …`).
 Proof: `node scripts/test-engine-runtime.cjs` (the engine alone, over stdio) and
 `node scripts/test-native-takeover.cjs [--packaged <ArtLux.exe>]` (the real app: who sends each packet, and
-the bytes) and `node scripts/test-native-projectors.cjs [--windowed] [--ndi [--editor]] [--hwwarp [--no-nvapi]] [--calibrated [--glb] [--distort] [--calib-blend] [--calib-warp]]` (the real app in
+the bytes) and `node scripts/test-native-projectors.cjs [--windowed] [--ndi [--editor]] [--hwwarp [--no-nvapi]] [--calibrated [--glb] [--distort] [--calib-blend] [--calib-warp [--ndi]] [--calib-refused]]` (the real app in
 broadcast mode, read from the SCREEN — ⚠ it covers display 0 for ~15 s at a time; on a scratch profile, killing only
 its own processes). It sets `ARTLUX_NVWARP_PRETEND` on every launch (`1` available / `0` absent, scanout calls
 skipped), because **a GeForce can have NVAPI scanout warp** (an RTX 5090 on driver 621 does) and a screen capture

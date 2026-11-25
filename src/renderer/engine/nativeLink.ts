@@ -213,9 +213,12 @@ function effectiveOutput(o: ProjectorOutput) {
 /**
  * E6f: a calibrated output in RENDER mode — the venue as the engine draws it (venueLink.calibDoc), or why not.
  * The scene's own reasons are venueLink's; these are the OUTPUT's, each a pass ProjectorScene / ProjectorApp
- * applies that calib3d.rs does not yet: a residual warp (the base stage then warps the scene's canvas —
- * hasResidualWarp, ProjectorApp's own test), and an NDI send (without a residual warp the app's window returns
- * before its capture and sends nothing). Null: not in render mode.
+ * applies that calib3d.rs does not: an NDI send WITHOUT a residual warp (the app's window then returns before its
+ * capture and sends nothing). Null: not in render mode.
+ *
+ * A RESIDUAL WARP is the engine's (E6f step 3): ProjectorApp's path B — the scene's canvas becomes the warp stage's
+ * source — decided by ProjectorApp's own test (hasResidualWarp) and handed over as `warped`. Its NDI send is then
+ * the app's too (path B captures after warping), and the engine's.
  *
  * The POST PASS is the engine's (E6f step 2): ProjectorScene's EffectComposer — the lens distortion, then the blend
  * (soft edge, colour gain, black lift, the solved rig blend). It runs exactly when ProjectorScene mounts it
@@ -226,8 +229,8 @@ function effectiveOutput(o: ProjectorOutput) {
 function calibFor(o: ProjectorOutput, sources: Record<string, contentSource.NativeSource>): { doc: unknown } | { why: string } | null {
   if (!venueRender.has(o.surfaceId) || baked.has(o.surfaceId) || !venueScene || !o.calibration) return null;
   const eff = effectiveOutput(o);
-  if (hasResidualWarp(eff.cornerPin, eff.warp)) return { why: 'calibrated with a residual warp (not drawn by the engine yet)' };
-  if (o.ndiSend) return { why: 'calibrated and sent as NDI (the app sends nothing there without a residual warp)' };
+  const warped = hasResidualWarp(eff.cornerPin, eff.warp);
+  if (o.ndiSend && !warped) return { why: 'calibrated and sent as NDI (the app sends nothing there without a residual warp)' };
   const r = venueLink.calibDoc(o.calibration, venueScene);
   if ('why' in r) return r;
   const look = { softEdge: eff.softEdge, colorGain: eff.colorGain, blackLift: eff.blackLift, blend: eff.blend };
@@ -242,7 +245,7 @@ function calibFor(o: ProjectorOutput, sources: Record<string, contentSource.Nati
     if (!x) return { why: `the venue shows surface ${sid}, which is gone` };
     if (x.kind === 'unsupported') return { why: `the venue shows '${sid}': ${'why' in x ? x.why : 'a source the engine does not draw'}` };
   }
-  return { doc: { ...(r.doc as object), post } };
+  return { doc: { ...(r.doc as object), post, warped } };
 }
 
 function projectorEntry(o: ProjectorOutput, surfaces: Surface[], sources: Record<string, contentSource.NativeSource>) {

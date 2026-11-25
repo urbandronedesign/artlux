@@ -241,26 +241,47 @@ fn mip_down(gpu: &Gpu, tex: &wgpu::Texture, levels: u32) {
 }
 
 /// Draw `content` through `o` onto a `w`×`h` target in `format`. `target` must be RENDER_ATTACHMENT.
+/// (A one-off; a presenter that draws EVERY frame keeps a `Warp`, which keeps its pipeline.)
 pub fn draw(gpu: &Gpu, content: &wgpu::Texture, o: &Opts, target: &wgpu::TextureView, format: wgpu::TextureFormat, w: u32, h: u32) {
+    Warp::new(gpu).draw(gpu, content, o, target, format, w, h)
+}
+
+/// The warp pass with its pipelines and sampler kept — E6f: a calibrated output with a residual warp warps the
+/// venue's picture every frame (ProjectorApp path B), where a plain output redraws only on a change.
+pub struct Warp { module: wgpu::ShaderModule, pipes: Vec<((wgpu::TextureFormat, u32), wgpu::RenderPipeline)>, samp: wgpu::Sampler }
+
+impl Warp {
+    pub fn new(gpu: &Gpu) -> Self {
+        let d = &gpu.device;
+        let module = d.create_shader_module(wgpu::ShaderModuleDescriptor { label: Some("warp"), source: wgpu::ShaderSource::Wgsl(WARP_WGSL.into()) });
+        let samp = d.create_sampler(&wgpu::SamplerDescriptor {
+            address_mode_u: wgpu::AddressMode::ClampToEdge, address_mode_v: wgpu::AddressMode::ClampToEdge,
+            mag_filter: wgpu::FilterMode::Linear, min_filter: wgpu::FilterMode::Linear, mipmap_filter: wgpu::MipmapFilterMode::Linear,
+            lod_max_clamp: 4.0, anisotropy_clamp: 8, ..Default::default()
+        });
+        Warp { module, pipes: Vec::new(), samp }
+    }
+
+    pub fn draw(&mut self, gpu: &Gpu, content: &wgpu::Texture, o: &Opts, target: &wgpu::TextureView, format: wgpu::TextureFormat, w: u32, h: u32) {
     use wgpu::util::DeviceExt;
     let d = &gpu.device;
     let samples = if o.aa > 1 { 4 } else { 1 };
-    let module = d.create_shader_module(wgpu::ShaderModuleDescriptor { label: Some("warp"), source: wgpu::ShaderSource::Wgsl(WARP_WGSL.into()) });
-    let pipe = d.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
-        label: Some("warp"), layout: None,
-        vertex: wgpu::VertexState { module: &module, entry_point: Some("vs"), compilation_options: Default::default(), buffers: &[Some(wgpu::VertexBufferLayout {
-            array_stride: 20, step_mode: wgpu::VertexStepMode::Vertex,
-            attributes: &wgpu::vertex_attr_array![0 => Float32x2, 1 => Float32x3],
-        })] },
-        fragment: Some(wgpu::FragmentState { module: &module, entry_point: Some("fs"), targets: &[Some(format.into())], compilation_options: Default::default() }),
-        primitive: Default::default(), depth_stencil: None,
-        multisample: wgpu::MultisampleState { count: samples, ..Default::default() }, multiview_mask: None, cache: None,
-    });
-    let samp = d.create_sampler(&wgpu::SamplerDescriptor {
-        address_mode_u: wgpu::AddressMode::ClampToEdge, address_mode_v: wgpu::AddressMode::ClampToEdge,
-        mag_filter: wgpu::FilterMode::Linear, min_filter: wgpu::FilterMode::Linear, mipmap_filter: wgpu::MipmapFilterMode::Linear,
-        lod_max_clamp: 4.0, anisotropy_clamp: 8, ..Default::default()
-    });
+    if !self.pipes.iter().any(|(k, _)| *k == (format, samples)) {
+        let module = &self.module;
+        let pipe = d.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+            label: Some("warp"), layout: None,
+            vertex: wgpu::VertexState { module, entry_point: Some("vs"), compilation_options: Default::default(), buffers: &[Some(wgpu::VertexBufferLayout {
+                array_stride: 20, step_mode: wgpu::VertexStepMode::Vertex,
+                attributes: &wgpu::vertex_attr_array![0 => Float32x2, 1 => Float32x3],
+            })] },
+            fragment: Some(wgpu::FragmentState { module, entry_point: Some("fs"), targets: &[Some(format.into())], compilation_options: Default::default() }),
+            primitive: Default::default(), depth_stencil: None,
+            multisample: wgpu::MultisampleState { count: samples, ..Default::default() }, multiview_mask: None, cache: None,
+        });
+        self.pipes.push(((format, samples), pipe));
+    }
+    let pipe = &self.pipes.iter().find(|(k, _)| *k == (format, samples)).unwrap().1;
+    let samp = &self.samp;
     let f = |v: f64| (v as f32).to_le_bytes();
     let mut ub = Vec::new();
     for v in o.soft { ub.extend(f(v)); }
@@ -273,7 +294,7 @@ pub fn draw(gpu: &Gpu, content: &wgpu::Texture, o: &Opts, target: &wgpu::Texture
     let view = content.create_view(&Default::default());
     let bind = d.create_bind_group(&wgpu::BindGroupDescriptor { label: None, layout: &pipe.get_bind_group_layout(0), entries: &[
         wgpu::BindGroupEntry { binding: 0, resource: wgpu::BindingResource::TextureView(&view) },
-        wgpu::BindGroupEntry { binding: 1, resource: wgpu::BindingResource::Sampler(&samp) },
+        wgpu::BindGroupEntry { binding: 1, resource: wgpu::BindingResource::Sampler(samp) },
         wgpu::BindGroupEntry { binding: 2, resource: ubuf.as_entire_binding() },
     ] });
     let ms = (samples > 1).then(|| d.create_texture(&wgpu::TextureDescriptor {
@@ -286,10 +307,74 @@ pub fn draw(gpu: &Gpu, content: &wgpu::Texture, o: &Opts, target: &wgpu::Texture
         let mut pass = enc.begin_render_pass(&wgpu::RenderPassDescriptor { label: Some("warp"), color_attachments: &[Some(wgpu::RenderPassColorAttachment {
             view, depth_slice: None, resolve_target: resolve,
             ops: wgpu::Operations { load: wgpu::LoadOp::Clear(wgpu::Color::BLACK), store: wgpu::StoreOp::Store } })], ..Default::default() });
-        pass.set_pipeline(&pipe); pass.set_bind_group(0, &bind, &[]); pass.set_vertex_buffer(0, vbuf.slice(..));
+        pass.set_pipeline(pipe); pass.set_bind_group(0, &bind, &[]); pass.set_vertex_buffer(0, vbuf.slice(..));
         pass.draw(0..(geo.len() / 5) as u32, 0..1);
     }
     gpu.queue.submit([enc.finish()]);
+    }
+}
+
+const CANVAS_WGSL: &str = r#"
+@group(0) @binding(0) var src: texture_2d<f32>;
+@vertex
+fn vs(@builtin(vertex_index) i: u32) -> @builtin(position) vec4<f32> {
+    let x = f32((i << 1u) & 2u) * 2.0 - 1.0;
+    let y = f32(i & 2u) * 2.0 - 1.0;
+    return vec4<f32>(x, y, 0.0, 1.0);
+}
+@fragment
+fn fs(@builtin(position) pos: vec4<f32>) -> @location(0) vec4<f32> {
+    // Row r of the picture is row h − 1 − r of the GL raster: exact texels, no filtering.
+    let h = i32(textureDimensions(src).y);
+    return textureLoad(src, vec2<i32>(i32(pos.x), h - 1 - i32(pos.y)), 0);
+}
+"#;
+
+/// E6f: a WebGL CANVAS as the warp's content — `texImage2D(canvas)` + generateMipmap, as ProjectorGL uploads the
+/// calibrated scene's canvas when a residual warp bends it (ProjectorApp path B). The canvas's drawing buffer is a GL
+/// framebuffer (row 0 at the BOTTOM — the raster calib3d draws); the upload lays it out as a DOM image, top row first
+/// (UNPACK_FLIP_Y off), so level 0 is that raster turned over, texel for texel, then mipped as every content texture.
+pub struct CanvasContent { flip: wgpu::RenderPipeline, tex: Option<(u32, u32, wgpu::Texture)> }
+
+impl CanvasContent {
+    pub fn new(gpu: &Gpu) -> Self {
+        let d = &gpu.device;
+        let m = d.create_shader_module(wgpu::ShaderModuleDescriptor { label: Some("canvas content"), source: wgpu::ShaderSource::Wgsl(CANVAS_WGSL.into()) });
+        let flip = d.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+            label: Some("canvas content"), layout: None,
+            vertex: wgpu::VertexState { module: &m, entry_point: Some("vs"), buffers: &[], compilation_options: Default::default() },
+            fragment: Some(wgpu::FragmentState { module: &m, entry_point: Some("fs"), targets: &[Some(wgpu::TextureFormat::Rgba8Unorm.into())], compilation_options: Default::default() }),
+            primitive: Default::default(), depth_stencil: None, multisample: Default::default(), multiview_mask: None, cache: None,
+        });
+        CanvasContent { flip, tex: None }
+    }
+
+    /// `raster`: the canvas's drawing buffer (Rgba8Unorm, w × h, bottom-up, TEXTURE_BINDING).
+    pub fn upload(&mut self, gpu: &Gpu, raster: &wgpu::TextureView, w: u32, h: u32) -> &wgpu::Texture {
+        let d = &gpu.device;
+        let levels = (32 - w.max(h).leading_zeros()).min(5);
+        if self.tex.as_ref().map(|t| (t.0, t.1)) != Some((w, h)) {
+            self.tex = Some((w, h, d.create_texture(&wgpu::TextureDescriptor {
+                label: Some("projector content (canvas)"), size: wgpu::Extent3d { width: w, height: h, depth_or_array_layers: 1 },
+                mip_level_count: levels, sample_count: 1, dimension: wgpu::TextureDimension::D2, format: wgpu::TextureFormat::Rgba8Unorm,
+                usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST | wgpu::TextureUsages::COPY_SRC | wgpu::TextureUsages::RENDER_ATTACHMENT, view_formats: &[],
+            })));
+        }
+        let tex = &self.tex.as_ref().unwrap().2;
+        let dst = tex.create_view(&wgpu::TextureViewDescriptor { base_mip_level: 0, mip_level_count: Some(1), ..Default::default() });
+        let bind = d.create_bind_group(&wgpu::BindGroupDescriptor { label: None, layout: &self.flip.get_bind_group_layout(0), entries: &[
+            wgpu::BindGroupEntry { binding: 0, resource: wgpu::BindingResource::TextureView(raster) },
+        ] });
+        let mut enc = d.create_command_encoder(&Default::default());
+        {
+            let mut pass = enc.begin_render_pass(&wgpu::RenderPassDescriptor { label: Some("canvas content"), color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                view: &dst, depth_slice: None, resolve_target: None, ops: wgpu::Operations { load: wgpu::LoadOp::Clear(wgpu::Color::BLACK), store: wgpu::StoreOp::Store } })], ..Default::default() });
+            pass.set_pipeline(&self.flip); pass.set_bind_group(0, &bind, &[]); pass.draw(0..3, 0..1);
+        }
+        gpu.queue.submit([enc.finish()]);
+        mip_down(gpu, tex, levels);
+        tex
+    }
 }
 
 /// Offscreen: the projector raster as RGBA8, top row first.

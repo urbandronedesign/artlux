@@ -73,10 +73,12 @@ const HWWARP = process.argv.includes('--hwwarp');
 // one through its UVs, one projected from this projector; --glb adds the multi-projector example's venue GLB wearing
 // the still). The app's window draws it with three.js (ProjectorScene), the engine with calib3d.rs.
 // --distort: a lens distortion (radial + tangential) — ProjectorScene's post pass (EffectComposer). --calib-blend: a
-// soft edge, colour gain, black lift and a solved rig blend — the same pass. --calib-warp: a residual warp, which
-// the engine does not draw yet: the app must KEEP the outputs, with the reason.
+// soft edge, colour gain, black lift and a solved rig blend — the same pass. --calib-warp: a residual warp (a nudged
+// corner pin — ProjectorApp path B: the scene's canvas becomes the warp stage's source). --calib-refused: the
+// projected screen OCCLUDES, which the engine does not draw yet: the app must KEEP the outputs, with the reason.
 const CALIBRATED = process.argv.includes('--calibrated');
 const CALIB_WARP = CALIBRATED && process.argv.includes('--calib-warp');
+const CALIB_REFUSED = CALIBRATED && process.argv.includes('--calib-refused');
 const CALIB_DISTORT = CALIBRATED && process.argv.includes('--distort');
 const CALIB_BLEND = CALIBRATED && process.argv.includes('--calib-blend');
 const CALIB_GLB = CALIBRATED && process.argv.includes('--glb') ? path.join(ROOT, 'examples', 'multi-projector', 'assets', 'models', 'panorama-venue.glb') : null;
@@ -112,6 +114,8 @@ fs.writeFileSync(project, JSON.stringify({
     // venue and 1.5 m up, looking down −Z), no distortion, no blend pass, no residual warp (the engine draws those
     // later — refused for now).
     surfaceId: 'sP', name: 'Wall', enabled: true, displayId: WINDOWED ? -1 : disp.id, useCalibration: true,
+    // --ndi with --calib-warp: path B captures after warping (without a residual warp the app sends nothing).
+    ...(NDI ? { ndiSend: true } : {}),
     calibration: {
       intrinsics: [1800, 0, 960, 0, 1800, 540, 0, 0, 1], distortion: CALIB_DISTORT ? [-0.18, 0.07, 0.0015, -0.002, 0.01] : [0, 0, 0, 0, 0],
       rotation: [1, 0, 0, 0, -1, 0, 0, 0, -1], translation: [0, 1.5, 4], imageSize: [1920, 1080], poseRms: 0.4,
@@ -121,8 +125,8 @@ fs.writeFileSync(project, JSON.stringify({
       softEdge: { left: 0.12, right: 0, top: 0, bottom: 0.09, gamma: 2.2 }, colorGain: [1, 0.94, 0.88], blackLift: [0.015, 0.01, 0.02],
       blend: { w: 5, h: 3, alpha: [1, 1, 0.8, 0.45, 0.1, 1, 1, 0.75, 0.4, 0.05, 1, 0.95, 0.7, 0.35, 0], black: [0, 0, 0.3, 0.7, 1, 0, 0.1, 0.4, 0.8, 1, 0, 0.2, 0.5, 0.9, 1], solvedAt: '2026-01-01T00:00:00.000Z', rigIds: ['sP'] },
     } : {}),
-    // --calib-warp: a residual warp — not drawn by the engine yet: the app must KEEP the outputs.
-    ...(CALIB_WARP ? { cornerPin: { tl: [0.02, 0.01], tr: [0.99, 0], br: [1, 1], bl: [0, 0.98] } } : {}),
+    // --calib-warp: a residual warp — a nudged corner pin (a real keystone, so the warp resamples every pixel).
+    ...(CALIB_WARP ? { cornerPin: { tl: [0.03, 0.02], tr: [0.98, 0], br: [1, 0.97], bl: [0, 1] } } : {}),
   } : {
     surfaceId: 'sP', name: 'Wall', enabled: true, displayId: WINDOWED ? -1 : disp.id, ...(NDI ? { ndiSend: true } : {}), ...(HWWARP ? { hwWarp: true } : {}),
     cornerPin: { tl: [0.05, 0.1], tr: [0.93, 0.02], br: [0.97, 0.95], bl: [0.02, 0.88] },
@@ -136,7 +140,7 @@ fs.writeFileSync(project, JSON.stringify({
     { id: 'scr', name: 'Screen', kind: 'plane', path: '', surfaceId: 'sP', position: { x: -0.9, y: 1.2, z: 0 }, rotation: { x: 0, y: 18, z: 4 }, scale: 1, scaleXYZ: [1.6, 1.6, 1], visible: true },
     // A screen PROJECTED from this very projector (resolveProjectedScene fills its matrix from the calibration).
     { id: 'prj', name: 'Projected', kind: 'plane', path: '', surfaceId: 'sP', position: { x: 1.3, y: 1.0, z: -0.5 }, rotation: { x: -12, y: -25, z: 0 }, scale: 1, scaleXYZ: [1.2, 1.2, 1], visible: true,
-      uvMode: 'projected', uvProjFrom: 'sP', uvProjSoft: 0.05, uvProjOccludeOff: true },
+      uvMode: 'projected', uvProjFrom: 'sP', uvProjSoft: 0.05, uvProjOccludeOff: !CALIB_REFUSED },
     // --glb: the multi-projector example's venue, the still on every mesh of it (its UVs, v flipped as three flips it).
     ...(CALIB_GLB ? [{ id: 'ven', name: 'Venue', kind: 'mesh', path: CALIB_GLB, surfaceId: 'sP', position: { x: 0, y: 2.9, z: -3 }, rotation: { x: 0, y: 0, z: 0 }, scale: 0.5, visible: true }] : []),
   ] } } : {}),
@@ -379,10 +383,10 @@ async function stopAll() {
 
     // ── B. the engine's window ───────────────────────────────────────────────────────────────────────
     app = launch(true);
-    if (CALIB_WARP) {
+    if (CALIB_REFUSED) {
       // What the engine does not draw is REFUSED, with its reason — and the app's window stays the picture.
-      const kept = await waitFor(() => said(app, /keeps the projector outputs: output 'Wall': calibrated with a residual warp/), 60000);
-      ok(kept && !said(app, /\[engine\] owns the projector outputs/), `B. a calibrated output with a residual warp stays the app's, with the reason (${(said(app, /keeps the projector outputs/) || { l: 'no answer' }).l})`);
+      const kept = await waitFor(() => said(app, /keeps the projector outputs: output 'Wall': .*projected with occlusion/), 60000);
+      ok(kept && !said(app, /\[engine\] owns the projector outputs/), `B. a calibrated output projecting with occlusion stays the app's, with the reason (${(said(app, /keeps the projector outputs/) || { l: 'no answer' }).l})`);
       await sleep(12000);
       const K = await capture('B-kept');
       const dK = diff(A, K);

@@ -576,6 +576,10 @@ fn present(gpu: Arc<Gpu>, window: Arc<Window>, surface: wgpu::Surface<'static>, 
     let mut badge_tex: Option<(u64, wgpu::BindGroup, u32, u32)> = None;
     // E6f: the venue renderer of a calibrated output in render mode, made the first time it is one.
     let mut calib_r: Option<crate::calib3d::Renderer> = None;
+    // E6f: with a RESIDUAL WARP, the venue is drawn into its own canvas, which the warp stage then bends (path B).
+    let mut calib_canvas: Option<(u32, u32, wgpu::Texture, wgpu::TextureView)> = None;
+    let mut calib_content: Option<projector::CanvasContent> = None;
+    let mut calib_warp: Option<projector::Warp> = None;
     // E6f: this output's NDI send — the app's capture of its window (a LINEAR blit, flipped to top-first: crop.rs
     // samples bilinearly at each pixel's centre from level 0, upside down), every ≥ 33 ms.
     #[cfg(feature = "ndi")]
@@ -623,7 +627,29 @@ fn present(gpu: Arc<Gpu>, window: Arc<Window>, surface: wgpu::Surface<'static>, 
         // draw is the app's per-frame scene render), into the same bottom-up raster the flip pass presents.
         if let (Some((view, pics)), false, Some((tex, _))) = (&calib, booting, &raster) {
             let target = tex.create_view(&Default::default());
-            calib_r.get_or_insert_with(|| crate::calib3d::Renderer::new(&gpu, &spec.id)).draw(&gpu, view, pics, &target, size.width, size.height, o.brightness);
+            let r = calib_r.get_or_insert_with(|| crate::calib3d::Renderer::new(&gpu, &spec.id));
+            if view.warped {
+                // PATH B (ProjectorApp): the scene's canvas — undimmed, its element hidden — is the SOURCE of the
+                // ordinary warp stage, uploaded as any canvas (CanvasContent) and drawn with the output's corner pin /
+                // Bézier ONLY: every photometric stage identity (no feather, gamma 1, unit gain, no lift — the post pass
+                // already applied the blend look), brightness × opacity in the warp, aa 1.
+                let (w, h) = (size.width, size.height);
+                if calib_canvas.as_ref().map(|c| (c.0, c.1)) != Some((w, h)) {
+                    let t = d.create_texture(&wgpu::TextureDescriptor {
+                        label: Some("calib3d canvas"), size: wgpu::Extent3d { width: w, height: h, depth_or_array_layers: 1 }, mip_level_count: 1, sample_count: 1,
+                        dimension: wgpu::TextureDimension::D2, format: wgpu::TextureFormat::Rgba8Unorm,
+                        usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::TEXTURE_BINDING, view_formats: &[] });
+                    let v = t.create_view(&Default::default());
+                    calib_canvas = Some((w, h, t, v));
+                }
+                let cv = &calib_canvas.as_ref().unwrap().3;
+                r.draw(&gpu, view, pics, cv, w, h, 1.0);
+                let ct = calib_content.get_or_insert_with(|| projector::CanvasContent::new(&gpu)).upload(&gpu, cv, w, h);
+                let po = projector::Opts { soft: [0.0; 4], blend_gamma: 2.2, gamma: 1.0, color_gain: [1.0; 3], black_lift: [0.0; 3], aa: 1, ..o.clone() };
+                calib_warp.get_or_insert_with(|| projector::Warp::new(&gpu)).draw(&gpu, ct, &po, &target, wgpu::TextureFormat::Rgba8Unorm, w, h);
+            } else {
+                r.draw(&gpu, view, pics, &target, size.width, size.height, o.brightness);
+            }
             drawn = None;
         } else if drawn != Some((gen, ov, booting, size)) {
             if let Some((tex, _)) = &raster {

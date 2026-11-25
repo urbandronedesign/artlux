@@ -25,8 +25,9 @@
 //!     read there (LinearFilter, clamp), BlendEffect's mainImage applies the soft edge / rig blend / gain / lift in
 //!     PHYSICAL raster space (gl_FragCoord), the NORMAL blend at opacity 1 keeps it, then three's OETF into the 8-bit
 //!     canvas. POST below, line for line from ProjectorScene's distortFrag / blendFrag and blendGlsl.ts.
-//! Not drawn yet (the host refuses them, with the reason): a mesh's own lit material, a timeline layer, occlusion,
-//! a residual warp.
+//!   - a RESIDUAL WARP (E6f step 3, `warped`): ProjectorApp's path B — the scene's canvas, undimmed, becomes the warp
+//!     stage's source (outputs.rs: projector::CanvasContent + projector::Warp, geometry only).
+//! Not drawn yet (the host refuses them, with the reason): a mesh's own lit material, a timeline layer, occlusion.
 
 use crate::compose::Picture;
 use crate::Gpu;
@@ -69,7 +70,7 @@ pub struct Post { pub dist: Option<[f32; 9]>, pub blend: Option<Blend> }
 
 /// A calibrated output's venue, from the document's `calib`.
 #[derive(Clone, Debug)]
-pub struct View { pub proj: [f32; 16], pub models: Vec<Model>, pub post: Option<Post> }
+pub struct View { pub proj: [f32; 16], pub models: Vec<Model>, pub post: Option<Post>, pub warped: bool }
 
 fn fl<const N: usize>(v: &Value) -> Option<[f32; N]> {
     let a = v.as_array()?;
@@ -141,7 +142,8 @@ impl View {
                 _ => return None,
             }
         }
-        Some(View { proj, models, post: post_of(&v["post"]) })
+        // `warped`: the output carries a residual warp — the venue is then the warp stage's SOURCE (outputs.rs, path B).
+        Some(View { proj, models, post: post_of(&v["post"]), warped: v["warped"].as_bool().unwrap_or(false) })
     }
     /// The surfaces it shows (the presenters need their pictures).
     pub fn surfaces(&self) -> Vec<String> {

@@ -2584,6 +2584,21 @@ fallback until a source/output is proven byte-identical — risk 2):
 >   screen the app's. Plain, `--calibrated --glb` unchanged. Guarded (verify:invariants, five mutations caught).
 > - **Next for D:** the residual warp on a calibrated output (the base stage warps the scene's canvas — ProjectorApp
 >   path B), then occlusion, a mesh's own lit material and timeline layers on the venue.
+>
+> ✅ **E6f (render-from-projector, step 3) done 2026-11-25 — A RESIDUAL WARP ON A CALIBRATED OUTPUT.** ProjectorApp's
+> path B: with a nudged corner pin / Bézier the scene's canvas stops being the picture and becomes the SOURCE of the
+> window's ordinary warp stage. The engine now does the same (`outputs.rs`, `view.warped` — nativeLink decides it with
+> ProjectorApp's own `hasResidualWarp`): the venue drawn UNDIMMED into its own canvas; uploaded as `texImage2D(canvas)`
+> + generateMipmap (`projector::CanvasContent` — the GL raster turned top-first texel for texel, then the
+> same mip chain as every content texture); warped with GEOMETRY ONLY (no feather, gamma 1, unit gain, no lift — the
+> post pass already applied the look, twice would square the blend), brightness × opacity in the warp, aa 1. The warp
+> pass is now a `projector::Warp` keeping its pipelines (path B warps every frame; a plain output redraws on change).
+> An NDI send of a WARPED calibrated output is the engine's as well (path B captures after warping).
+> `test:native-projectors --calibrated --calib-warp`: **2 073 600 / 2 073 600**; `+ --ndi`: window and NDI frame
+> identical, the app's sender stood down and came back on a kill; with `--distort --calib-blend --glb`: **4 pixels by
+> 1**. `--calib-refused` (projected occlusion) replaces the refusal check. Plain, `--windowed`, `--calibrated
+> --distort` identical. Guarded.
+> - **Next for D:** occlusion (the projected-depth pass), a mesh's own lit material, timeline layers on the venue.
 
 ## 9d. E4 started early — the 3D view in the engine (owner, 2026-11-24)
 

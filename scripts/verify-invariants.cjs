@@ -9833,7 +9833,8 @@ check(
   'Step 2: the POST PASS — ProjectorScene\'s EffectComposer for a lens distortion or a blend look — is the engine\'s too: ' +
   'the scene LINEAR into an 8× MSAA half-float buffer, then one pass of distortion → blend → OETF, the values from ' +
   'renderLook (one definition for both). --calibrated --distort: 2 073 600 / 2 073 600; --calib-blend: 13 pixels by 1; ' +
-  'both + --glb: 5 by 1. ' +
+  'both + --glb: 5 by 1. Step 3: a RESIDUAL WARP (ProjectorApp path B — the scene\'s canvas is the warp stage\'s ' +
+  'source, geometry only): --calib-warp 2 073 600 / 2 073 600, its NDI frame too; with distortion + blend + GLB, 4 by 1. ' +
   'It found two app bugs, fixed: a projected mesh drew its content UPSIDE DOWN on the real projector (the texture ' +
   'was handed to the material before it was oriented), and a calibrated output without a residual warp ignored ' +
   'projector brightness and the surface\'s opacity (the canvas element was handed over only with a warp).',
@@ -9841,10 +9842,13 @@ check(
     const problems = [];
     const nl = read('src/renderer/engine/nativeLink.ts');
     if (/'calibrated \(render-from-projector\)'/.test(nl)) problems.push('nativeLink refuses every calibrated output again');
-    for (const [what, re] of [
-      ['a residual warp', /if \(hasResidualWarp\(eff\.cornerPin, eff\.warp\)\) return \{ why:/],
-      ['an NDI send', /if \(o\.ndiSend\) return \{ why:/],
-    ]) if (!re.test(nl)) problems.push(`nativeLink no longer refuses a calibrated output with ${what} (the engine does not draw it)`);
+    if (!/if \(o\.ndiSend && !warped\) return \{ why:/.test(nl)) problems.push('nativeLink no longer refuses an NDI send of a calibrated output WITHOUT a residual warp (the app sends nothing there)');
+    // Step 3: a RESIDUAL WARP — decided by ProjectorApp's own test, handed over as `warped`.
+    if (!/const warped = hasResidualWarp\(eff\.cornerPin, eff\.warp\);/.test(nl) || !/return \{ doc: \{ \.\.\.\(r\.doc as object\), post, warped \} \};/.test(nl)) problems.push('nativeLink no longer hands the engine a calibrated output\'s residual warp by hasResidualWarp');
+    const outs = raw('engine/artlux-engine/src/outputs.rs');
+    if (!/if view\.warped \{[\s\S]{0,2400}r\.draw\(&gpu, view, pics, cv, w, h, 1\.0\);[\s\S]{0,300}CanvasContent::new\(&gpu\)\)\.upload\(&gpu, cv, w, h\);/.test(outs)) problems.push('outputs.rs no longer draws path B as the app does (the venue UNDIMMED into its own canvas, uploaded as a canvas)');
+    if (!/let po = projector::Opts \{ soft: \[0\.0; 4\], blend_gamma: 2\.2, gamma: 1\.0, color_gain: \[1\.0; 3\], black_lift: \[0\.0; 3\], aa: 1, \.\.o\.clone\(\) \};/.test(outs)) problems.push('outputs.rs no longer warps path B with GEOMETRY ONLY (no feather, gamma 1, unit gain, no lift, aa 1 — the post pass already applied the look; twice squares the blend)');
+    if (!/return textureLoad\(src, vec2<i32>\(i32\(pos\.x\), h - 1 - i32\(pos\.y\)\), 0\);[\s\S]{0,4000}mip_down\(gpu, tex, levels\);/.test(raw('engine/artlux-engine/src/projector.rs'))) problems.push('projector.rs CanvasContent no longer uploads the canvas as texImage2D does (turned top-first, texel for texel, then mipped)');
     if (!/\.\.\.\(inRender \? \{ calib: /.test(nl)) problems.push('nativeLink no longer hands the engine the venue');
     // Step 2: the POST PASS — exactly when ProjectorScene mounts its EffectComposer, with the values its effects use.
     if (!/const distorted = hasDistortion\(o\.calibration\), blended = needsBlendPass\(look\);/.test(nl)) problems.push('nativeLink no longer decides the post pass by ProjectorScene\'s own tests (hasDistortion / needsBlendPass)');
