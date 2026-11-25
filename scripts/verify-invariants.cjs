@@ -9102,8 +9102,9 @@ check(
     if (!/p\.bounds = process\.platform === 'win32' \? screen\.dipToScreenRect\(null, d\.bounds\)/.test(eh)) problems.push('main no longer gives the engine PHYSICAL display bounds');
     const nl = read('src/renderer/engine/nativeLink.ts');
     // (A projection mask and a blend map are no longer refused — E6f: the app's window applies neither; see the
-    // 'masked or blend-mapped projector output' check, which fails the day it does.)
-    for (const w of ['calibrated (render-from-projector)', 'NVIDIA hardware warp', 'an NDI send', 'a windowed output']) {
+    // 'masked or blend-mapped projector output' check, which fails the day it does. Nor a WINDOWED output — see the
+    // 'windowed projector output' check.)
+    for (const w of ['calibrated (render-from-projector)', 'NVIDIA hardware warp', 'an NDI send']) {
       if (!nl.includes(`'${w}'`)) problems.push(`nativeLink no longer refuses an output with ${w}`);
     }
     return problems.length ? problems.join('; ') : null;
@@ -9366,7 +9367,7 @@ check(
     if (!/a surface only a\s+\/\/ PROJECTOR shows is opened on first use/.test(raw('engine/artlux-engine/src/runtime.rs'))) problems.push('runtime.rs no longer opens the decoder of a surface only a projector shows (its window would be black)');
     const t = raw('scripts/test-native-projectors.cjs');
     if (!/const dAB = diff\(A, B\);/.test(t) || !/const dD = diff\(A, D\);/.test(t)) problems.push('test-native-projectors no longer judges the engine window against the APP window (run A)');
-    if (!/capture\('A2-app'\)/.test(t)) problems.push('test-native-projectors no longer shows that its reference (run A) is stable across launches');
+    if (!/capture\('A2-app'[,)]/.test(t)) problems.push('test-native-projectors no longer shows that its reference (run A) is stable across launches');
     if (/capture\('C-app-again'\)/.test(t)) problems.push('test-native-projectors captures the screen just after the kill again - that is the restarted ENGINE window, not the app');
     return problems.length ? problems.join('; ') : null;
   },
@@ -9713,6 +9714,44 @@ check(
     const t = read('scripts/test-native-projectors.cjs');
     if (/^[^/\n]*taskkill', \['\/IM'/m.test(t) || /^[^/\n]*process\.env\.APPDATA/m.test(t) || /^[^/\n]*Get-Process artlux-engine/m.test(t)) problems.push('test-native-projectors touches the operator profile or kills processes by image name again');
     if (!/`--user-data-dir=\$\{PROFILE\}`/.test(t)) problems.push('test-native-projectors no longer launches on a scratch profile');
+    return problems.length ? problems.join('; ') : null;
+  },
+);
+
+check(
+  'a windowed projector output shown by the engine is ONE window, where the operator left it, with the app\'s own badge',
+  'E6f: the engine takes a WINDOWED output (Windowed (this screen)) by opening an ordinary decorated window where the ' +
+  'app\'s is, and main HIDES the app\'s (a topmost cover cannot follow a window the operator drags). Each piece is a ' +
+  'trap if it goes: the app\'s window left visible is a second, dead copy of the output; the engine\'s reported moves ' +
+  'not stored mean the document is rebuilt from the HIDDEN window\'s bounds, which do not read back what was set ' +
+  '(measured: a move of (90, 50) came back as (58, 18) and the engine was put there); a re-sent document built from ' +
+  'the one main already annotated keeps a stale reason ("not open yet", "still being handed over") and the engine ' +
+  'refuses for good; and the badge drawn twice (DOM + canvas) never agrees — it is ONE bitmap (brand/badge.ts) the ' +
+  'app draws and the engine composites at Chromium\'s 8-bit opacity. test:native-projectors --windowed: identical.',
+  () => {
+    const problems = [];
+    const nl = read('src/renderer/engine/nativeLink.ts');
+    if (/'a windowed output'/.test(nl)) problems.push('nativeLink refuses a windowed output again');
+    if (!/badgeBitmap\(/.test(nl) || !/badge:\$\{o\.surfaceId\}/.test(nl)) problems.push('nativeLink no longer ships the windowed output\'s badge to the engine');
+    const pa = read('src/renderer/projector/ProjectorApp.tsx');
+    if (!/\{windowed && <BadgeCanvas/.test(pa) || !/badgeBitmap\(/.test(pa)) problems.push('the app\'s window no longer draws the badge from the shared bitmap (brand/badge.ts) — the engine cannot match a DOM badge');
+    const b = read('src/renderer/components/brand/badge.ts');
+    const at = /BADGE = \{ left: (\d+), top: (\d+), opacity: ([\d.]+) \}/.exec(b);
+    const o = raw('engine/artlux-engine/src/outputs.rs');
+    const eat = /const BADGE_AT: \(f64, f64\) = \(([\d.]+), ([\d.]+)\);/.exec(o);
+    const eop = /const BADGE_OPACITY: f32 = (\d+)\.0 \/ 255\.0;/.exec(o);
+    if (!at || !eat || +at[1] !== +eat[1] || +at[2] !== +eat[2]) problems.push('the engine\'s BADGE_AT is not the app\'s BADGE place');
+    if (!at || !eop || Math.round(+at[3] * 255) !== +eop[1]) problems.push('the engine\'s BADGE_OPACITY is not the app\'s opacity quantised to 8 bits (Chromium\'s)');
+    if (!/getImageData\(0, 0, cw, ch\)/.test(b)) problems.push('badge.ts no longer takes the straight-alpha round trip the engine takes');
+    const pj = read('src/main/projector.ts');
+    if (!/displayId === WINDOWED_DISPLAY && win\.isVisible\(\) === c\) \{ if \(c\) win\.hide\(\); else win\.showInactive\(\); \}/.test(pj)) problems.push('a covered windowed output is no longer hidden (or no longer shown again when uncovered)');
+    if (!/if \(!covered\) win\.showInactive\(\)/.test(pj)) problems.push('a windowed output opened while covered is shown anyway');
+    if (!/enginePlace\.set\(surfaceId, physical\)/.test(pj) || !/const placed = enginePlace\.get\(surfaceId\)/.test(pj)) problems.push('the document is rebuilt from the hidden window\'s bounds instead of the engine\'s reported place');
+    const eh = read('src/main/engineHost.ts');
+    if (/noteDoc\(lastDoc,/.test(eh)) problems.push('engineHost re-sends the ANNOTATED document (stale reasons stick) — rebuild from lastDocRaw');
+    if (!/m\.type === 'outputClosed'[\s\S]{0,200}closeWindowedByOperator/.test(eh)) problems.push('closing the engine\'s window of a windowed output no longer closes the output');
+    if (!/if spec\.window\.is_none\(\) \{ window\.set_window_level\(WindowLevel::AlwaysOnTop\); \}/.test(o)) problems.push('outputs.rs makes a windowed output topmost (it is an ordinary window, like the app\'s)');
+    if (!/raster is BOTTOM-UP/.test(o)) problems.push('the badge pass no longer accounts for the bottom-up raster (it drew upside down at the bottom)');
     return problems.length ? problems.join('; ') : null;
   },
 );

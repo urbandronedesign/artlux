@@ -1,5 +1,5 @@
 import { app, BrowserWindow } from 'electron';
-import { IPC } from '../../shared/protocol';
+import { IPC, WINDOWED_DISPLAY } from '../../shared/protocol';
 import { spawn, type ChildProcess } from 'node:child_process';
 import { existsSync, writeFileSync, mkdirSync, unlinkSync } from 'node:fs';
 import { join } from 'node:path';
@@ -7,7 +7,7 @@ import * as logger from './logger';
 import { getPrefs, setPrefs } from './persistence';
 import * as output from './transport/outputManager';
 import { screen } from 'electron';
-import { setProjectorsCovered } from './projector';
+import { setProjectorsCovered, windowedContent, placeWindowed, closeWindowedByOperator, onWindowedPlaced } from './projector';
 import type { OutputConfig, EngineView3dPlace } from '../../shared/protocol';
 
 // THE NATIVE ENGINE AS ARTLUX'S CHILD (plans/native-engine.md §9c, E1a). Behind a flag until it carries
@@ -65,6 +65,11 @@ let helloTimer: NodeJS.Timeout | null = null;
 // The live link (E1f). `owns` is for ONE document revision and ONE engine process.
 let lastDoc: string | null = null;      // the renderer's JSON, as sent
 let lastDocRev = -1;
+// The renderer's JSON BEFORE main added to it (display bounds, a windowed output's rect, a reason). A document
+// re-sent because something main knows changed is rebuilt from THIS: rebuilt from `lastDoc` it kept the reason
+// main had added the first time (a calibration map "still being handed over", a window "not open yet"), and the
+// engine went on refusing an output whose reason was gone.
+let lastDocRaw: string | null = null;
 let lastOutput: string | null = null;
 let owns: { rev: number; pid: number | null } | null = null;
 let lastWhy = '';
@@ -145,7 +150,7 @@ export function noteBakedMap(key: string, w: number, h: number, uv: Float32Array
     if (alpha?.data) { const af = join(dir, `${safe}.alpha`); writeFileSync(af, Buffer.from(alpha.data.buffer, alpha.data.byteOffset, alpha.data.byteLength)); a = { w: alpha.w, h: alpha.h, file: af }; }
     bakedFiles.set(key, { w, h, uv: uvFile, ...(a ? { alpha: a } : {}) });
     // A document already sent with this key was waiting for the file: send it again, now complete.
-    if (lastDoc && lastDoc.includes(`"key":"${key}"`)) noteDoc(lastDoc, lastDocRev);
+    if (lastDocRaw && lastDocRaw.includes(`"key":"${key}"`)) noteDoc(lastDocRaw, lastDocRev);
   } catch (e) { logger.log('warn', 'engine', 'baked-map-write-failed', { key }, e); }
 }
 
@@ -175,11 +180,20 @@ export function noteRaster(surfaceId: string, gen: number, w: number, h: number,
 // windows by PHYSICAL bounds (winit monitors), so each projector entry gets its display's bounds in screen
 // pixels here — or a reason when that display is not connected (the engine then opens nothing anywhere).
 function withDisplayBounds(json: string): string {
-  let doc: { projectors?: { displayId?: number | null; bounds?: unknown; css?: [number, number]; why?: string; baked?: { key: string } & Record<string, unknown> }[] };
+  let doc: { projectors?: { id?: string; displayId?: number | null; bounds?: unknown; window?: unknown; title?: string; css?: [number, number]; why?: string; baked?: { key: string } & Record<string, unknown> }[] };
   try { doc = JSON.parse(json); } catch { return json; }
   if (!doc.projectors?.length) return json;
   const displays = screen.getAllDisplays();
   for (const p of doc.projectors) {
+    // E6f: a WINDOWED output — the engine opens its own window where the app's is (that one is hidden while the
+    // engine shows the output, and shown there again if the engine goes): its CONTENT rect in physical pixels, and
+    // its CSS size (innerWidth × innerHeight, what a shader on it is drawn at).
+    if (p.displayId === WINDOWED_DISPLAY) {
+      const w = windowedContent(p.id ?? '');
+      if (!w) { if (!p.why) p.why = 'its window is not open yet'; continue; }
+      p.window = w.physical; p.css = w.css; p.title = w.title;
+      continue;
+    }
     const d = displays.find((x) => x.id === p.displayId);
     if (!d) { if (!p.why) p.why = 'its display is not connected'; continue; }
     p.bounds = process.platform === 'win32' ? screen.dipToScreenRect(null, d.bounds) : { x: Math.round(d.bounds.x * d.scaleFactor), y: Math.round(d.bounds.y * d.scaleFactor), width: Math.round(d.bounds.width * d.scaleFactor), height: Math.round(d.bounds.height * d.scaleFactor) };
@@ -195,6 +209,9 @@ function withDisplayBounds(json: string): string {
   }
   return JSON.stringify(doc);
 }
+
+// E6f: a windowed output's app window opened or was laid out by main — the document carries its rect.
+onWindowedPlaced(() => { if (FLAG && lastDocRaw) noteDoc(lastDocRaw, lastDocRev); });
 
 // E1f-3: whether the engine's windows show the projector outputs (the app's are then COVERED: told to stop
 // drawing, kept open underneath — the engine's are topmost — so an engine that dies uncovers them at once).
@@ -224,6 +241,7 @@ export function noteOutputConfig(cfg: OutputConfig): void {
 /** The effective document, as the renderer serialised it (it carries its own `rev`). */
 export function noteDoc(json: string, rev: number): void {
   if (!FLAG) return;
+  lastDocRaw = json;
   lastDoc = withDisplayBounds(json); lastDocRev = rev;
   json = lastDoc;
   // TEST HOOK (scripts/test-native-takeover.cjs): the document as relayed, so a failure can be replayed
@@ -331,7 +349,7 @@ function spawnEngine(): void {
       const line = buf.slice(0, i).trim();
       buf = buf.slice(i + 1);
       if (!line) continue;
-      let m: { type?: string; adapter?: string; version?: string; backend?: string; pid?: number; n?: number; u?: number; d?: number; pps?: number; fps?: number; rev?: number; owns?: boolean; why?: string; id?: string | null; add?: boolean; place?: EngineView3dPlace; phase?: string; delta?: number[]; rot?: number[]; scale?: number[]; model?: string | null };
+      let m: { type?: string; adapter?: string; version?: string; backend?: string; pid?: number; n?: number; u?: number; d?: number; pps?: number; fps?: number; rev?: number; owns?: boolean; why?: string; id?: string | null; add?: boolean; place?: EngineView3dPlace; phase?: string; delta?: number[]; rot?: number[]; scale?: number[]; model?: string | null; x?: number; y?: number; w?: number; h?: number };
       try { m = JSON.parse(line); } catch { console.log(`[engine] ${line}`); continue; }
       if (m.type === 'hello') {
         if (helloTimer) { clearTimeout(helloTimer); helloTimer = null; }
@@ -379,6 +397,16 @@ function spawnEngine(): void {
           const gesture = { delta: m.delta, rot: Array.isArray(m.rot) && m.rot.length === 4 ? m.rot : [0, 0, 0, 1], scale: Array.isArray(m.scale) && m.scale.length === 3 ? m.scale : [1, 1, 1] };
           for (const w of BrowserWindow.getAllWindows()) if (!w.isDestroyed()) w.webContents.send(IPC.NATIVE_ENGINE_VIEW3D_GIZMO, m.phase, gesture);
         }
+      } else if (m.type === 'outputPlace') {
+        // E6f: the operator moved / resized the engine's window of a WINDOWED output: the app's hidden one follows
+        // (the fallback reappears there), and the document is rebuilt — a shader on it is drawn at its new size.
+        if (typeof m.id === 'string' && [m.x, m.y, m.w, m.h].every((n) => typeof n === 'number')) {
+          placeWindowed(m.id, { x: m.x!, y: m.y!, width: m.w!, height: m.h! });
+          if (lastDocRaw) noteDoc(lastDocRaw, lastDocRev);
+        }
+      } else if (m.type === 'outputClosed') {
+        // E6f: ...or closed it from its title bar: the same as closing the app's window — the output is turned off.
+        if (typeof m.id === 'string') closeWindowedByOperator(m.id);
       } else if (m.type === 'view3dPlace') {
         // E4b: the operator moved / resized the window (reported once it settles). Per MACHINE — screens are.
         if (m.place && typeof m.place === 'object') setPrefs({ engineView3dPlace: m.place });

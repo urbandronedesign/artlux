@@ -40,7 +40,40 @@ pub struct Spec {
     pub opts: Opts,
     /// Item 3: the output's imported calibration map (the files main wrote), drawn instead of the warp.
     pub baked: Option<BakedFiles>,
+    /// E6f: a WINDOWED output — an ordinary decorated window the operator moves and resizes, opened where the
+    /// app's (hidden) window is: its CONTENT rect in physical pixels (x, y, w, h). None = fullscreen on `display`.
+    pub window: Option<(i32, i32, u32, u32)>,
+    /// The output's name — a windowed output's title, as the app titles its window.
+    pub title: String,
+    /// E6f: a windowed output's badge — the raster key (`badge:<surface>`) of the app's own bitmap, drawn at
+    /// BADGE_AT × the window's scale with BADGE_OPACITY, as the app's window draws it (components/brand/badge.ts).
+    pub badge: Option<String>,
 }
+
+/// E6f: where and how the app draws a windowed output's badge (components/brand/badge.ts BADGE, CSS pixels).
+const BADGE_AT: (f64, f64) = (14.0, 12.0);
+// 0.85 as CHROMIUM APPLIES IT: a layer's opacity is quantised to 8 bits (round(0.85 × 255) = 217) — measured: at
+// exactly 0.85 every one of 674 differing badge pixels was the app's value minus 1 (238 × 0.85 = 202.3 → 202, the
+// app 203 = 238 × 217/255 = 202.5).
+const BADGE_OPACITY: f32 = 217.0 / 255.0;
+const BADGE_WGSL: &str = r#"
+@group(0) @binding(0) var t: texture_2d<f32>;
+struct U { off: vec2<f32>, op: f32, h: f32 };
+@group(0) @binding(1) var<uniform> u: U;
+@vertex
+fn vs(@builtin(vertex_index) i: u32) -> @builtin(position) vec4<f32> {
+    let x = f32((i << 1u) & 2u);
+    let y = f32(i & 2u);
+    return vec4<f32>(x * 2.0 - 1.0, 1.0 - y * 2.0, 0.0, 1.0);
+}
+@fragment
+fn fs(@builtin(position) p: vec4<f32>) -> @location(0) vec4<f32> {
+    // 1:1 texel copy (the bitmap is at the window's scale), premultiplied, times the layer's opacity. The window's
+    // raster is BOTTOM-UP (GL's order — the flip pass turns it over), so the bitmap's row 0 goes at the top of the box.
+    let q = p.xy - u.off;
+    return textureLoad(t, vec2<i32>(i32(q.x), i32(u.h - 1.0 - floor(q.y))), 0) * u.op;
+}
+"#;
 
 /// A baked map as files: `uv` (f32 u, v, spare per projector pixel, NaN = no content) and an optional 8-bit
 /// rig blend. `key` changes when the map does (the window is then reopened with the new one).
@@ -56,6 +89,8 @@ pub struct Shared {
     pub opts: HashMap<String, (u64, Opts)>,
     /// The app's cold-start hold: while the show boots every output shows BLACK, as the app's do.
     pub booting: bool,
+    /// E6f: raster key → (generation, picture) of each windowed output's badge.
+    pub badges: HashMap<String, (u64, Arc<Picture>)>,
 }
 
 /// E4a: `View3d(true)` opens the engine's 3D view window (view3d.rs), `false` closes it.
@@ -85,7 +120,11 @@ struct Grab { axis: usize, g: crate::gizmo::Gizmo, r0: f32, r_prev: f32, unwrapp
 const PLACE_SETTLE: Duration = Duration::from_millis(500);
 const CLICK_PX: f64 = 4.0;
 
-struct Out { spec: Spec, window: Arc<Window>, stop: Arc<AtomicBool>, thread: Option<std::thread::JoinHandle<()>> }
+struct Out {
+    spec: Spec, window: Arc<Window>, stop: Arc<AtomicBool>, thread: Option<std::thread::JoinHandle<()>>,
+    /// E6f, windowed: the content rect last reported to main, and when the window last moved or resized.
+    reported: Option<(i32, i32, u32, u32)>, moved_at: Option<std::time::Instant>,
+}
 
 struct App {
     gpu: Arc<Gpu>,
@@ -112,28 +151,58 @@ impl App {
         for id in self.outs.keys().cloned().collect::<Vec<_>>() {
             let moved = specs.iter().find(|s| s.id == id).is_some_and(|s| {
                 let o = &self.outs[&id].spec;
-                s.display.bounds != o.display.bounds || s.display.index != o.display.index || s.surface_id != o.surface_id || s.baked != o.baked
+                // E6f: a windowed output is NOT reopened when its rect changes — it is moved (below).
+                s.window.is_some() != o.window.is_some() || (s.window.is_none() && (s.display.bounds != o.display.bounds || s.display.index != o.display.index))
+                    || s.surface_id != o.surface_id || s.baked != o.baked
             });
             if !keep.contains(&id) || moved { self.close(&id); }
+        }
+        // E6f: a windowed output main PLACED (its layout of windowed outputs) where the operator's window is not.
+        // The rect it sends back after the engine's own report is that report — no move, no loop.
+        for spec in &specs {
+            let (Some(r), Some(o)) = (spec.window, self.outs.get_mut(&spec.id)) else { continue };
+            if o.reported != Some(r) && Self::content_rect(&o.window) != Some(r) {
+                Self::place_content(&o.window, r);
+                o.reported = Some(r);
+                eprintln!("artlux-engine: output '{}' windowed, {}x{} at ({}, {}) — placed by the host", spec.id, r.2, r.3, r.0, r.1);
+            }
+            o.spec.title = spec.title.clone();
+            o.window.set_title(&spec.title);
         }
         let mut refused = Vec::new();
         for spec in specs {
             if self.outs.contains_key(&spec.id) { continue; }
-            let i = match match_display(&monitors, &spec.display) { Ok(i) => i, Err(e) => { refused.push((spec.id.clone(), e)); continue; } };
-            let m = &monitors[i];
-            let attrs = Window::default_attributes()
-                .with_title(format!("ArtLux output — {}", spec.id))
-                .with_visible(true)
-                .with_decorations(false)
-                .with_fullscreen(Some(Fullscreen::Borderless(Some(m.clone()))));
+            let (attrs, place) = if let Some((x, y, w, h)) = spec.window {
+                // E6f: WINDOWED — decorated, movable, resizable, NOT topmost (the app's windowed output is an ordinary
+                // window too), shown without taking focus (the app's showInactive), on the taskbar like the app's.
+                // Placed by its CONTENT rect: created there, then shifted by the frame once the frame is known.
+                if !monitors.iter().any(|m| { let (p, s) = (m.position(), m.size()); x < p.x + s.width as i32 && x + w as i32 > p.x && y < p.y + s.height as i32 && y + h as i32 > p.y }) {
+                    refused.push((spec.id.clone(), format!("its window ({w}x{h} at {x}, {y}) is on no display")));
+                    continue;
+                }
+                (Window::default_attributes().with_title(spec.title.clone()).with_visible(true).with_active(false)
+                    .with_position(winit::dpi::PhysicalPosition::new(x, y)).with_inner_size(PhysicalSize::new(w, h)),
+                 format!("windowed, {w}x{h} at ({x}, {y})"))
+            } else {
+                let i = match match_display(&monitors, &spec.display) { Ok(i) => i, Err(e) => { refused.push((spec.id.clone(), e)); continue; } };
+                let m = &monitors[i];
+                (Window::default_attributes()
+                    .with_title(format!("ArtLux output — {}", spec.id))
+                    .with_visible(true)
+                    .with_decorations(false)
+                    .with_fullscreen(Some(Fullscreen::Borderless(Some(m.clone())))),
+                 format!("on {}", m.name().unwrap_or_else(|| format!("display {i}"))))
+            };
             let window = match el.create_window(attrs) { Ok(w) => Arc::new(w), Err(e) => { refused.push((spec.id.clone(), format!("window: {e}"))); continue; } };
+            if let Some(r) = spec.window { Self::place_content(&window, r); }
             let surface = match self.gpu.instance.create_surface(window.clone()) { Ok(s) => s, Err(e) => { refused.push((spec.id.clone(), format!("surface: {e}"))); continue; } };
             let stop = Arc::new(AtomicBool::new(false));
             let (gpu, w2, st, sh, sp) = (self.gpu.clone(), window.clone(), stop.clone(), self.shared.clone(), spec.clone());
             let thread = std::thread::Builder::new().name(format!("present:{}", spec.id))
                 .spawn(move || present(gpu, w2, surface, st, sh, sp)).ok();
-            eprintln!("artlux-engine: output '{}' on {}", spec.id, m.name().unwrap_or_else(|| format!("display {i}")));
-            self.outs.insert(spec.id.clone(), Out { spec, window, stop, thread });
+            eprintln!("artlux-engine: output '{}' {place}", spec.id);
+            let reported = spec.window;
+            self.outs.insert(spec.id.clone(), Out { spec, window, stop, thread, reported, moved_at: None });
         }
         (self.report)(self.outs.keys().cloned().collect(), refused);
     }
@@ -195,6 +264,34 @@ impl App {
         self.view_open.store(false, Ordering::SeqCst);
     }
 
+    /// E6f: a window's CONTENT rect on the screen, physical pixels.
+    fn content_rect(w: &Window) -> Option<(i32, i32, u32, u32)> {
+        let (p, s) = (w.inner_position().ok()?, w.inner_size());
+        Some((p.x, p.y, s.width, s.height))
+    }
+    /// E6f: put a window's CONTENT at `r` — winit places the OUTER frame, so shift by the frame's own offset.
+    fn place_content(w: &Window, (x, y, cw, ch): (i32, i32, u32, u32)) {
+        let _ = w.request_inner_size(PhysicalSize::new(cw, ch));
+        if let (Ok(o), Ok(i)) = (w.outer_position(), w.inner_position()) {
+            w.set_outer_position(winit::dpi::PhysicalPosition::new(x - (i.x - o.x), y - (i.y - o.y)));
+        }
+    }
+    /// E6f: tell main where each windowed output now is, once a move / resize has settled (`force`: now) — main
+    /// puts the app's hidden window there, so the fallback reappears where the operator left this one, at its size.
+    fn report_outputs(&mut self, force: bool) {
+        for (id, o) in self.outs.iter_mut() {
+            let Some(at) = o.moved_at else { continue };
+            if !force && at.elapsed() < PLACE_SETTLE { continue; }
+            o.moved_at = None;
+            if o.window.is_minimized().unwrap_or(false) { continue; }
+            let Some(r) = Self::content_rect(&o.window) else { continue };
+            if o.reported == Some(r) { continue; }
+            o.reported = Some(r);
+            eprintln!("artlux-engine: output '{id}' windowed, {}x{} at ({}, {})", r.2, r.3, r.0, r.1);
+            (self.view_event)(format!(r#"{{"type":"outputPlace","id":{},"x":{},"y":{},"w":{},"h":{}}}"#, serde_json::to_string(id).unwrap_or_default(), r.0, r.1, r.2, r.3));
+        }
+    }
+
     // Never join from the window thread (windows.rs close()): hide, stop, reap later.
     fn close(&mut self, id: &str) {
         if let Some(o) = self.outs.remove(id) { o.window.set_visible(false); o.stop.store(true, Ordering::SeqCst); self.closing.push(o); }
@@ -223,6 +320,20 @@ impl ApplicationHandler<Cmd> for App {
         // An OUTPUT is not closed from the wall: the host decides what is open (an Alt-F4 on a projector
         // would otherwise silently hand the display back to nobody). The 3D VIEW is the operator's own
         // window: its title bar closes it, and its mouse drives its camera.
+        // E6f: a WINDOWED output is the operator's window too — closed from its title bar it is closed in the app
+        // (main closes the app's window as if the operator had), and its moves are reported.
+        if let Some(oid) = self.outs.iter().find(|(_, o)| o.window.id() == id && o.spec.window.is_some()).map(|(k, _)| k.clone()) {
+            match e {
+                WindowEvent::CloseRequested => {
+                    eprintln!("artlux-engine: output '{oid}' closed from its title bar");
+                    self.close(&oid);
+                    (self.view_event)(format!(r#"{{"type":"outputClosed","id":{}}}"#, serde_json::to_string(&oid).unwrap_or_default()));
+                }
+                WindowEvent::Moved(_) | WindowEvent::Resized(_) => { if let Some(o) = self.outs.get_mut(&oid) { o.moved_at = Some(std::time::Instant::now()); } }
+                _ => {}
+            }
+            return;
+        }
         let Some(v) = self.view.as_mut().filter(|v| v.window.id() == id) else { return };
         use winit::event::{ElementState, MouseButton, MouseScrollDelta};
         match e {
@@ -355,7 +466,8 @@ impl ApplicationHandler<Cmd> for App {
     fn about_to_wait(&mut self, el: &ActiveEventLoop) {
         self.reap();
         self.report_place(false);
-        let settle = self.view.as_ref().and_then(|v| v.moved_at).map(|t| t + PLACE_SETTLE);
+        self.report_outputs(false);
+        let settle = self.view.as_ref().and_then(|v| v.moved_at).into_iter().chain(self.outs.values().filter_map(|o| o.moved_at)).min().map(|t| t + PLACE_SETTLE);
         el.set_control_flow(if !self.closing.is_empty() { ControlFlow::WaitUntil(std::time::Instant::now() + Duration::from_millis(5)) }
             else if let Some(t) = settle { ControlFlow::WaitUntil(t) } else { ControlFlow::Wait });
     }
@@ -431,7 +543,20 @@ fn present(gpu: Arc<Gpu>, window: Arc<Window>, surface: wgpu::Surface<'static>, 
         let alpha = b.alpha.as_ref().and_then(|(aw, ah, f)| std::fs::read(f).ok().map(|d| (*aw, *ah, d)));
         Some(projector::baked_upload(&gpu, b.w, b.h, &uv, alpha.as_ref().map(|(aw, ah, d)| (*aw, *ah, d.as_slice()))))
     });
-    let mut drawn: Option<(u64, u64, bool, PhysicalSize<u32>)> = None;   // (picture gen, opts version, booting, size)
+    let mut drawn: Option<(u64, u64, bool, PhysicalSize<u32>, u64)> = None;   // (picture gen, opts version, booting, size, badge gen)
+    // E6f: the badge pass (a windowed output only) and the badge as last uploaded.
+    let badge_pipe = spec.badge.as_ref().map(|_| {
+        let m = d.create_shader_module(wgpu::ShaderModuleDescriptor { label: Some("badge"), source: wgpu::ShaderSource::Wgsl(BADGE_WGSL.into()) });
+        d.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+            label: Some("badge"), layout: None,
+            vertex: wgpu::VertexState { module: &m, entry_point: Some("vs"), buffers: &[], compilation_options: Default::default() },
+            fragment: Some(wgpu::FragmentState { module: &m, entry_point: Some("fs"), targets: &[Some(wgpu::ColorTargetState {
+                format: wgpu::TextureFormat::Rgba8Unorm, blend: Some(wgpu::BlendState::PREMULTIPLIED_ALPHA_BLENDING), write_mask: wgpu::ColorWrites::ALL })],
+                compilation_options: Default::default() }),
+            primitive: Default::default(), depth_stencil: None, multisample: Default::default(), multiview_mask: None, cache: None,
+        })
+    });
+    let mut badge_tex: Option<(u64, wgpu::Texture)> = None;
     while !stop.load(Ordering::SeqCst) {
         let size = window.inner_size();
         if size.width == 0 || size.height == 0 { std::thread::sleep(Duration::from_millis(50)); continue; }
@@ -454,16 +579,18 @@ fn present(gpu: Arc<Gpu>, window: Arc<Window>, surface: wgpu::Surface<'static>, 
             // TOPMOST only AFTER the swapchain exists. Created always-on-top AND borderless-fullscreen, the
             // window's surface could not be configured at all ("Invalid surface", measured; without the
             // level it presents). Raised now, it sits above the app's covered window on this display.
-            window.set_window_level(WindowLevel::AlwaysOnTop);
+            // E6f: not a WINDOWED output — that one is an ordinary window, like the app's.
+            if spec.window.is_none() { window.set_window_level(WindowLevel::AlwaysOnTop); }
         }
         // What to show now: the surface's picture and this output's settings, as last published.
-        let (pic, opts, booting) = {
+        let (pic, opts, booting, badge) = {
             let s = shared.lock().unwrap();
-            (s.pictures.get(&spec.surface_id).cloned(), s.opts.get(&spec.id).cloned(), s.booting)
+            (s.pictures.get(&spec.surface_id).cloned(), s.opts.get(&spec.id).cloned(), s.booting, spec.badge.as_ref().and_then(|k| s.badges.get(k).cloned()))
         };
         let (ov, o) = opts.unwrap_or((0, spec.opts.clone()));
         let gen = pic.as_ref().map_or(0, |p| p.0);
-        if drawn != Some((gen, ov, booting, size)) {
+        let bgen = badge.as_ref().map_or(0, |b| b.0);
+        if drawn != Some((gen, ov, booting, size, bgen)) {
             if let Some((tex, _)) = &raster {
                 let target = tex.create_view(&Default::default());
                 match (&pic, booting) {
@@ -493,7 +620,43 @@ fn present(gpu: Arc<Gpu>, window: Arc<Window>, surface: wgpu::Surface<'static>, 
                     }
                 }
             }
-            drawn = Some((gen, ov, booting, size));
+            // E6f: the badge, OVER the output (the app's DOM order), at its place × the window's scale.
+            if let (Some(bp), Some((bg, b)), Some((tex, _))) = (&badge_pipe, &badge, &raster) {
+                if badge_tex.as_ref().map(|t| t.0) != Some(*bg) {
+                    use wgpu::util::DeviceExt;
+                    badge_tex = Some((*bg, d.create_texture_with_data(&gpu.queue, &wgpu::TextureDescriptor {
+                        label: Some("badge"), size: wgpu::Extent3d { width: b.w, height: b.h, depth_or_array_layers: 1 }, mip_level_count: 1, sample_count: 1,
+                        dimension: wgpu::TextureDimension::D2, format: wgpu::TextureFormat::Rgba8Unorm, usage: wgpu::TextureUsages::TEXTURE_BINDING, view_formats: &[],
+                    }, wgpu::util::TextureDataOrder::LayerMajor, &b.rgba)));
+                }
+                let scale = window.scale_factor();
+                let (bx, by) = ((BADGE_AT.0 * scale).round() as u32, (BADGE_AT.1 * scale).round() as u32);
+                let (bw, bh) = (b.w.min(size.width.saturating_sub(bx)), b.h.min(size.height.saturating_sub(by)));
+                if bw > 0 && bh > 0 {
+                    // In the BOTTOM-UP raster the box starts (height − top − its height) up from the bottom row.
+                    let vy = size.height - by - bh;
+                    let u: [f32; 4] = [bx as f32, vy as f32, BADGE_OPACITY, bh as f32];
+                    let ubuf = d.create_buffer(&wgpu::BufferDescriptor { label: Some("badge"), size: 16, usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST, mapped_at_creation: false });
+                    gpu.queue.write_buffer(&ubuf, 0, &u.iter().flat_map(|x| x.to_le_bytes()).collect::<Vec<u8>>());
+                    let bview = badge_tex.as_ref().unwrap().1.create_view(&Default::default());
+                    let bind = d.create_bind_group(&wgpu::BindGroupDescriptor { label: None, layout: &bp.get_bind_group_layout(0), entries: &[
+                        wgpu::BindGroupEntry { binding: 0, resource: wgpu::BindingResource::TextureView(&bview) },
+                        wgpu::BindGroupEntry { binding: 1, resource: ubuf.as_entire_binding() },
+                    ] });
+                    let target = tex.create_view(&Default::default());
+                    let mut enc = d.create_command_encoder(&Default::default());
+                    {
+                        let mut pass = enc.begin_render_pass(&wgpu::RenderPassDescriptor { label: Some("badge"), color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                            view: &target, depth_slice: None, resolve_target: None, ops: wgpu::Operations { load: wgpu::LoadOp::Load, store: wgpu::StoreOp::Store } })], ..Default::default() });
+                        pass.set_pipeline(bp); pass.set_bind_group(0, &bind, &[]);
+                        pass.set_viewport(bx as f32, vy as f32, bw as f32, bh as f32, 0.0, 1.0);
+                        pass.set_scissor_rect(bx, vy, bw, bh);
+                        pass.draw(0..3, 0..1);
+                    }
+                    gpu.queue.submit([enc.finish()]);
+                }
+            }
+            drawn = Some((gen, ov, booting, size, bgen));
         }
         let tex = match surface.get_current_texture() {
             wgpu::CurrentSurfaceTexture::Success(t) | wgpu::CurrentSurfaceTexture::Suboptimal(t) => t,

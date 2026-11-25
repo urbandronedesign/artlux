@@ -25,6 +25,11 @@
 // E6f: the output also carries a projection MASK and a BLEND MAP. The app's projector window applies neither (the
 // mask is the NVIDIA scanout path's, the blend map render-from-projector's — both refused separately), so the
 // engine takes the output and must show the same picture: A = B with them on.
+// --windowed (E6f): the output is a WINDOWED one (Windowed (this screen)). The engine opens an ordinary window where the
+// app's is and main HIDES the app's: the two are compared over the window's content rect only (the title bars are
+// two programs'), exactly one visible window carries the output's title and it is the engine's, a move of the
+// engine's window is followed by the hidden app window, and after a kill the restarted engine opens at the moved
+// place. The rest of the screen is not judged (it is the desktop).
 
 const { spawn, execFile, execSync } = require('node:child_process');
 const fs = require('node:fs');
@@ -50,6 +55,7 @@ const BAKED = process.argv.includes('--baked');
 // compared. The app ships it to its window as createImageBitmap(frame); the engine copies its own decoded,
 // converted frame (GPU) — within 1 of Chromium's conversion, so the windows are held to "within 1".
 const mk = process.argv.indexOf('--mp4');
+const WINDOWED = process.argv.includes('--windowed');
 const MP4 = mk > 0 ? path.resolve(process.argv[mk + 1] && !process.argv[mk + 1].startsWith('--') ? process.argv[mk + 1] : path.join(ROOT, 'engine', 'testdata', 'still-avc-1280x720.mp4')) : null;
 
 // The primary display, as Electron names it (the project's output points at it).
@@ -73,7 +79,7 @@ fs.writeFileSync(project, JSON.stringify({
   fixtures: [], controllers: [], groups: [], scenes: [], cueBanks: [],
   projectorBrightness: 0.9,
   projectorOutputs: [{
-    surfaceId: 'sP', name: 'Wall', enabled: true, displayId: disp.id,
+    surfaceId: 'sP', name: 'Wall', enabled: true, displayId: WINDOWED ? -1 : disp.id,
     cornerPin: { tl: [0.05, 0.1], tr: [0.93, 0.02], br: [0.97, 0.95], bl: [0.02, 0.88] },
     softEdge: { left: 0.15, right: 0, top: 0, bottom: 0.1, gamma: 2.2 }, gamma: 1, colorGain: [1, 0.95, 0.9], blackLift: [0.01, 0.01, 0.02],
     // E6f: drawn by neither the app's window nor the engine (see the header) — present to prove the engine takes it.
@@ -112,9 +118,9 @@ $bmp = New-Object System.Drawing.Bitmap ${disp.b.width}, ${disp.b.height}
 $g = [System.Drawing.Graphics]::FromImage($bmp); $g.CopyFromScreen(${disp.b.x}, ${disp.b.y}, 0, 0, $bmp.Size); $g.Dispose()
 $bmp.Save($Out, [System.Drawing.Imaging.ImageFormat]::Png); $bmp.Dispose()
 `);
-const capture = (name) => new Promise((res) => {
+const capture = (name, region = REGION) => new Promise((res) => {
   const f = path.join(WORK, `${name}.png`);
-  execFile('powershell', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', CAP, '-Out', f], { windowsHide: true }, () => res(PNG.sync.read(fs.readFileSync(f))));
+  execFile('powershell', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', CAP, '-Out', f], { windowsHide: true }, () => res(crop(PNG.sync.read(fs.readFileSync(f)), region)));
 });
 const diff = (a, b) => { let n = 0, max = 0; for (let i = 0; i < a.data.length; i += 4) { let d = 0; for (let k = 0; k < 3; k++) d = Math.max(d, Math.abs(a.data[i + k] - b.data[i + k])); if (d) n++; max = Math.max(max, d); } return { n, max, of: a.data.length / 4 }; };
 // A capture held to `ref`, RETAKEN while it differs (up to 4 times, 4 s apart): a fullscreen D3D window that has just
@@ -126,6 +132,58 @@ async function settledCapture(name, ref, bar) {
   for (let k = 0; k < 4 && !bar(diff(ref, c)); k++) { console.log(`     ${name}: differs — retaken in 4 s (a system toast over a new fullscreen window clears by itself)`); await sleep(4000); c = await capture(name); }
   return c;
 }
+// --windowed: the region compared — the output window's content rect, relative to the captured display.
+let REGION = null, aRect = null;
+// Windows 11 ROUNDS a window's corners (DWM, radius 8): the bottom two corners of the content are blended with
+// whatever is behind the window — the desktop, different once the window has moved (measured: 14 pixels in the
+// bottom-right 8×8, by up to 6). Not the output's pixels, so both corners are blacked out of both sides.
+const DWM_CORNER = 8;
+const crop = (a, r) => {
+  if (!r) return a;
+  const o = new PNG({ width: r.w, height: r.h });
+  for (let y = 0; y < r.h; y++) a.data.copy(o.data, y * r.w * 4, ((r.y + y) * a.width + r.x) * 4, ((r.y + y) * a.width + r.x + r.w) * 4);
+  for (let y = r.h - DWM_CORNER; y < r.h; y++) for (const x0 of [0, r.w - DWM_CORNER]) o.data.fill(0, (y * r.w + x0) * 4, (y * r.w + x0 + DWM_CORNER) * 4);
+  return o;
+};
+// The engine's latest word on where its windowed output is (open, or a reported move), display-relative.
+const engineRect = (child, after = 0) => {
+  const l = child.lines.filter((x) => x.at >= after && /output 'sP' windowed, \d+x\d+ at \(-?\d+, -?\d+\)/.test(x.l)).pop();
+  const m = l && /(\d+)x(\d+) at \((-?\d+), (-?\d+)\)/.exec(l.l);
+  return m ? { x: +m[3] - disp.b.x, y: +m[4] - disp.b.y, w: +m[1], h: +m[2] } : null;
+};
+// The VISIBLE top-level windows whose title ENDS with `title` (both programs title it 'ARTLux — <output>'): pid and content rect (physical). -Move dx,dy moves the one owned by
+// -Pid first (SetWindowPos on its frame).
+const WINPS = path.join(WORK, 'wins.ps1');
+fs.writeFileSync(WINPS, `param([string]$Title, [int]$Owner = 0, [int]$Dx = 0, [int]$Dy = 0, [int]$Close = 0)
+Add-Type @"
+using System; using System.Runtime.InteropServices; using System.Text; using System.Collections.Generic;
+public class W {
+  public delegate bool P(IntPtr h, IntPtr l);
+  [DllImport("user32.dll")] public static extern bool EnumWindows(P f, IntPtr l);
+  [DllImport("user32.dll")] public static extern bool IsWindowVisible(IntPtr h);
+  [DllImport("user32.dll", CharSet = CharSet.Unicode)] public static extern int GetWindowText(IntPtr h, StringBuilder s, int n);
+  [DllImport("user32.dll")] public static extern uint GetWindowThreadProcessId(IntPtr h, out uint p);
+  [DllImport("user32.dll")] public static extern bool GetWindowRect(IntPtr h, out R r);
+  [DllImport("user32.dll")] public static extern bool GetClientRect(IntPtr h, out R r);
+  [DllImport("user32.dll")] public static extern bool ClientToScreen(IntPtr h, ref PT p);
+  [DllImport("user32.dll")] public static extern bool SetWindowPos(IntPtr h, IntPtr a, int x, int y, int cx, int cy, uint f);
+  [DllImport("user32.dll")] public static extern bool SetProcessDPIAware();
+  [DllImport("user32.dll")] public static extern bool PostMessage(IntPtr h, uint m, IntPtr w, IntPtr l);
+  public struct R { public int L, T, Rt, B; } public struct PT { public int X, Y; }
+  public static List<IntPtr> Find(string t) { var o = new List<IntPtr>(); EnumWindows((h, l) => { if (IsWindowVisible(h)) { var s = new StringBuilder(256); GetWindowText(h, s, 256); if (s.ToString().EndsWith(t)) o.Add(h); } return true; }, IntPtr.Zero); return o; }
+}
+"@
+[void][W]::SetProcessDPIAware()
+foreach ($h in [W]::Find($Title)) {
+  $p = 0; [void][W]::GetWindowThreadProcessId($h, [ref]$p)
+  if ($Owner -ne 0 -and $p -eq $Owner -and ($Dx -ne 0 -or $Dy -ne 0)) { $r = New-Object W+R; [void][W]::GetWindowRect($h, [ref]$r); [void][W]::SetWindowPos($h, [IntPtr]::Zero, $r.L + $Dx, $r.T + $Dy, 0, 0, 0x15) }
+  if ($Close -ne 0 -and $p -eq $Owner) { [void][W]::PostMessage($h, 0x10, [IntPtr]::Zero, [IntPtr]::Zero) }
+  $c = New-Object W+R; [void][W]::GetClientRect($h, [ref]$c); $o = New-Object W+PT; [void][W]::ClientToScreen($h, [ref]$o)
+  Write-Output "$p $($o.X) $($o.Y) $($c.Rt) $($c.B)"
+}
+`);
+const wins = async (title, pid = 0, dx = 0, dy = 0, close = 0) => (await run('powershell', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', WINPS, '-Title', title, '-Owner', String(pid), '-Dx', String(dx), '-Dy', String(dy), '-Close', String(close)]))
+  .split(/\r?\n/).filter((l) => l.trim()).map((l) => { const [p, x, y, w, h] = l.trim().split(/\s+/).map(Number); return { pid: p, x, y, w, h }; });
 const lit = (a) => { let n = 0; for (let i = 0; i < a.data.length; i += 4) if (a.data[i] + a.data[i + 1] + a.data[i + 2] > 30) n++; return n / (a.data.length / 4); };
 
 function launch(native) {
@@ -163,7 +221,13 @@ async function stopAll() {
     let app = launch(false);
     await waitFor(() => said(app, /\[open\]/), 120000);
     await sleep(12000);
-    const A = await capture('A-app');
+    let A = await capture('A-app', null);
+    const Afull = A;
+    if (WINDOWED) {
+      const w = (await wins('Wall')).filter((x) => x.pid !== 0);
+      ok(w.length === 1, `A. the app shows its windowed output in one window (${w.map((x) => `${x.w}x${x.h} at ${x.x}, ${x.y}`).join('; ') || 'none'})`);
+      if (w[0]) { aRect = { x: w[0].x - disp.b.x, y: w[0].y - disp.b.y, w: w[0].w, h: w[0].h }; A = crop(Afull, aRect); }
+    }
     ok(lit(A) > 0.3, `A. the app's projector output is on the screen (${(100 * lit(A)).toFixed(0)}% of it lit)`);
     await stopAll();
 
@@ -172,6 +236,17 @@ async function stopAll() {
     const owned = await waitFor(() => said(app, /\[engine\] owns the projector outputs/), 120000);
     ok(owned, `B. main logged the engine owning the projector outputs${owned ? '' : ` — ${(said(app, /keeps the projector outputs/) || { l: 'no answer' }).l}`}`);
     await sleep(6000);
+    if (WINDOWED) {
+      const said = engineRect(app);
+      ok(!!said, `B. the engine opened a WINDOWED output${said ? ` (it says ${said.w}x${said.h} at ${said.x}, ${said.y})` : ''}`);
+      const ePid = Number(/\(pid (\d+)/.exec(app.lines.filter((x) => /\[engine\] up \(pid/.test(x.l)).pop()?.l ?? '')?.[1]);
+      const w = await wins('Wall');
+      ok(w.length === 1 && w[0].pid === ePid, `B. ONE visible window carries the output, the engine's — the app's is hidden (${w.map((x) => `pid ${x.pid} ${x.w}x${x.h} at ${x.x}, ${x.y}`).join(', ') || 'none'}; engine ${ePid})`);
+      // WHERE IT IS, read off the screen (not its first log line — main lays windowed outputs out after they open).
+      if (w[0]) REGION = { x: w[0].x - disp.b.x, y: w[0].y - disp.b.y, w: w[0].w, h: w[0].h };
+      ok(!!REGION && !!aRect && REGION.x === aRect.x && REGION.y === aRect.y && REGION.w === aRect.w && REGION.h === aRect.h, `B. ...exactly where the app's window was (app ${aRect ? `${aRect.w}x${aRect.h} at ${aRect.x}, ${aRect.y}` : '?'})`);
+      if (aRect) A = crop(Afull, aRect);
+    }
     const bar0 = (d) => BAKED && !MP4 ? d.n === 0 : d.max <= 1 && d.n <= d.of * (MP4 ? 0.001 : 0.0001);
     const B = await settledCapture('B-engine', A, bar0);
     ok(lit(B) > 0.3, `B. the engine's window shows the output (${(100 * lit(B)).toFixed(0)}% of the screen lit)`);
@@ -191,6 +266,17 @@ async function stopAll() {
     // OUR engine: the pid main logged for this run (never "the first artlux-engine" on the machine).
     const ups = app.lines.filter((x) => /\[engine\] up \(pid (\d+)/.test(x.l));
     const pid = Number(/\(pid (\d+)/.exec(ups[ups.length - 1]?.l ?? '')?.[1]);
+    // --windowed: the operator MOVES the engine's window — the engine reports it once it settles, main puts the app's
+    // hidden window there, and the engine restarted below must open at the moved place.
+    let moved = null;
+    if (WINDOWED && REGION) {
+      const t0 = Date.now();
+      await wins('Wall', pid, 90, 50);
+      await waitFor(() => { const r = engineRect(app, t0); return r && r.x === REGION.x + 90 && r.y === REGION.y + 50; }, 5000);
+      moved = engineRect(app, t0);
+      ok(!!moved && moved.x === REGION.x + 90 && moved.y === REGION.y + 50 && moved.w === REGION.w && moved.h === REGION.h, `C. a move of the engine's window is reported (${moved ? `${moved.w}x${moved.h} at ${moved.x}, ${moved.y}` : 'nothing'})`);
+      await sleep(1000);
+    }
     const killedAt = Date.now();
     try { process.kill(pid, 'SIGKILL'); } catch (e) { console.log(`     kill: ${e.message}`); }
     await waitFor(() => app.lines.some((x) => x.at > killedAt && /the app keeps the projector outputs: the engine exited/.test(x.l)), 5000);
@@ -205,10 +291,25 @@ async function stopAll() {
     const retook = await waitFor(() => app.lines.some((x) => x.at > killedAt && /\[engine\] owns the projector outputs/.test(x.l)), 15000);
     ok(retook, 'C. the restarted engine takes the projector outputs back');
     await sleep(3000);
+    if (moved) {
+      const again = engineRect(app, killedAt);
+      ok(!!again && again.x === moved.x && again.y === moved.y && again.w === moved.w && again.h === moved.h, `C. ...and opens where the operator had moved it — the app's hidden window followed (${again ? `${again.w}x${again.h} at ${again.x}, ${again.y}` : 'not opened'})`);
+      REGION = again ?? moved;
+    }
     const D = await settledCapture('D-engine-again', A, bar);
     const dD = diff(A, D);
     // MP4: within 1 (the conversion is Chromium's within 1 — test:mp4-parity).
     ok(bar(dD), `C. ...and the restarted engine's window = the app's (A) again (${dD.of - dD.n} of ${dD.of}, max ${dD.max})`);
+    // --windowed: the operator CLOSES the engine's window from its title bar = closing the app's. In broadcast, closing
+    // the last output by hand ends the show (main/index.ts) — the app quits, as it does when its own window is closed.
+    if (WINDOWED) {
+      const ups2 = app.lines.filter((x) => /\[engine\] up \(pid (\d+)/.test(x.l));
+      const pid2 = Number(/\(pid (\d+)/.exec(ups2[ups2.length - 1]?.l ?? '')?.[1]);
+      let exited = false; app.once('exit', () => { exited = true; });
+      await wins('Wall', pid2, 0, 0, 1);
+      const quit = await waitFor(() => exited, 15000);
+      ok(quit, `C. closing the engine's window from its title bar closes the output — in broadcast the app quits, as for its own window${quit ? '' : ` (still running; ${(said(app, /closed from its title bar/) || { l: 'the engine did not say it was closed' }).l})`}`);
+    }
     fs.writeFileSync(path.join(WORK, 'last-run.log'), app.lines.map((x) => x.l).join('\n'));
     await stopAll();
 
@@ -216,7 +317,8 @@ async function stopAll() {
     app = launch(false);
     await waitFor(() => said(app, /\[open\]/), 120000);
     await sleep(12000);
-    const A2 = await capture('A2-app');
+    let A2 = await capture('A2-app', null);
+    if (WINDOWED) { const w = (await wins('Wall'))[0]; A2 = w ? crop(A2, { x: w.x - disp.b.x, y: w.y - disp.b.y, w: w.w, h: w.h }) : A2; }
     const dAA = diff(A, A2);
     ok(dAA.n === 0, `A2. the app's window equals itself across two launches (${dAA.n} pixels differ, max ${dAA.max}) — so A is the reference`);
     await stopAll();

@@ -300,7 +300,10 @@ impl Runtime {
         match std::fs::read(path) {
             Ok(px) if px.len() == (w as usize) * (h as usize) * 4 && w > 0 => {
                 // A CANVAS picture (premultiplied here, no mips) — as the app's compositor draws a bitmap.
-                self.rasters.insert(sid.to_string(), (g, Arc::new(Picture::canvas(w, h, px))));
+                let pic = Arc::new(Picture::canvas(w, h, px));
+                // E6f: a windowed output's BADGE (`badge:<surface>`) — the presenters composite it (outputs.rs).
+                if sid.starts_with("badge:") { if let Some((_, sh)) = &self.outputs { sh.lock().unwrap().badges.insert(sid.to_string(), (g, pic)); } return; }
+                self.rasters.insert(sid.to_string(), (g, pic));
             }
             Ok(px) => eprintln!("artlux-engine: raster {sid}: {} bytes for {w}x{h}", px.len()),
             Err(e) => eprintln!("artlux-engine: raster {sid}: {e}"),
@@ -377,7 +380,7 @@ impl Runtime {
     }
 
     /// E1f-3: the document's projector outputs. ALL OR NOTHING, like the wire: when any enabled output is
-    /// one the engine cannot draw (the host says why: calibrated, masked, hardware-warped, NDI-sent, a source
+    /// one the engine cannot draw (the host says why: calibrated, hardware-warped, NDI-sent, a source
     /// the engine lacks...) it opens NONE and the app keeps every output. Err(why) when it will not drive
     /// them; Ok(n) when it asked the windows thread for n outputs (whose report answers main).
     pub fn projectors(&mut self, d: &Value) -> Result<usize, String> {
@@ -393,6 +396,10 @@ impl Runtime {
                 index: None,
             },
             opts: crate::projector::Opts::from_json(&p["output"], 1.0, 4),
+            // E6f: a windowed output's content rect (main's, from the app's window), physical pixels.
+            window: (|| Some((p["window"]["x"].as_i64()? as i32, p["window"]["y"].as_i64()? as i32, p["window"]["width"].as_u64()? as u32, p["window"]["height"].as_u64()? as u32)))(),
+            title: p["title"].as_str().or(p["name"].as_str()).unwrap_or_default().to_string(),
+            badge: p["badge"].as_str().map(str::to_string),
             baked: p["baked"].as_object().and_then(|b| Some(crate::outputs::BakedFiles {
                 key: b.get("key")?.as_str()?.to_string(),
                 w: b.get("w")?.as_u64()? as u32, h: b.get("h")?.as_u64()? as u32,

@@ -109,9 +109,15 @@ function fit169(x: number, y: number, w: number, h: number): { x: number; y: num
 // drag) so the layout is predictable: it settles once and then leaves your manual positioning alone
 // until the set of outputs actually changes again.
 function layoutWindowedOutputs(): void {
-  const wins = [...windows.values()].filter((e) => e.displayId === WINDOWED_DISPLAY && !e.win.isDestroyed());
+  const wins = [...windows].filter(([, e]) => e.displayId === WINDOWED_DISPLAY && !e.win.isDestroyed()).map(([surfaceId, e]) => ({ ...e, surfaceId }));
   const n = wins.length;
   if (n === 0) return;
+  layoutBounds(wins);
+  for (const e of wins) enginePlace.delete(e.surfaceId);   // main placed them: its rect, not the engine's last
+  windowedPlaced?.();   // E6f: the engine's windows of these outputs go where main just put the app's
+}
+function layoutBounds(wins: { win: BrowserWindow; surfaceId: string }[]): void {
+  const n = wins.length;
   const wa = screen.getPrimaryDisplay().workArea;
 
   // A single output keeps the familiar free-floating 1280×720 — tiling one window to fill the
@@ -246,6 +252,7 @@ function openProjector(getMain: () => BrowserWindow | null, surfaceId: string, d
   const existing = windows.get(surfaceId);
   if (existing && !existing.win.isDestroyed()) {
     const wasWindowed = existing.displayId === WINDOWED_DISPLAY;
+    if (wasWindowed !== windowed) enginePlace.delete(surfaceId);
     if (wasWindowed === windowed) { // same kind → just reposition (fullscreen) / leave (windowed)
       existing.displayId = displayId;
       if (!windowed) placeOnDisplay(existing.win, findDisplay(displayId) ?? screen.getPrimaryDisplay());
@@ -262,7 +269,8 @@ function openProjector(getMain: () => BrowserWindow | null, surfaceId: string, d
     // Re-lay ALL windowed outputs now this one has joined, so they never open stacked on each other.
     // After the reveal rather than immediately: showInactive() on Windows can nudge a window's
     // position, so the layout has to be the last thing applied or it gets partly undone.
-    revealOnEveryPath(win, () => { win.showInactive(); layoutWindowedOutputs(); });
+    // E6f: COVERED (the engine shows this output in its own window), it is laid out but stays hidden.
+    revealOnEveryPath(win, () => { if (!covered) win.showInactive(); layoutWindowedOutputs(); });
   } else {
     const display = findDisplay(displayId) ?? screen.getPrimaryDisplay();
     // Re-resolve the display at reveal time: a backstop firing seconds later must target the monitor
@@ -278,6 +286,7 @@ function closeProjector(surfaceId: string): void {
     entry.win.close();
   }
   windows.delete(surfaceId);
+  enginePlace.delete(surfaceId);
 }
 
 // E1f-3: COVERED by the native engine's own output windows (topmost, on the same displays). A covered
@@ -287,7 +296,48 @@ function closeProjector(surfaceId: string): void {
 let covered = false;
 export function setProjectorsCovered(c: boolean): void {
   covered = c;
-  for (const { win } of windows.values()) if (!win.isDestroyed()) win.webContents.send(IPC.PROJECTOR_COVERED, c);
+  for (const { win, displayId } of windows.values()) {
+    if (win.isDestroyed()) continue;
+    win.webContents.send(IPC.PROJECTOR_COVERED, c);
+    // E6f: a WINDOWED output is not under a topmost engine window — the engine's is an ordinary window the operator
+    // moves, so the app's is HIDDEN while covered (two windows of one output, one of them dead, would be a trap) and
+    // shown again, where the engine's last was (placeWindowed), when the engine gives the output back or dies.
+    if (displayId === WINDOWED_DISPLAY && win.isVisible() === c) { if (c) win.hide(); else win.showInactive(); }
+  }
+}
+
+// ── E6f: WINDOWED OUTPUTS SHOWN BY THE ENGINE ───────────────────────────────────────────────────────────────
+let windowedPlaced: (() => void) | null = null;
+// Where the ENGINE last reported each windowed output (physical content rect). The document carries THIS rather than
+// the hidden app window's bounds read back: a hidden window's bounds after setContentBounds are not reliably what
+// was set (measured: a move of (90, 50) came back as (58, 18) and the engine was put there).
+const enginePlace = new Map<string, { x: number; y: number; width: number; height: number }>();
+/** engineHost: told when main opened or laid out a windowed output's window (the document carries its rect). */
+export function onWindowedPlaced(cb: () => void): void { windowedPlaced = cb; }
+/** A windowed output's app window: its CONTENT rect in physical pixels and its CSS size — or null, not open. */
+export function windowedContent(surfaceId: string): { physical: { x: number; y: number; width: number; height: number }; css: [number, number]; title: string } | null {
+  const e = windows.get(surfaceId);
+  if (!e || e.displayId !== WINDOWED_DISPLAY || e.win.isDestroyed()) return null;
+  const placed = enginePlace.get(surfaceId);
+  if (placed) {
+    const d = process.platform === 'win32' ? screen.screenToDipRect(null, placed) : placed;
+    return { physical: placed, css: [d.width, d.height], title: e.win.getTitle() };
+  }
+  const b = e.win.getContentBounds();
+  const physical = process.platform === 'win32' ? screen.dipToScreenRect(e.win, b) : b;
+  return { physical, css: [b.width, b.height], title: e.win.getTitle() };
+}
+/** The engine's window of this output moved / resized (physical content rect): the hidden app window follows. */
+export function placeWindowed(surfaceId: string, physical: { x: number; y: number; width: number; height: number }): void {
+  const e = windows.get(surfaceId);
+  if (!e || e.displayId !== WINDOWED_DISPLAY || e.win.isDestroyed()) return;
+  enginePlace.set(surfaceId, physical);
+  e.win.setContentBounds(process.platform === 'win32' ? screen.screenToDipRect(null, physical) : physical);
+}
+/** The engine's window of this output was closed from its title bar: close the app's as the operator would have. */
+export function closeWindowedByOperator(surfaceId: string): void {
+  const e = windows.get(surfaceId);
+  if (e && e.displayId === WINDOWED_DISPLAY && !e.win.isDestroyed()) e.win.close();
 }
 
 export function closeAllProjectors(): void {

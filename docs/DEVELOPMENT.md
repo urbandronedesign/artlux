@@ -82,13 +82,19 @@ the wire with the app, and the log says why (`[engine] the app keeps the wire: �
 A dead or stalled engine hands the wire back within a frame or two.
 **It also takes the PROJECTOR OUTPUTS** (E1f-3) when every enabled one is a plain warp (corner pin or
 Bézier, soft edge, gamma, gain, lift) on a source it draws: its own topmost windows on the same displays,
-while the app's projector windows stay open underneath, *covered* (not drawing). Anything else —
-calibration, a mask, NVIDIA hardware warp, an NDI send, a blend map, a windowed output — keeps every output
-with the app, and the log says which and why (`[engine] the app keeps the projector outputs: …`).
+while the app's projector windows stay open underneath, *covered* (not drawing). A projection mask or a blend
+map does not stop it — the app's own window applies neither (E6f). A **windowed** output ("Windowed (this
+screen)") is the engine's too: it opens an ordinary window where the app's is, the app's is *hidden* while the
+engine shows it, the operator moves, resizes and closes the engine's window as they would the app's (main
+follows: the hidden window moves with it, a close turns the output off), and the app's badge is the same
+bitmap in both (`components/brand/badge.ts`). Dragging the corner pins ON the output window is the app
+window's — with the engine showing it, align from the editor. Anything else — live calibration, NVIDIA
+hardware warp, an NDI send — keeps every output with the app, and the log says which and why (`[engine] the
+app keeps the projector outputs: …`).
 Proof: `node scripts/test-engine-runtime.cjs` (the engine alone, over stdio) and
 `node scripts/test-native-takeover.cjs [--packaged <ArtLux.exe>]` (the real app: who sends each packet, and
-the bytes) and `node scripts/test-native-projectors.cjs` (the real app in broadcast mode, read from the SCREEN
-— ⚠ it covers display 0 for ~15 s at a time).
+the bytes) and `node scripts/test-native-projectors.cjs [--windowed]` (the real app in broadcast mode, read
+from the SCREEN — ⚠ it covers display 0 for ~15 s at a time; on a scratch profile, killing only its own processes).
 
 Each piece the engine will take over is held to today's app by a comparison test that runs the app's REAL
 code beside it — `npm run test:pack-parity`, `test:sampling-parity -- --gpu`, `test:wire-parity`,

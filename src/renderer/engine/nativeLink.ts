@@ -1,5 +1,6 @@
 import type { Fixture, FixtureProfile, Surface, Controller, OutputProtocol, SurfaceContent } from '../types';
 import { WINDOWED_DISPLAY, type ProjectorOutput } from '../../../shared/protocol';
+import { badgeBitmap } from '../components/brand/badge';
 import * as surfaceMedia from '../services/surfaceMedia';
 import { isLight } from '../services/fixtureKind';
 import * as contentSource from '../services/contentSource';
@@ -117,9 +118,9 @@ let lastSources = '';
 // App hands these in (they are not frame-engine inputs): the outputs, the projector master brightness
 // (committed and live drags) and the cold-start hold. The engine draws an output only when it can draw
 // it EXACTLY as ProjectorApp's plain warp path does (projector.rs, identical to ProjectorGL — E1e-1), so an
-// output with anything else on it — calibration (render-from-projector or a baked map), a mask, NVIDIA
-// hardware warp, an NDI send, a blend map, a windowed display — is listed WITH THE REASON and the app keeps
-// every output (all or nothing, runtime.rs).
+// output with anything else on it — live calibration (render-from-projector; a baked map IS drawn), NVIDIA
+// hardware warp, an NDI send — is listed WITH THE REASON and the app keeps every output (all or nothing,
+// runtime.rs). A mask, a blend map and a windowed output are the engine's (E6f — see projectorEntry).
 let projOutputs: ProjectorOutput[] = [];
 let projBrightness = 1;
 let projBooting = false;
@@ -182,7 +183,9 @@ function projectorEntry(o: ProjectorOutput, surfaces: Surface[], sources: Record
   const src = sources[o.surfaceId];
   const why =
     !s ? 'its surface is gone'
-    : o.displayId === null || o.displayId === WINDOWED_DISPLAY ? 'a windowed output'
+    : o.displayId === null ? 'no display chosen'
+    // E6f: a WINDOWED output (WINDOWED_DISPLAY) is the engine's too — main gives it the app window's rect, the engine
+    // opens an ordinary window there and the app's is hidden while it shows (main/projector.ts, outputs.rs).
     // A calibration MAP is played (item 3) — it supersedes the venue render inside the window too. Calibration
     // WITHOUT a map is the live render-from-projector, which stays the app's.
     : !baked.has(o.surfaceId) && (o.calibration || o.useCalibration) ? 'calibrated (render-from-projector)'
@@ -194,8 +197,16 @@ function projectorEntry(o: ProjectorOutput, surfaces: Surface[], sources: Record
     : o.ndiSend ? 'an NDI send'
     : !src || src.kind === 'unsupported' ? (src && 'why' in src ? src.why : 'a source the engine does not draw')
     : undefined;
+  // E6f: a WINDOWED output carries the app's badge (components/brand/badge.ts) — the SAME bitmap the app's window
+  // draws, shipped as a raster `badge:<surface>` and composited by the engine where the app draws it.
+  const windowed = o.displayId === WINDOWED_DISPLAY;
+  if (windowed) {
+    const key = `badge:${o.surfaceId}`;
+    void badgeBitmap(o.name || s?.name || '', window.devicePixelRatio || 1).then((b) => shipRaster(key, b && { bitmap: b, gen: 0 }));
+  }
   return {
     id: o.surfaceId, surfaceId: o.surfaceId, name: o.name ?? s?.name ?? o.surfaceId, displayId: o.displayId,
+    ...(windowed ? { badge: `badge:${o.surfaceId}` } : {}),
     output: { cornerPin: o.cornerPin, warp: o.warp ?? null, softEdge: o.softEdge, gamma: o.gamma, colorGain: o.colorGain, blackLift: o.blackLift },
     ...(baked.has(o.surfaceId) ? { baked: { key: baked.get(o.surfaceId)!.key } } : {}),
     ...(why ? { why } : {}),

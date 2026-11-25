@@ -2445,6 +2445,35 @@ fallback until a source/output is proven byte-identical — risk 2):
 >   (guarded). And a capture is retaken while it differs: the NVIDIA app draws its "Alt+Z" toast over a new
 >   fullscreen D3D window for a few seconds (23 662 pixels by up to 231 — exactly that box), which is not ours.
 
+> ✅ **E6f (windowed outputs) done 2026-11-25 — ONE WINDOW, WHERE THE OPERATOR LEFT IT.** Inventory item D's "a
+> windowed output". A topmost cover cannot work here — the app's windowed output is an ordinary window the operator
+> drags — so the engine opens its OWN ordinary window (decorated, not topmost, shown inactive, titled as the app's)
+> at the app window's CONTENT rect, and main HIDES the app's while covered and shows it again, where the engine's last
+> was, when uncovered. Pieces, each measured:
+> - **Place.** main sends the content rect in physical pixels (`window`, plus `css` and `title`); the engine reports
+>   its window's rect once a move / resize settles (`outputPlace`), main moves the hidden window there and rebuilds
+>   the document from the ENGINE's report — read back from the hidden window, a move of (90, 50) came back as
+>   (58, 18) and the engine was put there. main's own layout of windowed outputs clears the report and moves the
+>   engine's window (`placed by the host`). Closing it from its title bar (`outputClosed`) closes the app's as the
+>   operator would — in broadcast, closing the last output ends the show, as before.
+> - **The badge.** A windowed output shows the app mark + wordmark + name, top-left. Drawn twice (DOM + canvas) it
+>   would never agree, so it is ONE bitmap (`components/brand/badge.ts`): the app's window draws it, nativeLink ships
+>   it as raster `badge:<surface>`, the engine composites it (outputs.rs). Two traps, both measured: the window's
+>   raster is BOTTOM-UP (first drawn: upside down at the bottom), and Chromium quantises a layer's opacity to 8
+>   bits — 0.85 is 217/255 (at 0.85 exactly, 674 pixels were the app's minus 1).
+> - **A main bug found on the way:** a re-sent document was rebuilt from the copy main had already ANNOTATED, so a
+>   reason main had added ("its calibration map is still being handed over") stuck and the engine refused for good.
+>   Now rebuilt from the renderer's own JSON (`lastDocRaw`).
+> - `test:native-projectors --windowed`: the engine's window **= the app's, 860 784 of 860 784 pixels** (content
+>   rect; the two bottom 8×8 corners are DWM's rounding, blended with the desktop, masked on both sides); one visible
+>   window carries the output and it is the engine's; a move is reported and the hidden window follows; after a
+>   kill the restarted engine opens at the moved place and is identical again; a title-bar close ends the show.
+>   Fullscreen unchanged (2 073 600 / 2 073 600). Guarded (verify:invariants; four mutations caught).
+> - **Limit, unchanged from fullscreen outputs:** dragging corner pins ON the output window is the app window's
+>   input — with the engine showing the output, align from the editor.
+> - **Open, NOT from this step:** `--baked` shows 6 scattered dark pixels off by 1 (bar: exact) — the same with the
+>   committed engine (38b7c4b), so older than this; not chased yet.
+
 ## 9d. E4 started early — the 3D view in the engine (owner, 2026-11-24)
 
 > **Owner, 2026-11-24: "start E4's 3D now"** — for the detachable 3D view (plans/3d-workbench.md §5/Phase 4),

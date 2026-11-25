@@ -13,7 +13,7 @@ import { keymap } from '../shortcuts/keymapStore';
 import { eventToChord } from '../shortcuts/chord';
 import { projectorChannelRegistry, projectorPanelRegistry } from '../host/registries';
 import { ErrorBoundary } from '../components/ErrorBoundary';
-import { AppIconMark, AppWordmark } from '../components/brand/AppMark';
+import { badgeBitmap, BADGE } from '../components/brand/badge';
 import { AlignAids, type AlignAidSpec } from './AlignAids';
 import { rasterizeAidSvg } from './aidRaster';
 import { reportFault } from '../services/faultReporter';
@@ -961,23 +961,12 @@ export const ProjectorApp: React.FC = () => {
           own screen (testing a rig on one monitor), so a mark in the corner costs nothing and tells
           you at a glance which app the window belongs to. On a REAL projector the same mark would be
           a watermark burnt onto a venue wall for the length of the show, which is why it is gated
-          rather than always on. Drawn from the one sanctioned source (components/brand/AppMark), not
+          rather than always on. Drawn from the one sanctioned source (shared/brandMarks, via components/brand), not
           hand-rolled — see the invariant.
 
-          `color` on the wrapper is load-bearing, not decoration: the wordmark is monochrome and
-          inherits currentColor, and this document sets none — without it the mark paints the
-          initial black, on black. */}
-      {windowed && (
-        <div style={{ position: 'absolute', left: 14, top: 12, display: 'flex', alignItems: 'center', gap: 9, pointerEvents: 'none', opacity: 0.85, color: '#eef1f5' }}>
-          {/* Tile + wordmark, the pairing people actually read as "the logo". Measured in the running
-              window rather than eyeballed from the JSX: 13px at half opacity was there and invisible. */}
-          <AppIconMark size={20} decorative />
-          <AppWordmark height={16} decorative />
-          {name && (
-            <span style={{ font: '500 12px system-ui', letterSpacing: '0.1em', color: '#aeb4bd', paddingLeft: 2 }}>{name}</span>
-          )}
-        </div>
-      )}
+          E6f: ONE BITMAP (components/brand/badge.ts), not DOM — the native engine composites the very
+          same bitmap in its window of this output, so the two windows agree to the pixel. */}
+      {windowed && <BadgeCanvas name={name} />}
 
       {/* ALIGNMENT AIDS — the physical-setup patterns. Under Identify and the boot sign (both are
           about "stop and read this"), over the content and the plugin panels (an aid you cannot see
@@ -1078,3 +1067,25 @@ const hintBox: React.CSSProperties = {
   padding: '6px 12px', borderRadius: 6, background: 'rgba(0,0,0,0.7)', color: '#ddd',
   font: '12px system-ui', whiteSpace: 'nowrap', pointerEvents: 'none',
 };
+
+/** E6f: the windowed output's badge — the one bitmap (components/brand/badge.ts) the engine composites too. */
+function BadgeCanvas({ name }: { name: string }) {
+  const ref = useRef<HTMLCanvasElement>(null);
+  const [css, setCss] = useState<[number, number] | null>(null);
+  useEffect(() => {
+    let live = true;
+    const dpr = window.devicePixelRatio || 1;
+    void badgeBitmap(name, dpr).then((b) => {
+      const c = ref.current;
+      if (!live || !b || !c) return;
+      c.width = b.width; c.height = b.height;
+      c.getContext('2d')?.drawImage(b, 0, 0);
+      setCss([b.width / dpr, b.height / dpr]);
+    });
+    return () => { live = false; };
+  }, [name]);
+  return (
+    <canvas ref={ref} style={{ position: 'absolute', left: BADGE.left, top: BADGE.top, opacity: BADGE.opacity, pointerEvents: 'none',
+      width: css?.[0] ?? 0, height: css?.[1] ?? 0 }} />
+  );
+}
