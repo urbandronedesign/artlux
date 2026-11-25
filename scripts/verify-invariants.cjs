@@ -10004,6 +10004,35 @@ check(
   },
 );
 
+check(
+  'a surface the engine cannot draw is drawn by the app and SHOWN by the engine — it no longer hands the whole show back',
+  'plans/native-engine.md E6i step 1. Every per-surface refusal (a video no codec plays, an HDR / 10-bit MP4, an MJPEG ' +
+  'camera, tracking over a layer or with its grid / labels, two Spout senders…) used to leave the WHOLE wire and every ' +
+  'projector with the app. With the browser engine gone on Windows that would be a dark show, so the surface becomes a ' +
+  '`raster` source and the app ships the very picture it draws (surfaceMedia.getDrawable) — when its generation ' +
+  'changes, or ≤ 30/s for a source with none, one in flight. Live frames only: a bake frame must be the picture at its ' +
+  'exact time (sourceKind still reports the refusal, so a bake keeps its own rule). test:tracking-wire --bg-still (a ' +
+  'refused surface that never changes): every channel EQUAL to the app\'s; --overlay (grid over moving blobs): the ' +
+  'engine owns the wire, within the app\'s own frame-to-frame step.',
+  () => {
+    const problems = [];
+    const nl = read('src/renderer/engine/nativeLink.ts');
+    if (!/if \(at\.t === undefined && at\.ph === undefined\) \{\s*for \(const s of surfaces\) if \(sources\[s\.id\]\.kind === 'unsupported'\) \{ fallback\.add\(s\.id\); sources\[s\.id\] = \{ kind: 'raster' \}; \}/.test(nl)) problems.push('nativeLink no longer turns a refused surface into a raster the app ships (live frames only)');
+    const iK = nl.indexOf('lastKinds = Object.fromEntries'), iF = nl.indexOf("fallback.add(s.id); sources[s.id] = { kind: 'raster' }");
+    if (iK < 0 || iF < 0 || iK > iF) problems.push('nativeLink reports a fallen-back surface as drawn by the engine (sourceKind must keep the refusal — a bake depends on it)');
+    if (!/shipRasters\(surfaces, sources\);[^\n]*\n\s*shipFallbacks\(surfaces, fallback\);/.test(nl)) problems.push('nativeLink no longer ships the fallen-back surfaces\' pictures before the document');
+    if (!/const gen = surfaceMedia\.getDrawableGeneration\(s\);[\s\S]{0,300}fallbackGen\.get\(s\.id\) === gen : now - \(fallbackAt\.get\(s\.id\) \?\? -1e9\) < FALLBACK_MIN_MS/.test(nl)) problems.push('nativeLink ships a fallen-back picture without the generation / rate rule (a still would be shipped every frame)');
+    // ...through SHARED MEMORY on Windows (the owner, 2026-11-25): no file per picture.
+    const shm = raw('native/output-engine/src/shm.rs');
+    if (!/s\.store\(0, Ordering::Release\);[\s\S]{0,200}copy_nonoverlapping\(data\.as_ptr\(\)[\s\S]{0,200}s\.store\(seq, Ordering::Release\);/.test(shm)) problems.push('shm.rs no longer invalidates a slot BEFORE overwriting it and publishes the sequence AFTER (a reader could take a torn picture)');
+    if (!/if s\.load\(Ordering::Acquire\) != seq \{ return None; \}[\s\S]{0,300}copy_nonoverlapping[\s\S]{0,200}if s\.load\(Ordering::Acquire\) != seq \{ return None; \}/.test(shm)) problems.push('shm.rs no longer checks the sequence before AND after its copy');
+    const ehs = read('src/main/engineHost.ts');
+    if (!/const shm = rasterShm\(surfaceId, rgba\);\s*if \(shm\) \{/.test(ehs) || !/if \(RASTER_FILES \|\| process\.platform !== 'win32'\) return null;/.test(ehs)) problems.push('engineHost no longer sends rasters through shared memory on Windows (files only where it cannot, or ARTLUX_RASTER_FILES=1)');
+    if (!/\(Some\(name\), _\) => self\.shm_read\(name, v\),/.test(raw('engine/artlux-engine/src/runtime.rs'))) problems.push('the engine no longer reads a raster out of shared memory');
+    return problems.length ? problems.join('; ') : null;
+  },
+);
+
 const ok = (m) => console.log(`\x1b[32m✓\x1b[0m ${m}`);
 const bad = (m) => console.error(`\x1b[31m✗\x1b[0m ${m}`);
 

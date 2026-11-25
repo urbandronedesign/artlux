@@ -189,6 +189,43 @@ function shipRasters(surfaces: Surface[], sources: Record<string, contentSource.
     if (best) shipRaster(`${s.id}@proj`, contentSource.nativeRaster(s.id, s.content, best[0] * best[1]));
   }
 }
+/**
+ * E6i — A SURFACE THE ENGINE CANNOT DRAW ITSELF IS DRAWN BY THE APP AND SHOWN BY THE ENGINE. Every per-surface
+ * refusal (a video no codec plugin plays, an HDR / 10-bit / full-range MP4, an MJPEG camera, tracking over a timeline
+ * layer or showing its grid / labels / skeleton, two Spout senders…) used to leave the WHOLE wire and every projector
+ * with the app — all or nothing. Instead the surface becomes a `raster` source, and the app ships the very picture it
+ * would have drawn — surfaceMedia.getDrawable, what its own output samples — exactly as a text surface's raster goes
+ * (E2): when its generation changes, or at most ~30 times a second for a source with none (a video, a live overlay),
+ * one in flight. The engine then shows it as any picture, so the rest of the show stays the engine's. Not for a bake
+ * frame: that must be the picture at the frame's exact time, and a shipped raster lags; a bake keeps its own rule
+ * (sourceKind reports the refusal).
+ */
+const fallbackGen = new Map<string, number>();
+const fallbackAt = new Map<string, number>();
+const fallbackBusy = new Set<string>();
+const FALLBACK_MIN_MS = 33;
+function shipFallbacks(surfaces: Surface[], fallback: Set<string>): void {
+  for (const id of [...fallbackGen.keys()]) if (!fallback.has(id)) { fallbackGen.delete(id); fallbackAt.delete(id); }
+  for (const s of surfaces) {
+    if (!fallback.has(s.id) || fallbackBusy.has(s.id)) continue;
+    const gen = surfaceMedia.getDrawableGeneration(s);
+    const now = performance.now();
+    if (gen !== undefined ? fallbackGen.get(s.id) === gen : now - (fallbackAt.get(s.id) ?? -1e9) < FALLBACK_MIN_MS) continue;
+    const d = surfaceMedia.getDrawable(s);
+    if (!d) continue;
+    fallbackBusy.add(s.id);
+    fallbackAt.set(s.id, now);
+    createImageBitmap(d as ImageBitmapSource)
+      .then((bitmap) => {
+        fallbackBusy.delete(s.id);
+        if (gen !== undefined) fallbackGen.set(s.id, gen);
+        shipRaster(s.id, { bitmap, gen: gen ?? 0 });
+        bitmap.close();
+      })
+      .catch(() => { fallbackBusy.delete(s.id); });
+  }
+}
+
 export function setProjectorBrightness(brightness: number): void { projBrightness = brightness; }
 export function setBooting(booting: boolean): void { projBooting = booting; }
 
@@ -381,7 +418,13 @@ function link(inputs: LinkInputs, surfaces: Surface[], fixtures: Fixture[], brig
     sources[s.id] = { ...c, sources: {} };
   }
   lastKinds = Object.fromEntries(surfaces.map((s) => { const x = sources[s.id] as { kind: string; why?: string }; return [s.id, { kind: x.kind, ...(x.why ? { why: x.why } : {}) }]; }));
+  // E6i: what the engine refuses, the app draws and the engine shows (shipFallbacks) — live frames only (see there).
+  const fallback = new Set<string>();
+  if (at.t === undefined && at.ph === undefined) {
+    for (const s of surfaces) if (sources[s.id].kind === 'unsupported') { fallback.add(s.id); sources[s.id] = { kind: 'raster' }; }
+  }
   shipRasters(surfaces, sources);   // E2: before the document that names them
+  shipFallbacks(surfaces, fallback);
   for (const [key, content] of layerContent) if (sources[key]?.kind === 'raster') shipRaster(key, contentSource.nativeRaster(key, content));
   const sourcesKey = JSON.stringify(sources);
   const refs = [surfaces, fixtures, inputs.fixtureProfiles, inputs.controllers, inputs.protocol, inputs.targetIp, inputs.broadcast, inputs.gamma, inputs.artNetPort, inputs.outputEnabled, projOutputs, projHwKey, venueScene, venueKey, venueLink.venueGen(), bakedSeq, ...lightingRefs()];

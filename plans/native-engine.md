@@ -2716,6 +2716,41 @@ fallback until a source/output is proven byte-identical — risk 2):
 > restarted engine covers it again and equals the app. Guarded.
 > - **E6 now:** E6g (the macOS engine — needs a Mac), then E6i (delete the browser engine: HeldOnly becomes the
 >   projector window, outputManager's app frames go, the holds are the only bridge).
+>
+> **E6i — WINDOWS ONLY (the owner, 2026-11-25: "E6i on Windows only, and keep the browser engine on macOS").** The code
+> cannot be deleted while macOS runs it, so on Windows it means: while the engine runs, the browser engine never
+> drives an output. Steps: (1) what the engine refuses per surface is drawn by the app and SHOWN by the engine (no
+> all-or-nothing hand-back); (2) projector outputs owned PER OUTPUT (an open calibration session keeps its own output
+> in the app's window — authoring, not show output); (3) the switch: on Windows with the engine running, the app's
+> frames never reach the wire and its projector windows are HeldOnly (the E6h holds are the only bridge), the
+> Preferences way off goes; (4) what remains refused per output (a textured own material) drawn by the engine. The
+> app's path stays as an EMERGENCY fallback only when the engine cannot run at all (missing, refused, gave up).
+>
+> ✅ **E6i step 1 done 2026-11-25 — A REFUSED SURFACE IS DRAWN BY THE APP AND SHOWN BY THE ENGINE.** In `nativeLink`, a
+> surface whose source is `unsupported` becomes a `raster` source and `shipFallbacks` ships the app's own picture of it
+> (`surfaceMedia.getDrawable`, what the app's output samples) through the E2 raster path — on a generation change, or
+> ≤ 30/s for a source with none (video, live overlays), one in flight. The engine shows it as any picture; the rest of
+> the show stays the engine's. Live frames only: a bake frame must be the picture at its exact time and a shipped
+> raster lags, so `sourceKind` still reports the refusal and a bake keeps its rule. `test:tracking-wire` grew
+> `--bg-still` (a tracking surface over a timeline layer showing a still, no input — refused, never changes): **every
+> channel EQUAL** on both universes; `--overlay` (the calibration grid over moving blobs): the engine OWNS the wire,
+> matrix median 0.17 against the app's own step 0.47, strip 0.00. (`--overlay --ids`: the id labels number tracks as
+> they appear — not the same numbers in two runs, so not comparable run against run.) Not yet measured: the cost of a
+> video-rate fallback (a 1080p frame through getImageData, IPC and a file per frame) — a shared-memory transport if it
+>
+> ✅ **E6i step 1b done 2026-11-25 — RASTERS THROUGH SHARED MEMORY (the owner: "I need shared memory").** On Windows a
+> raster no longer crosses as a FILE (8 MB written by main and read back by the engine per 1080p frame). Main copies
+> it into a named section (CreateFileMapping on the paging file — memory, never the disk) through the output addon
+> (`native/output-engine/src/shm.rs` + napi `shmWrite` / `shmClose`; both processes link that crate, so writer and
+> reader are one file); the engine opens the section and copies straight out (`runtime.raster` → `shm_read`). Two
+> slots per section, alternated; each slot's sequence is ZEROED before its picture is overwritten and written after,
+> and the reader checks it before AND after its copy — a picture overwritten under it is dropped, never shown torn
+> (unit-tested). One section per surface, remade larger when a picture outgrows it (the capacity is in the name).
+> Files remain where the addon cannot; `ARTLUX_RASTER_FILES=1` forces them. Correct: `test:tracking-wire --bg-still`
+> every channel EQUAL, `--overlay` the engine owns the wire within the app's step. Measured (a 2048×960 fallback,
+> 7.9 MB, 30 a second — 236 MB/s): the app's processes **90 % → 71 %** of a core, the engine **29.5 % → 23 %**. What
+> is left on the app's side is the renderer's own readback (createImageBitmap → getImageData), not the transport.
+> shows.
 
 ## 9d. E4 started early — the 3D view in the engine (owner, 2026-11-24)
 

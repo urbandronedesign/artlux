@@ -9,6 +9,11 @@
 // TRACKING surface with trails on a strip and a serpentine matrix. The blobs MOVE, so each engine payload
 // must be as close to some app payload as two consecutive app payloads are to each other, the picture must
 // move, and the LEDs must be lit. Headless, SCRATCH profile, own processes only.
+// --overlay (E6i): the surface shows its CALIBRATION GRID and ID LABELS — a 2D canvas the engine does not draw. It
+// used to leave the whole wire with the app; now the app draws that surface and the engine shows it (nativeLink
+// shipFallbacks, a `raster` source): the engine must own the wire and its payloads match the app's as above.
+// (--overlay --ids adds the ID LABELS. They print each track's id, numbered as tracks appear — not the same numbers in
+// two separate runs, so that picture is not comparable run against run; the grid is.)
 const { spawn, execSync, fork } = require('node:child_process');
 const dgram = require('node:dgram');
 const fs = require('node:fs'); const os = require('node:os'); const path = require('node:path');
@@ -17,26 +22,40 @@ const pk = process.argv.indexOf('--packaged');
 const EXE = pk > 0 ? path.resolve(process.argv[pk + 1]) : null;
 if (!EXE) { console.error('usage: node scripts/test-tracking-wire.cjs --packaged <ArtLux.exe>'); process.exit(2); }
 const PORT = 6493;
+const OVERLAY = process.argv.includes('--overlay');
+// --bg-still (E6i): the tracking surface drawn OVER A TIMELINE LAYER showing a still, and no tracking input — refused
+// by the engine, so the app draws it and the engine shows it; the picture never changes, so the payloads must be EQUAL.
+const BG_STILL = process.argv.includes('--bg-still');
+const { PNG } = require(path.join(__dirname, '..', 'node_modules', 'pngjs'));
 const WORK = path.join(os.tmpdir(), 'artlux-tracking-wire');
 const PROFILE = path.join(WORK, 'profile');
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 fs.mkdirSync(WORK, { recursive: true });
 
 const project = path.join(WORK, 'tracking-wire.artlux');
+const bgPng = path.join(WORK, 'bg-640x360.png');
+if (BG_STILL) {
+  const png = new PNG({ width: 640, height: 360 });
+  for (let y = 0; y < 360; y++) for (let x = 0; x < 640; x++) png.data.set([(x * 3) % 256, (y * 5) % 256, ((x >> 4) + (y >> 4)) % 2 ? 220 : 40, 255], (y * 640 + x) * 4);
+  fs.writeFileSync(bgPng, PNG.sync.write(png));
+}
 const strip = (id, sid, uni, y) => ({ id, name: id, surfaceId: sid, x: 0.03, y, width: 0.9, height: 0.01, rotation: 0, ledCount: 150, universe: uni, startAddress: 1, colorOrder: 'RGB', channelsPerPixel: 3 });
 const matrix = (id, sid, uni, x, y) => ({ id, name: id, surfaceId: sid, x, y, width: 0.3, height: 0.2, rotation: 0, ledCount: 160, universe: uni, startAddress: 1, colorOrder: 'RGB', channelsPerPixel: 3, shape: 'MATRIX', matrixWidth: 16, matrixHeight: 10, serpentine: true });
 fs.writeFileSync(project, JSON.stringify({
   version: '1.2', timestamp: '2026-01-01T00:00:00.000Z',
   surfaces: [
-    { id: 'sT', name: 'Floor', x: 0.02, y: 0.02, width: 0.96, height: 0.96, rotation: 0, zIndex: 0, content: { type: 'TRACKING', trackingSource: 'SOL', trail: true, trailSeconds: 1.2, blobSize: 0.08, opacity: 1 } },
+    { id: 'sT', name: 'Floor', x: 0.02, y: 0.02, width: 0.96, height: 0.96, rotation: 0, zIndex: 0, content: { type: 'TRACKING', trackingSource: 'SOL', trail: true, trailSeconds: 1.2, blobSize: 0.08, opacity: 1, ...(OVERLAY ? { calibration: true, ...(process.argv.includes('--ids') ? { showIds: true } : {}) } : {}), ...(BG_STILL ? { bgLayerId: 'LB' } : {}) } },
   ],
   fixtures: [strip('fT', 'sT', 0, 0.5), { ...matrix('mT', 'sT', 1, 0.05, 0.05), width: 0.9, height: 0.9 }],
   controllers: [], groups: [], scenes: [], cueBanks: [],
+  ...(BG_STILL ? { timeline: { duration: 60, fps: 25, loop: false, layers: [{ id: 'LB', name: 'Background', opacity: 1 }],
+    clips: [{ id: 'cB', layerId: 'LB', name: 'still', path: '', content: { type: 'IMAGE', url: bgPng, opacity: 1 }, start: 0, duration: 60, inPoint: 0 }], markers: [], inPoint: null, outPoint: null } } : {}),
 }, null, 2));
 
 const EMITTER = path.join(__dirname, 'lidar-emitter.cjs');
 async function run(native) {
-  const emitter = fork(EMITTER, ['127.0.0.1', '10000', '2'], { stdio: 'ignore' });
+  // --still: no tracking input — the overlay alone (static), so the engine's payloads must EQUAL the app's.
+  const emitter = process.argv.includes('--still') || BG_STILL ? { kill() {} } : fork(EMITTER, ['127.0.0.1', '10000', '2'], { stdio: 'ignore' });
   fs.rmSync(PROFILE, { recursive: true, force: true }); fs.mkdirSync(PROFILE, { recursive: true });
   fs.writeFileSync(path.join(PROFILE, 'artlux-prefs.json'), JSON.stringify({ appSettings: { outputEnabled: true, artNetIp: '127.0.0.1', artNetPort: PORT, broadcast: false, protocol: 'artnet', oscEnabled: true, oscListenPort: 10000, oscListenAddress: '' } }));
   const sock = dgram.createSocket({ type: 'udp4', reuseAddr: true });
@@ -83,7 +102,10 @@ async function run(native) {
     const step = med(appSeq.slice(1).map((pa, i) => mad(pa, appSeq[i])).filter((x) => x > 0));
     const moved = new Set(engSeq.map((x) => x.join(','))).size;
     const lit = Math.max(...engSeq.map((p) => p.filter((v) => v > 20).length));
-    const ok = moved >= 10 && lit >= 6 && med(near) <= Math.max(0.5, step);
+    const exact = BG_STILL ? engSeq.every((pb) => pb.every((v, i) => v === appSeq[appSeq.length - 1][i])) : false;
+    const diffCh = BG_STILL ? engSeq[engSeq.length - 1].filter((v, i) => v !== appSeq[appSeq.length - 1][i]).length : 0;
+    if (BG_STILL) console.log(`     universe ${uni}: ${diffCh} of ${engSeq[0].length} channels differ from the app's (max ${Math.max(...engSeq[engSeq.length - 1].map((v, i) => Math.abs(v - appSeq[appSeq.length - 1][i])))})`);
+    const ok = BG_STILL ? exact && lit >= 6 : moved >= 10 && lit >= 6 && med(near) <= Math.max(0.5, step);
     if (!ok) failed++;
     console.log(`${ok ? '' : 'FAIL '}universe ${uni} ${name}: engine payloads ${engSeq.length} (${moved} distinct, up to ${lit} channels lit), mean |delta| to nearest app payload: median ${med(near).toFixed(2)} (the app's own frame-to-frame step: ${step?.toFixed(2)})`);
   }

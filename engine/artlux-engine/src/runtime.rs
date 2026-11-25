@@ -65,6 +65,9 @@ pub struct Runtime {
     out: Option<OutputEngine>,
     /// E6h: the last frame on the wire, kept where main reads it after a death (hold.rs).
     hold: Option<crate::hold::Hold>,
+    /// E6i: the shared-memory sections main writes rasters into, by name (Windows).
+    #[cfg(windows)]
+    shm_maps: HashMap<String, artlux_output_engine::shm::Map>,
     broadcast: bool,
     out_cfg: (f64, bool, bool),
     doc: Option<Doc>,
@@ -204,7 +207,7 @@ struct LaneRt { path: String, sid: String, leaf: AutoLeaf, keys: Vec<crate::eval
 
 impl Runtime {
     pub fn new(gpu: Arc<Gpu>) -> Self {
-        Runtime { gpu, out: None, hold: crate::hold::Hold::open(), broadcast: false, out_cfg: (44.0, true, false), doc: None, pictures: HashMap::new(), gens: HashMap::new(),
+        Runtime { gpu, out: None, hold: crate::hold::Hold::open(), #[cfg(windows)] shm_maps: HashMap::new(), broadcast: false, out_cfg: (44.0, true, false), doc: None, pictures: HashMap::new(), gens: HashMap::new(),
             images: HashMap::new(), effects: HashMap::new(), shaders: HashMap::new(), sources_summary: String::new(), proj_pictures: HashMap::new(), rasters: HashMap::new(), blobs: None, compositor: None, comp_tex: HashMap::new(), rng: Rng::new(0x5eed), cache: TexCache::default(), gen: 0, path_gens: HashMap::new(), frames: 0,
             outputs: None, projectors: Vec::new(), proj_published: HashMap::new(), proj_opts: HashMap::new(), calib_surfaces: Vec::new(), venue_published: HashMap::new(), calib_ver: 0, opts_ver: 0,
             #[cfg(windows)] spouts: HashMap::new(),
@@ -301,9 +304,16 @@ impl Runtime {
     /// E2: `{"type":"raster","surface","gen","w","h","path"}` — a picture the app drew (main wrote its straight-
     /// alpha RGBA, row 0 at the top). Read now: main deletes the file once the next one is announced.
     pub fn raster(&mut self, v: &Value) {
-        let (Some(sid), Some(path)) = (v["surface"].as_str(), v["path"].as_str()) else { return };
+        let Some(sid) = v["surface"].as_str() else { return };
         let (w, h, g) = (v["w"].as_u64().unwrap_or(0) as u32, v["h"].as_u64().unwrap_or(0) as u32, v["gen"].as_u64().unwrap_or(0));
-        match std::fs::read(path) {
+        // E6i: through SHARED MEMORY (Windows, artlux_output_engine::shm) — the section main named, the slot and the
+        // sequence it wrote; a picture overwritten before it was copied is dropped (the next one is already coming).
+        let read: std::io::Result<Vec<u8>> = match (v["shm"].as_str(), v["path"].as_str()) {
+            (Some(name), _) => self.shm_read(name, v),
+            (None, Some(path)) => std::fs::read(path),
+            _ => return,
+        };
+        match read {
             Ok(px) if px.len() == (w as usize) * (h as usize) * 4 && w > 0 => {
                 // A CANVAS picture (premultiplied here, no mips) — as the app's compositor draws a bitmap.
                 let pic = Arc::new(Picture::canvas(w, h, px));
@@ -315,6 +325,23 @@ impl Runtime {
             Err(e) => eprintln!("artlux-engine: raster {sid}: {e}"),
         }
     }
+
+    #[cfg(windows)]
+    fn shm_read(&mut self, name: &str, v: &Value) -> std::io::Result<Vec<u8>> {
+        use artlux_output_engine::shm;
+        let (cap, slot, seq) = (v["cap"].as_u64().unwrap_or(0) as usize, v["slot"].as_u64().unwrap_or(0) as usize, v["seq"].as_u64().unwrap_or(0));
+        let len = (v["w"].as_u64().unwrap_or(0) * v["h"].as_u64().unwrap_or(0) * 4) as usize;
+        if !self.shm_maps.contains_key(name) {
+            let m = shm::Map::open(name, shm::section_len(cap)).ok_or_else(|| std::io::Error::other(format!("shared memory {name} cannot be opened")))?;
+            // One section per surface: a new name for this surface (a larger picture) replaces its old one.
+            let prefix = name.rsplit_once('-').map(|x| format!("{}-", x.0)).unwrap_or_default();
+            self.shm_maps.retain(|k, _| !k.starts_with(&prefix));
+            self.shm_maps.insert(name.to_string(), m);
+        }
+        shm::read(&self.shm_maps[name], cap, slot, seq, len).ok_or_else(|| std::io::Error::other("overwritten before it was read"))
+    }
+    #[cfg(not(windows))]
+    fn shm_read(&mut self, _name: &str, _v: &Value) -> std::io::Result<Vec<u8>> { Err(std::io::Error::other("shared memory is Windows-only")) }
 
     pub fn scene3d(&mut self, v: &Value) {
         let Some((shared, _)) = &self.view else { return };

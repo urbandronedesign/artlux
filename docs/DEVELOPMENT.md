@@ -113,6 +113,14 @@ vertex colours, transparency or another material type is refused), and a **timel
 hidden LAYER surface per bound layer, composited as any timeline surface). It does not draw an NDI send of an
 unwarped calibrated output (the app sends nothing there) — that keeps every output with the app, and so does an open calibration session; the log says why
 (`[engine] the app keeps the projector outputs: …`).
+**A surface the engine cannot draw does not hand the show back** (E6i step 1): `nativeLink.shipFallbacks` turns it
+into a `raster` source and ships the picture the app draws for it (`surfaceMedia.getDrawable` — on a generation
+change, or ≤ 30/s with none, one in flight); the rest of the show stays the engine's. Live frames only — a bake keeps
+the refusal (`sourceKind`). `node scripts/test-tracking-wire.cjs --packaged <exe> --bg-still | --overlay` proves it.
+On Windows every raster (fallbacks, text, badges) reaches the engine through **shared memory** — main copies it into a
+named section through the output addon (`native/output-engine/src/shm.rs`, `shmWrite`) and the engine copies it out;
+no file per picture. Files remain where the addon cannot (not Windows, an older `.node`); `ARTLUX_RASTER_FILES=1`
+forces them, to measure the two. **Rebuild the output addon** (`npm run build:native`) for it.
 **An engine death does not darken the wire** (E6h): the engine keeps its last frame on the wire in a file main
 names (`ARTLUX_ENGINE_HOLD`, engine `hold.rs` — two slots, header last, checksummed, written only on change); when an
 engine that owned the wire dies or hangs, main reads it and puts it on the wire through its own sender

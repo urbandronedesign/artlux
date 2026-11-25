@@ -19,6 +19,9 @@ interface NativeEngine {
   getStats(): { pps: number; fps: number; universes: number; serialOk?: number; serialDown?: number };
   /** Present only on engines built with USB DMX support; older .node files simply lack it. */
   listSerialDevices?(): Array<{ path: string; label: string }>;
+  /** E6i (Windows): pictures to the native render engine through shared memory (native/output-engine/src/shm.rs). */
+  shmWrite?(name: string, cap: number, slot: number, seq: number, data: Buffer): boolean;
+  shmClose?(name: string): void;
   close(): void;
 }
 
@@ -80,6 +83,11 @@ export function isReady(): boolean {
 // thread, no pacer. The startup splash reports it, because "output looks fine but jitters at 44fps" is
 // otherwise a mystery nobody connects back to a missing .node.
 export function isLoaded(): boolean { return !!native; }
+/** E6i: copy a picture into a shared-memory section for the native render engine (false: not available here). */
+export function shmWrite(name: string, cap: number, slot: number, seq: number, data: Uint8Array): boolean {
+  return !!native?.shmWrite?.(name, cap, slot, seq, Buffer.from(data.buffer, data.byteOffset, data.byteLength));
+}
+export function shmClose(name: string): void { native?.shmClose?.(name); }
 
 let warnedNoSerial = false;
 

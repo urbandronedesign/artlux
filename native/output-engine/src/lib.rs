@@ -9,6 +9,7 @@
 // the same bytes on the wire.
 
 pub mod core;
+pub mod shm;
 mod serial;
 
 #[cfg(feature = "napi")]
@@ -76,6 +77,36 @@ mod node {
     #[napi]
     pub fn list_serial_devices() -> Vec<SerialDevice> {
         crate::core::list_serial_devices().into_iter().map(|(path, label)| SerialDevice { path, label }).collect()
+    }
+
+    // E6i: pictures to the engine through shared memory (shm.rs). Main keeps each section open while it is in use —
+    // a named section lives as long as one handle to it does.
+    #[cfg(windows)]
+    static SHM: OnceLock<std::sync::Mutex<std::collections::HashMap<String, crate::shm::Map>>> = OnceLock::new();
+
+    /// Copy a picture into `slot` of the section `name` (made at `cap` bytes per slot on first use), as `seq`.
+    #[napi]
+    pub fn shm_write(name: String, cap: u32, slot: u32, seq: f64, data: Buffer) -> bool {
+        #[cfg(windows)]
+        {
+            let cap = cap as usize;
+            let mut m = SHM.get_or_init(Default::default).lock().unwrap();
+            if !m.contains_key(&name) {
+                match crate::shm::Map::create(&name, crate::shm::section_len(cap)) { Some(x) => { m.insert(name.clone(), x); } None => return false }
+            }
+            return crate::shm::write(&m[&name], cap, slot as usize, seq as u64, &data);
+        }
+        #[cfg(not(windows))]
+        { let _ = (name, cap, slot, seq, data); false }
+    }
+
+    /// Close a section main no longer writes (a surface gone, or a picture grown past its capacity).
+    #[napi]
+    pub fn shm_close(name: String) {
+        #[cfg(windows)]
+        { SHM.get_or_init(Default::default).lock().unwrap().remove(&name); }
+        #[cfg(not(windows))]
+        { let _ = name; }
     }
 
     #[napi]

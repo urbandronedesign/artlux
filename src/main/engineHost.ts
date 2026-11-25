@@ -267,8 +267,41 @@ export function noteBakedMap(key: string, w: number, h: number, uv: Float32Array
 // per surface and generation, the previous one removed once the next is announced. The last message per
 // surface is kept: a restarted engine is given every raster BEFORE the document that names them.
 const rasterMsgs = new Map<string, { msg: string; file: string }>();
+// E6i — THROUGH SHARED MEMORY (Windows): a raster is copied into a named section (shm.rs — two slots, a sequence each)
+// and the engine copies it straight out; no file is written or read. One section per surface, remade at a larger
+// capacity when a picture outgrows it (the name carries the capacity). Files remain the path where the addon cannot
+// (not Windows, an older .node) — and ARTLUX_RASTER_FILES=1 forces them, to measure the two against each other.
+const shmOf = new Map<string, { name: string; cap: number; slot: number }>();
+let shmSeq = 0;
+const RASTER_FILES = process.env.ARTLUX_RASTER_FILES === '1';
+function rasterShm(surfaceId: string, rgba: Uint8Array): { name: string; cap: number; slot: number; seq: number } | null {
+  if (RASTER_FILES || process.platform !== 'win32') return null;
+  let e = shmOf.get(surfaceId);
+  if (!e || e.cap < rgba.byteLength) {
+    if (e) output.shmClose(e.name);
+    const cap = Math.max(rgba.byteLength, 4096);
+    e = { name: `Local\\ArtLuxRaster-${process.pid}-${surfaceId.replace(/[^\w.-]/g, '_')}-${cap}`, cap, slot: 1 };
+    shmOf.set(surfaceId, e);
+  }
+  e.slot ^= 1;
+  const seq = ++shmSeq;
+  const ok = output.shmWrite(e.name, e.cap, e.slot, seq, rgba);
+  if (ok !== shmSaid) { shmSaid = ok; console.log(ok ? `[engine] rasters go through shared memory (${surfaceId}: ${rgba.byteLength} bytes)` : '[engine] rasters go through files (shared memory unavailable)'); }
+  return ok ? { name: e.name, cap: e.cap, slot: e.slot, seq } : null;
+}
+let shmSaid: boolean | null = null;
+
 export function noteRaster(surfaceId: string, gen: number, w: number, h: number, rgba: Uint8Array): void {
   if (!flag()) return;
+  const shm = rasterShm(surfaceId, rgba);
+  if (shm) {
+    const msg = JSON.stringify({ type: 'raster', surface: surfaceId, gen, w, h, shm: shm.name, cap: shm.cap, slot: shm.slot, seq: shm.seq });
+    const prev = rasterMsgs.get(surfaceId);
+    rasterMsgs.set(surfaceId, { msg, file: '' });
+    if (status.state === 'up') write(msg);
+    if (prev?.file) { try { unlinkSync(prev.file); } catch { /* gone */ } }
+    return;
+  }
   const dir = join(app.getPath('temp'), 'artlux-native-engine');
   try {
     mkdirSync(dir, { recursive: true });
@@ -279,7 +312,7 @@ export function noteRaster(surfaceId: string, gen: number, w: number, h: number,
     rasterMsgs.set(surfaceId, { msg, file });
     if (status.state === 'up') write(msg);
     // The engine reads a raster as the message arrives, so the previous file is free once this one is sent.
-    if (prev && prev.file !== file) { try { unlinkSync(prev.file); } catch { /* gone */ } }
+    if (prev && prev.file && prev.file !== file) { try { unlinkSync(prev.file); } catch { /* gone */ } }
   } catch (e) { logger.log('warn', 'engine', 'raster-write-failed', { surfaceId }, e); }
 }
 
