@@ -30,7 +30,11 @@
 //!   - OCCLUSION (E6f step 4): projectorDepth.ts — every venue mesh rendered from the projecting projector into a
 //!     1024² RGBA8 map of its PACKED LINEAR distance (clip.w / 250, both faces, cleared white = nothing there), and
 //!     BODY_FRAG's test against it, the bias growing on grazing faces. DEPTH below, line for line.
-//! Not drawn yet (the host refuses them, with the reason): a mesh's own lit material, a timeline layer.
+//!   - a mesh in its OWN material (E6f step 5): the window lights a venue file's materials with an ambient and a
+//!     hemisphere light and no environment map, where MeshStandardMaterial reduces to irradiance × diffuse ×
+//!     (1 − metalness) / π + emissive, then ACESFilmic (r3f's default; none under the post pass's composer) and the
+//!     OETF. OWN below, from three's lights_* / tonemapping chunks; the host refuses what that does not cover.
+//! Not drawn yet (the host refuses it, with the reason): a timeline layer.
 
 use crate::compose::Picture;
 use crate::Gpu;
@@ -57,9 +61,20 @@ pub struct Src { pub surface: String, pub proj: Option<Proj> }
 #[derive(Clone, Debug)]
 pub struct Proj { pub view: [f32; 16], pub eye: [f32; 3], pub soft: f32, pub cull: bool, pub occlude: bool, pub bias: f32 }
 
-/// One placed mesh: its model-view (three's modelViewMatrix) and world matrix (modelMatrix), as the host computed them.
+/// One placed mesh: its model-view (three's modelViewMatrix) and world matrix (modelMatrix), as the host computed them —
+/// and, wearing its OWN material, that material and three's normalMatrix.
 #[derive(Clone, Debug)]
-pub struct Xf { pub mv: [f32; 16], pub world: [f32; 16] }
+pub struct Xf { pub mv: [f32; 16], pub world: [f32; 16], pub own: Option<Own> }
+
+/// A MeshStandardMaterial's uniforms (diffuse, metalness, emissive × emissiveIntensity — linear), its side (three's
+/// FrontSide 0 / BackSide 1 / DoubleSide 2) and the mesh's normal matrix (column-major 3 × 3).
+#[derive(Clone, Debug)]
+pub struct Own { pub color: [f32; 3], pub metalness: f32, pub emissive: [f32; 3], pub side: u8, pub nm: [f32; 9] }
+
+/// The window's two lights as WebGLLights uploads them: ambient, hemisphere sky / ground (× intensity), its direction
+/// in view space.
+#[derive(Clone, Debug)]
+pub struct Lights { pub ambient: [f32; 3], pub sky: [f32; 3], pub ground: [f32; 3], pub dir: [f32; 3] }
 
 #[derive(Clone, Debug)]
 pub enum Geo { Plane { w: f64, h: f64 }, Glb { path: String } }
@@ -78,7 +93,18 @@ pub struct Post { pub dist: Option<[f32; 9]>, pub blend: Option<Blend> }
 
 /// A calibrated output's venue, from the document's `calib`.
 #[derive(Clone, Debug)]
-pub struct View { pub proj: [f32; 16], pub models: Vec<Model>, pub post: Option<Post>, pub warped: bool }
+pub struct View { pub proj: [f32; 16], pub models: Vec<Model>, pub post: Option<Post>, pub warped: bool, pub lights: Option<Lights> }
+
+fn xf_of(x: &Value) -> Option<Xf> {
+    let own = x.get("own").filter(|o| o.is_object()).and_then(|o| Some(Own {
+        color: fl::<3>(&o["color"])?, metalness: o["metalness"].as_f64()? as f32, emissive: fl::<3>(&o["emissive"])?,
+        side: o["side"].as_u64().unwrap_or(0).min(2) as u8, nm: fl::<9>(&x["nm"])?,
+    }));
+    // A mesh that says it wears its own material but whose material did not parse is no mesh (drawn as nothing,
+    // never as something else).
+    if x.get("own").is_some_and(|o| o.is_object()) && own.is_none() { return None; }
+    Some(Xf { mv: m16(&x["mv"])?, world: m16(&x["world"])?, own })
+}
 
 fn fl<const N: usize>(v: &Value) -> Option<[f32; N]> {
     let a = v.as_array()?;
@@ -140,12 +166,12 @@ impl View {
             match m["kind"].as_str()? {
                 "plane" => models.push(Model {
                     id, geo: Geo::Plane { w: m["w"].as_f64()?, h: m["h"].as_f64()? },
-                    meshes: vec![Xf { mv: m16(&m["mv"])?, world: m16(&m["world"])? }],
+                    meshes: vec![Xf { mv: m16(&m["mv"])?, world: m16(&m["world"])?, own: None }],
                     src: vec![src_of(&m["src"])?], mesh_src: vec![0],
                 }),
                 "glb" => models.push(Model {
                     id, geo: Geo::Glb { path: m["path"].as_str()?.to_string() },
-                    meshes: m["meshes"].as_array()?.iter().map(|x| Some(Xf { mv: m16(&x["mv"])?, world: m16(&x["world"])? })).collect::<Option<Vec<_>>>()?,
+                    meshes: m["meshes"].as_array()?.iter().map(xf_of).collect::<Option<Vec<_>>>()?,
                     src: m["content"]["src"].as_array()?.iter().map(src_of).collect::<Option<Vec<_>>>()?,
                     mesh_src: m["content"]["mesh"].as_array()?.iter().map(|x| x.as_i64().unwrap_or(-1) as i32).collect(),
                 }),
@@ -153,7 +179,9 @@ impl View {
             }
         }
         // `warped`: the output carries a residual warp — the venue is then the warp stage's SOURCE (outputs.rs, path B).
-        Some(View { proj, models, post: post_of(&v["post"]), warped: v["warped"].as_bool().unwrap_or(false) })
+        let l = &v["lights"];
+        let lights = (|| Some(Lights { ambient: fl::<3>(&l["ambient"])?, sky: fl::<3>(&l["sky"])?, ground: fl::<3>(&l["ground"])?, dir: fl::<3>(&l["dir"])? }))();
+        Some(View { proj, models, post: post_of(&v["post"]), warped: v["warped"].as_bool().unwrap_or(false), lights })
     }
     /// The surfaces it shows (the presenters need their pictures).
     pub fn surfaces(&self) -> Vec<String> {
@@ -265,6 +293,82 @@ fn oetf(v: vec3<f32>) -> vec3<f32> {
   }
   let s = textureSample(tex, samp, uv);
   return vec4<f32>(s.rgb * vis, s.a);
+}
+"#;
+
+// A venue mesh's OWN MeshStandardMaterial, lit as the projector window lights it (ambient + hemisphere, no environment
+// map — so RE_IndirectSpecular adds exactly zero and there is no direct light): meshphysical.glsl's path through
+// normal_fragment_begin, lights_physical_fragment, lights_fragment_begin (irradiance = ambient, += the hemisphere),
+// RE_IndirectDiffuse_Physical (irradiance × BRDF_Lambert(diffuseContribution)), opaque_fragment, tonemapping (r3f's
+// ACESFilmic, exposure 1 — not under the composer, which sets NoToneMapping and renders to a target), colorspace.
+// Same bind groups as SHADER (the venue's pipeline layout), the Obj slot read as `Own`.
+const OWN: &str = r#"
+struct Cam { p: mat4x4<f32> };
+@group(0) @binding(0) var<uniform> cam: Cam;
+// flags = (double-sided, back-sided, toneMappingExposure, _)
+struct Own { mv: mat4x4<f32>, n0: vec4<f32>, n1: vec4<f32>, n2: vec4<f32>, color: vec4<f32>, emissive: vec4<f32>,
+             ambient: vec4<f32>, sky: vec4<f32>, ground: vec4<f32>, dir: vec4<f32>, flags: vec4<f32> };
+@group(1) @binding(0) var<uniform> own: Own;
+
+struct OOut { @builtin(position) pos: vec4<f32>, @location(0) vn: vec3<f32> };
+
+@vertex fn vs(@location(0) p: vec3<f32>, @location(1) n: vec3<f32>, @location(2) uv: vec2<f32>) -> OOut {
+  var o: OOut;
+  let mvp = own.mv * vec4<f32>(p, 1.0);
+  var c = cam.p * mvp;
+  c.y = -c.y;
+  c.z = (c.z + c.w) * 0.5;
+  o.pos = c;
+  // defaultnormal_vertex: transformedNormal = normalMatrix * objectNormal (negated for BackSide, FLIP_SIDED);
+  // normal_vertex: vNormal = normalize(transformedNormal).
+  var tn = mat3x3<f32>(own.n0.xyz, own.n1.xyz, own.n2.xyz) * n;
+  if (own.flags.y > 0.5) { tn = -tn; }
+  o.vn = normalize(tn);
+  return o;
+}
+
+fn lit(i: OOut, ff: bool) -> vec3<f32> {
+  // normal_fragment_begin.
+  let faceDirection = select(-1.0, 1.0, ff);
+  var normal = normalize(i.vn);
+  if (own.flags.x > 0.5) { normal = normal * faceDirection; }
+  // lights_physical_fragment: diffuseContribution = diffuseColor.rgb * (1 - metalnessFactor).
+  let diffuseContribution = own.color.rgb * (1.0 - own.color.w);
+  // lights_fragment_begin: irradiance = ambientLightColor; += getHemisphereLightIrradiance(hemi, normal).
+  var irradiance = own.ambient.rgb;
+  let dotNL = dot(normal, own.dir.xyz);
+  let hemiDiffuseWeight = 0.5 * dotNL + 0.5;
+  irradiance = irradiance + mix(own.ground.rgb, own.sky.rgb, vec3<f32>(hemiDiffuseWeight));
+  // RE_IndirectDiffuse_Physical: irradiance * BRDF_Lambert(diffuseContribution) = irradiance * (RECIPROCAL_PI * c).
+  let indirectDiffuse = irradiance * (0.3183098861837907 * diffuseContribution);
+  // outgoingLight = totalDiffuse + totalSpecular (0) + totalEmissiveRadiance.
+  return indirectDiffuse + own.emissive.rgb;
+}
+
+// tonemapping_pars_fragment ACESFilmicToneMapping, as written there.
+fn RRTAndODTFit(v: vec3<f32>) -> vec3<f32> {
+  let a = v * (v + 0.0245786) - 0.000090537;
+  let b = v * (0.983729 * v + 0.4329510) + 0.238081;
+  return a / b;
+}
+fn ACESFilmicToneMapping(c0: vec3<f32>) -> vec3<f32> {
+  let ACESInputMat = mat3x3<f32>(vec3<f32>(0.59719, 0.07600, 0.02840), vec3<f32>(0.35458, 0.90834, 0.13383), vec3<f32>(0.04823, 0.01566, 0.83777));
+  let ACESOutputMat = mat3x3<f32>(vec3<f32>(1.60475, -0.10208, -0.00327), vec3<f32>(-0.53108, 1.10813, -0.07276), vec3<f32>(-0.07367, -0.00605, 1.07602));
+  var color = c0 * (own.flags.z / 0.6);
+  color = ACESInputMat * color;
+  color = RRTAndODTFit(color);
+  color = ACESOutputMat * color;
+  return clamp(color, vec3<f32>(0.0), vec3<f32>(1.0));
+}
+fn oetf(v: vec3<f32>) -> vec3<f32> {
+  return mix(pow(v, vec3<f32>(0.41666)) * 1.055 - vec3<f32>(0.055), v * 12.92, vec3<f32>(v <= vec3<f32>(0.0031308)));
+}
+
+@fragment fn fs(i: OOut, @builtin(front_facing) ff: bool) -> @location(0) vec4<f32> {
+  return vec4<f32>(oetf(ACESFilmicToneMapping(lit(i, ff))), 1.0);
+}
+@fragment fn fs_lin(i: OOut, @builtin(front_facing) ff: bool) -> @location(0) vec4<f32> {
+  return vec4<f32>(lit(i, ff), 1.0);
 }
 "#;
 
@@ -404,6 +508,11 @@ pub struct Renderer {
     /// Occlusion: the depth pass, its per-(map, mesh) uniforms, the depth-map bind layout, the white 1×1 bound
     /// where a mesh reads no map, and one map per projecting projector (keyed by its view-projection's bits).
     depth_pipe: wgpu::RenderPipeline,
+    /// OWN materials: the venue layout, the module, pipelines by (side, post pass?), a blank group-2 binding.
+    layout: wgpu::PipelineLayout,
+    own_module: wgpu::ShaderModule,
+    own_pipes: HashMap<(u8, bool), wgpu::RenderPipeline>,
+    blank_tex: wgpu::BindGroup,
     depth_u: Option<(u64, wgpu::Buffer, wgpu::BindGroup)>,
     dmap_layout: wgpu::BindGroupLayout,
     dsamp: wgpu::Sampler,
@@ -476,6 +585,7 @@ impl Renderer {
             multisample: wgpu::MultisampleState { count: samples, mask: !0, alpha_to_coverage_enabled: false },
             multiview_mask: None, cache: None,
         });
+        let own_module = d.create_shader_module(wgpu::ShaderModuleDescriptor { label: Some("calib3d own"), source: wgpu::ShaderSource::Wgsl(OWN.into()) });
         let pipe_double = mk(None, wgpu::TextureFormat::Rgba8Unorm, SAMPLES, "fs");
         let pipe_front = mk(Some(wgpu::Face::Back), wgpu::TextureFormat::Rgba8Unorm, SAMPLES, "fs");
         let lin_double = mk(None, LINEAR, post_samples, "fs_lin");
@@ -504,6 +614,18 @@ impl Renderer {
         let dsamp = d.create_sampler(&wgpu::SamplerDescriptor {
             label: Some("calib3d depth map"), address_mode_u: wgpu::AddressMode::ClampToEdge, address_mode_v: wgpu::AddressMode::ClampToEdge,
             mag_filter: wgpu::FilterMode::Nearest, min_filter: wgpu::FilterMode::Nearest, mipmap_filter: wgpu::MipmapFilterMode::Nearest, ..Default::default() });
+        let blank_tex = {
+            use wgpu::util::DeviceExt;
+            let t = d.create_texture_with_data(&gpu.queue, &wgpu::TextureDescriptor {
+                label: Some("calib3d blank"), size: wgpu::Extent3d { width: 1, height: 1, depth_or_array_layers: 1 }, mip_level_count: 1, sample_count: 1,
+                dimension: wgpu::TextureDimension::D2, format: wgpu::TextureFormat::Rgba8Unorm, usage: wgpu::TextureUsages::TEXTURE_BINDING, view_formats: &[] },
+                wgpu::util::TextureDataOrder::LayerMajor, &[0, 0, 0, 255]);
+            let v = t.create_view(&Default::default());
+            d.create_bind_group(&wgpu::BindGroupDescriptor { label: None, layout: &tex_layout, entries: &[
+                wgpu::BindGroupEntry { binding: 0, resource: wgpu::BindingResource::TextureView(&v) },
+                wgpu::BindGroupEntry { binding: 1, resource: wgpu::BindingResource::Sampler(&dsamp) },
+            ] })
+        };
         let far_bind = {
             use wgpu::util::DeviceExt;
             let t = d.create_texture_with_data(&gpu.queue, &wgpu::TextureDescriptor {
@@ -533,7 +655,8 @@ impl Renderer {
         });
         let dim_buf = d.create_buffer(&wgpu::BufferDescriptor { label: Some("calib3d dim"), size: 16, usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST, mapped_at_creation: false });
         Renderer { pipe_double, pipe_front, lin_double, lin_front, post_samples, post_pipe, post_buf, post_bind: None, cam_buf, cam_bind, obj_layout, obj: None, tex_layout, sampler,
-            depth_pipe, depth_u: None, dmap_layout, dsamp, far_bind, dmaps: HashMap::new(), planes: HashMap::new(), glbs: HashMap::new(),
+            depth_pipe, depth_u: None, dmap_layout, dsamp, far_bind, dmaps: HashMap::new(),
+            layout, own_module, own_pipes: HashMap::new(), blank_tex, planes: HashMap::new(), glbs: HashMap::new(),
             loaded_tx, loaded_rx, texs: HashMap::new(), targets: None, dim_pipe, dim_buf, resolved: None, out_id: out_id.to_string() }
     }
 
@@ -648,11 +771,26 @@ impl Renderer {
         }
         if dimmed { gpu.queue.write_buffer(&self.dim_buf, 0, &f32s(&[q, 0.0, 0.0, 0.0])); }
         // Every draw: (geometry, cull, obj uniform index, texture bind) — gathered first, as the pass borrows.
-        struct Draw { plane: Option<(u64, u64)>, glb: Option<(String, usize)>, front: bool, sid: String, world: [f32; 16], occl: Option<[u32; 16]> }
+        struct Draw { plane: Option<(u64, u64)>, glb: Option<(String, usize)>, front: bool, sid: String, world: [f32; 16], occl: Option<[u32; 16]>, own: Option<u8> }
         let mut draws: Vec<Draw> = Vec::new();
         let mut objs: Vec<u8> = Vec::new();
         for m in &view.models {
             for (k, xf) in m.meshes.iter().enumerate() {
+                // A mesh in its OWN material: the Own uniform in its slot (mv, normal matrix, material, the lights).
+                if let (Some(o), Geo::Glb { path }, Some(l)) = (&xf.own, &m.geo, &view.lights) {
+                    let mut u: Vec<f32> = Vec::with_capacity(56);
+                    u.extend_from_slice(&xf.mv);
+                    for c in 0..3 { u.extend_from_slice(&[o.nm[c * 3], o.nm[c * 3 + 1], o.nm[c * 3 + 2], 0.0]); }
+                    u.extend_from_slice(&[o.color[0], o.color[1], o.color[2], o.metalness]);
+                    u.extend_from_slice(&[o.emissive[0], o.emissive[1], o.emissive[2], 0.0]);
+                    for v in [l.ambient, l.sky, l.ground, l.dir] { u.extend_from_slice(&[v[0], v[1], v[2], 0.0]); }
+                    u.extend_from_slice(&[if o.side == 2 { 1.0 } else { 0.0 }, if o.side == 1 { 1.0 } else { 0.0 }, 1.0, 0.0]);
+                    let mut b = f32s(&u);
+                    b.resize(OBJ_STRIDE as usize, 0);
+                    objs.extend_from_slice(&b);
+                    draws.push(Draw { plane: None, glb: Some((path.clone(), k)), front: false, sid: String::new(), world: xf.world, occl: None, own: Some(o.side) });
+                    continue;
+                }
                 let Some(si) = m.mesh_src.get(k).copied().filter(|&i| i >= 0) else { continue };
                 let Some(s) = m.src.get(si as usize) else { continue };
                 // The uniform: mv, world, proj (the projecting camera), pe (eye, soft), pf (projected, cull).
@@ -671,8 +809,8 @@ impl Renderer {
                 objs.extend_from_slice(&b);
                 let front = s.proj.is_some();   // the projected material is FRONT-sided, the authored one double
                 match &m.geo {
-                    Geo::Plane { w, h } => draws.push(Draw { plane: Some((w.to_bits(), h.to_bits())), glb: None, front, sid: s.surface.clone(), world: xf.world, occl }),
-                    Geo::Glb { path } => draws.push(Draw { plane: None, glb: Some((path.clone(), k)), front, sid: s.surface.clone(), world: xf.world, occl }),
+                    Geo::Plane { w, h } => draws.push(Draw { plane: Some((w.to_bits(), h.to_bits())), glb: None, front, sid: s.surface.clone(), world: xf.world, occl, own: None }),
+                    Geo::Glb { path } => draws.push(Draw { plane: None, glb: Some((path.clone(), k)), front, sid: s.surface.clone(), world: xf.world, occl, own: None }),
                 }
             }
         }
@@ -683,6 +821,25 @@ impl Renderer {
             }
             if let Some((p, _)) = &dr.glb { let _ = self.glb(gpu, p); }
             if let Some((g, pic)) = pictures.get(&dr.sid) { let _ = self.texture(gpu, &dr.sid, *g, pic); }
+            // OWN pipelines: three's side → the cull (FrontSide culls back faces, BackSide front ones, DoubleSide none).
+            if let Some(side) = dr.own {
+                if !self.own_pipes.contains_key(&(side, posted)) {
+                    let (fmt, samples, fs) = if posted { (LINEAR, self.post_samples, "fs_lin") } else { (wgpu::TextureFormat::Rgba8Unorm, SAMPLES, "fs") };
+                    let cull = match side { 0 => Some(wgpu::Face::Back), 1 => Some(wgpu::Face::Front), _ => None };
+                    let pipe = d.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+                        label: Some("calib3d own"), layout: Some(&self.layout),
+                        vertex: wgpu::VertexState { module: &self.own_module, entry_point: Some("vs"), compilation_options: Default::default(), buffers: &[Some(wgpu::VertexBufferLayout {
+                            array_stride: 32, step_mode: wgpu::VertexStepMode::Vertex,
+                            attributes: &wgpu::vertex_attr_array![0 => Float32x3, 1 => Float32x3, 2 => Float32x2] })] },
+                        fragment: Some(wgpu::FragmentState { module: &self.own_module, entry_point: Some(fs), compilation_options: Default::default(), targets: &[Some(fmt.into())] }),
+                        primitive: wgpu::PrimitiveState { cull_mode: cull, front_face: wgpu::FrontFace::Cw, ..Default::default() },
+                        depth_stencil: Some(wgpu::DepthStencilState { format: DEPTH_FMT, depth_write_enabled: Some(true), depth_compare: Some(wgpu::CompareFunction::LessEqual), stencil: Default::default(), bias: Default::default() }),
+                        multisample: wgpu::MultisampleState { count: samples, mask: !0, alpha_to_coverage_enabled: false },
+                        multiview_mask: None, cache: None,
+                    });
+                    self.own_pipes.insert((side, posted), pipe);
+                }
+            }
         }
         let need = objs.len().max(OBJ_STRIDE as usize) as u64;
         if self.obj.as_ref().map_or(true, |o| o.0 < need) {
@@ -810,6 +967,18 @@ impl Renderer {
             });
             pass.set_bind_group(0, &self.cam_bind, &[]);
             for (i, dr) in draws.iter().enumerate() {
+                if let Some(side) = dr.own {
+                    let mesh = match &dr.glb { Some((p, slot)) => match self.glbs.get(p) { Some(GlbState::Ready(m)) => m.get(*slot).and_then(|x| x.as_ref()), _ => None }, None => None };
+                    let Some(mesh) = mesh else { continue };
+                    pass.set_pipeline(&self.own_pipes[&(side, posted)]);
+                    pass.set_bind_group(1, obj_bind, &[(i as u64 * OBJ_STRIDE) as u32]);
+                    pass.set_bind_group(2, &self.blank_tex, &[]);
+                    pass.set_bind_group(3, &self.far_bind, &[]);
+                    pass.set_vertex_buffer(0, mesh.vb.slice(..));
+                    pass.set_index_buffer(mesh.ib.slice(..), wgpu::IndexFormat::Uint32);
+                    pass.draw_indexed(0..mesh.n, 0, 0..1);
+                    continue;
+                }
                 let Some((_, tb)) = self.texs.get(&dr.sid) else { continue };
                 let mesh = match (&dr.plane, &dr.glb) {
                     (Some(k), _) => self.planes.get(k),

@@ -4,7 +4,7 @@ import type { Scene3D, SceneModel, ProjectorCalibration } from '../../../shared/
 import { recenterClone, applyModelTransform } from '../components/Simulator3D/venuePlacement';
 import { engineContent } from '../components/Simulator3D/engineView';
 import { usesProjectedUv, usesProjectedOcclusion, DEFAULT_BIAS_M } from '../components/Simulator3D/projectedMapping';
-import { cameraPose, glProjectionMatrix, PROJECTOR_NEAR, PROJECTOR_FAR } from '@artlux/plugin-calibration/playback';
+import { cameraPose, glProjectionMatrix, PROJECTOR_NEAR, PROJECTOR_FAR, VENUE_LIGHTS } from '@artlux/plugin-calibration/playback';
 
 // E6f — RENDER-FROM-PROJECTOR, DESCRIBED FOR THE NATIVE ENGINE (engine half: engine/artlux-engine/src/calib3d.rs).
 //
@@ -73,6 +73,44 @@ function load(path: string): Loaded {
 
 const els = (m: THREE.Matrix4) => Array.from(m.elements);
 
+/**
+ * A mesh's OWN material as three lights it in the projector window — or why the engine cannot. E6f: the window
+ * lights a venue file's own materials with an ambient and a hemisphere light and NO environment map, and there three's
+ * MeshStandardMaterial reduces to irradiance × diffuse × (1 − metalness) / π + emissive (calib3d.rs OWN). What that
+ * reduction does not cover is refused: any texture (base colour, normal, AO, emissive… — each changes the sum),
+ * vertex colours, transparency / alpha test, flat shading, a mesh without normals, any other material type (a
+ * KHR_materials_* extension makes a MeshPhysicalMaterial; unlit a MeshBasicMaterial).
+ */
+const MAPS = ['map', 'normalMap', 'aoMap', 'emissiveMap', 'metalnessMap', 'roughnessMap', 'alphaMap', 'lightMap', 'bumpMap', 'displacementMap', 'envMap'] as const;
+function ownMaterial(o: THREE.Mesh): { color: number[]; metalness: number; emissive: number[]; side: number } | { why: string } {
+  const m = o.material as THREE.MeshStandardMaterial | THREE.Material[];
+  if (Array.isArray(m)) return { why: 'several materials on one mesh' };
+  if (m.type !== 'MeshStandardMaterial') return { why: `a ${m.type}` };
+  const map = MAPS.find((k) => (m as unknown as Record<string, unknown>)[k]);
+  if (map) return { why: `a material with a ${map}` };
+  if (m.vertexColors) return { why: 'vertex colours' };
+  if (m.transparent || m.alphaTest > 0 || m.alphaHash) return { why: 'a transparent material' };
+  if (m.flatShading || !o.geometry.getAttribute('normal')) return { why: 'flat shading' };
+  if (m.wireframe) return { why: 'a wireframe material' };
+  // The uniforms as three uploads them: diffuse = color, emissive = emissive × emissiveIntensity (linear, its
+  // working space), metalness; the side decides the culling and the double-sided normal flip.
+  return { color: [m.color.r, m.color.g, m.color.b], metalness: m.metalness, emissive: m.emissive.clone().multiplyScalar(m.emissiveIntensity).toArray(), side: m.side };
+}
+
+/** The window's two lights as WebGLLights uploads them for a camera with this view matrix. */
+function venueLights(view: THREE.Matrix4) {
+  const amb = new THREE.AmbientLight(); amb.intensity = VENUE_LIGHTS.ambient;
+  const hemi = new THREE.HemisphereLight(); hemi.intensity = VENUE_LIGHTS.hemisphere; hemi.groundColor.set(VENUE_LIGHTS.ground);
+  hemi.updateMatrixWorld(true);
+  const dir = new THREE.Vector3().setFromMatrixPosition(hemi.matrixWorld).transformDirection(view);
+  return {
+    ambient: [amb.color.r * amb.intensity, amb.color.g * amb.intensity, amb.color.b * amb.intensity],
+    sky: hemi.color.clone().multiplyScalar(hemi.intensity).toArray(),
+    ground: hemi.groundColor.clone().multiplyScalar(hemi.intensity).toArray(),
+    dir: dir.toArray(),
+  };
+}
+
 /** One projected or plain content source, as the engine's 3D view takes it (engineView's EngineSrc). */
 function planeSrc(m: SceneModel) {
   return {
@@ -123,21 +161,37 @@ export function calibDoc(cal: ProjectorCalibration, scene: Scene3D): { doc: unkn
     g.add(cloned);
     applyModelTransform(g, m);
     g.updateMatrixWorld(true);
-    const content = engineContent(cloned, m, true);
-    if (!content) return { why: `the venue model '${name}' shows its own materials (lit by three.js)` };
-    if (content.mesh.some((i) => i < 0)) return { why: `a mesh of '${name}' shows its own material (lit by three.js)` };
+    // No binding at all: every mesh wears the file's own material (assignContentMaterials with no content).
+    let count = 0;
+    cloned.traverse((o) => { if ((o as THREE.Mesh).isMesh) count++; });
+    const content = engineContent(cloned, m, true) ?? { src: [], mesh: new Array<number>(count).fill(-1) };
     for (const s of content.src) {
       if (s.surface === null) return { why: `'${name}' shows a timeline layer` };
       surfaces.add(s.surface);
     }
-    // Per mesh, in three's traversal order (engineContent's): its model-view and world matrix.
+    // Per mesh, in three's traversal order (engineContent's): its model-view and world matrix — and, for a mesh in its
+    // OWN material, that material and three's normalMatrix (getNormalMatrix of the f64 model-view).
     const meshes: unknown[] = [];
-    cloned.traverse((o) => { if ((o as THREE.Mesh).isMesh) meshes.push({ mv: mv(o), world: els(o.matrixWorld) }); });
+    let refused: string | null = null;
+    let k = 0;
+    cloned.traverse((o) => {
+      if (!(o as THREE.Mesh).isMesh || refused) return;
+      const entry: Record<string, unknown> = { mv: mv(o), world: els(o.matrixWorld) };
+      if ((content.mesh[k++] ?? -1) < 0) {
+        const own = ownMaterial(o as THREE.Mesh);
+        if ('why' in own) { refused = `a mesh of '${name}' shows its own material, ${own.why} (not drawn by the engine yet)`; return; }
+        const mvm = new THREE.Matrix4().multiplyMatrices(cam.matrixWorldInverse, o.matrixWorld);
+        entry.own = own;
+        entry.nm = Array.from(new THREE.Matrix3().getNormalMatrix(mvm).elements);
+      }
+      meshes.push(entry);
+    });
+    if (refused) return { why: refused };
     models.push({ id: m.id, kind: 'glb', path: m.path, meshes, content });
   }
   if (!models.length) return { why: 'the venue scene has no visible geometry' };
   return {
-    doc: { proj: glProjectionMatrix(cal.intrinsics, cal.imageSize, PROJECTOR_NEAR, PROJECTOR_FAR), models },
+    doc: { proj: glProjectionMatrix(cal.intrinsics, cal.imageSize, PROJECTOR_NEAR, PROJECTOR_FAR), models, lights: venueLights(cam.matrixWorldInverse) },
     surfaces: [...surfaces],
   };
 }

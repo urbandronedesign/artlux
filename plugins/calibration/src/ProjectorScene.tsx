@@ -6,7 +6,7 @@ import { EffectComposer } from '@react-three/postprocessing';
 import { Effect } from 'postprocessing';
 import * as THREE from 'three';
 import type { Scene3D, SceneModel, ScreenBinding, ProjectorCalibration } from '../../../shared/protocol';
-import { PROJECTOR_NEAR as NEAR, PROJECTOR_FAR as FAR, needsBlendPass, hasDistortion, distortionValues, blendValues, gridBytes, type BlendLook } from './renderLook';
+import { PROJECTOR_NEAR as NEAR, PROJECTOR_FAR as FAR, needsBlendPass, hasDistortion, distortionValues, blendValues, gridBytes, VENUE_LIGHTS, type BlendLook } from './renderLook';
 import { modelScaleXYZ } from '../../../shared/protocol';
 import { cameraPose, glProjectionMatrix } from './cvCamera';
 import { useLayerTexture } from '@/components/Simulator3D/useLayerTexture'; // host hook — transitional seam
@@ -555,8 +555,9 @@ export const ProjectorScene: React.FC<{
       <color attach="background" args={['#000']} />
       {/* Same rig as Simulator3D's Lighting (env look) — ambient alone left standard materials darker
           here than in the editor, which read as "the render shows nothing" on dim GLBs. */}
-      <ambientLight intensity={0.8} />
-      <hemisphereLight intensity={0.7} groundColor="#101010" />
+      {/* The values are renderLook's VENUE_LIGHTS — the native engine lights a mesh's own material from them. */}
+      <ambientLight intensity={VENUE_LIGHTS.ambient} />
+      <hemisphereLight intensity={VENUE_LIGHTS.hemisphere} groundColor={VENUE_LIGHTS.ground} />
       <CalibCamera calibration={calibration} />
       {/* Renders the depth maps that make projected mapping occlude — the host's pass, so the wall
           and the editor shadow identically. Only draws when the venue or a projector moved. */}

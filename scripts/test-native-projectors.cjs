@@ -82,6 +82,9 @@ const CALIBRATED = process.argv.includes('--calibrated');
 const CALIB_WARP = CALIBRATED && process.argv.includes('--calib-warp');
 const CALIB_OCCLUDE = CALIBRATED && process.argv.includes('--calib-occlude');
 const CALIB_REFUSED = CALIBRATED && process.argv.includes('--calib-refused');
+// --calib-own: the blender-screens example ROOM behind the screens — its walls and floor in the file's OWN materials
+// (lit by the window's ambient + hemisphere lights, ACES tone-mapped), its named screen 'screen_main' wearing the still.
+const CALIB_OWN = CALIBRATED && process.argv.includes('--calib-own') ? path.join(ROOT, 'examples', 'blender-screens', 'venue.glb') : null;
 // --calib-occlude projects from a SECOND projector ('sQ', a disabled output at another pose): occlusion is invisible
 // from the projecting projector itself (what its depth map hides, its own depth buffer hides too), so the shadow is
 // only seen from somewhere else — here, from the output under test. Yawed 0.4 rad toward −X, 3 m to the right.
@@ -162,6 +165,8 @@ fs.writeFileSync(project, JSON.stringify({
     // --glb: the multi-projector example's venue, the still on every mesh of it (its UVs, v flipped as three flips it).
     ...(CALIB_GLB ? [{ id: 'ven', name: 'Venue', kind: 'mesh', path: CALIB_GLB, surfaceId: 'sP', position: { x: 0, y: 2.9, z: -3 }, rotation: { x: 0, y: 0, z: 0 }, scale: 0.5, visible: true,
       ...(CALIB_OCCLUDE ? { uvMode: 'projected', uvProjFrom: PROJ_FROM } : {}) }] : []),
+    ...(CALIB_OWN ? [{ id: 'room', name: 'Room', kind: 'mesh', path: CALIB_OWN, position: { x: 0, y: 1.3, z: -2.5 }, rotation: { x: 0, y: 8, z: 0 }, scale: 0.6, visible: true,
+      screens: { screen_main: { surfaceId: 'sP' } } }] : []),
   ] } } : {}),
 }, null, 2));
 

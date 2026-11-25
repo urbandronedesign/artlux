@@ -2616,6 +2616,25 @@ fallback until a source/output is proven byte-identical — risk 2):
 > venue projected from the second projector, self-shadowing): the same. `--calib-refused` is now an NDI send without
 > a residual warp. Guarded.
 > - **Next for D:** a mesh in its own lit material, timeline layers on the venue — then E6e (default-on).
+>
+> ✅ **E6f (render-from-projector, step 5) done 2026-11-25 — A MESH IN ITS OWN MATERIAL.** The window lights a venue
+> file's own materials with `<ambientLight 0.8>` + `<hemisphereLight 0.7, ground #101010>` and NO environment map.
+> There three's MeshStandardMaterial reduces exactly: RE_IndirectSpecular gets zero radiance and zero IBL irradiance
+> (adds 0), there is no direct light, so outgoing = (ambient + mix(ground, sky, ½ n·dir + ½)) × diffuse ×
+> (1 − metalness) / π + emissive; opaque; then r3f's ACESFilmic (exposure 1) and the OETF — and under the post pass's
+> composer no tone mapping at all (it sets NoToneMapping and renders to a target). `calib3d.rs` OWN writes that out
+> (the Obj slot read as `Own`, the venue's own pipeline layout, so the depth pass and the post pass take the meshes
+> unchanged; a pipeline per three side: FrontSide culls back faces, BackSide front ones and negates the normal,
+> DoubleSide flips it by gl_FrontFacing). The host (`venueLink.ownMaterial`) reads each material with three itself
+> (colour, metalness, emissive × emissiveIntensity, side), three's normalMatrix in f64, and the two lights as
+> WebGLLights uploads them (`renderLook.VENUE_LIGHTS` — ProjectorScene's JSX reads the same); it refuses with a reason
+> what the reduction does not cover — any texture, vertex colours, transparency / alpha test, flat shading, a
+> wireframe, several materials on one mesh, any other material type. A model with NO binding is all own materials.
+> `test:native-projectors --calibrated --calib-own` (the blender-screens example room — walls and floor in their own
+> materials, `screen_main` bound): **2 073 600 / 2 073 600**; `+ --distort --calib-blend` (no tone mapping): **5 by
+> 1**; `+ --calib-warp`: identical; `+ --calib-occlude --glb` (own meshes cast): the projected-sampling 16 by ≤ 2.
+> Guarded.
+> - **Next for D:** a timeline layer on the venue — then E6e (default-on, the owner's OK).
 
 ## 9d. E4 started early — the 3D view in the engine (owner, 2026-11-24)
 

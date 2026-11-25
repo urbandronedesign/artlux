@@ -73,3 +73,10 @@ export function blendValues(look: BlendLook): BlendValues {
     map: b ? { w: Math.max(1, b.w), h: Math.max(1, b.h), alpha: gridBytes(b.alpha, b.w, b.h), black: gridBytes(b.black, b.w, b.h) } : null,
   };
 }
+
+/**
+ * The lights render-from-projector lights a venue mesh's OWN material with — ProjectorScene's <ambientLight> and
+ * <hemisphereLight> (sky white, the ground this hex), the same rig as the editor's env look. The native engine
+ * lights the same meshes from these numbers (E6f), so they live here, once.
+ */
+export const VENUE_LIGHTS = { ambient: 0.8, hemisphere: 0.7, ground: '#101010' } as const;

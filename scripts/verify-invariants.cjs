@@ -9837,7 +9837,9 @@ check(
   'source, geometry only): --calib-warp 2 073 600 / 2 073 600, its NDI frame too; with distortion + blend + GLB, 4 by 1. ' +
   'Step 4: OCCLUSION — projectorDepth\'s map (every mesh, packed linear distance, 1024², both faces, white) and ' +
   'BODY_FRAG\'s test: --calib-occlude (projected from a second projector past a blocker) adds no difference of its ' +
-  'own (16 pixels by ≤ 2 with it, 22 without — oblique projected sampling). ' +
+  'own (16 pixels by ≤ 2 with it, 22 without — oblique projected sampling). Step 5: a mesh in its OWN material ' +
+  '(ambient + hemisphere, no env map: irradiance × diffuse × (1 − metalness) / π + emissive, ACESFilmic, OETF): ' +
+  '--calib-own 2 073 600 / 2 073 600; with distortion + blend 5 by 1; warped identical. ' +
   'It found two app bugs, fixed: a projected mesh drew its content UPSIDE DOWN on the real projector (the texture ' +
   'was handed to the material before it was oriented), and a calibrated output without a residual warp ignored ' +
   'projector brightness and the surface\'s opacity (the canvas element was handed over only with a warp).',
@@ -9866,7 +9868,9 @@ check(
       ['three\'s modelViewMatrix', /new THREE\.Matrix4\(\)\.multiplyMatrices\(cam\.matrixWorldInverse, o\.matrixWorld\)/],
       ['CalibCamera\'s projection', /glProjectionMatrix\(cal\.intrinsics, cal\.imageSize, PROJECTOR_NEAR, PROJECTOR_FAR\)/],
       ['the EXACT projection of a projected mesh', /engineContent\(cloned, m, true\)/],
-      ['a refusal of a mesh in its own material', /content\.mesh\.some\(\(i\) => i < 0\)\) return \{ why:/],
+      ['three\'s normalMatrix for a mesh in its own material', /entry\.nm = Array\.from\(new THREE\.Matrix3\(\)\.getNormalMatrix\(mvm\)\.elements\);/],
+      ['the refusal of an own material the engine\'s reduction does not cover (a texture)', /const map = MAPS\.find\([\s\S]{0,120}if \(map\) return \{ why:/],
+      ['the window\'s lights from VENUE_LIGHTS', /hemi\.intensity = VENUE_LIGHTS\.hemisphere; hemi\.groundColor\.set\(VENUE_LIGHTS\.ground\);/],
     ]) if (!re.test(vl)) problems.push(`venueLink no longer uses ${what}`);
     if (!/const NEAR = 0\.05|PROJECTOR_NEAR as NEAR/.test(read('plugins/calibration/src/ProjectorScene.tsx'))) problems.push('ProjectorScene no longer takes its clip planes from renderLook (the engine\'s camera reads the same)');
     const c = raw('engine/artlux-engine/src/calib3d.rs');
@@ -9887,6 +9891,10 @@ check(
       ['postprocessing\'s fullscreen triangle and vUv', /o\.uv = p \* 0\.5 \+ 0\.5;\s*o\.pos = vec4<f32>\(p\.x, -p\.y, 1\.0, 1\.0\);/],
       ['DistortionEffect\'s radial term as written', /let radial = 1\.0 \+ u\.radial\.x \* r2 \+ u\.radial\.y \* r2 \* r2 \+ u\.radial\.z \* r2 \* r2 \* r2;/],
       ['projectorDepth\'s map size', /pub const DEPTH_SIZE: u32 = 1024;/],
+      ['an own material\'s RE_IndirectDiffuse (irradiance × BRDF_Lambert(diffuseContribution))', /let diffuseContribution = own\.color\.rgb \* \(1\.0 - own\.color\.w\);[\s\S]{0,900}irradiance = irradiance \+ mix\(own\.ground\.rgb, own\.sky\.rgb, vec3<f32>\(hemiDiffuseWeight\)\);[\s\S]{0,200}let indirectDiffuse = irradiance \* \(0\.3183098861837907 \* diffuseContribution\);/],
+      ['r3f\'s ACESFilmic on an own material (and none under the composer)', /return vec4<f32>\(oetf\(ACESFilmicToneMapping\(lit\(i, ff\)\)\), 1\.0\);\s*\}\s*@fragment fn fs_lin\(i: OOut, @builtin\(front_facing\) ff: bool\) -> @location\(0\) vec4<f32> \{\s*return vec4<f32>\(lit\(i, ff\), 1\.0\);/],
+      ['ACESFilmicToneMapping\'s input matrix', /vec3<f32>\(0\.59719, 0\.07600, 0\.02840\), vec3<f32>\(0\.35458, 0\.90834, 0\.13383\), vec3<f32>\(0\.04823, 0\.01566, 0\.83777\)/],
+      ['three\'s side as the cull', /let cull = match side \{ 0 => Some\(wgpu::Face::Back\), 1 => Some\(wgpu::Face::Front\), _ => None \};/],
       ['projectorDepth\'s DEPTH_FAR', /pub const DEPTH_FAR: f32 = 250\.0;/],
       ['DEPTH_PACK_GLSL\'s packing', /var e = fract\(clamp\(v, 0\.0, 0\.999999\) \* vec4<f32>\(1\.0, 255\.0, 65025\.0, 16581375\.0\)\);\s*e = e - e\.yzww \* vec4<f32>\(1\.0 \/ 255\.0, 1\.0 \/ 255\.0, 1\.0 \/ 255\.0, 0\.0\);/],
       ['the depth map cleared WHITE (nothing in the way)', /load: wgpu::LoadOp::Clear\(wgpu::Color::WHITE\)/],
@@ -9895,6 +9903,7 @@ check(
       ['BlendEffect in physical raster space', /let suv = vec2<f32>\(i\.pos\.x \/ u\.res\.x, 1\.0 - i\.pos\.y \/ u\.res\.y\);/],
       ['the blend applied to the encoded signal', /let signal = blendEncodeSRGB\(color0\.rgb\) \* a \* u\.gain\.rgb \+ u\.lift\.rgb \* blackW;/],
     ]) if (!re.test(c)) problems.push(`calib3d.rs no longer has ${what}`);
+    if (!/<ambientLight intensity=\{VENUE_LIGHTS\.ambient\} \/>\s*<hemisphereLight intensity=\{VENUE_LIGHTS\.hemisphere\} groundColor=\{VENUE_LIGHTS\.ground\} \/>/.test(read('plugins/calibration/src/ProjectorScene.tsx'))) problems.push('ProjectorScene no longer lights the venue from renderLook\'s VENUE_LIGHTS (the engine lights own materials from them)');
     const pd = read('src/renderer/components/Simulator3D/projectorDepth.ts');
     if (!/export const DEPTH_FAR = 250;/.test(pd) || !/const DEPTH_SIZE = 1024;/.test(pd)) problems.push('projectorDepth.ts changed DEPTH_FAR or DEPTH_SIZE — calib3d.rs draws the same map and must change with it');
     // The occlusion test lives in BOTH fragment stages (the 8-bit one and the post pass's linear one) — each must have it.

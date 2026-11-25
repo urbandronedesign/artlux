@@ -42,4 +42,4 @@ export { registerVenueMesh, unregisterVenueMesh } from './venueRaycast';
 export { resolveProjectedScene } from './projectedScene';
 // What render-from-projector draws with beyond the scene (pure): the native engine's link asks the SAME questions
 // ProjectorScene asks before it draws a calibrated output itself (E6f).
-export { PROJECTOR_NEAR, PROJECTOR_FAR, needsBlendPass, hasDistortion, distortionValues, blendValues, type BlendLook, type BlendValues } from './renderLook';
+export { PROJECTOR_NEAR, PROJECTOR_FAR, needsBlendPass, hasDistortion, distortionValues, blendValues, VENUE_LIGHTS, type BlendLook, type BlendValues } from './renderLook';
