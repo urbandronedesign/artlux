@@ -74,11 +74,21 @@ const HWWARP = process.argv.includes('--hwwarp');
 // the still). The app's window draws it with three.js (ProjectorScene), the engine with calib3d.rs.
 // --distort: a lens distortion (radial + tangential) — ProjectorScene's post pass (EffectComposer). --calib-blend: a
 // soft edge, colour gain, black lift and a solved rig blend — the same pass. --calib-warp: a residual warp (a nudged
-// corner pin — ProjectorApp path B: the scene's canvas becomes the warp stage's source). --calib-refused: the
-// projected screen OCCLUDES, which the engine does not draw yet: the app must KEEP the outputs, with the reason.
+// corner pin — ProjectorApp path B: the scene's canvas becomes the warp stage's source). --calib-occlude: projected
+// OCCLUSION — a blocker screen stands between the projector and the projected one, and (with --glb) the venue GLB is
+// projected too and shadows itself. --calib-refused: an NDI send WITHOUT a residual warp (the app sends nothing
+// there), which the engine leaves alone: the app must KEEP the outputs, with the reason.
 const CALIBRATED = process.argv.includes('--calibrated');
 const CALIB_WARP = CALIBRATED && process.argv.includes('--calib-warp');
+const CALIB_OCCLUDE = CALIBRATED && process.argv.includes('--calib-occlude');
 const CALIB_REFUSED = CALIBRATED && process.argv.includes('--calib-refused');
+// --calib-occlude projects from a SECOND projector ('sQ', a disabled output at another pose): occlusion is invisible
+// from the projecting projector itself (what its depth map hides, its own depth buffer hides too), so the shadow is
+// only seen from somewhere else — here, from the output under test. Yawed 0.4 rad toward −X, 3 m to the right.
+const Q_C = [3, 1.5, 3.5], Q_T = 0.4;
+const Q_R = [Math.cos(Q_T), 0, -Math.sin(Q_T), 0, -1, 0, -Math.sin(Q_T), 0, -Math.cos(Q_T)];
+const Q_t = [0, 1, 2].map((r) => -(Q_R[r * 3] * Q_C[0] + Q_R[r * 3 + 1] * Q_C[1] + Q_R[r * 3 + 2] * Q_C[2]));
+const PROJ_FROM = CALIB_OCCLUDE ? 'sQ' : 'sP';
 const CALIB_DISTORT = CALIBRATED && process.argv.includes('--distort');
 const CALIB_BLEND = CALIBRATED && process.argv.includes('--calib-blend');
 const CALIB_GLB = CALIBRATED && process.argv.includes('--glb') ? path.join(ROOT, 'examples', 'multi-projector', 'assets', 'models', 'panorama-venue.glb') : null;
@@ -106,16 +116,21 @@ fs.writeFileSync(picture, PNG.sync.write(png));
 const project = path.join(WORK, 'projectors.artlux');
 fs.writeFileSync(project, JSON.stringify({
   version: '1.2', timestamp: '2026-01-01T00:00:00.000Z',
-  surfaces: [{ id: 'sP', name: 'Projected', x: 0.1, y: 0.1, width: 0.5, height: 0.28125, rotation: 0, zIndex: 0, content: MP4 ? { type: 'VIDEO', url: MP4, opacity: 1 } : { type: 'IMAGE', url: picture, opacity: 1 } }],
+  surfaces: [{ id: 'sP', name: 'Projected', x: 0.1, y: 0.1, width: 0.5, height: 0.28125, rotation: 0, zIndex: 0, content: MP4 ? { type: 'VIDEO', url: MP4, opacity: 1 } : { type: 'IMAGE', url: picture, opacity: 1 } },
+    ...(CALIB_OCCLUDE ? [{ id: 'sQ', name: 'Other', x: 0.6, y: 0.6, width: 0.3, height: 0.16875, rotation: 0, zIndex: 1, content: { type: 'IMAGE', url: picture, opacity: 1 } }] : [])],
   fixtures: [], controllers: [], groups: [], scenes: [], cueBanks: [],
   projectorBrightness: 0.9,
-  projectorOutputs: [CALIBRATED ? {
+  projectorOutputs: [...(CALIB_OCCLUDE ? [{
+    // The projecting projector of --calib-occlude: calibrated, NOT enabled (nothing to show — it only throws content).
+    surfaceId: 'sQ', name: 'Other', enabled: false, displayId: null, useCalibration: true,
+    calibration: { intrinsics: [1800, 0, 960, 0, 1800, 540, 0, 0, 1], distortion: [0, 0, 0, 0, 0], rotation: Q_R, translation: Q_t, imageSize: [1920, 1080], poseRms: 0.4 },
+  }] : []), CALIBRATED ? {
     // --calibrated: RENDER-FROM-PROJECTOR — a solved pose (1800 px focal on a 1920×1080 raster, 4 m in front of the
     // venue and 1.5 m up, looking down −Z), no distortion, no blend pass, no residual warp (the engine draws those
     // later — refused for now).
     surfaceId: 'sP', name: 'Wall', enabled: true, displayId: WINDOWED ? -1 : disp.id, useCalibration: true,
     // --ndi with --calib-warp: path B captures after warping (without a residual warp the app sends nothing).
-    ...(NDI ? { ndiSend: true } : {}),
+    ...(NDI || CALIB_REFUSED ? { ndiSend: true } : {}),
     calibration: {
       intrinsics: [1800, 0, 960, 0, 1800, 540, 0, 0, 1], distortion: CALIB_DISTORT ? [-0.18, 0.07, 0.0015, -0.002, 0.01] : [0, 0, 0, 0, 0],
       rotation: [1, 0, 0, 0, -1, 0, 0, 0, -1], translation: [0, 1.5, 4], imageSize: [1920, 1080], poseRms: 0.4,
@@ -140,9 +155,13 @@ fs.writeFileSync(project, JSON.stringify({
     { id: 'scr', name: 'Screen', kind: 'plane', path: '', surfaceId: 'sP', position: { x: -0.9, y: 1.2, z: 0 }, rotation: { x: 0, y: 18, z: 4 }, scale: 1, scaleXYZ: [1.6, 1.6, 1], visible: true },
     // A screen PROJECTED from this very projector (resolveProjectedScene fills its matrix from the calibration).
     { id: 'prj', name: 'Projected', kind: 'plane', path: '', surfaceId: 'sP', position: { x: 1.3, y: 1.0, z: -0.5 }, rotation: { x: -12, y: -25, z: 0 }, scale: 1, scaleXYZ: [1.2, 1.2, 1], visible: true,
-      uvMode: 'projected', uvProjFrom: 'sP', uvProjSoft: 0.05, uvProjOccludeOff: !CALIB_REFUSED },
+      uvMode: 'projected', uvProjFrom: PROJ_FROM, uvProjSoft: 0.05, uvProjOccludeOff: !CALIB_OCCLUDE },
+    // --calib-occlude: a small screen on the line from 'sQ' to 'prj' — it casts into sQ's depth map, so a patch of
+    // 'prj' goes dark: the shadow, seen from this output.
+    ...(CALIB_OCCLUDE ? [{ id: 'blk', name: 'Blocker', kind: 'plane', path: '', surfaceId: 'sP', position: { x: 2.3, y: 1.3, z: 1.9 }, rotation: { x: 0, y: 20, z: 0 }, scale: 1, scaleXYZ: [0.15, 0.22, 1], visible: true }] : []),
     // --glb: the multi-projector example's venue, the still on every mesh of it (its UVs, v flipped as three flips it).
-    ...(CALIB_GLB ? [{ id: 'ven', name: 'Venue', kind: 'mesh', path: CALIB_GLB, surfaceId: 'sP', position: { x: 0, y: 2.9, z: -3 }, rotation: { x: 0, y: 0, z: 0 }, scale: 0.5, visible: true }] : []),
+    ...(CALIB_GLB ? [{ id: 'ven', name: 'Venue', kind: 'mesh', path: CALIB_GLB, surfaceId: 'sP', position: { x: 0, y: 2.9, z: -3 }, rotation: { x: 0, y: 0, z: 0 }, scale: 0.5, visible: true,
+      ...(CALIB_OCCLUDE ? { uvMode: 'projected', uvProjFrom: PROJ_FROM } : {}) }] : []),
   ] } } : {}),
 }, null, 2));
 
@@ -385,8 +404,8 @@ async function stopAll() {
     app = launch(true);
     if (CALIB_REFUSED) {
       // What the engine does not draw is REFUSED, with its reason — and the app's window stays the picture.
-      const kept = await waitFor(() => said(app, /keeps the projector outputs: output 'Wall': .*projected with occlusion/), 60000);
-      ok(kept && !said(app, /\[engine\] owns the projector outputs/), `B. a calibrated output projecting with occlusion stays the app's, with the reason (${(said(app, /keeps the projector outputs/) || { l: 'no answer' }).l})`);
+      const kept = await waitFor(() => said(app, /keeps the projector outputs: output 'Wall': calibrated and sent as NDI/), 60000);
+      ok(kept && !said(app, /\[engine\] owns the projector outputs/), `B. a calibrated output sent as NDI without a residual warp stays the app's, with the reason (${(said(app, /keeps the projector outputs/) || { l: 'no answer' }).l})`);
       await sleep(12000);
       const K = await capture('B-kept');
       const dK = diff(A, K);
@@ -421,7 +440,12 @@ async function stopAll() {
     //     bottom soft-edge band (the share is read off the mesh-interpolated coordinate, under 4x MSAA;
     //     the map path reads raster space without MSAA and is identical). Not chased yet;
     //   - an MP4: within 1 on at most 0.1% — the conversion is Chromium's within 1 (test:mp4-parity).
-    const bar = (d) => BAKED && !MP4 ? d.n === 0 : d.max <= 1 && d.n <= d.of * (MP4 ? 0.001 : 0.0001);
+    // --calib-occlude: content projected from ANOTHER, steeply angled projector — a texture coordinate one float
+    // step apart flips a quantised bilinear weight now and then (measured: the same 22 pixels of 2 073 600, by ≤ 2,
+    // with occlusion ON or OFF, and unchanged by rewriting the engine's matrix product or its divide — FXC compiles
+    // the app's HLSL and the engine's differently). The occlusion itself adds nothing: with it, a subset (16).
+    const SLACK = CALIB_OCCLUDE ? 2 : 1;
+    const bar = (d) => BAKED && !MP4 ? d.n === 0 : d.max <= SLACK && d.n <= d.of * (MP4 ? 0.001 : 0.0001);
     const dAB = diff(A, B);
     if (NDI) {
       const nB = await ndiGrab('B-engine');
@@ -430,7 +454,7 @@ async function stopAll() {
       const d = ndiDiff(ndiA, nB);
       ok(d.n === 0, `B. THE ENGINE'S NDI FRAME = THE APP'S: ${d.n < 0 ? `not comparable (app ${ndiA?.w}x${ndiA?.h}, engine ${nB.w}x${nB.h})` : `${d.of - d.n} of ${d.of} pixels identical (max ${d.max})`}`);
     }
-    ok(bar(dAB), `THE ENGINE'S WINDOW = THE APP'S: ${dAB.of - dAB.n} of ${dAB.of} pixels identical (max difference ${dAB.max})${BAKED && !MP4 ? '' : ' — within 1 allowed'}`);
+    ok(bar(dAB), `THE ENGINE'S WINDOW = THE APP'S: ${dAB.of - dAB.n} of ${dAB.of} pixels identical (max difference ${dAB.max})${BAKED && !MP4 ? '' : ` — within ${SLACK} allowed`}`);
 
     // ── C. the engine dies → the app's window, uncovered ──────────────────────────────────────────────
     // OUR engine: the pid main logged for this run (never "the first artlux-engine" on the machine).

@@ -2599,6 +2599,23 @@ fallback until a source/output is proven byte-identical — risk 2):
 > 1**. `--calib-refused` (projected occlusion) replaces the refusal check. Plain, `--windowed`, `--calibrated
 > --distort` identical. Guarded.
 > - **Next for D:** occlusion (the projected-depth pass), a mesh's own lit material, timeline layers on the venue.
+>
+> ✅ **E6f (render-from-projector, step 4) done 2026-11-25 — PROJECTED OCCLUSION.** `projectorDepth.ts` is a shadow
+> map with the projector as the light; the engine draws the same (`calib3d.rs` DEPTH): per occluding projector, EVERY
+> venue mesh (the app's casters are every visible model, contentless meshes included) rendered with the projector's
+> world→clip as the projection and the mesh's world as the model-view, both faces, into a 1024² RGBA8 map of
+> DEPTH_PACK_GLSL's packed clip.w / 250, cleared white, depth LessEqual; read NEAREST, and BODY_FRAG's test
+> (`w > seen + bias × (1 + 4 (1 − |n·l|))`) in both the 8-bit and the post pass's linear stage. The host already
+> sent `occlude` / `bias` (engineContent); venueLink stops refusing. `test:native-projectors --calibrated
+> --calib-occlude` projects from a SECOND, disabled, calibrated output past a blocker screen — from the projecting
+> projector itself occlusion is invisible (its own depth buffer hides the same), so the shadow is only seen from
+> another one. The shadow is drawn; **16 pixels by ≤ 2**, and the same scene with occlusion OFF is 22 by ≤ 2 — the
+> occlusion adds nothing; the rest is oblique PROJECTED sampling (a texture coordinate a float step apart flips a
+> quantised bilinear weight), unchanged by rewriting the engine's matrix product or its divide (FXC compiles the
+> two HLSL sources differently). That case's bar is within 2 (A2: the app equals itself exactly). `+ --glb` (the
+> venue projected from the second projector, self-shadowing): the same. `--calib-refused` is now an NDI send without
+> a residual warp. Guarded.
+> - **Next for D:** a mesh in its own lit material, timeline layers on the venue — then E6e (default-on).
 
 ## 9d. E4 started early — the 3D view in the engine (owner, 2026-11-24)
 

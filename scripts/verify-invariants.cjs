@@ -9835,6 +9835,9 @@ check(
   'renderLook (one definition for both). --calibrated --distort: 2 073 600 / 2 073 600; --calib-blend: 13 pixels by 1; ' +
   'both + --glb: 5 by 1. Step 3: a RESIDUAL WARP (ProjectorApp path B — the scene\'s canvas is the warp stage\'s ' +
   'source, geometry only): --calib-warp 2 073 600 / 2 073 600, its NDI frame too; with distortion + blend + GLB, 4 by 1. ' +
+  'Step 4: OCCLUSION — projectorDepth\'s map (every mesh, packed linear distance, 1024², both faces, white) and ' +
+  'BODY_FRAG\'s test: --calib-occlude (projected from a second projector past a blocker) adds no difference of its ' +
+  'own (16 pixels by ≤ 2 with it, 22 without — oblique projected sampling). ' +
   'It found two app bugs, fixed: a projected mesh drew its content UPSIDE DOWN on the real projector (the texture ' +
   'was handed to the material before it was oriented), and a calibrated output without a residual warp ignored ' +
   'projector brightness and the surface\'s opacity (the canvas element was handed over only with a warp).',
@@ -9864,7 +9867,6 @@ check(
       ['CalibCamera\'s projection', /glProjectionMatrix\(cal\.intrinsics, cal\.imageSize, PROJECTOR_NEAR, PROJECTOR_FAR\)/],
       ['the EXACT projection of a projected mesh', /engineContent\(cloned, m, true\)/],
       ['a refusal of a mesh in its own material', /content\.mesh\.some\(\(i\) => i < 0\)\) return \{ why:/],
-      ['a refusal of occlusion', /s\.proj\?\.occlude\) return \{ why:/],
     ]) if (!re.test(vl)) problems.push(`venueLink no longer uses ${what}`);
     if (!/const NEAR = 0\.05|PROJECTOR_NEAR as NEAR/.test(read('plugins/calibration/src/ProjectorScene.tsx'))) problems.push('ProjectorScene no longer takes its clip planes from renderLook (the engine\'s camera reads the same)');
     const c = raw('engine/artlux-engine/src/calib3d.rs');
@@ -9884,9 +9886,20 @@ check(
       ['the linear scene into it (no OETF in a render target)', /@fragment fn fs_lin[\s\S]{0,1200}return vec4<f32>\(s\.rgb \* vis, s\.a\);/],
       ['postprocessing\'s fullscreen triangle and vUv', /o\.uv = p \* 0\.5 \+ 0\.5;\s*o\.pos = vec4<f32>\(p\.x, -p\.y, 1\.0, 1\.0\);/],
       ['DistortionEffect\'s radial term as written', /let radial = 1\.0 \+ u\.radial\.x \* r2 \+ u\.radial\.y \* r2 \* r2 \+ u\.radial\.z \* r2 \* r2 \* r2;/],
+      ['projectorDepth\'s map size', /pub const DEPTH_SIZE: u32 = 1024;/],
+      ['projectorDepth\'s DEPTH_FAR', /pub const DEPTH_FAR: f32 = 250\.0;/],
+      ['DEPTH_PACK_GLSL\'s packing', /var e = fract\(clamp\(v, 0\.0, 0\.999999\) \* vec4<f32>\(1\.0, 255\.0, 65025\.0, 16581375\.0\)\);\s*e = e - e\.yzww \* vec4<f32>\(1\.0 \/ 255\.0, 1\.0 \/ 255\.0, 1\.0 \/ 255\.0, 0\.0\);/],
+      ['the depth map cleared WHITE (nothing in the way)', /load: wgpu::LoadOp::Clear\(wgpu::Color::WHITE\)/],
+      ['the depth pass DoubleSide', /label: Some\("calib3d depth"\)[\s\S]{0,900}cull_mode: None/],
+      ['BODY_FRAG\'s occlusion test and its grazing bias', /let bias = obj\.po\.y \* \(1\.0 \+ 4\.0 \* \(1\.0 - abs\(ndl\)\)\);\s*if \(i\.ppos\.w > seen \+ bias\) \{ vis = 0\.0; \}/],
       ['BlendEffect in physical raster space', /let suv = vec2<f32>\(i\.pos\.x \/ u\.res\.x, 1\.0 - i\.pos\.y \/ u\.res\.y\);/],
       ['the blend applied to the encoded signal', /let signal = blendEncodeSRGB\(color0\.rgb\) \* a \* u\.gain\.rgb \+ u\.lift\.rgb \* blackW;/],
     ]) if (!re.test(c)) problems.push(`calib3d.rs no longer has ${what}`);
+    const pd = read('src/renderer/components/Simulator3D/projectorDepth.ts');
+    if (!/export const DEPTH_FAR = 250;/.test(pd) || !/const DEPTH_SIZE = 1024;/.test(pd)) problems.push('projectorDepth.ts changed DEPTH_FAR or DEPTH_SIZE — calib3d.rs draws the same map and must change with it');
+    // The occlusion test lives in BOTH fragment stages (the 8-bit one and the post pass's linear one) — each must have it.
+    if ((raw('engine/artlux-engine/src/calib3d.rs').match(/let bias = obj\.po\.y \* \(1\.0 \+ 4\.0 \* \(1\.0 - abs\(ndl\)\)\);\s*if \(i\.ppos\.w > seen \+ bias\) \{ vis = 0\.0; \}/g) || []).length !== 2) problems.push('calib3d.rs no longer runs BODY_FRAG\'s occlusion test in both of its fragment stages');
+    if (/is projected with occlusion/.test(vl)) problems.push('venueLink refuses occlusion again (the engine draws it)');
     const st = read('plugins/calibration/src/useStreamedSurfaceTexture.ts');
     if (!/matchBitmapOrientation\(t\);\s*t\.needsUpdate = true;[\s\S]{0,900}if \(fresh\) cbRef\.current\(t\);/.test(st)) problems.push('useStreamedSurfaceTexture hands the texture over before orienting it again (projected content upside down on the projector)');
     const lt = read('src/renderer/components/Simulator3D/useLayerTexture.ts');

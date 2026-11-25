@@ -27,7 +27,10 @@
 //!     canvas. POST below, line for line from ProjectorScene's distortFrag / blendFrag and blendGlsl.ts.
 //!   - a RESIDUAL WARP (E6f step 3, `warped`): ProjectorApp's path B — the scene's canvas, undimmed, becomes the warp
 //!     stage's source (outputs.rs: projector::CanvasContent + projector::Warp, geometry only).
-//! Not drawn yet (the host refuses them, with the reason): a mesh's own lit material, a timeline layer, occlusion.
+//!   - OCCLUSION (E6f step 4): projectorDepth.ts — every venue mesh rendered from the projecting projector into a
+//!     1024² RGBA8 map of its PACKED LINEAR distance (clip.w / 250, both faces, cleared white = nothing there), and
+//!     BODY_FRAG's test against it, the bias growing on grazing faces. DEPTH below, line for line.
+//! Not drawn yet (the host refuses them, with the reason): a mesh's own lit material, a timeline layer.
 
 use crate::compose::Picture;
 use crate::Gpu;
@@ -40,14 +43,19 @@ pub const SAMPLES: u32 = 4;
 /// The post pass's scene buffer: EffectComposer's `multisampling` default, in its HalfFloatType.
 pub const POST_SAMPLES: u32 = 8;
 const LINEAR: wgpu::TextureFormat = wgpu::TextureFormat::Rgba16Float;
-const DEPTH: wgpu::TextureFormat = wgpu::TextureFormat::Depth24Plus;
+const DEPTH_FMT: wgpu::TextureFormat = wgpu::TextureFormat::Depth24Plus;
 const OBJ_STRIDE: u64 = 256;
+/// The Obj uniform: mv, world, proj (64 each), pe, pf, po (16 each).
+const OBJ_SIZE: u64 = 240;
+/// projectorDepth.ts DEPTH_SIZE and DEPTH_FAR (metres — what the packed distance is normalised over).
+pub const DEPTH_SIZE: u32 = 1024;
+pub const DEPTH_FAR: f32 = 250.0;
 
 /// One content source: a surface, optionally PROJECTED from a projector (view-projection, eye, soft, cull).
 #[derive(Clone, Debug)]
 pub struct Src { pub surface: String, pub proj: Option<Proj> }
 #[derive(Clone, Debug)]
-pub struct Proj { pub view: [f32; 16], pub eye: [f32; 3], pub soft: f32, pub cull: bool }
+pub struct Proj { pub view: [f32; 16], pub eye: [f32; 3], pub soft: f32, pub cull: bool, pub occlude: bool, pub bias: f32 }
 
 /// One placed mesh: its model-view (three's modelViewMatrix) and world matrix (modelMatrix), as the host computed them.
 #[derive(Clone, Debug)]
@@ -117,6 +125,8 @@ fn src_of(v: &Value) -> Option<Src> {
         eye: { let e = p.get("eye")?.as_array()?; [e.first()?.as_f64()? as f32, e.get(1)?.as_f64()? as f32, e.get(2)?.as_f64()? as f32] },
         soft: p.get("soft").and_then(|x| x.as_f64()).unwrap_or(0.0) as f32,
         cull: p.get("cull").and_then(|x| x.as_bool()).unwrap_or(false),
+        occlude: p.get("occlude").and_then(|x| x.as_bool()).unwrap_or(false),
+        bias: p.get("bias").and_then(|x| x.as_f64()).unwrap_or(0.0) as f32,
     }));
     Some(Src { surface, proj })
 }
@@ -156,11 +166,17 @@ const SHADER: &str = r#"
 struct Cam { p: mat4x4<f32> };
 @group(0) @binding(0) var<uniform> cam: Cam;
 // mv = three's modelViewMatrix, world = modelMatrix; proj = the PROJECTING camera's view-projection (GL clip);
-// pe = its eye + edge softness; pf.x = projected, pf.y = facing test.
-struct Obj { mv: mat4x4<f32>, world: mat4x4<f32>, proj: mat4x4<f32>, pe: vec4<f32>, pf: vec4<f32> };
+// pe = its eye + edge softness; pf.x = projected, pf.y = facing test; po = (has depth map, bias m, DEPTH_FAR, _).
+struct Obj { mv: mat4x4<f32>, world: mat4x4<f32>, proj: mat4x4<f32>, pe: vec4<f32>, pf: vec4<f32>, po: vec4<f32> };
 @group(1) @binding(0) var<uniform> obj: Obj;
 @group(2) @binding(0) var tex: texture_2d<f32>;
 @group(2) @binding(1) var samp: sampler;
+// The projector's depth map (NEAREST — four bytes are one number), or a white 1×1 (farDepthTexture).
+@group(3) @binding(0) var dtex: texture_2d<f32>;
+@group(3) @binding(1) var dsamp: sampler;
+
+// projectorDepth.ts DEPTH_PACK_GLSL artluxUnpackDepth.
+fn artluxUnpackDepth(p: vec4<f32>) -> f32 { return dot(p, vec4<f32>(1.0, 1.0 / 255.0, 1.0 / 65025.0, 1.0 / 16581375.0)); }
 
 struct VOut {
   @builtin(position) pos: vec4<f32>,
@@ -210,6 +226,13 @@ fn oetf(v: vec3<f32>) -> vec3<f32> {
     vis = vis * ix * iy * step(abs(ndc.z), 1.0);
     let ndl = dot(normalize(i.pnrm), normalize(obj.pe.xyz - i.pworld));
     vis = vis * mix(1.0, step(0.0, ndl), obj.pf.y);
+    // BODY_FRAG's OCCLUSION: plain NDC→UV into the depth map, metres, the bias grown on grazing faces.
+    if (obj.po.x > 0.5 && vis > 0.0) {
+      let duv = ndc.xy * 0.5 + 0.5;
+      let seen = artluxUnpackDepth(textureSampleLevel(dtex, dsamp, duv, 0.0)) * obj.po.z;
+      let bias = obj.po.y * (1.0 + 4.0 * (1.0 - abs(ndl)));
+      if (i.ppos.w > seen + bias) { vis = 0.0; }
+    }
   }
   let s = textureSample(tex, samp, uv);
   // MeshBasicMaterial: diffuseColor = white × texel (opacity 1); outgoingLight = diffuseColor.rgb.
@@ -232,10 +255,41 @@ fn oetf(v: vec3<f32>) -> vec3<f32> {
     vis = vis * ix * iy * step(abs(ndc.z), 1.0);
     let ndl = dot(normalize(i.pnrm), normalize(obj.pe.xyz - i.pworld));
     vis = vis * mix(1.0, step(0.0, ndl), obj.pf.y);
+    // BODY_FRAG's OCCLUSION: plain NDC→UV into the depth map, metres, the bias grown on grazing faces.
+    if (obj.po.x > 0.5 && vis > 0.0) {
+      let duv = ndc.xy * 0.5 + 0.5;
+      let seen = artluxUnpackDepth(textureSampleLevel(dtex, dsamp, duv, 0.0)) * obj.po.z;
+      let bias = obj.po.y * (1.0 + 4.0 * (1.0 - abs(ndl)));
+      if (i.ppos.w > seen + bias) { vis = 0.0; }
+    }
   }
   let s = textureSample(tex, samp, uv);
   return vec4<f32>(s.rgb * vis, s.a);
 }
+"#;
+
+// projectorDepth.ts makeDepthShaderMaterial, written out: the proxy's projectionMatrix * modelViewMatrix * p (the
+// depth camera's projection IS the projector's world→clip, its view identity — so model-view is the mesh's world),
+// clip.w carried as the distance, packed into RGBA8. ANGLE's y negate and depth remap, as every pass here.
+const DEPTH: &str = r#"
+struct D { vp: mat4x4<f32>, world: mat4x4<f32>, k: vec4<f32> };
+@group(0) @binding(0) var<uniform> u: D;
+struct VO { @builtin(position) pos: vec4<f32>, @location(0) dist: f32 };
+@vertex fn vs(@location(0) p: vec3<f32>) -> VO {
+  var c = (u.vp * u.world) * vec4<f32>(p, 1.0);
+  var o: VO;
+  o.dist = c.w;
+  c.y = -c.y;
+  c.z = (c.z + c.w) * 0.5;
+  o.pos = c;
+  return o;
+}
+fn artluxPackDepth(v: f32) -> vec4<f32> {
+  var e = fract(clamp(v, 0.0, 0.999999) * vec4<f32>(1.0, 255.0, 65025.0, 16581375.0));
+  e = e - e.yzww * vec4<f32>(1.0 / 255.0, 1.0 / 255.0, 1.0 / 255.0, 0.0);
+  return e;
+}
+@fragment fn fs(i: VO) -> @location(0) vec4<f32> { return artluxPackDepth(i.dist * u.k.x); }
 "#;
 
 // THE POST PASS — postprocessing's EffectPass as it merges ProjectorScene's two effects (effect.frag + effect.vert,
@@ -347,6 +401,14 @@ pub struct Renderer {
     obj: Option<(u64, wgpu::Buffer, wgpu::BindGroup)>,
     tex_layout: wgpu::BindGroupLayout,
     sampler: wgpu::Sampler,
+    /// Occlusion: the depth pass, its per-(map, mesh) uniforms, the depth-map bind layout, the white 1×1 bound
+    /// where a mesh reads no map, and one map per projecting projector (keyed by its view-projection's bits).
+    depth_pipe: wgpu::RenderPipeline,
+    depth_u: Option<(u64, wgpu::Buffer, wgpu::BindGroup)>,
+    dmap_layout: wgpu::BindGroupLayout,
+    dsamp: wgpu::Sampler,
+    far_bind: wgpu::BindGroup,
+    dmaps: HashMap<[u32; 16], (wgpu::TextureView, wgpu::TextureView, wgpu::BindGroup)>,
     planes: HashMap<(u64, u64), GpuMesh>,
     glbs: HashMap<String, GlbState>,
     loaded_tx: Sender<Loaded>,
@@ -384,16 +446,20 @@ impl Renderer {
         let cam_layout = d.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor { label: Some("calib3d cam"), entries: &[wgpu::BindGroupLayoutEntry {
             binding: 0, visibility: wgpu::ShaderStages::VERTEX, ty: wgpu::BindingType::Buffer { ty: wgpu::BufferBindingType::Uniform, has_dynamic_offset: false, min_binding_size: None }, count: None }] });
         let obj_layout = d.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor { label: Some("calib3d obj"), entries: &[wgpu::BindGroupLayoutEntry {
-            binding: 0, visibility: wgpu::ShaderStages::VERTEX_FRAGMENT, ty: wgpu::BindingType::Buffer { ty: wgpu::BufferBindingType::Uniform, has_dynamic_offset: true, min_binding_size: wgpu::BufferSize::new(224) }, count: None }] });
+            binding: 0, visibility: wgpu::ShaderStages::VERTEX_FRAGMENT, ty: wgpu::BindingType::Buffer { ty: wgpu::BufferBindingType::Uniform, has_dynamic_offset: true, min_binding_size: wgpu::BufferSize::new(OBJ_SIZE) }, count: None }] });
         let tex_layout = d.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor { label: Some("calib3d tex"), entries: &[
             wgpu::BindGroupLayoutEntry { binding: 0, visibility: wgpu::ShaderStages::FRAGMENT, ty: wgpu::BindingType::Texture { sample_type: wgpu::TextureSampleType::Float { filterable: true }, view_dimension: wgpu::TextureViewDimension::D2, multisampled: false }, count: None },
             wgpu::BindGroupLayoutEntry { binding: 1, visibility: wgpu::ShaderStages::FRAGMENT, ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering), count: None },
         ] });
-        let layout = d.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor { label: Some("calib3d"), bind_group_layouts: &[Some(&cam_layout), Some(&obj_layout), Some(&tex_layout)], immediate_size: 0 });
+        let dmap_layout = d.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor { label: Some("calib3d depth map"), entries: &[
+            wgpu::BindGroupLayoutEntry { binding: 0, visibility: wgpu::ShaderStages::FRAGMENT, ty: wgpu::BindingType::Texture { sample_type: wgpu::TextureSampleType::Float { filterable: true }, view_dimension: wgpu::TextureViewDimension::D2, multisampled: false }, count: None },
+            wgpu::BindGroupLayoutEntry { binding: 1, visibility: wgpu::ShaderStages::FRAGMENT, ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering), count: None },
+        ] });
+        let layout = d.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor { label: Some("calib3d"), bind_group_layouts: &[Some(&cam_layout), Some(&obj_layout), Some(&tex_layout), Some(&dmap_layout)], immediate_size: 0 });
         // EffectComposer asks 8 samples; three clamps to the context's MAX_SAMPLES (8 on a desktop D3D11 GPU). wgpu
         // offers 8 only with the adapter-specific format features — where it cannot, 4 (logged: the edges then differ).
         let ok8 = d.features().contains(wgpu::Features::TEXTURE_ADAPTER_SPECIFIC_FORMAT_FEATURES)
-            && [LINEAR, DEPTH].iter().all(|f| gpu.adapter.get_texture_format_features(*f).flags.sample_count_supported(POST_SAMPLES));
+            && [LINEAR, DEPTH_FMT].iter().all(|f| gpu.adapter.get_texture_format_features(*f).flags.sample_count_supported(POST_SAMPLES));
         let post_samples = if ok8 { POST_SAMPLES } else { eprintln!("artlux-engine: output '{out_id}': no 8x MSAA here — the post pass's edges use 4x"); SAMPLES };
         let mk = |cull: Option<wgpu::Face>, fmt: wgpu::TextureFormat, samples: u32, fs: &str| d.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
             label: Some("calib3d"), layout: Some(&layout),
@@ -406,7 +472,7 @@ impl Renderer {
             // same flip ANGLE makes.
             primitive: wgpu::PrimitiveState { cull_mode: cull, front_face: wgpu::FrontFace::Cw, ..Default::default() },
             // three: depthTest + depthWrite, LessEqual.
-            depth_stencil: Some(wgpu::DepthStencilState { format: DEPTH, depth_write_enabled: Some(true), depth_compare: Some(wgpu::CompareFunction::LessEqual), stencil: Default::default(), bias: Default::default() }),
+            depth_stencil: Some(wgpu::DepthStencilState { format: DEPTH_FMT, depth_write_enabled: Some(true), depth_compare: Some(wgpu::CompareFunction::LessEqual), stencil: Default::default(), bias: Default::default() }),
             multisample: wgpu::MultisampleState { count: samples, mask: !0, alpha_to_coverage_enabled: false },
             multiview_mask: None, cache: None,
         });
@@ -421,6 +487,35 @@ impl Renderer {
             fragment: Some(wgpu::FragmentState { module: &pm, entry_point: Some("fs"), targets: &[Some(wgpu::TextureFormat::Rgba8Unorm.into())], compilation_options: Default::default() }),
             primitive: Default::default(), depth_stencil: None, multisample: Default::default(), multiview_mask: None, cache: None,
         });
+        // The depth pass: projectorDepth's ShaderMaterial — DoubleSide, depth test + write (LessEqual), RGBA8, no MSAA.
+        let dm = d.create_shader_module(wgpu::ShaderModuleDescriptor { label: Some("calib3d depth"), source: wgpu::ShaderSource::Wgsl(DEPTH.into()) });
+        let du_layout = d.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor { label: Some("calib3d depth u"), entries: &[wgpu::BindGroupLayoutEntry {
+            binding: 0, visibility: wgpu::ShaderStages::VERTEX_FRAGMENT, ty: wgpu::BindingType::Buffer { ty: wgpu::BufferBindingType::Uniform, has_dynamic_offset: true, min_binding_size: wgpu::BufferSize::new(144) }, count: None }] });
+        let depth_pipe = d.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+            label: Some("calib3d depth"), layout: Some(&d.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor { label: None, bind_group_layouts: &[Some(&du_layout)], immediate_size: 0 })),
+            vertex: wgpu::VertexState { module: &dm, entry_point: Some("vs"), compilation_options: Default::default(), buffers: &[Some(wgpu::VertexBufferLayout {
+                array_stride: 32, step_mode: wgpu::VertexStepMode::Vertex, attributes: &wgpu::vertex_attr_array![0 => Float32x3] })] },
+            fragment: Some(wgpu::FragmentState { module: &dm, entry_point: Some("fs"), compilation_options: Default::default(), targets: &[Some(wgpu::TextureFormat::Rgba8Unorm.into())] }),
+            primitive: wgpu::PrimitiveState { cull_mode: None, front_face: wgpu::FrontFace::Cw, ..Default::default() },
+            depth_stencil: Some(wgpu::DepthStencilState { format: DEPTH_FMT, depth_write_enabled: Some(true), depth_compare: Some(wgpu::CompareFunction::LessEqual), stencil: Default::default(), bias: Default::default() }),
+            multisample: Default::default(), multiview_mask: None, cache: None,
+        });
+        // NEAREST both ways, clamp — makeTarget's filters (linear would average the bytes of two distances).
+        let dsamp = d.create_sampler(&wgpu::SamplerDescriptor {
+            label: Some("calib3d depth map"), address_mode_u: wgpu::AddressMode::ClampToEdge, address_mode_v: wgpu::AddressMode::ClampToEdge,
+            mag_filter: wgpu::FilterMode::Nearest, min_filter: wgpu::FilterMode::Nearest, mipmap_filter: wgpu::MipmapFilterMode::Nearest, ..Default::default() });
+        let far_bind = {
+            use wgpu::util::DeviceExt;
+            let t = d.create_texture_with_data(&gpu.queue, &wgpu::TextureDescriptor {
+                label: Some("calib3d far depth"), size: wgpu::Extent3d { width: 1, height: 1, depth_or_array_layers: 1 }, mip_level_count: 1, sample_count: 1,
+                dimension: wgpu::TextureDimension::D2, format: wgpu::TextureFormat::Rgba8Unorm, usage: wgpu::TextureUsages::TEXTURE_BINDING, view_formats: &[] },
+                wgpu::util::TextureDataOrder::LayerMajor, &[255, 255, 255, 255]);
+            let v = t.create_view(&Default::default());
+            d.create_bind_group(&wgpu::BindGroupDescriptor { label: None, layout: &dmap_layout, entries: &[
+                wgpu::BindGroupEntry { binding: 0, resource: wgpu::BindingResource::TextureView(&v) },
+                wgpu::BindGroupEntry { binding: 1, resource: wgpu::BindingResource::Sampler(&dsamp) },
+            ] })
+        };
         let post_buf = d.create_buffer(&wgpu::BufferDescriptor { label: Some("calib3d post"), size: 112, usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST, mapped_at_creation: false });
         let cam_buf = d.create_buffer(&wgpu::BufferDescriptor { label: Some("calib3d cam"), size: 64, usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST, mapped_at_creation: false });
         let cam_bind = d.create_bind_group(&wgpu::BindGroupDescriptor { label: None, layout: &cam_layout, entries: &[wgpu::BindGroupEntry { binding: 0, resource: cam_buf.as_entire_binding() }] });
@@ -437,7 +532,8 @@ impl Renderer {
             primitive: Default::default(), depth_stencil: None, multisample: Default::default(), multiview_mask: None, cache: None,
         });
         let dim_buf = d.create_buffer(&wgpu::BufferDescriptor { label: Some("calib3d dim"), size: 16, usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST, mapped_at_creation: false });
-        Renderer { pipe_double, pipe_front, lin_double, lin_front, post_samples, post_pipe, post_buf, post_bind: None, cam_buf, cam_bind, obj_layout, obj: None, tex_layout, sampler, planes: HashMap::new(), glbs: HashMap::new(),
+        Renderer { pipe_double, pipe_front, lin_double, lin_front, post_samples, post_pipe, post_buf, post_bind: None, cam_buf, cam_bind, obj_layout, obj: None, tex_layout, sampler,
+            depth_pipe, depth_u: None, dmap_layout, dsamp, far_bind, dmaps: HashMap::new(), planes: HashMap::new(), glbs: HashMap::new(),
             loaded_tx, loaded_rx, texs: HashMap::new(), targets: None, dim_pipe, dim_buf, resolved: None, out_id: out_id.to_string() }
     }
 
@@ -529,7 +625,7 @@ impl Renderer {
                 dimension: wgpu::TextureDimension::D2, format, usage, view_formats: &[] }).create_view(&Default::default());
             let ra = wgpu::TextureUsages::RENDER_ATTACHMENT;
             let colour = if posted { LINEAR } else { wgpu::TextureFormat::Rgba8Unorm };
-            self.targets = Some((w, h, posted, mk(colour, "calib3d msaa", samples, ra), mk(DEPTH, "calib3d depth", samples, ra),
+            self.targets = Some((w, h, posted, mk(colour, "calib3d msaa", samples, ra), mk(DEPTH_FMT, "calib3d depth", samples, ra),
                 posted.then(|| mk(LINEAR, "calib3d linear", 1, ra | wgpu::TextureUsages::TEXTURE_BINDING))));
             self.post_bind = None;
         }
@@ -552,7 +648,7 @@ impl Renderer {
         }
         if dimmed { gpu.queue.write_buffer(&self.dim_buf, 0, &f32s(&[q, 0.0, 0.0, 0.0])); }
         // Every draw: (geometry, cull, obj uniform index, texture bind) — gathered first, as the pass borrows.
-        struct Draw { plane: Option<(u64, u64)>, glb: Option<(String, usize)>, front: bool, sid: String }
+        struct Draw { plane: Option<(u64, u64)>, glb: Option<(String, usize)>, front: bool, sid: String, world: [f32; 16], occl: Option<[u32; 16]> }
         let mut draws: Vec<Draw> = Vec::new();
         let mut objs: Vec<u8> = Vec::new();
         for m in &view.models {
@@ -563,16 +659,20 @@ impl Renderer {
                 let mut u: Vec<f32> = Vec::with_capacity(64);
                 u.extend_from_slice(&xf.mv); u.extend_from_slice(&xf.world);
                 match &s.proj {
-                    Some(p) => { u.extend_from_slice(&p.view); u.extend_from_slice(&[p.eye[0], p.eye[1], p.eye[2], p.soft, 1.0, if p.cull { 1.0 } else { 0.0 }, 0.0, 0.0]); }
-                    None => { u.extend_from_slice(&[0.0; 16]); u.extend_from_slice(&[0.0; 8]); }
+                    Some(p) => {
+                        u.extend_from_slice(&p.view); u.extend_from_slice(&[p.eye[0], p.eye[1], p.eye[2], p.soft, 1.0, if p.cull { 1.0 } else { 0.0 }, 0.0, 0.0]);
+                        u.extend_from_slice(&[if p.occlude { 1.0 } else { 0.0 }, p.bias, DEPTH_FAR, 0.0]);
+                    }
+                    None => { u.extend_from_slice(&[0.0; 16]); u.extend_from_slice(&[0.0; 12]); }
                 }
+                let occl = s.proj.as_ref().filter(|p| p.occlude).map(|p| p.view.map(f32::to_bits));
                 let mut b = f32s(&u);
                 b.resize(OBJ_STRIDE as usize, 0);
                 objs.extend_from_slice(&b);
                 let front = s.proj.is_some();   // the projected material is FRONT-sided, the authored one double
                 match &m.geo {
-                    Geo::Plane { w, h } => draws.push(Draw { plane: Some((w.to_bits(), h.to_bits())), glb: None, front, sid: s.surface.clone() }),
-                    Geo::Glb { path } => draws.push(Draw { plane: None, glb: Some((path.clone(), k)), front, sid: s.surface.clone() }),
+                    Geo::Plane { w, h } => draws.push(Draw { plane: Some((w.to_bits(), h.to_bits())), glb: None, front, sid: s.surface.clone(), world: xf.world, occl }),
+                    Geo::Glb { path } => draws.push(Draw { plane: None, glb: Some((path.clone(), k)), front, sid: s.surface.clone(), world: xf.world, occl }),
                 }
             }
         }
@@ -588,7 +688,7 @@ impl Renderer {
         if self.obj.as_ref().map_or(true, |o| o.0 < need) {
             let buf = d.create_buffer(&wgpu::BufferDescriptor { label: Some("calib3d obj"), size: need, usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST, mapped_at_creation: false });
             let bind = d.create_bind_group(&wgpu::BindGroupDescriptor { label: None, layout: &self.obj_layout, entries: &[wgpu::BindGroupEntry {
-                binding: 0, resource: wgpu::BindingResource::Buffer(wgpu::BufferBinding { buffer: &buf, offset: 0, size: wgpu::BufferSize::new(224) }) }] });
+                binding: 0, resource: wgpu::BindingResource::Buffer(wgpu::BufferBinding { buffer: &buf, offset: 0, size: wgpu::BufferSize::new(OBJ_SIZE) }) }] });
             self.obj = Some((need, buf, bind));
         }
         let (_, obj_buf, obj_bind) = self.obj.as_ref().unwrap();
@@ -633,11 +733,73 @@ impl Renderer {
                 self.post_bind = Some(PostBind { key, bind, _texs: vec![ta, tk] });
             }
         }
+        // OCCLUSION: one depth map per projecting projector that occludes — EVERY venue mesh casts (projectorDepth's
+        // casters are every visible model, a mesh without content of its own included), drawn every frame (the app's
+        // pass is change-gated; a static venue's map is the same either way).
+        let mut keys: Vec<[u32; 16]> = draws.iter().filter_map(|dr| dr.occl).collect();
+        keys.sort(); keys.dedup();
+        self.dmaps.retain(|k, _| keys.contains(k));
+        for k in &keys {
+            if self.dmaps.contains_key(k) { continue; }
+            let mk = |format: wgpu::TextureFormat, usage: wgpu::TextureUsages| d.create_texture(&wgpu::TextureDescriptor {
+                label: Some("calib3d depth map"), size: wgpu::Extent3d { width: DEPTH_SIZE, height: DEPTH_SIZE, depth_or_array_layers: 1 }, mip_level_count: 1, sample_count: 1,
+                dimension: wgpu::TextureDimension::D2, format, usage, view_formats: &[] }).create_view(&Default::default());
+            let colour = mk(wgpu::TextureFormat::Rgba8Unorm, wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::TEXTURE_BINDING);
+            let zbuf = mk(DEPTH_FMT, wgpu::TextureUsages::RENDER_ATTACHMENT);
+            let bind = d.create_bind_group(&wgpu::BindGroupDescriptor { label: None, layout: &self.dmap_layout, entries: &[
+                wgpu::BindGroupEntry { binding: 0, resource: wgpu::BindingResource::TextureView(&colour) },
+                wgpu::BindGroupEntry { binding: 1, resource: wgpu::BindingResource::Sampler(&self.dsamp) },
+            ] });
+            self.dmaps.insert(*k, (colour, zbuf, bind));
+        }
+        let inv_far = (1.0f64 / DEPTH_FAR as f64) as f32;   // uInvFar: 1 / DEPTH_FAR in JS, then f32
+        let mut du: Vec<u8> = Vec::new();
+        for k in &keys {
+            let vp: Vec<f32> = k.iter().map(|b| f32::from_bits(*b)).collect();
+            for dr in &draws {
+                let mut u = vp.clone(); u.extend_from_slice(&dr.world); u.extend_from_slice(&[inv_far, 0.0, 0.0, 0.0]);
+                let mut b = f32s(&u); b.resize(OBJ_STRIDE as usize, 0); du.extend_from_slice(&b);
+            }
+        }
+        if !du.is_empty() {
+            let need = du.len() as u64;
+            if self.depth_u.as_ref().map_or(true, |x| x.0 < need) {
+                let buf = d.create_buffer(&wgpu::BufferDescriptor { label: Some("calib3d depth u"), size: need, usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST, mapped_at_creation: false });
+                let bind = d.create_bind_group(&wgpu::BindGroupDescriptor { label: None, layout: &self.depth_pipe.get_bind_group_layout(0), entries: &[wgpu::BindGroupEntry {
+                    binding: 0, resource: wgpu::BindingResource::Buffer(wgpu::BufferBinding { buffer: &buf, offset: 0, size: wgpu::BufferSize::new(144) }) }] });
+                self.depth_u = Some((need, buf, bind));
+            }
+            gpu.queue.write_buffer(&self.depth_u.as_ref().unwrap().1, 0, &du);
+        }
         let (_, _, _, msaa, depth, lin) = self.targets.as_ref().unwrap();
         let resolve = if dimmed { &self.resolved.as_ref().unwrap().2 } else { target };
         // With the post pass the scene resolves into the linear picture, and the pass writes `resolve`.
         let scene_resolve = lin.as_ref().unwrap_or(resolve);
         let mut enc = d.create_command_encoder(&Default::default());
+        for (m, k) in keys.iter().enumerate() {
+            let (colour, zbuf, _) = &self.dmaps[k];
+            // Cleared WHITE (beyond DEPTH_FAR — nothing in the way), depth 1; no background (beginPass nulls it).
+            let mut pass = enc.begin_render_pass(&wgpu::RenderPassDescriptor {
+                label: Some("calib3d depth map"),
+                color_attachments: &[Some(wgpu::RenderPassColorAttachment { view: colour, depth_slice: None, resolve_target: None,
+                    ops: wgpu::Operations { load: wgpu::LoadOp::Clear(wgpu::Color::WHITE), store: wgpu::StoreOp::Store } })],
+                depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment { view: zbuf, depth_ops: Some(wgpu::Operations { load: wgpu::LoadOp::Clear(1.0), store: wgpu::StoreOp::Discard }), stencil_ops: None }),
+                ..Default::default()
+            });
+            pass.set_pipeline(&self.depth_pipe);
+            for (i, dr) in draws.iter().enumerate() {
+                let mesh = match (&dr.plane, &dr.glb) {
+                    (Some(k), _) => self.planes.get(k),
+                    (_, Some((p, slot))) => match self.glbs.get(p) { Some(GlbState::Ready(m)) => m.get(*slot).and_then(|x| x.as_ref()), _ => None },
+                    _ => None,
+                };
+                let Some(mesh) = mesh else { continue };
+                pass.set_bind_group(0, &self.depth_u.as_ref().unwrap().2, &[((m * draws.len() + i) as u64 * OBJ_STRIDE) as u32]);
+                pass.set_vertex_buffer(0, mesh.vb.slice(..));
+                pass.set_index_buffer(mesh.ib.slice(..), wgpu::IndexFormat::Uint32);
+                pass.draw_indexed(0..mesh.n, 0, 0..1);
+            }
+        }
         {
             let mut pass = enc.begin_render_pass(&wgpu::RenderPassDescriptor {
                 label: Some("calib3d"),
@@ -658,6 +820,7 @@ impl Renderer {
                 pass.set_pipeline(match (posted, dr.front) { (false, true) => &self.pipe_front, (false, false) => &self.pipe_double, (true, true) => &self.lin_front, (true, false) => &self.lin_double });
                 pass.set_bind_group(1, obj_bind, &[(i as u64 * OBJ_STRIDE) as u32]);
                 pass.set_bind_group(2, tb, &[]);
+                pass.set_bind_group(3, dr.occl.as_ref().map_or(&self.far_bind, |k| &self.dmaps[k].2), &[]);
                 pass.set_vertex_buffer(0, mesh.vb.slice(..));
                 pass.set_index_buffer(mesh.ib.slice(..), wgpu::IndexFormat::Uint32);
                 pass.draw_indexed(0..mesh.n, 0, 0..1);
@@ -708,6 +871,7 @@ mod tests {
         assert_eq!(p.models.len(), 2);
         assert_eq!(p.surfaces(), vec!["s1".to_string(), "s2".to_string()]);
         assert!(p.models[1].src[0].proj.as_ref().unwrap().cull);
+        assert!(!p.models[1].src[0].proj.as_ref().unwrap().occlude);
         assert!(p.post.is_none());
     }
     #[test]

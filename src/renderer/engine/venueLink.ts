@@ -106,7 +106,6 @@ export function calibDoc(cal: ProjectorCalibration, scene: Scene3D): { doc: unkn
       if (m.layerId) return { why: `screen '${name}' shows a timeline layer` };
       if (!m.surfaceId) return { why: `screen '${name}' has nothing bound (drawn dark grey by the app)` };
       const src = planeSrc(m);
-      if (src.proj?.occlude) return { why: `screen '${name}' is projected with occlusion` };
       const g = new THREE.Group();
       applyModelTransform(g, m);
       g.updateMatrixWorld(true);
@@ -129,7 +128,6 @@ export function calibDoc(cal: ProjectorCalibration, scene: Scene3D): { doc: unkn
     if (content.mesh.some((i) => i < 0)) return { why: `a mesh of '${name}' shows its own material (lit by three.js)` };
     for (const s of content.src) {
       if (s.surface === null) return { why: `'${name}' shows a timeline layer` };
-      if (s.proj?.occlude) return { why: `'${name}' is projected with occlusion` };
       surfaces.add(s.surface);
     }
     // Per mesh, in three's traversal order (engineContent's): its model-view and world matrix.
