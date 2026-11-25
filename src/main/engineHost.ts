@@ -1,7 +1,7 @@
 import { app, BrowserWindow } from 'electron';
 import { IPC, WINDOWED_DISPLAY } from '../../shared/protocol';
 import { spawn, type ChildProcess } from 'node:child_process';
-import { existsSync, writeFileSync, mkdirSync, unlinkSync } from 'node:fs';
+import { existsSync, writeFileSync, mkdirSync, unlinkSync, openSync, readSync, closeSync } from 'node:fs';
 import { join } from 'node:path';
 import * as logger from './logger';
 import { getPrefs, setPrefs } from './persistence';
@@ -121,9 +121,52 @@ const DROP_LOG_MS = 60_000;
 // engineFps on the RTX box); beyond this share of a minute's ticks the engine is genuinely too slow.
 const DROP_LOG_SHARE = 0.1;
 
+// E6h — THE HOLD FILE (engine hold.rs): the engine keeps its last frame on the wire there; main reads it when that
+// engine dies and holds it on the wire (outputManager.hold) until the wire has a live sender again. One per app
+// process. The layout is hold.rs's: a 64-byte header (magic, seq, slot, len, fnv1a-32) and two 4 MB slots.
+const HOLD_HEAD = 64, HOLD_CAP = 4 << 20;
+let holdPath: string | null = null;
+function holdFile(): string {
+  if (!holdPath) {
+    const dir = join(app.getPath('temp'), 'artlux-native-engine');
+    try { mkdirSync(dir, { recursive: true }); } catch { /* exists */ }
+    holdPath = join(dir, `hold-${process.pid}.bin`);
+  }
+  return holdPath;
+}
+function fnv1a32(b: Uint8Array): number {
+  let h = 0x811c9dc5;
+  for (let i = 0; i < b.length; i++) { h ^= b[i]; h = Math.imul(h, 0x01000193) >>> 0; }
+  return h >>> 0;
+}
+/** The dead engine's last frame, or null if there is none or it does not verify (never a torn frame on a node). */
+function readHold(): Uint8Array | null {
+  if (!holdPath) return null;
+  let fd = -1;
+  try {
+    fd = openSync(holdPath, 'r');
+    const head = Buffer.alloc(HOLD_HEAD);
+    if (readSync(fd, head, 0, HOLD_HEAD, 0) !== HOLD_HEAD || head.toString('latin1', 0, 8) !== 'ALHOLD01') return null;
+    const slot = head.readUInt32LE(16), len = head.readUInt32LE(20), sum = head.readUInt32LE(24);
+    if (slot > 1 || len <= 4 || len > HOLD_CAP) return null;
+    const body = Buffer.alloc(len);
+    if (readSync(fd, body, 0, len, HOLD_HEAD + slot * HOLD_CAP) !== len || fnv1a32(body) !== sum) return null;
+    return new Uint8Array(body.buffer, body.byteOffset, len);
+  } catch { return null; } finally { if (fd >= 0) try { closeSync(fd); } catch { /* gone */ } }
+}
+/** An engine that OWNED the wire is gone: hold its last frame there until the wire has a live sender again. */
+function holdWire(why: string): void {
+  const f = readHold();
+  const held = !!f && output.hold(f);
+  logger.log(held ? 'info' : 'warn', 'engine', held ? 'wire-held' : 'wire-not-held', { why, bytes: f?.length ?? 0 });
+  console.log(held ? `[engine] holding its last frame on the wire (${why})` : `[engine] no last frame to hold (${why})`);
+}
+
 function setOwns(next: { rev: number; pid: number | null } | null, why: string): void {
   const was = !!owns;
   owns = next;
+  // E6h: a (re)started engine owns the wire — main's held frame lets go (one sender, never two).
+  if (next && !was) output.releaseHold();
   if (was !== !!next || why !== lastWhy) {
     logger.log('info', 'engine', next ? 'owns-wire' : 'app-has-wire', next ? { rev: next.rev } : { why });
     console.log(next ? `[engine] owns the wire (document ${next.rev})` : `[engine] the app keeps the wire: ${why}`);
@@ -369,7 +412,7 @@ function spawnEngine(): void {
   status.starts++;
   let proc: ChildProcess;
   try {
-    proc = spawn(exe, ['--serve'], { stdio: ['pipe', 'pipe', 'pipe'], windowsHide: true });
+    proc = spawn(exe, ['--serve'], { stdio: ['pipe', 'pipe', 'pipe'], windowsHide: true, env: { ...process.env, ARTLUX_ENGINE_HOLD: holdFile() } });
   } catch (e) {
     logger.log('error', 'engine', 'spawn-failed', { path: exe }, e);
     onDeath(null, `spawn failed: ${(e as Error).message}`);
@@ -417,7 +460,7 @@ function spawnEngine(): void {
             logger.log('warn', 'engine', 'hung', { pid: proc.pid, silentMs: Date.now() - lastPong });
             console.warn(`[engine] hung (no answer for ${Date.now() - lastPong} ms) — killing pid ${proc.pid}`);
             clearTimers();
-            if (owns) setOwns(null, 'the engine hung');
+            if (owns) { holdWire('the engine hung'); setOwns(null, 'the engine hung'); }
             if (projOwns) setProjOwns(null, 'the engine hung');
             proc.kill();
             return;
@@ -503,7 +546,7 @@ function spawnEngine(): void {
     if (child === proc) child = null;
     clearTimers();
     // THE WIRE GOES BACK TO THE APP FIRST — before anything else is decided about this death.
-    if (owns && owns.pid === (proc.pid ?? null)) setOwns(null, 'the engine exited');
+    if (owns && owns.pid === (proc.pid ?? null)) { holdWire('the engine exited'); setOwns(null, 'the engine exited'); }
     if (projOwns && projOwns.pid === (proc.pid ?? null)) setProjOwns(null, 'the engine exited');
     failAudio('the engine exited');   // E3m: an answer that will never come
     failBakes('the engine exited during the bake');   // E6a: the same

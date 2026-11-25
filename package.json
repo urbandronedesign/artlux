@@ -78,6 +78,7 @@
     "test:engine-runtime": "node scripts/test-engine-runtime.cjs",
     "test:native-takeover": "node scripts/test-native-takeover.cjs",
     "test:native-projectors": "node scripts/test-native-projectors.cjs",
+    "test:engine-hold": "node scripts/test-engine-hold.cjs",
     "test:shader-parity": "node scripts/test-shader-parity.cjs",
     "test:shader-wire": "node scripts/test-shader-wire.cjs",
     "test:shader-projector": "node scripts/test-shader-projector.cjs",

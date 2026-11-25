@@ -2665,6 +2665,25 @@ fallback until a source/output is proven byte-identical — risk 2):
 > that said "`--native-engine`"; CHANGELOG.
 > - **Still to prove:** a real show at a venue on default-on (the plan's "run on real shows"). Next: E6g (macOS),
 >   E6h (the crash fallback), E6i.
+>
+> ✅ **E6h done 2026-11-25 — THE CRASH FALLBACK WITHOUT THE BROWSER ENGINE: MAIN HOLDS THE ENGINE'S LAST FRAME.**
+> Inventory item F. The engine keeps the last frame it put on the wire — the very frameCodec bytes its sender was
+> given, which main's output addon takes as is — in a file main names (`ARTLUX_ENGINE_HOLD`, `hold.rs`): two 4 MB
+> slots, the frame into the unused one THEN a 64-byte header pointing at it with an FNV-1a checksum (a kill mid-write
+> leaves either the previous frame or a header that fails the check — main then holds nothing, never a torn frame);
+> written only when the bytes change, never an empty (hand-back) frame. When an engine that OWNED the wire exits or is
+> killed as hung, `engineHost.holdWire` reads it and `outputManager.hold` pushes it to main's sender, whose keep-alive
+> repeats it; `releaseHold` (an empty frame) the moment a restarted engine owns the wire again — one sender, never
+> two — and the app's own next frame replaces it (today's fallback still wins while it exists; it also sets the
+> last-frame SHAPE, so a quit's blackout works with no app frame at all). `test:engine-hold` (new) runs with
+> `ARTLUX_NO_APP_WIRE=1`, a test hook that keeps the app's frames off the wire as if the browser engine were gone: kill
+> the engine → main holds within **146 ms** (the exit's own latency on Windows), every universe **byte-identical** to
+> the engine's last frame (a still, a second still strip, a MOVING video strip), the restarted engine back at **~0.9
+> s** and main lets go (only the engine sends after), longest silence 146 ms (without the hold: the whole restart).
+> `test-native-takeover` unchanged (the app's frames back 110 ms after a kill). Guarded.
+> - **Not covered by the hold:** a render thread that STALLS while the process lives (`sent` goes stale; today the
+>   app's frames cover it — after E6i main must hold there too), and PROJECTOR outputs (the engine's windows die with
+>   it; main uncovers the app's windows — after E6i they need a picture of their own). Both belong to E6i's design.
 
 ## 9d. E4 started early — the 3D view in the engine (owner, 2026-11-24)
 

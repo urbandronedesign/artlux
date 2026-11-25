@@ -113,6 +113,13 @@ vertex colours, transparency or another material type is refused), and a **timel
 hidden LAYER surface per bound layer, composited as any timeline surface). It does not draw an NDI send of an
 unwarped calibrated output (the app sends nothing there) — that keeps every output with the app, and so does an open calibration session; the log says why
 (`[engine] the app keeps the projector outputs: …`).
+**An engine death does not darken the wire** (E6h): the engine keeps its last frame on the wire in a file main
+names (`ARTLUX_ENGINE_HOLD`, engine `hold.rs` — two slots, header last, checksummed, written only on change); when an
+engine that owned the wire dies or hangs, main reads it and puts it on the wire through its own sender
+(`outputManager.hold`, its keep-alive repeats it) until a restarted engine owns the wire again (`releaseHold` — an
+empty frame, one sender never two) or the app's own next frame replaces it. `node scripts/test-engine-hold.cjs
+[--packaged <ArtLux.exe>]` proves it with `ARTLUX_NO_APP_WIRE=1` (a TEST HOOK: the app's frames never reach the wire,
+as with no browser engine).
 Proof: `node scripts/test-engine-runtime.cjs` (the engine alone, over stdio) and
 `node scripts/test-native-takeover.cjs [--packaged <ArtLux.exe>]` (the real app: who sends each packet, and
 the bytes) and `node scripts/test-native-projectors.cjs [--windowed] [--ndi [--editor]] [--hwwarp [--no-nvapi]] [--calibrated [--glb] [--distort] [--calib-blend] [--calib-warp [--ndi]] [--calib-occlude] [--calib-own] [--calib-layer] [--calib-refused]]` (the real app in

@@ -97,7 +97,35 @@ let wireOwner: (() => boolean) | null = null;
 let muted = false;
 export function setWireOwner(fn: (() => boolean) | null): void { wireOwner = fn; }
 
+// E6h — THE ENGINE'S LAST FRAME, HELD ACROSS ITS DEATH (main/engineHost.ts; engine hold.rs). The moment an engine
+// that owned the wire dies, engineHost hands its last frame here and it goes out through THIS sender, whose
+// keep-alive repeats it — so the wire never goes dark between the death and the restarted engine taking it back.
+// It is let go the moment either (a) the app's own next frame goes out (today's fallback: live frames beat a held
+// one) or (b) a restarted engine owns the wire again (releaseHold: an EMPTY frame, so the keep-alive stops — one
+// sender, never two). Native sender only: the TS fallback has no keep-alive to hold with.
+let holding = false;
+export function hold(frame: Uint8Array): boolean {
+  if (!native) return false;
+  lastFrame = toArrayBuffer(frame);   // blackout() at quit then knows the patch even with no app frame (E6i)
+  native.pushFrame(toBuffer(frame));
+  holding = true;
+  muted = false;
+  return true;
+}
+export function releaseHold(): void {
+  if (!holding) return;
+  holding = false;
+  muted = true;
+  if (native) native.pushFrame(toBuffer(new Uint8Array(4)));
+}
+export function isHolding(): boolean { return holding; }
+
+// TEST HOOK (E6h): ARTLUX_NO_APP_WIRE=1 — the app's own frames never reach the wire, as when there is no browser
+// engine (E6i). Only then does the hold alone bridge an engine death; scripts/test-engine-hold.cjs runs with it.
+const NO_APP_WIRE = process.env.ARTLUX_NO_APP_WIRE === '1';
+
 export function sendFrame(frame: ArrayBuffer | Uint8Array): void {
+  if (NO_APP_WIRE) { if (!lastFrame) lastFrame = toArrayBuffer(frame); return; }
   lastFrame = toArrayBuffer(frame);
   if (wireOwner?.()) {
     // ⚠ STOPPING THE PUSHES IS NOT ENOUGH. The send thread's KEEP-ALIVE repeats the last frame it was given,
@@ -113,6 +141,7 @@ export function sendFrame(frame: ArrayBuffer | Uint8Array): void {
     return;
   }
   muted = false;
+  holding = false;   // the app's live frame replaces a held one
   if (native) {
     native.pushFrame(toBuffer(frame)); // hand off to the dedicated send thread
     return;

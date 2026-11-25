@@ -57,6 +57,7 @@ pub mod lightpack;
 #[cfg(feature = "ndi")]
 pub mod ndi;
 pub mod windows;
+pub mod hold;
 #[cfg(windows)]
 pub mod share;
 #[cfg(windows)]

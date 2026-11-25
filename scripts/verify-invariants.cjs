@@ -8842,7 +8842,7 @@ check(
     if (!/let decided: \{ on: boolean; why: string \} \| null = null;\s*const flag = \(\): boolean => \(decided \?\?= decide\(\)\)\.on;/.test(eh)) problems.push('engineHost: the engine switch is no longer decided once per run');
     if (!/export function startEngine\(\): void \{\s*if \(!flag\(\)\) \{ logger\.log\('info', 'engine', 'off', \{ why: nativeEngineWhy\(\) \}\); return; \}/.test(eh)) problems.push('engineHost: startEngine no longer returns early (and logs why) when the engine is off');
     if (!/if \(code === EXIT_REFUSED\) \{[\s\S]{0,400}?return;\s*\}\s*onDeath\(/.test(eh)) problems.push('engineHost: a refusing engine (exit 2) is no longer left stopped');
-    if (!/if \(now - lastPong > PONG_TIMEOUT_MS\) \{[\s\S]{0,400}?proc\.kill\(\);/.test(eh)) problems.push('engineHost: a hung engine (no pong) is no longer killed');
+    if (!/if \(now - lastPong > PONG_TIMEOUT_MS\) \{[\s\S]{0,700}?proc\.kill\(\);/.test(eh)) problems.push('engineHost: a hung engine (no pong) is no longer killed');
     if (!/const late = now - lastTick > 2 \* PING_MS;\s*lastTick = now;\s*if \(late\) lastPong = now;/.test(eh)) problems.push('engineHost: a late ping tick (main stalled) would judge the engine hung — it must restart the clock instead');
     if (!/if \(deaths\.length > RESTART_LIMIT\) \{[\s\S]{0,300}?return;/.test(eh)) problems.push('engineHost: no give-up after RESTART_LIMIT deaths in a minute');
     if (!/setTimeout\(\(\) => \{ if \(!stopping && !child\) spawnEngine\(\); \}, RESTART_DELAY_MS\);/.test(eh)) problems.push('engineHost: a dead engine is no longer restarted');
@@ -9953,6 +9953,33 @@ check(
       const src = fs.readFileSync(path.join(ROOT, 'scripts', f), 'utf8');
       if (/\(native \? \['--native-engine'\] : \[\]\)/.test(src)) problems.push(`scripts/${f}: an app-side run no longer says --no-native-engine (it would run the engine too)`);
     }
+    return problems.length ? problems.join('; ') : null;
+  },
+);
+
+check(
+  'an engine death does not darken the wire: main holds the engine\'s last frame until the wire has a live sender again',
+  'plans/native-engine.md E6h. Today the app\'s own frames take over when the engine dies; once the browser engine is ' +
+  'deleted (E6i) nothing would, and the rig would go dark for the whole restart. The engine keeps its last frame (the ' +
+  'frameCodec bytes its sender was given) in a file main names — two slots, header last, checksummed — and main puts ' +
+  'it on the wire through its own sender the moment an engine that OWNED the wire dies or is killed as hung, and lets ' +
+  'go (an empty frame) the moment a restarted engine owns it again: one sender, never two. test:engine-hold (with ' +
+  'ARTLUX_NO_APP_WIRE=1): held within 146 ms, byte-identical to the engine\'s last frame, released on the restart.',
+  () => {
+    const problems = [];
+    const h = raw('engine/artlux-engine/src/hold.rs');
+    if (!/if write_at\(&self\.f, HEAD \+ slot \* CAP, frame\)\.and_then\(\|_\| write_at\(&self\.f, 0, &head\)\)/.test(h)) problems.push('hold.rs no longer writes the frame BEFORE the header that points at it (a kill mid-write could hand main a torn frame)');
+    if (!/frame\[\.\.4\] == \[0, 0, 0, 0\]/.test(h)) problems.push('hold.rs records an empty (hand-back) frame');
+    if (!/if let Some\(h\) = &mut self\.hold \{ h\.record\(frame\); \}/.test(raw('engine/artlux-engine/src/runtime.rs'))) problems.push('runtime.rs no longer records each frame it sends');
+    const eh = read('src/main/engineHost.ts');
+    if (!/fnv1a32\(body\) !== sum\) return null;/.test(eh)) problems.push('engineHost no longer verifies the held frame\'s checksum');
+    if (!/if \(owns && owns\.pid === \(proc\.pid \?\? null\)\) \{ holdWire\('the engine exited'\); setOwns\(null, 'the engine exited'\); \}/.test(eh)) problems.push('engineHost no longer holds the wire when an owning engine exits');
+    if (!/if \(owns\) \{ holdWire\('the engine hung'\); setOwns\(null, 'the engine hung'\); \}/.test(eh)) problems.push('engineHost no longer holds the wire when a hung engine is killed');
+    if (!/if \(next && !was\) output\.releaseHold\(\);/.test(eh)) problems.push('engineHost no longer lets go of the held frame when an engine owns the wire again (two senders)');
+    if (!/ARTLUX_ENGINE_HOLD: holdFile\(\)/.test(eh)) problems.push('engineHost no longer names the hold file to the engine');
+    const om = read('src/main/transport/outputManager.ts');
+    if (!/export function releaseHold\(\): void \{\s*if \(!holding\) return;\s*holding = false;\s*muted = true;\s*if \(native\) native\.pushFrame\(toBuffer\(new Uint8Array\(4\)\)\);/.test(om)) problems.push('outputManager.releaseHold no longer stops the keep-alive with an empty frame');
+    if (!/const NO_APP_WIRE = process\.env\.ARTLUX_NO_APP_WIRE === '1';/.test(om)) problems.push('the ARTLUX_NO_APP_WIRE test hook is gone (test:engine-hold needs it)');
     return problems.length ? problems.join('; ') : null;
   },
 );

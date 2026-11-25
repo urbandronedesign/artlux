@@ -63,6 +63,8 @@ struct Doc {
 pub struct Runtime {
     gpu: Arc<Gpu>,
     out: Option<OutputEngine>,
+    /// E6h: the last frame on the wire, kept where main reads it after a death (hold.rs).
+    hold: Option<crate::hold::Hold>,
     broadcast: bool,
     out_cfg: (f64, bool, bool),
     doc: Option<Doc>,
@@ -202,7 +204,7 @@ struct LaneRt { path: String, sid: String, leaf: AutoLeaf, keys: Vec<crate::eval
 
 impl Runtime {
     pub fn new(gpu: Arc<Gpu>) -> Self {
-        Runtime { gpu, out: None, broadcast: false, out_cfg: (44.0, true, false), doc: None, pictures: HashMap::new(), gens: HashMap::new(),
+        Runtime { gpu, out: None, hold: crate::hold::Hold::open(), broadcast: false, out_cfg: (44.0, true, false), doc: None, pictures: HashMap::new(), gens: HashMap::new(),
             images: HashMap::new(), effects: HashMap::new(), shaders: HashMap::new(), sources_summary: String::new(), proj_pictures: HashMap::new(), rasters: HashMap::new(), blobs: None, compositor: None, comp_tex: HashMap::new(), rng: Rng::new(0x5eed), cache: TexCache::default(), gen: 0, path_gens: HashMap::new(), frames: 0,
             outputs: None, projectors: Vec::new(), proj_published: HashMap::new(), proj_opts: HashMap::new(), calib_surfaces: Vec::new(), venue_published: HashMap::new(), calib_ver: 0, opts_ver: 0,
             #[cfg(windows)] spouts: HashMap::new(),
@@ -510,6 +512,7 @@ impl Runtime {
             self.out = Some(o);
         }
         if let Some(o) = &self.out { o.push_frame(frame); }
+        if let Some(h) = &mut self.hold { h.record(frame); }
     }
 
     /// A new document. Returns (rev, owns, why) — the answer main is waiting for.
