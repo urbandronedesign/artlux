@@ -73,13 +73,11 @@ pub fn build(lights: &[LightFix], states: &HashMap<String, Beam>, look: &BeamLoo
         (!st.blackout && st.intensity > 0.001).then_some((b, st))
     }
     // The fill-rate budget: the MAX_BEAMS brightest volumes (a stable sort, as Array.prototype.sort is).
-    let mut order: Vec<usize> = (0..lights.len()).filter(|&i| lit(&lights[i], states).is_some()).collect();
-    order.sort_by(|&a, &b| {
-        let ia = states[&lights[a].id].intensity; let ib = states[&lights[b].id].intensity;
-        ib.partial_cmp(&ia).unwrap_or(std::cmp::Ordering::Equal)
-    });
+    // (Each head's intensity looked up ONCE, not twice per comparison — O1-7.)
+    let mut order: Vec<(usize, f64)> = (0..lights.len()).filter_map(|i| lit(&lights[i], states).map(|(_, st)| (i, st.intensity))).collect();
+    order.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
     order.truncate(MAX_BEAMS);
-    let drawn: std::collections::HashSet<usize> = order.into_iter().collect();
+    let drawn: std::collections::HashSet<usize> = order.into_iter().map(|o| o.0).collect();
 
     let mut cones = Vec::new();
     let mut lines = Vec::new();

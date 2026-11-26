@@ -626,6 +626,8 @@ fn present(gpu: Arc<Gpu>, window: Arc<Window>, surface: wgpu::Surface<'static>, 
         reg.push((spec.id.clone(), ph.clone(), loops.clone()));
     }
     let step = |k: u32| ph.store(k, Ordering::Relaxed);
+    let prof_label = format!("output '{}'", spec.id);
+    let mut plain_warp: Option<projector::Warp> = None;
     // E6i — PRESENT ON CHANGE. The window was presented at the display's rate whatever the picture's (measured: 60 a
     // second for a 25 fps film, four windows). A pass that drew nothing new now presents nothing — the compositor keeps
     // the last frame — except every HEARTBEAT, so a window the compositor lost (a display change) is never left empty.
@@ -702,6 +704,7 @@ fn present(gpu: Arc<Gpu>, window: Arc<Window>, surface: wgpu::Surface<'static>, 
         step(4);
         let (ov, o) = opts.unwrap_or((0, spec.opts.clone()));
         let gen = pic.as_ref().map_or(0, |p| p.0);
+        let draw_at = std::time::Instant::now();
         // E6f: RENDER-FROM-PROJECTOR — the venue from the solved projector, every frame (its pictures move; the
         // draw is the app's per-frame scene render), into the same bottom-up raster the flip pass presents.
         if let (Some((view, pics)), false, Some((tex, _))) = (&calib, booting, &raster) {
@@ -741,15 +744,18 @@ fn present(gpu: Arc<Gpu>, window: Arc<Window>, surface: wgpu::Surface<'static>, 
                             st_new += 1;
                             // Item 2c-4: a picture already on the GPU (an MP4 frame — the render thread and these
                             // presenters share ONE device, serve.rs) is copied there, its visible rect only.
+                            // O1-3: into this output's own content texture when the size is the same.
+                            let reuse = content.take().map(|c| c.1);
                             content = Some((*g, match &p.tex {
-                                Some(t) => projector::content_texture_from(&gpu, t, p.crop.unwrap_or([0, 0, p.w, p.h])),
-                                None => projector::content_texture(&gpu, p.w, p.h, &p.rgba),
+                                Some(t) => projector::content_texture_from_into(&gpu, t, p.crop.unwrap_or([0, 0, p.w, p.h]), reuse),
+                                None => projector::content_texture_into(&gpu, p.w, p.h, &p.rgba, reuse),
                             }));
                         }
                         if let Some((_, ct)) = &content {
                             match &baked {
                                 Some(b) => projector::draw_baked(&gpu, ct, b, &o, &target, wgpu::TextureFormat::Rgba8Unorm, size.width, size.height),
-                                None => projector::draw(&gpu, ct, &o, &target, wgpu::TextureFormat::Rgba8Unorm, size.width, size.height),
+                                // O1-2: this output's own Warp — its MSAA target and buffers kept between draws.
+                                None => plain_warp.get_or_insert_with(|| projector::Warp::new(&gpu)).draw(&gpu, ct, &o, &target, wgpu::TextureFormat::Rgba8Unorm, size.width, size.height),
                             }
                         }
                     }
@@ -765,6 +771,7 @@ fn present(gpu: Arc<Gpu>, window: Arc<Window>, surface: wgpu::Surface<'static>, 
             }
             drawn = Some((gen, ov, booting, size));
         }
+        if dirty { crate::prof::add(if calib.is_some() { "draw.venue" } else { "draw" }, draw_at.elapsed()); }
         #[cfg(feature = "ndi")]
         if let (Some((send, max, cut)), Some((rt, _))) = (&ndi_send, &raster) {
             if ndi_at.elapsed() >= Duration::from_millis(33) {
@@ -785,8 +792,10 @@ fn present(gpu: Arc<Gpu>, window: Arc<Window>, surface: wgpu::Surface<'static>, 
             }
         }
         owed |= dirty;
+        crate::prof::report(&prof_label);
         if !owed && last_present.elapsed() < HEARTBEAT { std::thread::sleep(Duration::from_millis(2)); continue; }
         step(7);
+        let present_at = std::time::Instant::now();
         let tex = match surface.get_current_texture() {
             wgpu::CurrentSurfaceTexture::Success(t) | wgpu::CurrentSurfaceTexture::Suboptimal(t) => t,
             wgpu::CurrentSurfaceTexture::Timeout | wgpu::CurrentSurfaceTexture::Occluded => { std::thread::sleep(Duration::from_millis(8)); continue; }
@@ -836,6 +845,7 @@ fn present(gpu: Arc<Gpu>, window: Arc<Window>, surface: wgpu::Surface<'static>, 
         window.pre_present_notify();
         step(11);
         gpu.queue.present(tex);
+        crate::prof::add("present", present_at.elapsed());   // acquire (the vblank wait) → flip → present
         last_present = std::time::Instant::now();
         owed = false;
         st_presents += 1;

@@ -86,6 +86,10 @@ impl NdiIn {
         NdiIn { latest, stop, name: name.to_string() }
     }
 
+    /// The latest frame's sequence number (None before the first) — asked BEFORE `frame`, so an unchanged frame is
+    /// never scaled again (O1-6: it was downscaled on every tick, under the receiver's lock, then thrown away).
+    pub fn seq(&self) -> Option<u64> { self.latest.lock().unwrap().as_ref().map(|f| f.3) }
+
     /// The latest frame scaled to `size` (the app's NDI canvas) — RGBA, opaque — and its sequence number,
     /// or None before the first frame.
     pub fn frame(&self, size: Option<(u32, u32)>) -> Option<(u32, u32, Vec<u8>, u64)> {

@@ -161,8 +161,11 @@ impl Ao {
         let nf = 1.0 / (near - far);
         // ARTLUX_VIEW3D_AO_ONLY=1: the frame IS the occlusion term (white = open, dark = occluded) — for tuning, and
         // for test:engine-shadows --ao, which cannot see the term under Rendered's bloom otherwise.
-        let dbg = std::env::var("ARTLUX_VIEW3D_AO_ONLY").is_ok_and(|v| v == "1") as u32 as f32;
-        let radius = std::env::var("ARTLUX_VIEW3D_AO_RADIUS").ok().and_then(|v| v.parse::<f32>().ok()).unwrap_or(RADIUS);
+        // Read once per process (O1-7: they were two environment reads on every frame).
+        static ENV: std::sync::OnceLock<(f32, f32)> = std::sync::OnceLock::new();
+        let (dbg, radius) = *ENV.get_or_init(|| (
+            std::env::var("ARTLUX_VIEW3D_AO_ONLY").is_ok_and(|v| v == "1") as u32 as f32,
+            std::env::var("ARTLUX_VIEW3D_AO_RADIUS").ok().and_then(|v| v.parse::<f32>().ok()).unwrap_or(RADIUS)));
         let params = [f, w as f32 / h.max(1) as f32, far * nf, near * far * nf, w as f32, h as f32, radius, POWER, dbg, 0.0, 0.0, 0.0];
         q.write_buffer(&self.ubuf, 0, &params.iter().flat_map(|x| x.to_le_bytes()).collect::<Vec<u8>>());
         let pass = |enc: &mut wgpu::CommandEncoder, view: &wgpu::TextureView, pipe: &wgpu::RenderPipeline, binds: &[&wgpu::BindGroup]| {

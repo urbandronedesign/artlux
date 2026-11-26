@@ -46,7 +46,7 @@ pub fn nv12_check(gpu: &Gpu, w: u32, h: u32) -> serde_json::Value {
         };
         rgba[o..o + 3].copy_from_slice(&c); rgba[o + 3] = 255;
     } }
-    let pic = crate::compose::Picture { w, h, rgba: rgba.clone(), mips: false, crop: None, tex: None };
+    let pic = crate::compose::Picture { w, h, rgba: rgba.clone().into(), mips: false, crop: None, tex: None };
     let mut sc = Scaler::new(gpu, w, h);
     let t0 = std::time::Instant::now();
     let g = match sc.frame_nv12(gpu, &pic, 1) { Ok(v) => v, Err(e) => return serde_json::json!({ "ok": false, "error": e }) };

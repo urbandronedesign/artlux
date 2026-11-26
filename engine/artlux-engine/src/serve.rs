@@ -173,7 +173,9 @@ pub fn run(policy: AdapterPolicy) -> ExitCode {
                         loop { std::thread::sleep(Duration::from_secs(3600)); }
                     }
                     let before = rt.frames;
-                    match rt.tick(&t) {
+                    let ticked = crate::prof::time("tick", || rt.tick(&t));
+                    crate::prof::report("render");
+                    match ticked {
                         // "I PUT A FRAME ON THE WIRE" — from the RENDER thread, per frame. Main mutes the app
                         // only while these keep coming, so a render thread that STALLS or FAILS while the stdin
                         // reader still answers pings (which an exit or a ping can never reveal) hands the wire

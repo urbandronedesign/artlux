@@ -69,17 +69,20 @@ fn fs(@builtin(position) pos: vec4<f32>) -> @location(0) vec4<f32> {
 ///     than a picture cut to it (measured: the last row and an odd last column differ otherwise).
 ///   - item 2c-3: a frame converted ON THE GPU arrives as its texture (`tex`, RGBA8, opaque, the coded
 ///     size; `rgba` empty) — drawn exactly like `coded_frame`, without the upload.
-pub struct Picture { pub w: u32, pub h: u32, pub rgba: Vec<u8>, pub mips: bool, pub crop: Option<[u32; 4]>, pub tex: Option<wgpu::Texture> }
+/// O1-4: the pixels are SHARED (`Arc`) — a picture published to the presenters, the 3D view and the venue was a full
+/// memcpy per hop (33 MB at 4K; the projector copy under `outputs::Shared`'s lock, so every presenter waited on it), and
+/// the app's `@proj` raster was copied every tick. A clone is now a reference count. Built once, never written after.
+pub struct Picture { pub w: u32, pub h: u32, pub rgba: std::sync::Arc<Vec<u8>>, pub mips: bool, pub crop: Option<[u32; 4]>, pub tex: Option<wgpu::Texture> }
 
 impl Picture {
-    pub fn still(w: u32, h: u32, mut rgba: Vec<u8>) -> Self { premultiply(&mut rgba); Picture { w, h, rgba, mips: true, crop: None, tex: None } }
-    pub fn canvas(w: u32, h: u32, mut rgba: Vec<u8>) -> Self { premultiply(&mut rgba); Picture { w, h, rgba, mips: false, crop: None, tex: None } }
+    pub fn still(w: u32, h: u32, mut rgba: Vec<u8>) -> Self { premultiply(&mut rgba); Picture { w, h, rgba: rgba.into(), mips: true, crop: None, tex: None } }
+    pub fn canvas(w: u32, h: u32, mut rgba: Vec<u8>) -> Self { premultiply(&mut rgba); Picture { w, h, rgba: rgba.into(), mips: false, crop: None, tex: None } }
     /// A VideoFrame (Spout's shared texture, imported by Electron). MEASURED like the others — see E1d-3.
-    pub fn video_frame(w: u32, h: u32, mut rgba: Vec<u8>) -> Self { premultiply(&mut rgba); Picture { w, h, rgba, mips: false, crop: None, tex: None } }
+    pub fn video_frame(w: u32, h: u32, mut rgba: Vec<u8>) -> Self { premultiply(&mut rgba); Picture { w, h, rgba: rgba.into(), mips: false, crop: None, tex: None } }
     /// A decoded MP4 frame: the coded picture (opaque — no premultiply to do), drawn from its visible rect.
-    pub fn coded_frame(w: u32, h: u32, rgba: Vec<u8>, visible: [u32; 4]) -> Self { Picture { w, h, rgba, mips: false, crop: Some(visible), tex: None } }
+    pub fn coded_frame(w: u32, h: u32, rgba: Vec<u8>, visible: [u32; 4]) -> Self { Picture { w, h, rgba: rgba.into(), mips: false, crop: Some(visible), tex: None } }
     /// The same, converted on the GPU: the texture IS the picture (yuv.rs GpuConvert).
-    pub fn gpu_frame(w: u32, h: u32, tex: wgpu::Texture, visible: [u32; 4]) -> Self { Picture { w, h, rgba: Vec::new(), mips: false, crop: Some(visible), tex: Some(tex) } }
+    pub fn gpu_frame(w: u32, h: u32, tex: wgpu::Texture, visible: [u32; 4]) -> Self { Picture { w, h, rgba: Default::default(), mips: false, crop: Some(visible), tex: Some(tex) } }
     /// The size it is drawn at: the visible rect's, or the whole picture's.
     pub fn shown(&self) -> (u32, u32) { self.crop.map_or((self.w, self.h), |c| (c[2], c[3])) }
 }
@@ -146,18 +149,23 @@ pub fn frame_cached(gpu: &Gpu, doc: &FrameDoc, mut cache: Option<(&mut TexCache,
         usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::TEXTURE_BINDING, view_formats: &[],
     });
     let atlas_view = atlas.create_view(&Default::default());
-    let module = d.create_shader_module(wgpu::ShaderModuleDescriptor { label: Some("stretch"), source: wgpu::ShaderSource::Wgsl(STRETCH_WGSL.into()) });
-    let pipeline = d.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
-        label: Some("stretch"), layout: None,
-        vertex: wgpu::VertexState { module: &module, entry_point: Some("vs"), buffers: &[], compilation_options: Default::default() },
-        fragment: Some(wgpu::FragmentState { module: &module, entry_point: Some("fs"), targets: &[Some(wgpu::TextureFormat::Rgba8Unorm.into())], compilation_options: Default::default() }),
-        primitive: Default::default(), depth_stencil: None, multisample: Default::default(), multiview_mask: None, cache: None,
-    });
-    let sampler = d.create_sampler(&wgpu::SamplerDescriptor {
-        label: Some("stretch"), address_mode_u: wgpu::AddressMode::ClampToEdge, address_mode_v: wgpu::AddressMode::ClampToEdge,
-        mag_filter: wgpu::FilterMode::Linear, min_filter: wgpu::FilterMode::Linear,
-        mipmap_filter: wgpu::MipmapFilterMode::Nearest,   // ONE level, bilinear within it (Skia's)
-        ..Default::default()
+    // O1-1: built once per device (it was compiled on every tick).
+    static STRETCH: crate::PerDevice<(), (wgpu::RenderPipeline, wgpu::Sampler)> = crate::PerDevice::new();
+    let (pipeline, sampler) = STRETCH.get(d, (), || {
+        let module = d.create_shader_module(wgpu::ShaderModuleDescriptor { label: Some("stretch"), source: wgpu::ShaderSource::Wgsl(STRETCH_WGSL.into()) });
+        let pipeline = d.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+            label: Some("stretch"), layout: None,
+            vertex: wgpu::VertexState { module: &module, entry_point: Some("vs"), buffers: &[], compilation_options: Default::default() },
+            fragment: Some(wgpu::FragmentState { module: &module, entry_point: Some("fs"), targets: &[Some(wgpu::TextureFormat::Rgba8Unorm.into())], compilation_options: Default::default() }),
+            primitive: Default::default(), depth_stencil: None, multisample: Default::default(), multiview_mask: None, cache: None,
+        });
+        let sampler = d.create_sampler(&wgpu::SamplerDescriptor {
+            label: Some("stretch"), address_mode_u: wgpu::AddressMode::ClampToEdge, address_mode_v: wgpu::AddressMode::ClampToEdge,
+            mag_filter: wgpu::FilterMode::Linear, min_filter: wgpu::FilterMode::Linear,
+            mipmap_filter: wgpu::MipmapFilterMode::Nearest,   // ONE level, bilinear within it (Skia's)
+            ..Default::default()
+        });
+        (pipeline, sampler)
     });
     // Per cell: its picture's texture + a uniform, kept alive until the pass is submitted.
     struct Draw { rect: layout::Rect, bind: wgpu::BindGroup }
@@ -237,7 +245,7 @@ pub fn frame_cached(gpu: &Gpu, doc: &FrameDoc, mut cache: Option<(&mut TexCache,
 
 /// The picture's mip chain, Skia-style: each level halves (floor), a 2-wide box where the source size is
 /// even and a 1-2-1 filter where it is odd. Level 0 is the picture itself.
-pub fn mip_chain(pic: &Picture) -> Vec<(u32, u32, Vec<u8>)> {
+pub fn mip_chain(pic: &Picture) -> Vec<(u32, u32, std::sync::Arc<Vec<u8>>)> {
     let mut out = vec![(pic.w, pic.h, pic.rgba.clone())];
     loop {
         let (w, h, src) = out.last().unwrap();
@@ -263,7 +271,7 @@ pub fn mip_chain(pic: &Picture) -> Vec<(u32, u32, Vec<u8>)> {
                 for c in 0..4 { dst[o + c] = (acc[c] + 0.5).floor().min(255.0) as u8; }
             }
         }
-        out.push((nw, nh, dst));
+        out.push((nw, nh, dst.into()));
     }
     out
 }

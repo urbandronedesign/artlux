@@ -4291,7 +4291,7 @@ check(
     const r = read(rt);
     if (!/let viewing = self\.view_open\(\);/.test(r)) problems.push('runtime.rs no longer asks whether a 3D view is open before deciding to compose');
     if (!/!doc\.owns && self\.projectors\.is_empty\(\) && !viewing/.test(r)) problems.push('runtime.rs composes only for the wire / projectors again — an open 3D view would go dark on a show the engine does not own');
-    if (!/if viewing \{ self\.publish_view\(doc, &raw\); \}/.test(r)) problems.push('runtime.rs no longer publishes the LED colours to the 3D view');
+    if (!/if viewing \{ (crate::prof::time\("view", \|\| )?self\.publish_view\(doc, &raw\)\)?; \}/.test(r)) problems.push('runtime.rs no longer publishes the LED colours to the 3D view');
     if (!/matrixWorld/.test(read(ev))) problems.push('engineView.tsx no longer sends the editor\'s world matrices');
     return problems.length ? problems.join('; ') : null;
   },
@@ -8942,7 +8942,7 @@ check(
     if (!/gl\.uniform2f\(this\.uScale, f\.width \/ pw, f\.height \/ ph\)/.test(gl) || !/\* uScale;/.test(gl)) problems.push('hapGL no longer reads only the picture\'s share of the padded texture');
     const cp = read('engine/artlux-engine/src/compose.rs');
     if (!/pub fn hap_picture\(/.test(cp)) problems.push('the engine\'s HAP source (compose.rs hap_picture) is gone');
-    if (!/pub fn canvas\([^)]*\) -> Self \{ premultiply\(&mut rgba\); Picture \{ w, h, rgba, mips: false, crop: None, tex: None \} \}/.test(cp)) problems.push('the engine draws a canvas source (HAP) with mips or without premultiplying — not what drawImage does, and no longer byte-identical');
+    if (!/pub fn canvas\([^)]*\) -> Self \{ premultiply\(&mut rgba\); Picture \{ w, h, rgba(: rgba\.into\(\))?, mips: false, crop: None, tex: None \} \}/.test(cp)) problems.push('the engine draws a canvas source (HAP) with mips or without premultiplying — not what drawImage does, and no longer byte-identical');
     return problems.length ? problems.join('; ') : null;
   },
 );
@@ -8957,10 +8957,15 @@ check(
   () => {
     const problems = [];
     const sp = read('engine/artlux-engine/src/spout.rs');
-    // (SpoutIn since "2a": the direct texture and the copy slot, each read with texels mode 2.)
-    if ((sp.match(/crate::compose::texels\(gpu, &?(tex|slot\.texture), o\.w, o\.h, 2\)\?/g) || []).length !== 2) problems.push('spout.rs SpoutIn no longer reads BOTH paths opaque (texels mode 2)');
+    // (SpoutIn since "2a": the direct texture and the copy slot, each through the mode-2 pass. Since O1-5 — plans/
+    // engine-optimisation-and-deferred-3d.md — the pass's texture IS the picture (hap_texture, not texels: no read-back,
+    // no CPU premultiply). Mode 2 forces alpha to 1, so the premultiply it dropped never changed a byte, and a GPU
+    // picture is drawn with one level — the same "opaque, no mips" this check exists for; test-image-parity's Spout
+    // cases are identical to the engine before the change.)
+    if ((sp.match(/crate::compose::hap_texture\(gpu, &?(tex|slot\.texture), o\.w, o\.h, 2, false\)/g) || []).length !== 2) problems.push('spout.rs SpoutIn no longer reads BOTH paths opaque (the mode-2 pass)');
+    if (!/Picture::gpu_frame\(o\.w, o\.h, tex, \[0, 0, o\.w, o\.h\]\)/.test(sp)) problems.push('spout.rs no longer hands the pass\'s texture on as the picture (a read-back would be back, or the visible rect changed)');
     if (!/ARTLUX_SPOUT_COPY/.test(sp)) problems.push('the switch that lets the parity test force the copy path is gone');
-    if (!/pub fn video_frame\([^)]*\) -> Self \{ premultiply\(&mut rgba\); Picture \{ w, h, rgba, mips: false, crop: None, tex: None \} \}/.test(read('engine/artlux-engine/src/compose.rs'))) problems.push('compose.rs draws a VideoFrame (Spout) with mips — not what drawImage does');
+    if (!/pub fn video_frame\([^)]*\) -> Self \{ premultiply\(&mut rgba\); Picture \{ w, h, rgba(: rgba\.into\(\))?, mips: false, crop: None, tex: None \} \}/.test(read('engine/artlux-engine/src/compose.rs'))) problems.push('compose.rs draws a VideoFrame (Spout) with mips — not what drawImage does');
     if (!/ARTLUX_SPOUT_COPY: '1'/.test(read('scripts/test-image-parity.cjs'))) problems.push('test-image-parity no longer runs the Spout copy path');
     return problems.length ? problems.join('; ') : null;
   },
@@ -9361,7 +9366,7 @@ check(
   () => {
     const problems = [];
     const o = raw('engine/artlux-engine/src/outputs.rs');
-    if (!/Some\(t\) => projector::content_texture_from\(&gpu, t, p\.crop/.test(o)) problems.push('outputs.rs no longer draws a GPU picture (an MP4) on a projector');
+    if (!/Some\(t\) => projector::content_texture_from(_into)?\(&gpu, t, p\.crop/.test(o)) problems.push('outputs.rs no longer draws a GPU picture (an MP4) on a projector');
     const pr = raw('engine/artlux-engine/src/projector.rs');
     if (!/pub fn content_texture_from\(gpu: &Gpu, src: &wgpu::Texture, crop: \[u32; 4\]\)/.test(pr) || !/enc\.copy_texture_to_texture\(/.test(pr)) problems.push('projector.rs no longer copies an MP4 frame visible rect on the GPU');
     if (!/a surface only a\s+\/\/ PROJECTOR shows is opened on first use/.test(raw('engine/artlux-engine/src/runtime.rs'))) problems.push('runtime.rs no longer opens the decoder of a surface only a projector shows (its window would be black)');
@@ -10156,6 +10161,40 @@ check(
     const fe = raw('src/renderer/engine/frameEngine.ts'), ms = raw('src/renderer/services/mockSocketService.ts'), fp = raw('src/renderer/engine/framePort.ts');
     if (!/sendArtNetFrame\(/.test(fe) || !/if \(sendFramePort\(encoded\)\) return;\s*window\.artlux\.sendArtNet\(encoded\);/.test(ms)) problems.push('the browser frame engine no longer sends its frames (the macOS / Linux output: frameEngine → sendArtNetFrame → the frame port, else IPC)');
     if (/process\.platform|win32|navigator\.platform|userAgentData/.test(fe + ms + fp)) problems.push('the browser frame engine is gated by platform (it is the output on macOS and Linux)');
+    return problems.length ? problems.join('; ') : null;
+  },
+);
+
+check(
+  'the engine builds its pipelines ONCE, and an output keeps its warp and its content texture between pictures',
+  'plans/engine-optimisation-and-deferred-3d.md O1 (2026-11-26). A pipeline is a shader COMPILE on DX12, and the LED ' +
+  'pass compiled two every tick (compose.rs stretch, sample.rs sample), every new picture on every output compiled ' +
+  'two more (projector.rs mip, a new Warp per draw) and the baked-map draw a whole layout; the warp also allocated a ' +
+  '4K x 4-sample MSAA target (133 MB) per redraw and every output a new 5-mip content texture per frame. Measured on ' +
+  'the 4K heavy show: a window\'s draw 4.0 -> 0.9 ms (worst p99 109 -> 4), the LED pass 5.1 -> 1.75 ms, VRAM -0.4 GB. ' +
+  'Nothing breaks when one comes back — the cost just returns, silently. So: each hot-path pipeline lives in a ' +
+  'crate::PerDevice static, the plain presenter keeps a Warp (which keeps its MSAA target) and copies each new ' +
+  'picture INTO its own content texture.',
+  () => {
+    const problems = [];
+    const src = (f) => read('engine/artlux-engine/src/' + f);
+    for (const [f, name] of [['compose.rs', 'STRETCH'], ['sample.rs', 'SAMPLE'], ['projector.rs', 'MIP'], ['projector.rs', 'WARP_PIPES'], ['projector.rs', 'BAKED']]) {
+      if (!new RegExp(`static ${name}: crate::PerDevice<`).test(src(f))) problems.push(`${f}: the ${name} pipeline is no longer a PerDevice static (built per call again?)`);
+    }
+    // No pipeline built outside a PerDevice closure in the hot functions: every create_*_pipeline in them must sit
+    // inside a `.get(d, …, || …)` — counted crudely as "as many .get(d, as there are pipelines".
+    const fn = (text, name) => { const i = text.indexOf(`fn ${name}(`); if (i < 0) return ''; const j = text.indexOf('\nfn ', i + 1), k = text.indexOf('\npub fn ', i + 1); return text.slice(i, Math.min(...[j, k, text.length].filter((x) => x > 0))); };
+    for (const [f, name] of [['compose.rs', 'frame_cached'], ['sample.rs', 'sample_texture'], ['projector.rs', 'mip_down'], ['projector.rs', 'draw_baked']]) {
+      const body = fn(src(f), name);
+      const pipes = (body.match(/create_(render|compute)_pipeline\(/g) || []).length, gets = (body.match(/\.get\(d, /g) || []).length;
+      if (!body) problems.push(`${f}: fn ${name} is gone (update this check)`);
+      else if (pipes > gets) problems.push(`${f}: fn ${name} builds a pipeline outside its PerDevice cache`);
+    }
+    const o = src('outputs.rs');
+    if (/None => projector::draw\(&gpu/.test(o)) problems.push('outputs.rs draws the plain warp through projector::draw again — a new Warp (and an MSAA target) per picture');
+    if (!/plain_warp\.get_or_insert_with\(\|\| projector::Warp::new\(&gpu\)\)\.draw\(/.test(o)) problems.push('outputs.rs: the plain presenter no longer keeps its own Warp');
+    if (!/content_texture_from_into\(&gpu, t, p\.crop\.unwrap_or\(\[0, 0, p\.w, p\.h\]\), reuse\)/.test(o)) problems.push('outputs.rs no longer copies a new picture INTO its content texture (a new 44 MB texture per 4K frame again)');
+    if (!/self\.ms\.as_ref\(\)\.map\(\|m\| m\.0\) != Some\(\(w, h, format, samples\)\)/.test(src('projector.rs'))) problems.push('projector.rs Warp no longer keeps its MSAA target by size');
     return problems.length ? problems.join('; ') : null;
   },
 );

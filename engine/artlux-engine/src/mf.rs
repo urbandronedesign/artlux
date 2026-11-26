@@ -405,6 +405,7 @@ impl Mp4In {
             hw.slot = Some((t11, tex, coded));
         }
         let (t11, tex, _) = hw.slot.as_ref().unwrap();
+        let wait_at = std::time::Instant::now();
         unsafe {
             let bx = D3D11_BOX { left: 0, top: 0, front: 0, right: coded.0, bottom: coded.1, back: 1 };
             hw.ctx.CopySubresourceRegion(t11, 0, 0, 0, 0, &src, sub, Some(&bx));
@@ -423,6 +424,7 @@ impl Mp4In {
         let out = conv.convert(gpu, &y, &uv, coded);
         // The slot is overwritten by the next frame's copy: the conversion must have read it first.
         let _ = gpu.device.poll(wgpu::PollType::Wait { submission_index: None, timeout: None });
+        crate::prof::add("mp4.wait", wait_at.elapsed());   // the D3D11 copy's spin + the device-wide wait
         Ok(crate::compose::Picture::gpu_frame(coded.0, coded.1, out, visible))
     }
 

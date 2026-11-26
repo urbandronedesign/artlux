@@ -42,6 +42,7 @@ pub mod beams;
 pub mod labels;
 pub mod gizmo;
 pub mod grid;
+pub mod prof;
 pub mod post;
 pub mod ao;
 pub mod shader;
@@ -62,6 +63,26 @@ pub mod hold;
 pub mod share;
 #[cfg(windows)]
 pub mod spout;
+
+/// BUILT ONCE PER DEVICE, AND KEPT — plans/engine-optimisation-and-deferred-3d.md O1-1. A pipeline (with its sampler,
+/// its layout…) is a shader COMPILE on DX12 (naga → HLSL → the DX compiler), and several were made on the hot path:
+/// two per LED tick, two per new picture on every projector, a whole layout per baked-map draw. Each now lives in a
+/// `static` of this type, built on first use for a (device, key) and cloned out after (wgpu handles are reference
+/// counted, so a clone is a pointer). Per DEVICE because a test may open more than one; the key is whatever the
+/// pipeline depends on beyond the device (a target format, a sample count), `()` when nothing.
+pub struct PerDevice<K, T>(std::sync::Mutex<Vec<(wgpu::Device, K, T)>>);
+
+impl<K: PartialEq + Clone, T: Clone> PerDevice<K, T> {
+    pub const fn new() -> Self { PerDevice(std::sync::Mutex::new(Vec::new())) }
+    pub fn get(&self, d: &wgpu::Device, key: K, make: impl FnOnce() -> T) -> T {
+        // Built under the lock: two threads asking at once build it once (a presenter and the render thread may).
+        let mut v = self.0.lock().unwrap_or_else(|e| e.into_inner());
+        if let Some((_, _, t)) = v.iter().find(|(dev, k, _)| dev == d && *k == key) { return t.clone(); }
+        let t = make();
+        v.push((d.clone(), key, t.clone()));
+        t
+    }
+}
 
 /// Which native API this platform renders with (§6 table, "GPU backend").
 pub fn native_backends() -> wgpu::Backends {

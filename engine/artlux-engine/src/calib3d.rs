@@ -660,7 +660,7 @@ pub struct Renderer {
     loaded_tx: Sender<Loaded>,
     loaded_rx: Receiver<Loaded>,
     /// surface id → (picture generation, its texture's sRGB bindings)
-    texs: HashMap<String, (u64, wgpu::BindGroup)>,
+    texs: HashMap<String, (u64, wgpu::BindGroup, wgpu::Texture)>,
     /// (w, h, post?, the MSAA colour, its depth, the resolved linear picture the post pass reads)
     targets: Option<(u32, u32, bool, wgpu::TextureView, wgpu::TextureView, Option<wgpu::TextureView>)>,
     /// Path C's dim: its pipeline and uniform, and the resolved picture it reads (made at the target's size).
@@ -942,10 +942,14 @@ impl Renderer {
             let d = &gpu.device;
             let [cx, cy, cw, ch] = p.crop.unwrap_or([0, 0, p.w, p.h]);
             if cw == 0 || ch == 0 { return None; }
-            let t = d.create_texture(&wgpu::TextureDescriptor {
+            // O1-3: the surface's own texture and its bind group KEPT while the size holds — a new frame is a copy into
+            // it (every draw that sampled the last one is already submitted; the one queue keeps the order). It was a
+            // new texture + bind group per frame, per surface, per calibrated output.
+            let kept = self.texs.remove(sid).filter(|t| t.2.width() == cw && t.2.height() == ch);
+            let t = match &kept { Some(k) => k.2.clone(), None => d.create_texture(&wgpu::TextureDescriptor {
                 label: Some("calib3d surface"), size: wgpu::Extent3d { width: cw, height: ch, depth_or_array_layers: 1 }, mip_level_count: 1, sample_count: 1,
                 dimension: wgpu::TextureDimension::D2, format: wgpu::TextureFormat::Rgba8Unorm,
-                usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST, view_formats: &[wgpu::TextureFormat::Rgba8UnormSrgb] });
+                usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST, view_formats: &[wgpu::TextureFormat::Rgba8UnormSrgb] }) };
             match &p.tex {
                 Some(src) => {
                     let mut enc = d.create_command_encoder(&Default::default());
@@ -964,12 +968,14 @@ impl Renderer {
                         wgpu::Extent3d { width: cw, height: ch, depth_or_array_layers: 1 });
                 }
             }
-            let view = t.create_view(&wgpu::TextureViewDescriptor { format: Some(wgpu::TextureFormat::Rgba8UnormSrgb), ..Default::default() });
-            let bind = d.create_bind_group(&wgpu::BindGroupDescriptor { label: None, layout: &self.tex_layout, entries: &[
-                wgpu::BindGroupEntry { binding: 0, resource: wgpu::BindingResource::TextureView(&view) },
-                wgpu::BindGroupEntry { binding: 1, resource: wgpu::BindingResource::Sampler(&self.sampler) },
-            ] });
-            self.texs.insert(sid.to_string(), (gen, bind));
+            let bind = match kept { Some(k) => k.1, None => {
+                let view = t.create_view(&wgpu::TextureViewDescriptor { format: Some(wgpu::TextureFormat::Rgba8UnormSrgb), ..Default::default() });
+                d.create_bind_group(&wgpu::BindGroupDescriptor { label: None, layout: &self.tex_layout, entries: &[
+                    wgpu::BindGroupEntry { binding: 0, resource: wgpu::BindingResource::TextureView(&view) },
+                    wgpu::BindGroupEntry { binding: 1, resource: wgpu::BindingResource::Sampler(&self.sampler) },
+                ] })
+            } };
+            self.texs.insert(sid.to_string(), (gen, bind, t));
         }
         self.texs.get(sid).map(|t| &t.1)
     }
@@ -1274,7 +1280,7 @@ impl Renderer {
                     pass.draw_indexed(0..mesh.n, 0, 0..1);
                     continue;
                 }
-                let Some((_, tb)) = self.texs.get(&dr.sid) else { continue };
+                let Some((_, tb, _)) = self.texs.get(&dr.sid) else { continue };
                 let mesh = match (&dr.plane, &dr.glb) {
                     (Some(k), _) => self.planes.get(k),
                     (_, Some((p, slot))) => match self.glbs.get(p) { Some(GlbState::Ready(m)) => m.get(*slot).and_then(|x| x.as_ref()), _ => None },

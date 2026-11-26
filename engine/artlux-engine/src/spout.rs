@@ -276,8 +276,13 @@ impl SpoutIn {
             self.open = Some(Self::open(gpu, handle, info.width, info.height, info.format)?);
         }
         let o = self.open.as_ref().unwrap();
-        let rgba = match &o.path {
-            Path::Direct(tex) => crate::compose::texels(gpu, tex, o.w, o.h, 2)?,
+        // O1-5: THE PICTURE STAYS ON THE GPU (H4K's fix, applied here). It was rendered, read back whole (33 MB at 4K,
+        // waiting on the device), premultiplied on the CPU and uploaded again by the atlas and every output. The same
+        // pass now renders into the picture's own texture; mode 2 forces alpha to 1, so the CPU premultiply it replaces
+        // never changed a byte. One wait stays: the sender (Direct) or the next frame's D3D11 copy (Copy) writes the
+        // texture this pass reads, so the pass must have read it before this returns — mf.rs's slot rule.
+        let tex = match &o.path {
+            Path::Direct(tex) => crate::compose::hap_texture(gpu, tex, o.w, o.h, 2, false).0,
             Path::Copy { slot, ctx, src, dst, query } => {
                 unsafe {
                     ctx.CopyResource(dst, src);
@@ -291,10 +296,11 @@ impl SpoutIn {
                         std::thread::yield_now();
                     }
                 }
-                crate::compose::texels(gpu, &slot.texture, o.w, o.h, 2)?
+                crate::compose::hap_texture(gpu, &slot.texture, o.w, o.h, 2, false).0
             }
         };
-        Ok(Some(crate::compose::Picture::video_frame(o.w, o.h, rgba)))
+        let _ = gpu.device.poll(wgpu::PollType::Wait { submission_index: None, timeout: None });
+        Ok(Some(crate::compose::Picture::gpu_frame(o.w, o.h, tex, [0, 0, o.w, o.h])))
     }
 
     fn open(gpu: &Gpu, handle: usize, w: u32, h: u32, format: u32) -> Result<Opened, String> {

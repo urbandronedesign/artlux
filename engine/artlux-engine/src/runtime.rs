@@ -844,11 +844,13 @@ impl Runtime {
         self.transport.publish(); // E3p: …and the audio thread holds the sound to it
         self.draw_at = self.draw_clock(v);
         let Some(mut doc) = self.doc.take() else { return Ok(()) };
+        let eval_at = std::time::Instant::now();
         self.evaluate_lanes(&mut doc, v);
         self.light_solved.clear();
         self.light_beams.clear();
         if v["rev"].as_u64() == Some(doc.rev) { self.evaluate_lighting(v); }   // the app's overlays are THIS document's
         let ev = self.evaluate_clock(&doc, v);
+        crate::prof::add("eval", eval_at.elapsed());
         let r = self.tick_with(&mut doc, ev.as_ref().unwrap_or(v));
         self.doc = Some(doc);
         r
@@ -1178,8 +1180,8 @@ impl Runtime {
         let viewing = self.view_open();
         if (!doc.owns && self.projectors.is_empty() && !viewing) || v["rev"].as_u64() != Some(doc.rev) { return Ok(()); }
         let brightness = v["brightness"].as_f64().unwrap_or(1.0) as f32;
-        self.draw_sources(doc, v)?;
-        self.publish_projectors(doc, v);
+        crate::prof::time("sources", || self.draw_sources(doc, v))?;
+        crate::prof::time("publish", || self.publish_projectors(doc, v));
         if !doc.owns && !viewing { return Ok(()); }
         self.place_and_send(doc, v, brightness, viewing)
     }
@@ -1274,8 +1276,10 @@ impl Runtime {
                         // The size of the app's own NDI canvas (the host sends it): scaled by the app's arithmetic.
                         let size = v["ndi"][sid].as_array().and_then(|a| Some((a.first()?.as_u64()? as u32, a.get(1)?.as_u64()? as u32)));
                         let (rx, last) = self.ndis.get_mut(sid).unwrap();
-                        if let Some((w, h, rgba, seq)) = rx.frame(size) {
-                            if *last != seq || self.gens.get(sid).is_none() || !self.pictures.contains_key(sid) {
+                        // O1-6: the sequence first — an unchanged frame is not scaled (or premultiplied) again.
+                        let stale = self.gens.get(sid).is_none() || !self.pictures.contains_key(sid);
+                        if rx.seq().is_some_and(|s| s != *last) || stale {
+                            if let Some((w, h, rgba, seq)) = rx.frame(size) {
                                 *last = seq;
                                 self.pictures.insert(sid.clone(), Picture::canvas(w, h, rgba));
                                 self.gen += 1; self.gens.insert(sid.clone(), self.gen << 2 | 2);
@@ -1467,12 +1471,14 @@ impl Runtime {
                 .map(|a| a.iter().map(|x| x.as_u64().unwrap_or(0).min(255) as u8).collect()).unwrap_or_default();
         }
         let fd = compose::FrameDoc { fixtures: &doc.lfix, surfaces: &doc.surfaces, pictures: &self.pictures, opacity: &doc.opacity, brightness };
-        let raw = compose::frame_cached(&self.gpu, &fd, Some((&mut self.cache, &self.gens))).map_err(|e| e.to_string())?;
-        if viewing { self.publish_view(doc, &raw); }
+        let raw = crate::prof::time("leds", || compose::frame_cached(&self.gpu, &fd, Some((&mut self.cache, &self.gens)))).map_err(|e| e.to_string())?;
+        if viewing { crate::prof::time("view", || self.publish_view(doc, &raw)); }
         if !doc.owns { return Ok(()); }
-        let dests = pack::pack(&raw, &doc.pfix, &doc.controllers, &doc.defaults, &doc.lut);
-        let frame = wire::encode_frame(&dests, doc.port);
-        self.send(&frame);
+        let frame = crate::prof::time("pack", || {
+            let dests = pack::pack(&raw, &doc.pfix, &doc.controllers, &doc.defaults, &doc.lut);
+            wire::encode_frame(&dests, doc.port)
+        });
+        crate::prof::time("send", || self.send(&frame));
         self.frames += 1;
         Ok(())
     }

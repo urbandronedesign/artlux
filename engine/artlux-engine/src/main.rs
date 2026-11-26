@@ -166,7 +166,7 @@ fn main() -> ExitCode {
         // Diagnostic: a picture as the engine decodes it (premultiplied RGBA8, raw) — to compare decoders.
         let (Some(inp), Some(outp)) = (args.get(i + 1), args.get(i + 2)) else { eprintln!("usage: --decode <image> <out.raw>"); return ExitCode::from(2); };
         return match artlux_engine::compose::load_image(std::path::Path::new(inp)) {
-            Ok(p) => { println!("{}x{}", p.w, p.h); std::fs::write(outp, &p.rgba).map(|_| ExitCode::SUCCESS).unwrap_or(ExitCode::from(2)) }
+            Ok(p) => { println!("{}x{}", p.w, p.h); std::fs::write(outp, p.rgba.as_slice()).map(|_| ExitCode::SUCCESS).unwrap_or(ExitCode::from(2)) }
             Err(e) => { eprintln!("{e}"); ExitCode::from(1) }
         };
     }
@@ -395,7 +395,7 @@ fn main() -> ExitCode {
         let conv = artlux_engine::yuv::GpuConvert::new(&gpu);
         // The app's camera frames are BT.601 limited (Chromium's label on this camera); --app-full: full range.
         let app = artlux_engine::yuv::Space { bt709: false, full_range: has("--app-full") };
-        let rgba = artlux_engine::cam::picture(&gpu, &conv, &raw, app).and_then(|p| match &p.tex { Some(t) => artlux_engine::yuv::read_rgba(&gpu, t, p.w, p.h), None => Ok(p.rgba) });
+        let rgba = artlux_engine::cam::picture(&gpu, &conv, &raw, app).and_then(|p| match &p.tex { Some(t) => artlux_engine::yuv::read_rgba(&gpu, t, p.w, p.h), None => Ok(p.rgba.to_vec()) });
         return match rgba.and_then(|px| std::fs::write(outp, px).map_err(|e| e.to_string())) { Ok(()) => ExitCode::SUCCESS, Err(e) => { eprintln!("artlux-engine: {e}"); ExitCode::from(1) } };
     }
     #[cfg(windows)]

@@ -1038,7 +1038,9 @@ pub fn present(gpu: Arc<Gpu>, window: Arc<Window>, surface: wgpu::Surface<'stati
     fn ensure_pic(gpu: &Gpu, cache: &mut HashMap<String, (u64, wgpu::Texture)>, pics: &HashMap<String, (u64, Arc<Picture>)>, sid: &str) -> Option<u64> {
         let (g, p) = pics.get(sid)?;
         if cache.get(sid).map(|t| t.0) != Some(*g) {
-            let t = match &p.tex { Some(t) => crate::projector::content_texture_from(gpu, t, p.crop.unwrap_or([0, 0, p.w, p.h])), None => crate::projector::content_texture(gpu, p.w, p.h, &p.rgba) };
+            // O1-3: into the surface's own texture when the size is the same (it was a new one per video frame).
+            let reuse = cache.remove(sid).map(|c| c.1);
+            let t = match &p.tex { Some(t) => crate::projector::content_texture_from_into(gpu, t, p.crop.unwrap_or([0, 0, p.w, p.h]), reuse), None => crate::projector::content_texture_into(gpu, p.w, p.h, &p.rgba, reuse) };
             cache.insert(sid.to_string(), (*g, t));
         }
         Some(*g)
@@ -1066,6 +1068,7 @@ pub fn present(gpu: Arc<Gpu>, window: Arc<Window>, surface: wgpu::Surface<'stati
         }
 
         // What the render thread and the window published.
+        let frame_at = std::time::Instant::now();
         let (sc, colors, pics, cam, beam_states, hover_axis, mut drag) = {
             let s = shared.lock().unwrap();
             (s.scene.clone(), s.colors.clone(), s.pictures.clone(), s.cam, s.beams.clone(), s.hover_axis, s.drag.clone())
@@ -1581,6 +1584,8 @@ pub fn present(gpu: Arc<Gpu>, window: Arc<Window>, surface: wgpu::Surface<'stati
         gpu.queue.submit([enc.finish()]);
         window.pre_present_notify();
         gpu.queue.present(frame);   // wgpu 30: presenting is the queue's, after the submit
+        crate::prof::add("frame", frame_at.elapsed());
+        crate::prof::report("view3d");
     }
 }
 

@@ -158,7 +158,11 @@ photographed in between). `node scripts/test-engine-hold.cjs [--packaged <ArtLux
 M the emergency (`ARTLUX_ENGINE_TEST_MISSING=1`: no engine — the app drives the wire).
 **Measuring the engine's outputs:** `ARTLUX_ENGINE_STATS=1` makes each presenter log `stats output '<id>': N presents/s,
 M new pictures/s` every 5 s (the engine's side of ProjectorApp's `__artluxProjStats`), and a watchdog log
-`STUCK output '<id>' … in step <k>` for a presenter whose loop has not come round for 2 s.
+`STUCK output '<id>' … in step <k>` for a presenter whose loop has not come round for 2 s. The same switch times each
+thread's STAGES (`engine/artlux-engine/src/prof.rs`): every 5 s, `stats render: tick … · sources … · leds … · leds.wait …
+· pack … · send …`, `stats output '<id>': draw … · present …` and `stats view3d: frame …`, each as calls, p50, p99 and
+max in ms (`…wait` stages are time spent waiting for the GPU). `node scripts/engine-stats.cjs <log>`
+folds a run's reports into one table — the before / after of plans/engine-optimisation-and-deferred-3d.md.
 Proof: `node scripts/test-engine-runtime.cjs` (the engine alone, over stdio) and
 `node scripts/test-native-takeover.cjs [--packaged <ArtLux.exe>]` (the real app: who sends each packet, and
 the bytes) and `node scripts/test-native-projectors.cjs [--windowed] [--ndi [--editor]] [--hwwarp [--no-nvapi]] [--calibrated [--glb] [--distort] [--calib-blend] [--calib-warp [--ndi]] [--calib-occlude] [--calib-own] [--calib-layer] [--calib-refused]] [--hold]` (the real app in

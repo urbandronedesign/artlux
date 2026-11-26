@@ -93,12 +93,19 @@ pub fn sample_texture(gpu: &Gpu, tex: &wgpu::Texture, led_data: &[f32], meta_dat
     let d = &gpu.device;
     let count = (led_data.len() / 4) as u32;
     if count == 0 { return Ok(Vec::new()); }
-    // The app's sampler: linear, clamp-to-edge (WebGPUMapper's constructor).
-    let sampler = d.create_sampler(&wgpu::SamplerDescriptor {
-        label: Some("atlas"),
-        address_mode_u: wgpu::AddressMode::ClampToEdge, address_mode_v: wgpu::AddressMode::ClampToEdge,
-        mag_filter: wgpu::FilterMode::Linear, min_filter: wgpu::FilterMode::Linear,
-        ..Default::default()
+    // O1-1: the pipeline and the app's sampler (linear, clamp-to-edge — WebGPUMapper's constructor), built once per
+    // device; they were compiled on every tick.
+    static SAMPLE: crate::PerDevice<(), (wgpu::ComputePipeline, wgpu::Sampler)> = crate::PerDevice::new();
+    let (pipeline, sampler) = SAMPLE.get(d, (), || {
+        let module = d.create_shader_module(wgpu::ShaderModuleDescriptor { label: Some("sample"), source: wgpu::ShaderSource::Wgsl(SAMPLE_WGSL.into()) });
+        let pipeline = d.create_compute_pipeline(&wgpu::ComputePipelineDescriptor { label: Some("sample"), layout: None, module: &module, entry_point: Some("main"), compilation_options: Default::default(), cache: None });
+        let sampler = d.create_sampler(&wgpu::SamplerDescriptor {
+            label: Some("atlas"),
+            address_mode_u: wgpu::AddressMode::ClampToEdge, address_mode_v: wgpu::AddressMode::ClampToEdge,
+            mag_filter: wgpu::FilterMode::Linear, min_filter: wgpu::FilterMode::Linear,
+            ..Default::default()
+        });
+        (pipeline, sampler)
     });
     let mut p = [0u8; 16];
     p[0..4].copy_from_slice(&brightness.to_le_bytes());
@@ -113,8 +120,6 @@ pub fn sample_texture(gpu: &Gpu, tex: &wgpu::Texture, led_data: &[f32], meta_dat
     let out_len = count as u64 * 4;
     let out = d.create_buffer(&wgpu::BufferDescriptor { label: Some("out"), size: out_len, usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_SRC, mapped_at_creation: false });
     let readback = d.create_buffer(&wgpu::BufferDescriptor { label: Some("out readback"), size: out_len, usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::MAP_READ, mapped_at_creation: false });
-    let module = d.create_shader_module(wgpu::ShaderModuleDescriptor { label: Some("sample"), source: wgpu::ShaderSource::Wgsl(SAMPLE_WGSL.into()) });
-    let pipeline = d.create_compute_pipeline(&wgpu::ComputePipelineDescriptor { label: Some("sample"), layout: None, module: &module, entry_point: Some("main"), compilation_options: Default::default(), cache: None });
     let view = tex.create_view(&Default::default());
     let bind = d.create_bind_group(&wgpu::BindGroupDescriptor {
         label: Some("sample"), layout: &pipeline.get_bind_group_layout(0),
@@ -141,8 +146,10 @@ pub fn sample_texture(gpu: &Gpu, tex: &wgpu::Texture, led_data: &[f32], meta_dat
     let slice = readback.slice(..);
     let (tx, rx) = std::sync::mpsc::channel();
     slice.map_async(wgpu::MapMode::Read, move |r| { let _ = tx.send(r); });
+    let wait_at = std::time::Instant::now();
     d.poll(wgpu::PollType::Wait { submission_index: None, timeout: None }).map_err(|e| EngineError::Gpu(e.to_string()))?;
     rx.recv().map_err(|e| EngineError::Gpu(e.to_string()))?.map_err(|e| EngineError::Gpu(e.to_string()))?;
+    crate::prof::add("leds.wait", wait_at.elapsed());
     let v = slice.get_mapped_range().map_err(|e| EngineError::Gpu(e.to_string()))?.to_vec();
     readback.unmap();
     Ok(v)
