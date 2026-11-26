@@ -84,6 +84,62 @@ impl<K: PartialEq + Clone, T: Clone> PerDevice<K, T> {
     }
 }
 
+// ── O3-1: WAIT FOR YOUR OWN WORK, NOT THE WHOLE GPU ─────────────────────────────────────────────────────────────
+// Every thread shares ONE device and queue (serve.rs). A `poll(Wait { submission_index: None })` waits for EVERYTHING
+// queued — so the render thread's LED read-back, its MP4 slot, Spout, waited for a calibrated 4K venue a presenter had
+// just submitted, and the Art-Net tick moved with projector load (plans/engine-optimisation-and-deferred-3d.md R1;
+// measured after O2: a film on a calibrated venue, the render tick 2.7 → 3.8 ms because the waits met the venue's
+// draw). The queue completes in order, so waiting on a submission's own index waits for it and what came before —
+// never for what other threads submit after.
+
+thread_local! { static LAST_SUBMIT: std::cell::RefCell<Option<wgpu::SubmissionIndex>> = const { std::cell::RefCell::new(None) }; }
+
+/// `queue.submit`, remembering the index as this thread's latest (for `wait_own`).
+pub fn submit<I: IntoIterator<Item = wgpu::CommandBuffer>>(gpu: &Gpu, cmds: I) -> wgpu::SubmissionIndex {
+    let i = gpu.queue.submit(cmds);
+    LAST_SUBMIT.with(|l| *l.borrow_mut() = Some(i.clone()));
+    i
+}
+
+/// Waits until this thread's latest `submit` has completed (and what was queued before it) — not later work.
+pub fn wait_own(gpu: &Gpu) -> Result<(), EngineError> {
+    let idx = LAST_SUBMIT.with(|l| l.borrow().clone());
+    gpu.device.poll(wgpu::PollType::Wait { submission_index: idx, timeout: None }).map(|_| ()).map_err(|e| EngineError::Gpu(e.to_string()))
+}
+
+/// O3-2 / O3-3 — A READ-BACK IN FLIGHT. Started right after the copy that fills `buf` is submitted (`idx`); then either
+/// `try_take` on a later pass (never blocks: the GPU had a frame to finish it) or `wait` (blocks on ITS submission only).
+pub struct PendingRead { buf: wgpu::Buffer, len: usize, idx: wgpu::SubmissionIndex, rx: std::sync::mpsc::Receiver<Result<(), wgpu::BufferAsyncError>> }
+
+impl PendingRead {
+    pub fn start(buf: wgpu::Buffer, len: usize, idx: wgpu::SubmissionIndex) -> Self {
+        let (tx, rx) = std::sync::mpsc::channel();
+        buf.slice(..).map_async(wgpu::MapMode::Read, move |r| { let _ = tx.send(r); });
+        PendingRead { buf, len, idx, rx }
+    }
+    fn bytes(&self, r: Result<(), wgpu::BufferAsyncError>) -> Result<Vec<u8>, EngineError> {
+        r.map_err(|e| EngineError::Gpu(e.to_string()))?;
+        let out = self.buf.slice(..).get_mapped_range().map_err(|e| EngineError::Gpu(e.to_string()))?[..self.len].to_vec();
+        self.buf.unmap();
+        Ok(out)
+    }
+    /// The bytes if the GPU has finished, else None — no wait.
+    pub fn try_take(&self, gpu: &Gpu) -> Option<Result<Vec<u8>, EngineError>> {
+        let _ = gpu.device.poll(wgpu::PollType::Poll);
+        match self.rx.try_recv() {
+            Ok(r) => Some(self.bytes(r)),
+            Err(std::sync::mpsc::TryRecvError::Empty) => None,
+            Err(e) => Some(Err(EngineError::Gpu(e.to_string()))),
+        }
+    }
+    /// The bytes, waiting for this read's own submission (normally long done when the caller is a tick later).
+    pub fn wait(self, gpu: &Gpu) -> Result<Vec<u8>, EngineError> {
+        gpu.device.poll(wgpu::PollType::Wait { submission_index: Some(self.idx.clone()), timeout: None }).map_err(|e| EngineError::Gpu(e.to_string()))?;
+        let r = self.rx.recv().map_err(|e| EngineError::Gpu(e.to_string()))?;
+        self.bytes(r)
+    }
+}
+
 /// Which native API this platform renders with (§6 table, "GPU backend").
 pub fn native_backends() -> wgpu::Backends {
     match std::env::var("ARTLUX_ENGINE_BACKEND").ok().as_deref() {
@@ -247,10 +303,11 @@ impl Gpu {
         slice.map_async(wgpu::MapMode::Read, move |r| {
             let _ = tx.send(r);
         });
-        self.wait()?;
-        rx.recv()
-            .map_err(|e| EngineError::Gpu(e.to_string()))?
-            .map_err(|e| EngineError::Gpu(e.to_string()))?;
+        // O3-1: this thread's own latest submission (the copy, when its caller used `submit`); if the map has not
+        // landed by then the copy was submitted some other way — the whole device, as before, so this never hangs.
+        wait_own(self)?;
+        let r = match rx.try_recv() { Ok(r) => r, Err(_) => { self.wait()?; rx.recv().map_err(|e| EngineError::Gpu(e.to_string()))? } };
+        r.map_err(|e| EngineError::Gpu(e.to_string()))?;
         let out = slice.get_mapped_range().map_err(|e| EngineError::Gpu(e.to_string()))?[..len].to_vec();
         buf.unmap();
         Ok(out)

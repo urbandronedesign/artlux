@@ -236,6 +236,8 @@ pub fn read_frame(path: &str, frame: usize) -> Result<(u32, u32, HapFormat, Vec<
 /// (measured), on the thread that also draws, samples and packs. A worker thread now reads and unpacks the NEXT frame
 /// (the one after the one asked for: a playing surface's next) while the render thread draws this one; a jump (a seek,
 /// a scene) waits for the frame asked for, as before. One request in flight at a time.
+use std::sync::Arc;
+
 pub struct HapIn {
     pub path: String,
     pub w: u32,
@@ -245,19 +247,28 @@ pub struct HapIn {
     pub n: usize,
     tx: std::sync::mpsc::Sender<usize>,
     rx: std::sync::mpsc::Receiver<(usize, Result<(HapFormat, Vec<u8>), String>)>,
-    asked: Option<usize>,
+    /// O3-5: frames asked for and not back yet, and frames back and not used yet (by index — the replies say which).
+    asked: Vec<usize>,
+    ready: Vec<(usize, Result<(HapFormat, Vec<u8>), String>)>,
 }
+
+/// O3-5: two readers per file — a wanted frame is never queued behind a read-ahead nobody wants (it used to WAIT for
+/// that read first: a 60 fps film on a 50 Hz tick, a dropped tick or a scrub cost up to two 4K reads in a row).
+const READERS: usize = 2;
 
 impl HapIn {
     pub fn open(path: &str) -> Result<HapIn, String> {
         let v = mov::parse(path)?;
         if v.frames.is_empty() { return Err("the file has no video frames".into()); }
-        let mut file = std::fs::File::open(path).map_err(|e| e.to_string())?;
-        let frames = v.frames.clone();
+        let frames = Arc::new(v.frames.clone());
         let (tx, ask) = std::sync::mpsc::channel::<usize>();
+        let ask = Arc::new(std::sync::Mutex::new(ask));
         let (give, rx) = std::sync::mpsc::channel();
-        std::thread::Builder::new().name("hap read".into()).spawn(move || {
-            while let Ok(i) = ask.recv() {
+        for k in 0..READERS {
+            let mut file = std::fs::File::open(path).map_err(|e| e.to_string())?;
+            let (frames, ask, give) = (frames.clone(), ask.clone(), give.clone());
+            std::thread::Builder::new().name(format!("hap read {k}")).spawn(move || loop {
+                let Ok(i) = ask.lock().unwrap_or_else(|e| e.into_inner()).recv() else { break };
                 let s = frames[i.min(frames.len() - 1)];
                 let r = (|| {
                     file.seek(SeekFrom::Start(s.offset)).map_err(|e| e.to_string())?;
@@ -266,23 +277,38 @@ impl HapIn {
                     hap::decode_frame(&buf).map(|d| (d.format, d.data))
                 })();
                 if give.send((i, r)).is_err() { break; }
-            }
-        }).map_err(|e| e.to_string())?;
-        Ok(HapIn { path: path.to_string(), w: v.width, h: v.height, fps: v.fps, n: v.frames.len(), tx, rx, asked: None })
+            }).map_err(|e| e.to_string())?;
+        }
+        Ok(HapIn { path: path.to_string(), w: v.width, h: v.height, fps: v.fps, n: v.frames.len(), tx, rx, asked: Vec::new(), ready: Vec::new() })
     }
 
     /// Frame `i` (clamped to the last) as (format, blocks); then the frame after it is read ahead.
-    pub fn frame(&mut self, i: usize) -> Result<(HapFormat, Vec<u8>), String> {
-        let i = i.min(self.n - 1);
+    pub fn frame(&mut self, i: usize) -> Result<(HapFormat, Vec<u8>), String> { let n = self.n; self.frame_ahead(i, (i.min(n - 1) + 1) % n) }
+
+    /// O3-5: frame `i`, then `next` read ahead (the caller's prediction — where its clock will be at the next tick).
+    /// A frame already back is taken at once; one in flight is waited for (others that land meanwhile are kept, not
+    /// waited out); one never asked is asked now. Only the predicted frame is kept beyond this call (memory: one 4K
+    /// frame), and at most READERS reads are in flight.
+    pub fn frame_ahead(&mut self, i: usize, next: usize) -> Result<(HapFormat, Vec<u8>), String> {
+        let (i, next) = (i.min(self.n - 1), next.min(self.n - 1));
         let gone = || "the HAP reader stopped".to_string();
-        if self.asked != Some(i) {
-            if self.asked.take().is_some() { let _unwanted = self.rx.recv().map_err(|_| gone())?; }   // a read-ahead nobody wants
-            self.tx.send(i).map_err(|_| gone())?;
+        while let Ok((k, r)) = self.rx.try_recv() { self.asked.retain(|&a| a != k); self.ready.push((k, r)); }
+        let r = match self.ready.iter().position(|(k, _)| *k == i) {
+            Some(p) => self.ready.swap_remove(p).1,
+            None => {
+                if !self.asked.contains(&i) { self.tx.send(i).map_err(|_| gone())?; self.asked.push(i); }
+                loop {
+                    let (k, r) = self.rx.recv().map_err(|_| gone())?;
+                    self.asked.retain(|&a| a != k);
+                    if k == i { break r; }
+                    self.ready.push((k, r));
+                }
+            }
+        };
+        self.ready.retain(|(k, _)| *k == next);
+        if next != i && !self.asked.contains(&next) && self.ready.is_empty() && self.asked.len() < READERS {
+            if self.tx.send(next).is_ok() { self.asked.push(next); }
         }
-        self.asked = None;
-        let (_, r) = self.rx.recv().map_err(|_| gone())?;
-        let next = (i + 1) % self.n;
-        if self.tx.send(next).is_ok() { self.asked = Some(next); }
         r
     }
 
@@ -303,6 +329,37 @@ pub fn format_from_str(s: &str) -> Option<HapFormat> {
         "bptc" => HapFormat::Bptc,
         _ => return None,
     })
+}
+
+#[cfg(test)]
+mod reader_tests {
+    /// O3-5: the read-ahead reader returns EXACTLY what a direct read of that frame returns, whatever the order it is
+    /// asked in — in order, a jump forward, the wrap at the end, a repeat, a scrub backwards, a wrong prediction — with
+    /// two readers racing (testdata/hap-64x64-24f.mov: ffmpeg testsrc, every frame different, 4 chunks).
+    #[test]
+    fn frame_ahead_is_the_direct_read_in_any_order() {
+        let path = concat!(env!("CARGO_MANIFEST_DIR"), "/../testdata/hap-64x64-24f.mov");
+        let mut h = super::HapIn::open(path).expect("open");
+        assert_eq!(h.n, 24);
+        let direct = |i: usize| super::read_frame(path, i).map(|(_, _, f, d, _)| (f, d)).expect("read");
+        // (asked, predicted next)
+        let asks: &[(usize, usize)] = &[(0, 1), (1, 2), (2, 3), (5, 7), (7, 9), (9, 9), (9, 10), (23, 0), (0, 1), (12, 13), (3, 4), (4, 20), (5, 6), (5, 6), (22, 23)];
+        let want: Vec<_> = (0..h.n).map(direct).collect();
+        for &(i, next) in asks {
+            let got = h.frame_ahead(i, next).expect("frame");
+            assert!(got.0 == want[i].0 && got.1 == want[i].1, "frame {i} differs from the direct read");
+        }
+        // Adversarial: back-to-back asks that mostly DISAGREE with the last prediction, so a read-ahead is still in flight
+        // when the next frame is asked — a reader that took whatever reply came first would hand back the wrong frame.
+        let mut x = 12345u64;
+        for _ in 0..400 {
+            x ^= x << 13; x ^= x >> 7; x ^= x << 17;
+            let (i, next) = ((x % 24) as usize, ((x >> 8) % 24) as usize);
+            let got = h.frame_ahead(i, next).expect("frame");
+            assert!(got.0 == want[i].0 && got.1 == want[i].1, "frame {i} differs from the direct read (asked out of order)");
+        }
+        assert!(h.ready.len() <= 1 && h.asked.len() <= super::READERS, "bounded: {} kept, {} in flight", h.ready.len(), h.asked.len());
+    }
 }
 
 #[cfg(test)]

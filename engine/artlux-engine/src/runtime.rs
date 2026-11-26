@@ -196,6 +196,13 @@ pub struct Runtime {
     /// opacity) and the canonical buffer it produced — an unchanged key re-sends that buffer without touching the GPU.
     led_key: u64,
     led_raw: Vec<u8>,
+    /// O3-2: the LED pass submitted this tick, its read-back in flight (with the document it was drawn for), and the
+    /// document `led_raw` was drawn for.
+    led_pending: Option<(u64, crate::PendingRead)>,
+    led_raw_rev: u64,
+    /// O3-5: the time between ticks (a running average) and when the last one came — the HAP read-ahead's horizon.
+    tick_at: Option<std::time::Instant>,
+    tick_dt: f64,
     /// O2-2: per timeline surface, what its composite was last made from — unchanged, the picture and its generation stay.
     comp_keys: HashMap<String, u64>,
     /// E6a: the bake in flight — one surface drawn at the app's stepped clock and encoded here (encode.rs).
@@ -222,7 +229,7 @@ impl Runtime {
             #[cfg(feature = "ndi")] ndis: HashMap::new(),
             #[cfg(windows)] mp4s: HashMap::new(), haps: HashMap::new(), conv: None,
             #[cfg(windows)] cams: HashMap::new(), resolved: HashMap::new(), pending_cams: HashMap::new(), last_doc: None, redo: false,
-            view: None, view_scene_ver: 0, view_published: HashMap::new(), view_colors_gen: 0, view_last_summary: String::new(), clock_diffs: 0, transport: Default::default(), draw_at: None, draw_stats: (0, 0, 0), draw_max_step: 0, comp_draw: (0, 0), vids: HashMap::new(), frame_agree: (0, 0), clock_ticks: 0, comp_sub: HashMap::new(), next_drawn: 0, handovers: 0, clip_bad: Default::default(), src_paths: HashMap::new(), judge: Default::default(), clock_rev: 0, lanes: Vec::new(), auto_fx: HashMap::new(), auto_diffs: 0, auto_ticks: 0, show: Default::default(), light_diffs: 0, light_ticks: 0, rig: None, light_fix: HashMap::new(), byte_diffs: 0, byte_ticks: 0, light_solved: HashMap::new(), light_beams: HashMap::new(), cropper: None, slice_keys: HashMap::new(), led_key: 0, led_raw: Vec::new(), comp_keys: HashMap::new(),
+            view: None, view_scene_ver: 0, view_published: HashMap::new(), view_colors_gen: 0, view_last_summary: String::new(), clock_diffs: 0, transport: Default::default(), draw_at: None, draw_stats: (0, 0, 0), draw_max_step: 0, comp_draw: (0, 0), vids: HashMap::new(), frame_agree: (0, 0), clock_ticks: 0, comp_sub: HashMap::new(), next_drawn: 0, handovers: 0, clip_bad: Default::default(), src_paths: HashMap::new(), judge: Default::default(), clock_rev: 0, lanes: Vec::new(), auto_fx: HashMap::new(), auto_diffs: 0, auto_ticks: 0, show: Default::default(), light_diffs: 0, light_ticks: 0, rig: None, light_fix: HashMap::new(), byte_diffs: 0, byte_ticks: 0, light_solved: HashMap::new(), light_beams: HashMap::new(), cropper: None, slice_keys: HashMap::new(), led_key: 0, led_raw: Vec::new(), led_pending: None, led_raw_rev: u64::MAX, tick_at: None, tick_dt: 1.0 / 60.0, comp_keys: HashMap::new(),
             #[cfg(windows)] bake: None }
     }
 
@@ -875,6 +882,9 @@ impl Runtime {
             Some((n, wall, rate)) => self.transport.audio.feed(wall, n as f64 / rate),
             None => if self.transport.audio.measured() > 0.0 { self.transport.audio.clear(); },
         }
+        let now = std::time::Instant::now();
+        if let Some(t) = self.tick_at { self.tick_dt = self.tick_dt * 0.9 + (now - t).as_secs_f64().min(0.2) * 0.1; }
+        self.tick_at = Some(now);
         self.transport.tick(v);   // E3: the engine's own clock, before anything needs a document
         self.transport.publish(); // E3p: …and the audio thread holds the sound to it
         self.draw_at = self.draw_clock(v);
@@ -1277,7 +1287,14 @@ impl Runtime {
                     if self.gens.get(sid) != Some(&key) || !self.pictures.contains_key(sid) {
                         if self.clip_bad.contains(sid) { continue; }
                         let (w, hh) = (h.w, h.h);
-                        let pic = h.frame(idx).and_then(|(fmt, blocks)| compose::hap_picture(&self.gpu, fmt, w, hh, &blocks).map_err(|e| e.to_string()));
+                        // O3-5: read ahead where the clock will be at the NEXT tick (a 60 fps film on a 30 Hz tick skips a
+                        // frame each tick — reading i + 1 was always the wrong one), or the next frame, whichever is later.
+                        let next = match v["hapc"][sid].as_f64() {
+                            Some(us) => { let ahead = h.index_at(us / 1e6 + self.tick_dt.max(1.0 / h.fps.max(1.0))); if ahead == idx { (idx + 1) % h.n } else { ahead } }
+                            None => (idx + 1) % h.n,
+                        };
+                        let read = crate::prof::time("hap.read", || h.frame_ahead(idx, next));
+                        let pic = read.and_then(|(fmt, blocks)| crate::prof::time("hap.pic", || compose::hap_picture(&self.gpu, fmt, w, hh, &blocks)).map_err(|e| e.to_string()));
                         match pic {
                             Ok(pic) => { self.pictures.insert(sid.clone(), pic); self.gens.insert(sid.clone(), key); }
                             // E3k: a next clip the engine cannot draw holds its track; it never fails the tick.
@@ -1374,7 +1391,7 @@ impl Runtime {
                             }
                             let conv = self.conv.get_or_insert_with(|| crate::yuv::GpuConvert::new(&self.gpu));
                             if let Some((_, rx)) = self.mp4s.get_mut(sid) {
-                                match rx.picture(&self.gpu, conv, local) {
+                                match crate::prof::time("mp4", || rx.picture(&self.gpu, conv, local)) {
                                     Ok(pic) => { self.pictures.insert(sid.clone(), pic); self.gens.insert(sid.clone(), key); }
                                     Err(e) if ahead => { eprintln!("artlux-engine: clock: {sid} not drawn ahead: {e}"); self.clip_bad.insert(sid.clone()); }
                                     Err(e) => return Err(format!("surface {sid}: {e}")),
@@ -1516,12 +1533,44 @@ impl Runtime {
             for s in &doc.surfaces { (&s.id, self.gens.get(&s.id), self.pictures.contains_key(&s.id), doc.opacity.get(&s.id).map(|o| o.to_bits())).hash(&mut h); }
             h.finish()
         };
-        let fresh = !(key == self.led_key && !self.led_raw.is_empty());
-        let raw = if !fresh { std::mem::take(&mut self.led_raw) } else {
+        // O3-2 — THE LED READ-BACK IS PIPELINED (owner, 2026-11-26: "yes" to one tick of LED latency). This tick's pass
+        // is SUBMITTED and its read-back left in flight; the one submitted LAST tick — normally long finished — is
+        // collected and sent. The render thread no longer waits for the GPU to sample, copy and map the LEDs of the
+        // frame it just drew. Two exceptions wait for the pass just submitted, as before: the very first frame (nothing
+        // older to send) and a NEW DOCUMENT (an older buffer is laid out for the old fixtures — packed against the new
+        // ones it would put every LED at the wrong offset). An unchanged key (O2-1) submits nothing.
+        let mut prev = self.led_pending.take();
+        if key != self.led_key {
             let fd = compose::FrameDoc { fixtures: &doc.lfix, surfaces: &doc.surfaces, pictures: &self.pictures, opacity: &doc.opacity, brightness };
-            let r = crate::prof::time("leds", || compose::frame_cached(&self.gpu, &fd, Some((&mut self.cache, &self.gens)))).map_err(|e| e.to_string());
-            match r { Ok(r) => { self.led_key = key; r } Err(e) => { self.led_key = 0; return Err(e); } }
+            match crate::prof::time("leds", || compose::frame_submit(&self.gpu, &fd, Some((&mut self.cache, &self.gens)))) {
+                Ok(Some(p)) => self.led_pending = Some((doc.rev, p)),
+                Ok(None) => { self.led_raw = Vec::new(); self.led_raw_rev = doc.rev; prev = None; }   // no LEDs (an older pass in flight is stale)
+                Err(e) => { self.led_key = 0; return Err(e.to_string()); }
+            }
+            self.led_key = key;
+        }
+        // ARTLUX_ENGINE_LED_SYNC=1: the pass just submitted is collected in THIS tick (no LED latency) — the fallback,
+        // and the A/B for what the pipelining costs or saves on a given show.
+        static SYNC: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
+        if *SYNC.get_or_init(|| std::env::var("ARTLUX_ENGINE_LED_SYNC").is_ok_and(|v| v == "1")) && prev.is_none() { prev = self.led_pending.take(); }
+        let gpu = self.gpu.clone();
+        let collect = |p: crate::PendingRead| -> Result<Vec<u8>, String> {
+            let at = std::time::Instant::now();
+            let r = p.wait(&gpu).map_err(|e| e.to_string());
+            crate::prof::add("leds.wait", at.elapsed());
+            r
         };
+        let mut fresh = false;
+        if let Some((rev, p)) = prev {
+            match collect(p) { Ok(b) => { self.led_raw = b; self.led_raw_rev = rev; fresh = true; } Err(e) => { self.led_key = 0; return Err(e); } }
+        }
+        if self.led_raw_rev != doc.rev {
+            if let Some((rev, p)) = self.led_pending.take() {
+                match collect(p) { Ok(b) => { self.led_raw = b; self.led_raw_rev = rev; fresh = true; } Err(e) => { self.led_key = 0; return Err(e); } }
+            }
+        }
+        if self.led_raw_rev != doc.rev { return Ok(()); }   // nothing drawn for this document yet (a failed pass): send nothing
+        let raw = std::mem::take(&mut self.led_raw);
         if viewing { crate::prof::time("view", || self.publish_view(doc, &raw, fresh)); }
         if !doc.owns { self.led_raw = raw; return Ok(()); }
         let frame = crate::prof::time("pack", || {

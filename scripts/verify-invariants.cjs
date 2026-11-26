@@ -9321,7 +9321,7 @@ check(
     if (!/fn pull_one\(&mut self\)/.test(m) || /fn pull\(&mut self\)/.test(m)) problems.push('mf.rs collects more than one frame at a time again (a hardware decoder pool runs dry: the engine hangs)');
     if (!/if self\.pull_one\(\)\? \{ return Ok\(true\); \}/.test(m)) problems.push('mf.rs step no longer takes a ready frame before feeding');
     if (!/D3D11_RESOURCE_MISC_SHARED_NTHANDLE/.test(m) || !/OpenSharedHandle\(handle, &mut res\)/.test(m)) problems.push('the NV12 slot is no longer made by D3D11 and opened by D3D12');
-    if (!/hw\.ctx\.End\(&hw\.query\)/.test(m) || !/gpu\.device\.poll\(wgpu::PollType::Wait/.test(m)) problems.push('the slot copy or its read is no longer waited for (two devices share one texture)');
+    if (!/hw\.ctx\.End\(&hw\.query\)/.test(m) || !/gpu\.device\.poll\(wgpu::PollType::Wait|crate::wait_own\(gpu\)/.test(m)) problems.push('the slot copy or its read is no longer waited for (two devices share one texture)');
     if (!/replicate_padding\(&mut data, self\.coded, self\.visible\);/.test(m)) problems.push('a software frame padding is no longer made deterministic');
     if (!/Mp4In::open_with\(&p\.to_string_lossy\(\), \(!has\("--sw-decode"\)\)\.then_some\(&gpu\)\)/.test(raw('engine/artlux-engine/src/main.rs'))) problems.push('--frame-once no longer decodes on the GPU by default');
     if (!/decoding ON THE GPU/.test(raw('scripts/test-mp4-parity.cjs'))) problems.push('test-mp4-parity no longer checks that the hardware pass decoded on the GPU');
@@ -10124,7 +10124,7 @@ check(
     if (!/if \(mode\.y == 1u\) \{[\s\S]{0,400}let p = q\.rgb \* q\.a \+ vec3<u32>\(128u\);\s*let m = \(p \+ \(p >> vec3<u32>\(8u\)\)\) >> vec3<u32>\(8u\);/.test(co)) problems.push('the HAP pass no longer premultiplies with SkMulDiv255Round on the 8-bit texel (the picture would differ from Picture::canvas)');
     if (!/static PIPE: std::sync::Mutex<Vec<\(wgpu::Device, wgpu::RenderPipeline\)>>/.test(co) || (co.match(/create_render_pipeline\(&wgpu::RenderPipelineDescriptor \{\s*label: Some\("hap"\)/g) || []).length !== 1) problems.push('the HAP pipeline is no longer built once per device');
     const hi = raw('engine/artlux-engine/src/hapimport.rs');
-    if (!/pub struct HapIn \{/.test(hi) || !/let next = \(i \+ 1\) % self\.n;\s*if self\.tx\.send\(next\)\.is_ok\(\) \{ self\.asked = Some\(next\); \}/.test(hi)) problems.push('HapIn no longer reads the next frame ahead');
+    if (!/pub struct HapIn \{/.test(hi) || !/if self\.tx\.send\(next\)\.is_ok\(\) \{ self\.asked\.push\(next\); \}/.test(hi)) problems.push('HapIn no longer reads the next frame ahead');
     if (!/\(\(\(\(clock_s \* self\.fps\)\.round\(\) as i64\) % n \+ n\) % n\) as usize/.test(hi)) problems.push('HapIn::index_at is no longer the app rule round(clock × fps) looped (hapPlayer.tick)');
     if (!/fn hap_picture_on_the_gpu_is_the_old_picture\(\)/.test(hi)) problems.push('the GPU-picture parity test is gone');
     const rt = raw('engine/artlux-engine/src/runtime.rs');
@@ -10213,7 +10213,7 @@ check(
     const problems = [];
     const src = (f) => read('engine/artlux-engine/src/' + f);
     const rt = src('runtime.rs'), out = src('outputs.rs'), v3 = src('view3d.rs'), c3 = src('calib3d.rs');
-    if (!/let fresh = !\(key == self\.led_key && !self\.led_raw\.is_empty\(\)\);/.test(rt)) problems.push('runtime.rs: the LED pass has no change key (O2-1) — a still show re-samples every LED every tick');
+    if (!/if key != self\.led_key \{\s*let fd = compose::FrameDoc/.test(rt)) problems.push('runtime.rs: the LED pass has no change key (O2-1) — a still show re-samples every LED every tick');
     if (!/for s in &doc\.surfaces \{ \(&s\.id, self\.gens\.get\(&s\.id\), self\.pictures\.contains_key\(&s\.id\), doc\.opacity\.get\(&s\.id\)/.test(rt)) problems.push('runtime.rs: the LED key no longer covers every surface\'s picture generation, presence and opacity (a change would be MISSED — stale LEDs)');
     if (!/if self\.comp_keys\.get\(sid\) == Some\(&key\) && self\.pictures\.contains_key\(sid\) \{ return; \}/.test(rt)) problems.push('runtime.rs: a timeline composite is redrawn (and its generation bumped) with nothing changed (O2-2)');
     if (!/if fresh \|\| sh\.colors\.is_none\(\)/.test(rt) || !/sh\.beams_gen \+= 1/.test(rt)) problems.push('runtime.rs: the 3D view gets new LED colours / beams every tick again — it could never idle (O2-5)');
@@ -10225,6 +10225,33 @@ check(
     if (!/proj_hold_at\.elapsed\(\) >= crate::hold::PROJ_EVERY && hold_dirty/.test(out)) problems.push('outputs.rs: the hold re-reads an unchanged raster (O2-6)');
     if (!/wait_published\(&mut pub_seen\); continue;/.test(out) || /std::thread::sleep\(Duration::from_millis\(2\)\); continue;/.test(out)) problems.push('outputs.rs: an idle presenter polls on a timer again instead of waiting for a publish (O2-7)');
     if (!/if changed \{ crate::outputs::notify_published\(\); \}/.test(rt)) problems.push('runtime.rs no longer wakes the presenters when it publishes — they would see a new picture only on their 16 ms timeout (O2-7)');
+    return problems.length ? problems.join('; ') : null;
+  },
+);
+
+check(
+  'no thread of the engine waits for the WHOLE GPU on a hot path, the LED read-back is pipelined, NDI / hold reads never block, the HAP reader matches replies by index',
+  'plans/engine-optimisation-and-deferred-3d.md O3 (2026-11-26). Every thread shares one device; a poll(Wait { ' +
+  'submission_index: None }) waits for EVERYTHING queued — so the LED read-back, the MP4 slot and Spout on the render ' +
+  'thread waited for a presenter\'s calibrated venue, and the Art-Net tick moved with projector load (after O2: a film on ' +
+  'a calibrated venue, tick 2.7 -> 3.8 ms; after O3 3.1, the LED wait 0.18 -> 0.01 ms). The LED read-back is collected a ' +
+  'tick later (owner: one tick of latency accepted) EXCEPT on a new document — an older buffer is laid out for the old ' +
+  'fixtures, packed against the new ones it would put every LED at the wrong offset. NDI and the hold start their read ' +
+  'and collect it on a later pass. The HAP reader has two workers and takes the reply for the frame it ASKED (a reader ' +
+  'that took whichever came first handed back the wrong frame — hapimport reader_tests catches it).',
+  () => {
+    const problems = [];
+    const src = (f) => read('engine/artlux-engine/src/' + f);
+    for (const f of ['sample.rs', 'mf.rs', 'spout.rs', 'compose.rs', 'outputs.rs', 'crop.rs', 'runtime.rs', 'yuv.rs'])
+      if (/submission_index: None/.test(src(f))) problems.push(`${f} waits for the whole device again (submission_index: None) — wait on your own submission (crate::wait_own / PendingRead)`);
+    const rt = src('runtime.rs');
+    if (!/compose::frame_submit\(/.test(rt) || !/led_pending: Option<\(u64, crate::PendingRead\)>/.test(rt)) problems.push('runtime.rs: the LED read-back is waited for in the tick again (O3-2)');
+    if (!/if self\.led_raw_rev != doc\.rev \{\s*if let Some\(\(rev, p\)\) = self\.led_pending\.take\(\)/.test(rt)) problems.push('runtime.rs: a NEW DOCUMENT no longer waits for its own LED buffer — an older one would be packed against the new fixtures (every LED at the wrong offset)');
+    const out = src('outputs.rs');
+    if (/crate::crop::Cropper::read\(/.test(out) || !/ndi_pending = Some\(crate::crop::Cropper::start_read\(/.test(out) || !/hold_pending = Some\(crate::crop::Cropper::start_read\(/.test(out)) problems.push('outputs.rs: the NDI capture or the hold reads back synchronously again (O3-3)');
+    const hi = src('hapimport.rs');
+    if (!/const READERS: usize = 2;/.test(hi) || !/if k == i \{ break r; \}/.test(hi) || !/fn frame_ahead_is_the_direct_read_in_any_order/.test(hi)) problems.push('hapimport.rs: the reader no longer has two workers matched by index, or its order test is gone (O3-5)');
+    if (!/h\.frame_ahead\(idx, next\)/.test(rt)) problems.push('runtime.rs: the HAP read-ahead no longer follows the clock (O3-5)');
     return problems.length ? problems.join('; ') : null;
   },
 );

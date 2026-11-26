@@ -299,7 +299,7 @@ impl SpoutIn {
                 crate::compose::hap_texture(gpu, &slot.texture, o.w, o.h, 2, false).0
             }
         };
-        let _ = gpu.device.poll(wgpu::PollType::Wait { submission_index: None, timeout: None });
+        let _ = crate::wait_own(gpu);   // O3-1: the pass's own submission (hap_texture), not the whole device
         Ok(Some(crate::compose::Picture::gpu_frame(o.w, o.h, tex, [0, 0, o.w, o.h])))
     }
 

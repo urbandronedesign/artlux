@@ -423,7 +423,7 @@ impl Mp4In {
         let uv = tex.create_view(&wgpu::TextureViewDescriptor { format: Some(wgpu::TextureFormat::Rg8Unorm), aspect: wgpu::TextureAspect::Plane1, ..Default::default() });
         let out = conv.convert(gpu, &y, &uv, coded);
         // The slot is overwritten by the next frame's copy: the conversion must have read it first.
-        let _ = gpu.device.poll(wgpu::PollType::Wait { submission_index: None, timeout: None });
+        let _ = crate::wait_own(gpu);   // O3-1: the conversion's own submission, not a presenter's venue after it
         crate::prof::add("mp4.wait", wait_at.elapsed());   // the D3D11 copy's spin + the device-wide wait
         Ok(crate::compose::Picture::gpu_frame(coded.0, coded.1, out, visible))
     }

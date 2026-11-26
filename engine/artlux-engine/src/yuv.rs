@@ -203,7 +203,7 @@ impl GpuConvert {
             pass.set_bind_group(0, &bind, &[]);
             pass.dispatch_workgroups(coded.0.div_ceil(8), coded.1.div_ceil(8), 1);
         }
-        gpu.queue.submit([enc.finish()]);
+        crate::submit(gpu, [enc.finish()]);   // O3-1: the MP4 slot waits on it (wait_own)
         out
     }
 

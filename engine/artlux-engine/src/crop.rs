@@ -43,20 +43,49 @@ impl Cropper {
 
     /// E6f: a cut texture's pixels, top row first, tightly packed RGBA (the NDI send's frame).
     pub fn read(gpu: &Gpu, tex: &wgpu::Texture) -> Result<Vec<u8>, String> {
+        Self::start_read(gpu, tex).wait(gpu)
+    }
+
+    /// O3-3: the same read STARTED — the copy submitted, the map in flight — to be collected on a later pass
+    /// (`CropRead::try_take`), so a presenter never waits for the GPU (it waited for the WHOLE device, every 33 ms with
+    /// an NDI send, every 500 ms with the hold).
+    pub fn start_read(gpu: &Gpu, tex: &wgpu::Texture) -> CropRead {
         let (w, h) = (tex.width(), tex.height());
         let row = (w * 4).div_ceil(256) * 256;
         let buf = gpu.device.create_buffer(&wgpu::BufferDescriptor { label: Some("slice read"), size: (row * h) as u64, usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::MAP_READ, mapped_at_creation: false });
         let mut enc = gpu.device.create_command_encoder(&Default::default());
         enc.copy_texture_to_buffer(tex.as_image_copy(), wgpu::TexelCopyBufferInfo { buffer: &buf, layout: wgpu::TexelCopyBufferLayout { offset: 0, bytes_per_row: Some(row), rows_per_image: Some(h) } },
             wgpu::Extent3d { width: w, height: h, depth_or_array_layers: 1 });
-        gpu.queue.submit([enc.finish()]);
-        let raw = gpu.read_buffer(&buf, (row * h) as usize).map_err(|e| e.to_string())?;
+        let idx = crate::submit(gpu, [enc.finish()]);
+        CropRead { pend: crate::PendingRead::start(buf, (row * h) as usize, idx), w, h, row }
+    }
+}
+
+/// A crop read in flight (`Cropper::start_read`).
+pub struct CropRead { pend: crate::PendingRead, pub w: u32, pub h: u32, row: u32 }
+
+impl CropRead {
+    fn pack(&self, raw: Vec<u8>) -> Vec<u8> { Self::pack_raw(raw, self.w, self.h, self.row) }
+    /// The pixels if the GPU has finished, else None (no wait).
+    pub fn try_take(&self, gpu: &Gpu) -> Option<Result<Vec<u8>, String>> {
+        self.pend.try_take(gpu).map(|r| r.map(|raw| self.pack(raw)).map_err(|e| e.to_string()))
+    }
+    /// The pixels, waiting for this read's own submission only.
+    pub fn wait(self, gpu: &Gpu) -> Result<Vec<u8>, String> {
+        let CropRead { pend, w, h, row } = self;
+        let raw = pend.wait(gpu).map_err(|e| e.to_string())?;
+        Ok(CropRead::pack_raw(raw, w, h, row))
+    }
+    fn pack_raw(raw: Vec<u8>, w: u32, h: u32, row: u32) -> Vec<u8> {
         let rb = (w * 4) as usize;
-        if row as usize == rb { return Ok(raw); }
+        if row as usize == rb { return raw; }
         let mut out = Vec::with_capacity(rb * h as usize);
         for y in 0..h as usize { out.extend_from_slice(&raw[y * row as usize..y * row as usize + rb]); }
-        Ok(out)
+        out
     }
+}
+
+impl Cropper {
 
     /// `rect` in TEXELS of `src` (x, y, w, h — fractional allowed; a NEGATIVE h reads it upside down), drawn into a
     /// new dw × dh texture.

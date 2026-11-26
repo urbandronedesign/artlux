@@ -163,6 +163,9 @@ thread's STAGES (`engine/artlux-engine/src/prof.rs`): every 5 s, `stats render: 
 · pack … · send …`, `stats output '<id>': draw … · present …` and `stats view3d: frame …`, each as calls, p50, p99 and
 max in ms (`…wait` stages are time spent waiting for the GPU). `node scripts/engine-stats.cjs <log>`
 folds a run's reports into one table — the before / after of plans/engine-optimisation-and-deferred-3d.md.
+Two A/B switches from its O3: `ARTLUX_ENGINE_LED_SYNC=1` collects the LED read-back in the tick that drew it (by
+default it is collected one tick later — the owner's accepted latency), and `ARTLUX_ENGINE_FRAME_LATENCY=1|2|3` sets
+how many frames a projector swapchain may queue (default 2).
 Proof: `node scripts/test-engine-runtime.cjs` (the engine alone, over stdio) and
 `node scripts/test-native-takeover.cjs [--packaged <ArtLux.exe>]` (the real app: who sends each packet, and
 the bytes) and `node scripts/test-native-projectors.cjs [--windowed] [--ndi [--editor]] [--hwwarp [--no-nvapi]] [--calibrated [--glb] [--distort] [--calib-blend] [--calib-warp [--ndi]] [--calib-occlude] [--calib-own] [--calib-layer] [--calib-refused]] [--hold]` (the real app in

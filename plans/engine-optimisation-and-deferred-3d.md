@@ -462,6 +462,43 @@ when its key is unchanged", "view3d's loop has a change test".
 | O3-5 | HAP read-ahead predicts with the clock, never blocks on a stale read | C4b | — |
 | O3-6 | Outputs at frame latency 1, picture chosen after acquire | O-6 | **D5** |
 
+> ✅ **O3 done 2026-11-26 — O3-1, O3-2, O3-3, O3-5; O3-6 measured; O3-4 NOT done (see below).**
+> - **O3-1** `lib.rs crate::submit` remembers each thread's last submission and `crate::wait_own` waits for it (and what
+>   was queued before) — never for what other threads submit after; the MP4 slot, Spout and `read_buffer` use it
+>   (`read_buffer` falls back to the whole device only if its copy was submitted the old way, so it never hangs).
+> - **O3-2** (owner D1: one tick of LED latency accepted) the LED pass is SUBMITTED (`compose::frame_submit` →
+>   `sample_submit` → `PendingRead`) and collected on the next tick; a NEW DOCUMENT and the first frame wait for their
+>   own pass (an older buffer is laid out for the old fixtures). `ARTLUX_ENGINE_LED_SYNC=1` collects in the same tick.
+> - **O3-3** NDI and the hold start their read (`Cropper::start_read`) and collect it on a later presenter pass.
+> - **O3-5** `HapIn`: two readers per file, replies matched by index (a stale read-ahead is kept, never waited out),
+>   the read-ahead predicted from the clock (`frame_ahead(idx, next)`; the tick interval is a running average) —
+>   permanent `reader_tests` (400 out-of-order asks against direct reads; mutation-checked: a reader taking the first
+>   reply fails 3 / 3). Timers `hap.read` / `hap.pic` / `mp4`: a 4K HAP read is now 0.01 ms on the render thread.
+>
+> **Measured** — the 4K heavy show, O2 and O3 soaked BACK TO BACK (an earlier O2 run at 7.13 ms was a lucky one: the
+> machine runs other software, so only same-session pairs are compared):
+>
+> | 4K heavy show (10 min each) | O2 | O3 |
+> |---|---|---|
+> | render tick p50 / p99 | 7.91 / 13.94 ms | 7.94 / **13.27** ms |
+> | LED wait p50 / p99 / worst p99 | 0.40 / 3.04 / 9.8 ms | **0.13 / 0.79 / 1.3** ms |
+> | LED pass p50 | 2.15 ms | **1.57** ms |
+> | a window's present p99 / worst p99 | 3.17 / 9.0 ms | **1.44 / 2.4** ms |
+> | calibrated 4K film (O2 bench): tick p50 / worst p99 · LED wait | 3.81 / 40 ms · 0.18 | **3.11 / 19 ms · 0.01** |
+>
+> The A/B with `ARTLUX_ENGINE_LED_SYNC=1` (same tick, 8.39 ms) shows the pipelining costs nothing on the tick and is
+> what takes the LED wait and its spikes away. **O3-6 (frame latency 1, owner D5):** `ARTLUX_ENGINE_FRAME_LATENCY=1`
+> — four MP4 windows: every window still 24–25 new pictures / s, present p99 1.3 ms (worst 2.6 against 1.4 at 2); the
+> 4K heavy hour at 1: 40 / 40 universes, every window 23–29 new pictures / s, present p99 1.63 ms. No missed frame
+> seen at either load. Default left at 2 for the owner's decision.
+> **O3-4 not done — the MP4 decoder thread.** `Mp4In` keeps its decoder, a pool of D3D11 frames (each a Media
+> Foundation sample), seeks and the cut hand-overs on the render thread; a worker would own decoder + slot copy +
+> conversion and serve "the picture at t" predicted ahead (O3-5's shape) — the L-sized, fragile item (mf.rs's own
+> notes record the hang a pool exhaustion caused). What it would take off the render thread, measured: `mp4` ≈ 2 ms a
+> film per new frame, nearly all waiting (`mp4` = `mp4.wait`: the D3D11 copy's spin + the conversion). Deferred to
+> the owner's call; the render thread is at ~8 ms of a 33 ms tick on the heaviest bench.
+> **Seen again:** the ~0.6–0.7 s stall at a scene switch (`sources` max in every run) — M1, O4-3.
+
 **Exit:** in the calibrated + LED bench, the Art-Net cadence no longer moves when an output's load moves (today it
 does — R1); the H4K soak's wire rate equal to the film rate in every scene with a calibrated output added; the
 E6h hold and the stall watchdog still pass (`test:engine-hold` phases incl. S).

@@ -90,9 +90,18 @@ pub fn sample(gpu: &Gpu, s: &SampleInput) -> Result<Vec<u8>, EngineError> {
 /// One sampling pass over an atlas already ON THE GPU (the engine's own, E1d: no readback, no upload).
 #[allow(clippy::too_many_arguments)]
 pub fn sample_texture(gpu: &Gpu, tex: &wgpu::Texture, led_data: &[f32], meta_data: &[f32], seg_data: &[f32], rect_data: &[f32], brightness: f32, surfaces: u32) -> Result<Vec<u8>, EngineError> {
+    match sample_submit(gpu, tex, led_data, meta_data, seg_data, rect_data, brightness, surfaces)? {
+        Some(p) => { let at = std::time::Instant::now(); let r = p.wait(gpu); crate::prof::add("leds.wait", at.elapsed()); r }
+        None => Ok(Vec::new()),
+    }
+}
+
+/// O3-2: the sampling pass SUBMITTED, its read-back in flight (None: no LEDs). The runtime collects it a tick later.
+#[allow(clippy::too_many_arguments)]
+pub fn sample_submit(gpu: &Gpu, tex: &wgpu::Texture, led_data: &[f32], meta_data: &[f32], seg_data: &[f32], rect_data: &[f32], brightness: f32, surfaces: u32) -> Result<Option<crate::PendingRead>, EngineError> {
     let d = &gpu.device;
     let count = (led_data.len() / 4) as u32;
-    if count == 0 { return Ok(Vec::new()); }
+    if count == 0 { return Ok(None); }
     // O1-1: the pipeline and the app's sampler (linear, clamp-to-edge — WebGPUMapper's constructor), built once per
     // device; they were compiled on every tick.
     static SAMPLE: crate::PerDevice<(), (wgpu::ComputePipeline, wgpu::Sampler)> = crate::PerDevice::new();
@@ -142,15 +151,6 @@ pub fn sample_texture(gpu: &Gpu, tex: &wgpu::Texture, led_data: &[f32], meta_dat
         pass.dispatch_workgroups(count.div_ceil(64), 1, 1);
     }
     enc.copy_buffer_to_buffer(&out, 0, &readback, 0, out_len);
-    gpu.queue.submit([enc.finish()]);
-    let slice = readback.slice(..);
-    let (tx, rx) = std::sync::mpsc::channel();
-    slice.map_async(wgpu::MapMode::Read, move |r| { let _ = tx.send(r); });
-    let wait_at = std::time::Instant::now();
-    d.poll(wgpu::PollType::Wait { submission_index: None, timeout: None }).map_err(|e| EngineError::Gpu(e.to_string()))?;
-    rx.recv().map_err(|e| EngineError::Gpu(e.to_string()))?.map_err(|e| EngineError::Gpu(e.to_string()))?;
-    crate::prof::add("leds.wait", wait_at.elapsed());
-    let v = slice.get_mapped_range().map_err(|e| EngineError::Gpu(e.to_string()))?.to_vec();
-    readback.unmap();
-    Ok(v)
+    let idx = crate::submit(gpu, [enc.finish()]);
+    Ok(Some(crate::PendingRead::start(readback, out_len as usize, idx)))
 }

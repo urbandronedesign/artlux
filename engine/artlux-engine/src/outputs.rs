@@ -546,6 +546,10 @@ impl Pending {
 /// so a resize, a lost window or the heartbeat is still seen within a frame.
 static PUBLISHED: (std::sync::Mutex<u64>, std::sync::Condvar) = (std::sync::Mutex::new(0), std::sync::Condvar::new());
 const WAKE_AT_LEAST: Duration = Duration::from_millis(16);
+fn frame_latency() -> u32 {
+    static L: std::sync::OnceLock<u32> = std::sync::OnceLock::new();
+    *L.get_or_init(|| std::env::var("ARTLUX_ENGINE_FRAME_LATENCY").ok().and_then(|v| v.parse().ok()).filter(|v| (1..=3).contains(v)).unwrap_or(2))
+}
 pub fn notify_published() {
     let mut g = PUBLISHED.0.lock().unwrap_or_else(|e| e.into_inner());
     *g += 1;
@@ -651,6 +655,10 @@ fn present(gpu: Arc<Gpu>, window: Arc<Window>, surface: wgpu::Surface<'static>, 
     let (mut hold_dirty, mut ndi_dirty) = (true, true);
     #[cfg(feature = "ndi")]
     let mut ndi_last: Option<(u32, u32, Vec<u8>)> = None;
+    // O3-3: the NDI capture and the hold's read IN FLIGHT — started on one pass, collected on a later one.
+    #[cfg(feature = "ndi")]
+    let mut ndi_pending: Option<crate::crop::CropRead> = None;
+    let mut hold_pending: Option<crate::crop::CropRead> = None;
     // E6i — PRESENT ON CHANGE. The window was presented at the display's rate whatever the picture's (measured: 60 a
     // second for a 25 fps film, four windows). A pass that drew nothing new now presents nothing — the compositor keeps
     // the last frame — except every HEARTBEAT, so a window the compositor lost (a display change) is never left empty.
@@ -681,7 +689,10 @@ fn present(gpu: Arc<Gpu>, window: Arc<Window>, surface: wgpu::Surface<'static>, 
             let scope = d.push_error_scope(wgpu::ErrorFilter::Validation);
             surface.configure(d, &wgpu::SurfaceConfiguration {
                 usage: wgpu::TextureUsages::RENDER_ATTACHMENT, format, width: size.width, height: size.height,
-                present_mode: wgpu::PresentMode::Fifo, desired_maximum_frame_latency: 2, alpha_mode: caps.alpha_modes[0],
+                // O3-6: how many frames may queue ahead of the display (2: wgpu's default). 1 is a frame less latency
+                // and a higher risk of a missed vblank under load — measured before it is chosen (owner decision D5):
+                // ARTLUX_ENGINE_FRAME_LATENCY=1 for a run.
+                present_mode: wgpu::PresentMode::Fifo, desired_maximum_frame_latency: frame_latency(), alpha_mode: caps.alpha_modes[0],
                 view_formats: vec![], color_space: wgpu::SurfaceColorSpace::Auto,
             });
             if let Some(e) = pollster::block_on(scope.pop()) {
@@ -813,18 +824,24 @@ fn present(gpu: Arc<Gpu>, window: Arc<Window>, surface: wgpu::Surface<'static>, 
         #[cfg(feature = "ndi")]
         if let (Some((send, max, cut)), Some((rt, _))) = (&ndi_send, &raster) {
             ndi_dirty |= dirty;
-            if ndi_at.elapsed() >= Duration::from_millis(33) {
+            // O3-3: a capture started on an earlier pass, collected when the GPU has it — the presenter never waits.
+            if let Some(r) = ndi_pending.as_ref().and_then(|p| p.try_take(&gpu)) {
+                let (w, h) = { let p = ndi_pending.take().unwrap(); (p.w, p.h) };
+                match r {
+                    Ok(px) => { ndi_last = Some((w, h, px.clone())); send.send(w, h, px) }
+                    Err(e) => eprintln!("artlux-engine: output '{}': NDI capture: {e}", spec.id),
+                }
+            }
+            if ndi_at.elapsed() >= Duration::from_millis(33) && ndi_pending.is_none() {
                 ndi_at = std::time::Instant::now();
                 let (w, h) = ndi_fit(size.width, size.height, *max);
-                // O2-6: a stream keeps its rate, but an unchanged raster is not read back again (a device-wide wait).
+                // O2-6: a stream keeps its rate, but an unchanged raster is not read back again.
                 match &ndi_last {
                     Some((lw, lh, px)) if !ndi_dirty && (*lw, *lh) == (w, h) => send.send(w, h, px.clone()),
                     _ => {
                         let shot = cut.crop(&gpu, rt, [0.0, size.height as f64, size.width as f64, -(size.height as f64)], w, h);
-                        match crate::crop::Cropper::read(&gpu, &shot) {
-                            Ok(px) => { ndi_last = Some((w, h, px.clone())); ndi_dirty = false; send.send(w, h, px) }
-                            Err(e) => eprintln!("artlux-engine: output '{}': NDI capture: {e}", spec.id),
-                        }
+                        ndi_pending = Some(crate::crop::Cropper::start_read(&gpu, &shot));
+                        ndi_dirty = false;
                     }
                 }
             }
@@ -836,11 +853,15 @@ fn present(gpu: Arc<Gpu>, window: Arc<Window>, surface: wgpu::Surface<'static>, 
         if let (Some((hold, cut)), Some((rt, _)), false) = (&mut proj_hold, &raster, booting) {
             // O2-6: recorded when something was drawn since the last record — a still output re-read and re-hashed its
             // whole raster (33 MB at 4K) twice a second for a file that could not have changed.
-            if proj_hold_at.elapsed() >= crate::hold::PROJ_EVERY && hold_dirty {
+            if proj_hold_at.elapsed() >= crate::hold::PROJ_EVERY && hold_dirty && hold_pending.is_none() {
                 hold_dirty = false;
                 proj_hold_at = std::time::Instant::now();
                 let shot = cut.crop(&gpu, rt, [0.0, size.height as f64, size.width as f64, -(size.height as f64)], size.width, size.height);
-                if let Ok(px) = crate::crop::Cropper::read(&gpu, &shot) { hold.record(size.width, size.height, &px); }
+                hold_pending = Some(crate::crop::Cropper::start_read(&gpu, &shot));   // O3-3: collected below, later
+            }
+            if let Some(r) = hold_pending.as_ref().and_then(|p| p.try_take(&gpu)) {
+                let (w, h) = { let p = hold_pending.take().unwrap(); (p.w, p.h) };
+                if let Ok(px) = r { hold.record(w, h, &px); }
             }
         }
         owed |= dirty;

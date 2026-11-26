@@ -133,12 +133,20 @@ pub fn frame(gpu: &Gpu, doc: &FrameDoc) -> Result<Vec<u8>, EngineError> { frame_
 
 /// `frame`, reusing a picture's texture while `gens[surface]` is unchanged (a missing generation always
 /// re-uploads).
-pub fn frame_cached(gpu: &Gpu, doc: &FrameDoc, mut cache: Option<(&mut TexCache, &HashMap<String, u64>)>) -> Result<Vec<u8>, EngineError> {
+pub fn frame_cached(gpu: &Gpu, doc: &FrameDoc, cache: Option<(&mut TexCache, &HashMap<String, u64>)>) -> Result<Vec<u8>, EngineError> {
+    match frame_submit(gpu, doc, cache)? {
+        Some(p) => { let at = std::time::Instant::now(); let r = p.wait(gpu); crate::prof::add("leds.wait", at.elapsed()); r }
+        None => Ok(Vec::new()),
+    }
+}
+
+/// O3-2: `frame_cached` with its read-back left IN FLIGHT (None: no LEDs) — the runtime collects it a tick later.
+pub fn frame_submit(gpu: &Gpu, doc: &FrameDoc, mut cache: Option<(&mut TexCache, &HashMap<String, u64>)>) -> Result<Option<crate::PendingRead>, EngineError> {
     let d = &gpu.device;
     let order = layout::surface_order(doc.fixtures, doc.surfaces);
     let seg_count = layout::count_segments(doc.fixtures);
     let leds = layout::build_led_data(doc.fixtures, doc.surfaces, &order, seg_count);
-    if leds.total == 0 { return Ok(Vec::new()); }
+    if leds.total == 0 { return Ok(None); }
     let max_dim = d.limits().max_texture_dimension_2d as f64;
     let plan = layout::plan_atlas(&order, doc.fixtures, doc.surfaces, max_dim);
     let packed = plan.packed.unwrap_or(layout::Packed { rects: vec![], w: 1.0, h: 1.0 });
@@ -240,7 +248,7 @@ pub fn frame_cached(gpu: &Gpu, doc: &FrameDoc, mut cache: Option<(&mut TexCache,
     }
     gpu.queue.submit([enc.finish()]);
     let rects = layout::atlas_rect_data(&packed.rects, packed.w, packed.h);
-    crate::sample::sample_texture(gpu, &atlas, &leds.led, &leds.meta, &layout::build_seg_params(doc.fixtures), &rects, doc.brightness.clamp(0.0, 1.0), order.len() as u32)
+    crate::sample::sample_submit(gpu, &atlas, &leds.led, &leds.meta, &layout::build_seg_params(doc.fixtures), &rects, doc.brightness.clamp(0.0, 1.0), order.len() as u32)
 }
 
 /// The picture's mip chain, Skia-style: each level halves (floor), a 2-wide box where the source size is
@@ -402,7 +410,7 @@ pub fn hap_texture(gpu: &Gpu, tex: &wgpu::Texture, w: u32, h: u32, mode: u32, pr
         pass.set_bind_group(0, &bind, &[]);
         pass.draw(0..3, 0..1);
     }
-    gpu.queue.submit([enc.finish()]);
+    crate::submit(gpu, [enc.finish()]);   // O3-1: Spout waits on it (wait_own), not on the whole device
     (target, (w * 4).div_ceil(256) * 256)
 }
 
@@ -433,7 +441,7 @@ pub fn texels(gpu: &Gpu, tex: &wgpu::Texture, w: u32, h: u32, mode: u32) -> Resu
     enc.copy_texture_to_buffer(target.as_image_copy(),
         wgpu::TexelCopyBufferInfo { buffer: &readback, layout: wgpu::TexelCopyBufferLayout { offset: 0, bytes_per_row: Some(row), rows_per_image: Some(h) } },
         wgpu::Extent3d { width: w, height: h, depth_or_array_layers: 1 });
-    gpu.queue.submit([enc.finish()]);
+    crate::submit(gpu, [enc.finish()]);
     let raw = gpu.read_buffer(&readback, (row * h) as usize).map_err(|e| e.to_string())?;
     let mut rgba = Vec::with_capacity((w * h * 4) as usize);
     for y in 0..h as usize { rgba.extend_from_slice(&raw[y * row as usize..y * row as usize + w as usize * 4]); }
