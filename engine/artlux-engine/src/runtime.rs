@@ -192,6 +192,12 @@ pub struct Runtime {
     /// E6f: the slice cutter, and what each slice was last cut from (source generation, rectangle, size).
     cropper: Option<crate::crop::Cropper>,
     slice_keys: HashMap<String, String>,
+    /// O2-1: what the LED pass last drew from (document, brightness, every surface's picture generation / presence /
+    /// opacity) and the canonical buffer it produced — an unchanged key re-sends that buffer without touching the GPU.
+    led_key: u64,
+    led_raw: Vec<u8>,
+    /// O2-2: per timeline surface, what its composite was last made from — unchanged, the picture and its generation stay.
+    comp_keys: HashMap<String, u64>,
     /// E6a: the bake in flight — one surface drawn at the app's stepped clock and encoded here (encode.rs).
     #[cfg(windows)]
     bake: Option<Bake>,
@@ -216,7 +222,7 @@ impl Runtime {
             #[cfg(feature = "ndi")] ndis: HashMap::new(),
             #[cfg(windows)] mp4s: HashMap::new(), haps: HashMap::new(), conv: None,
             #[cfg(windows)] cams: HashMap::new(), resolved: HashMap::new(), pending_cams: HashMap::new(), last_doc: None, redo: false,
-            view: None, view_scene_ver: 0, view_published: HashMap::new(), view_colors_gen: 0, view_last_summary: String::new(), clock_diffs: 0, transport: Default::default(), draw_at: None, draw_stats: (0, 0, 0), draw_max_step: 0, comp_draw: (0, 0), vids: HashMap::new(), frame_agree: (0, 0), clock_ticks: 0, comp_sub: HashMap::new(), next_drawn: 0, handovers: 0, clip_bad: Default::default(), src_paths: HashMap::new(), judge: Default::default(), clock_rev: 0, lanes: Vec::new(), auto_fx: HashMap::new(), auto_diffs: 0, auto_ticks: 0, show: Default::default(), light_diffs: 0, light_ticks: 0, rig: None, light_fix: HashMap::new(), byte_diffs: 0, byte_ticks: 0, light_solved: HashMap::new(), light_beams: HashMap::new(), cropper: None, slice_keys: HashMap::new(),
+            view: None, view_scene_ver: 0, view_published: HashMap::new(), view_colors_gen: 0, view_last_summary: String::new(), clock_diffs: 0, transport: Default::default(), draw_at: None, draw_stats: (0, 0, 0), draw_max_step: 0, comp_draw: (0, 0), vids: HashMap::new(), frame_agree: (0, 0), clock_ticks: 0, comp_sub: HashMap::new(), next_drawn: 0, handovers: 0, clip_bad: Default::default(), src_paths: HashMap::new(), judge: Default::default(), clock_rev: 0, lanes: Vec::new(), auto_fx: HashMap::new(), auto_diffs: 0, auto_ticks: 0, show: Default::default(), light_diffs: 0, light_ticks: 0, rig: None, light_fix: HashMap::new(), byte_diffs: 0, byte_ticks: 0, light_solved: HashMap::new(), light_beams: HashMap::new(), cropper: None, slice_keys: HashMap::new(), led_key: 0, led_raw: Vec::new(), comp_keys: HashMap::new(),
             #[cfg(windows)] bake: None }
     }
 
@@ -231,6 +237,23 @@ impl Runtime {
     /// with the clip alpha baked in when it is under 0.999 (timeline.layerDrawable); a stack or the program is
     /// every track drawn over a transparent canvas of the app's size.
     fn composite(&mut self, sid: &str, spec: &CompSpec, v: &Value) {
+        // O2-2 — NOTHING CHANGED, NOTHING DRAWN. A composite is a pure function of its tracks' pictures (by generation),
+        // their alphas, opacities and blends and its size; it used to be re-copied, re-mipped and re-composited every
+        // tick, and its generation bumped — so every output and the 3D view re-copied it too, a paused or still
+        // timeline costing the same as a playing one. Same key: the picture and its generation stay as they are.
+        let key = {
+            use std::hash::{Hash, Hasher};
+            let mut h = std::collections::hash_map::DefaultHasher::new();
+            (spec.w, spec.h, spec.single).hash(&mut h);
+            for (layer, opacity, blend, _, _) in &spec.layers {
+                let alpha = v["comp"][sid][layer].as_f64().unwrap_or(1.0) as f32;
+                let k = self.comp_sub.get(layer).cloned().unwrap_or_else(|| layer.clone());
+                (&k, self.gens.get(&k), self.pictures.contains_key(&k), alpha.to_bits(), opacity.to_bits(), blend).hash(&mut h);
+            }
+            h.finish()
+        };
+        if self.comp_keys.get(sid) == Some(&key) && self.pictures.contains_key(sid) { return; }
+        self.comp_keys.insert(sid.to_string(), key);
         if self.compositor.is_none() { self.compositor = Some(crate::comp::Compositor::new(&self.gpu)); }
         // Each track's picture as a texture: a GPU picture copied from its visible rect, a CPU one uploaded
         // once per generation.
@@ -387,7 +410,7 @@ impl Runtime {
 
     /// E4a: the live state the 3D view draws — every surface's picture (the screens show them) and the
     /// composed LED buffer with each pixel fixture's offset in it (the packer's walk, pack.rs).
-    fn publish_view(&mut self, doc: &Doc, raw: &[u8]) {
+    fn publish_view(&mut self, doc: &Doc, raw: &[u8], fresh: bool) {
         let Some((shared, _)) = &self.view else { return };
         let mut sh = shared.lock().unwrap();
         for (sid, p) in &self.pictures {
@@ -399,16 +422,20 @@ impl Runtime {
         }
         sh.pictures.retain(|sid, _| self.pictures.contains_key(sid));
         self.view_published.retain(|sid, _| self.pictures.contains_key(sid));
-        let mut bases = HashMap::new();
-        let mut off = 0usize;
-        for f in &doc.pfix { bases.insert(f.id.clone(), off); off += f.led_count.max(0) as usize; }
-        if self.view_colors_gen == 0 {
-            let lit = raw.chunks_exact(4).filter(|p| p[0] > 0 || p[1] > 0 || p[2] > 0).count();
-            eprintln!("artlux-engine: 3D view colours: {} LEDs, {} lit (doc owns the wire: {})", raw.len() / 4, lit, doc.owns);
+        // O2-5: the colours only when the LED buffer was REDRAWN (O2-1) — a new generation every tick made the 3D view
+        // redraw every tick; the beams only when they differ.
+        if fresh || sh.colors.is_none() {
+            let mut bases = HashMap::new();
+            let mut off = 0usize;
+            for f in &doc.pfix { bases.insert(f.id.clone(), off); off += f.led_count.max(0) as usize; }
+            if self.view_colors_gen == 0 {
+                let lit = raw.chunks_exact(4).filter(|p| p[0] > 0 || p[1] > 0 || p[2] > 0).count();
+                eprintln!("artlux-engine: 3D view colours: {} LEDs, {} lit (doc owns the wire: {})", raw.len() / 4, lit, doc.owns);
+            }
+            self.view_colors_gen += 1;
+            sh.colors = Some((self.view_colors_gen, Arc::new(raw.to_vec()), Arc::new(bases)));
         }
-        self.view_colors_gen += 1;
-        sh.colors = Some((self.view_colors_gen, Arc::new(raw.to_vec()), Arc::new(bases)));
-        sh.beams = Arc::new(self.light_beams.clone());
+        if *sh.beams != self.light_beams { sh.beams = Arc::new(self.light_beams.clone()); sh.beams_gen += 1; }
     }
 
     /// E1f-3: the windows thread the projector outputs live on (serve.rs starts it).
@@ -510,7 +537,10 @@ impl Runtime {
         if self.projectors.is_empty() { return; }
         let pb = v["proj"]["brightness"].as_f64().unwrap_or(1.0);
         let mut sh = shared.lock().unwrap();
-        sh.booting = v["proj"]["booting"].as_bool().unwrap_or(false);
+        let booting = v["proj"]["booting"].as_bool().unwrap_or(false);
+        // O2-7: did anything a window shows change? Then the presenters are woken (they wait on it, not on a timer).
+        let mut changed = sh.booting != booting;
+        sh.booting = booting;
         // E6f: the surfaces a calibrated output's venue shows — the MAIN-SIZE picture (the app streams the projector
         // window `createImageBitmap(getDrawable(surface))`, never the display-size raster), as `venue:<sid>`.
         for sid in &self.calib_surfaces {
@@ -518,6 +548,7 @@ impl Runtime {
                 if self.venue_published.get(sid) != Some(&g) {
                     sh.pictures.insert(format!("venue:{sid}"), (g, Arc::new(Picture { w: p.w, h: p.h, rgba: p.rgba.clone(), mips: p.mips, crop: p.crop, tex: p.tex.clone() })));
                     self.venue_published.insert(sid.clone(), g);
+                    changed = true;
                 }
             }
         }
@@ -526,9 +557,10 @@ impl Runtime {
                 if self.proj_published.get(sid) != Some(&g) {
                     sh.pictures.insert(sid.clone(), (g, Arc::new(Picture { w: p.w, h: p.h, rgba: p.rgba.clone(), mips: p.mips, crop: p.crop, tex: p.tex.clone() })));
                     self.proj_published.insert(sid.clone(), g);
+                    changed = true;
                 }
             } else if !self.pictures.contains_key(sid) {
-                sh.pictures.remove(sid); self.proj_published.remove(sid);
+                changed |= sh.pictures.remove(sid).is_some(); self.proj_published.remove(sid);
             }
             // The app draws a projector at projectorBrightness x the surface's own opacity (ProjectorApp).
             let b = pb * doc.opacity.get(sid).copied().unwrap_or(1.0) as f64;
@@ -536,8 +568,11 @@ impl Runtime {
                 self.proj_opts.insert(id.clone(), b);
                 self.opts_ver += 1;
                 sh.opts.insert(id.clone(), (self.opts_ver, crate::projector::Opts::from_json(out, b, 4)));
+                changed = true;
             }
         }
+        drop(sh);
+        if changed { crate::outputs::notify_published(); }
     }
 
     pub fn output(&mut self, v: &Value) {
@@ -1470,14 +1505,30 @@ impl Runtime {
             doc.pfix[i].light_channels = v["lights"][&id].as_array()
                 .map(|a| a.iter().map(|x| x.as_u64().unwrap_or(0).min(255) as u8).collect()).unwrap_or_default();
         }
-        let fd = compose::FrameDoc { fixtures: &doc.lfix, surfaces: &doc.surfaces, pictures: &self.pictures, opacity: &doc.opacity, brightness };
-        let raw = crate::prof::time("leds", || compose::frame_cached(&self.gpu, &fd, Some((&mut self.cache, &self.gens)))).map_err(|e| e.to_string())?;
-        if viewing { crate::prof::time("view", || self.publish_view(doc, &raw)); }
-        if !doc.owns { return Ok(()); }
+        // O2-1 — NOTHING CHANGED, NOTHING SAMPLED. The canonical buffer is a pure function of the document (fixtures,
+        // surfaces), the brightness and each surface's picture (by generation) and opacity; a still show re-drew the
+        // atlas, re-sampled and read back every LED every tick. Same key: the last buffer is packed and sent again (the
+        // lights' bytes are packed fresh every tick — they are not in this buffer).
+        let key = {
+            use std::hash::{Hash, Hasher};
+            let mut h = std::collections::hash_map::DefaultHasher::new();
+            (doc.rev, brightness.to_bits()).hash(&mut h);
+            for s in &doc.surfaces { (&s.id, self.gens.get(&s.id), self.pictures.contains_key(&s.id), doc.opacity.get(&s.id).map(|o| o.to_bits())).hash(&mut h); }
+            h.finish()
+        };
+        let fresh = !(key == self.led_key && !self.led_raw.is_empty());
+        let raw = if !fresh { std::mem::take(&mut self.led_raw) } else {
+            let fd = compose::FrameDoc { fixtures: &doc.lfix, surfaces: &doc.surfaces, pictures: &self.pictures, opacity: &doc.opacity, brightness };
+            let r = crate::prof::time("leds", || compose::frame_cached(&self.gpu, &fd, Some((&mut self.cache, &self.gens)))).map_err(|e| e.to_string());
+            match r { Ok(r) => { self.led_key = key; r } Err(e) => { self.led_key = 0; return Err(e); } }
+        };
+        if viewing { crate::prof::time("view", || self.publish_view(doc, &raw, fresh)); }
+        if !doc.owns { self.led_raw = raw; return Ok(()); }
         let frame = crate::prof::time("pack", || {
             let dests = pack::pack(&raw, &doc.pfix, &doc.controllers, &doc.defaults, &doc.lut);
             wire::encode_frame(&dests, doc.port)
         });
+        self.led_raw = raw;   // kept for the next tick's O2-1 key
         crate::prof::time("send", || self.send(&frame));
         self.frames += 1;
         Ok(())

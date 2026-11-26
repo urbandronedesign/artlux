@@ -540,6 +540,23 @@ impl Pending {
 }
 
 /// One output's presenter: redraw the raster when the picture or the settings move, flip it every vblank.
+/// O2-7 — PRESENTERS WAKE ON A PUBLISH, NOT ON A TIMER. An idle presenter slept 2 ms and looked again (500 wake-ups a
+/// second per window, each taking the shared lock the render thread publishes under). The render thread now bumps
+/// this counter when it publishes something a window shows, and an idle presenter waits on it — at most WAKE_AT_LEAST,
+/// so a resize, a lost window or the heartbeat is still seen within a frame.
+static PUBLISHED: (std::sync::Mutex<u64>, std::sync::Condvar) = (std::sync::Mutex::new(0), std::sync::Condvar::new());
+const WAKE_AT_LEAST: Duration = Duration::from_millis(16);
+pub fn notify_published() {
+    let mut g = PUBLISHED.0.lock().unwrap_or_else(|e| e.into_inner());
+    *g += 1;
+    PUBLISHED.1.notify_all();
+}
+fn wait_published(seen: &mut u64) {
+    let g = PUBLISHED.0.lock().unwrap_or_else(|e| e.into_inner());
+    let (g, _) = PUBLISHED.1.wait_timeout_while(g, WAKE_AT_LEAST, |v| *v == *seen).unwrap_or_else(|e| e.into_inner());
+    *seen = *g;
+}
+
 /// DIAGNOSIS (ARTLUX_ENGINE_STATS=1): each presenter's current step and finished loops; a watchdog reports a presenter
 /// whose loop has not come round for 2 s, and the step it is in.
 static PHASES: std::sync::OnceLock<Mutex<Vec<(String, Arc<std::sync::atomic::AtomicU32>, Arc<std::sync::atomic::AtomicU64>)>>> = std::sync::OnceLock::new();
@@ -628,10 +645,16 @@ fn present(gpu: Arc<Gpu>, window: Arc<Window>, surface: wgpu::Surface<'static>, 
     let step = |k: u32| ph.store(k, Ordering::Relaxed);
     let prof_label = format!("output '{}'", spec.id);
     let mut plain_warp: Option<projector::Warp> = None;
+    let mut calib_drawn: Option<u64> = None;   // O2-3: the calibrated venue's change key, as last drawn
+    let mut pub_seen = 0u64;                     // O2-7: the last publish this presenter woke for
+    // O2-6: the hold and the NDI capture read the raster back only when something was DRAWN since they last did.
+    let (mut hold_dirty, mut ndi_dirty) = (true, true);
+    #[cfg(feature = "ndi")]
+    let mut ndi_last: Option<(u32, u32, Vec<u8>)> = None;
     // E6i — PRESENT ON CHANGE. The window was presented at the display's rate whatever the picture's (measured: 60 a
     // second for a 25 fps film, four windows). A pass that drew nothing new now presents nothing — the compositor keeps
     // the last frame — except every HEARTBEAT, so a window the compositor lost (a display change) is never left empty.
-    // A calibrated venue renders every pass (its pictures move) and so presents every pass.
+    // A calibrated venue is drawn, and presented, on a change too (O2-3: its version, its pictures, its settings).
     const HEARTBEAT: Duration = Duration::from_millis(250);
     let mut last_present = std::time::Instant::now() - HEARTBEAT;
     // A change drawn but not yet presented (the swapchain said occluded / timed out) stays owed until it is.
@@ -680,6 +703,7 @@ fn present(gpu: Arc<Gpu>, window: Arc<Window>, surface: wgpu::Surface<'static>, 
             raster = Some((tex, bind));
             configured = Some(size);
             drawn = None;
+            calib_drawn = None;   // O2-3: a new raster is empty — the venue is drawn into it again
             dirty = true;
             // TOPMOST only AFTER the swapchain exists. Created always-on-top AND borderless-fullscreen, the
             // window's surface could not be configured at all ("Invalid surface", measured; without the
@@ -692,12 +716,12 @@ fn present(gpu: Arc<Gpu>, window: Arc<Window>, surface: wgpu::Surface<'static>, 
         let (pic, opts, booting, badge, calib) = {
             let s = shared.lock().unwrap();
             // E6f: in render mode, the venue and the pictures of the surfaces it shows.
-            let calib = s.calib.get(&spec.id).map(|(_, v)| {
+            let calib = s.calib.get(&spec.id).map(|(cv, v)| {
                 let mut pics: HashMap<String, (u64, Arc<Picture>)> = v.surfaces().into_iter()
                     .filter_map(|sid| s.pictures.get(&format!("venue:{sid}")).cloned().map(|p| (sid, p))).collect();
                 // E6i step 4: the venue maps the app decoded (`vmap:…`), under their own keys.
                 for k in v.maps() { if let Some(p) = s.pictures.get(&k) { pics.insert(k, p.clone()); } }
-                (v.clone(), pics)
+                (v.clone(), pics, *cv)
             });
             (s.pictures.get(&spec.surface_id).cloned(), s.opts.get(&spec.id).cloned(), s.booting, spec.badge.as_ref().and_then(|k| s.badges.get(k).cloned()), calib)
         };
@@ -707,10 +731,23 @@ fn present(gpu: Arc<Gpu>, window: Arc<Window>, surface: wgpu::Surface<'static>, 
         let draw_at = std::time::Instant::now();
         // E6f: RENDER-FROM-PROJECTOR — the venue from the solved projector, every frame (its pictures move; the
         // draw is the app's per-frame scene render), into the same bottom-up raster the flip pass presents.
-        if let (Some((view, pics)), false, Some((tex, _))) = (&calib, booting, &raster) {
+        if let (Some((view, pics, cver)), false, Some((tex, _))) = (&calib, booting, &raster) {
+            // O2-3 — A CALIBRATED VENUE IS DRAWN ON A CHANGE, as a plain output is: the venue (its version), every
+            // picture it wears (by generation), the output's settings and size. It was drawn AND presented at the
+            // display's rate whatever moved — a still on a 4K venue at 60 a second, 8× MSAA each time. A file still
+            // loading keeps it drawing every pass until it lands (the load itself is not a key).
+            let r = calib_r.get_or_insert_with(|| crate::calib3d::Renderer::new(&gpu, &spec.id));
+            let ck = {
+                use std::hash::{Hash, Hasher};
+                let mut h = std::collections::hash_map::DefaultHasher::new();
+                (*cver, ov, size.width, size.height).hash(&mut h);
+                pics.iter().map(|(sid, (g, _))| { let mut e = std::collections::hash_map::DefaultHasher::new(); (sid, g).hash(&mut e); e.finish() }).fold(0u64, |a, x| a ^ x).hash(&mut h);
+                h.finish()
+            };
+            if calib_drawn != Some(ck) || r.loading() {
+            calib_drawn = Some(ck);
             dirty = true;
             let target = tex.create_view(&Default::default());
-            let r = calib_r.get_or_insert_with(|| crate::calib3d::Renderer::new(&gpu, &spec.id));
             if view.warped {
                 // PATH B (ProjectorApp): the scene's canvas — undimmed, its element hidden — is the SOURCE of the
                 // ordinary warp stage, uploaded as any canvas (CanvasContent) and drawn with the output's corner pin /
@@ -732,6 +769,7 @@ fn present(gpu: Arc<Gpu>, window: Arc<Window>, surface: wgpu::Surface<'static>, 
                 calib_warp.get_or_insert_with(|| projector::Warp::new(&gpu)).draw(&gpu, ct, &po, &target, wgpu::TextureFormat::Rgba8Unorm, w, h);
             } else {
                 r.draw(&gpu, view, pics, &target, size.width, size.height, o.brightness);
+            }
             }
             drawn = None;
         } else if drawn != Some((gen, ov, booting, size)) {
@@ -774,18 +812,32 @@ fn present(gpu: Arc<Gpu>, window: Arc<Window>, surface: wgpu::Surface<'static>, 
         if dirty { crate::prof::add(if calib.is_some() { "draw.venue" } else { "draw" }, draw_at.elapsed()); }
         #[cfg(feature = "ndi")]
         if let (Some((send, max, cut)), Some((rt, _))) = (&ndi_send, &raster) {
+            ndi_dirty |= dirty;
             if ndi_at.elapsed() >= Duration::from_millis(33) {
                 ndi_at = std::time::Instant::now();
                 let (w, h) = ndi_fit(size.width, size.height, *max);
-                let shot = cut.crop(&gpu, rt, [0.0, size.height as f64, size.width as f64, -(size.height as f64)], w, h);
-                match crate::crop::Cropper::read(&gpu, &shot) { Ok(px) => send.send(w, h, px), Err(e) => eprintln!("artlux-engine: output '{}': NDI capture: {e}", spec.id) }
+                // O2-6: a stream keeps its rate, but an unchanged raster is not read back again (a device-wide wait).
+                match &ndi_last {
+                    Some((lw, lh, px)) if !ndi_dirty && (*lw, *lh) == (w, h) => send.send(w, h, px.clone()),
+                    _ => {
+                        let shot = cut.crop(&gpu, rt, [0.0, size.height as f64, size.width as f64, -(size.height as f64)], w, h);
+                        match crate::crop::Cropper::read(&gpu, &shot) {
+                            Ok(px) => { ndi_last = Some((w, h, px.clone())); ndi_dirty = false; send.send(w, h, px) }
+                            Err(e) => eprintln!("artlux-engine: output '{}': NDI capture: {e}", spec.id),
+                        }
+                    }
+                }
             }
         }
         #[cfg(not(feature = "ndi"))]
-        let _ = &mut ndi_at;
+        let _ = (&mut ndi_at, &mut ndi_dirty);
         step(6);
+        hold_dirty |= dirty;
         if let (Some((hold, cut)), Some((rt, _)), false) = (&mut proj_hold, &raster, booting) {
-            if proj_hold_at.elapsed() >= crate::hold::PROJ_EVERY {
+            // O2-6: recorded when something was drawn since the last record — a still output re-read and re-hashed its
+            // whole raster (33 MB at 4K) twice a second for a file that could not have changed.
+            if proj_hold_at.elapsed() >= crate::hold::PROJ_EVERY && hold_dirty {
+                hold_dirty = false;
                 proj_hold_at = std::time::Instant::now();
                 let shot = cut.crop(&gpu, rt, [0.0, size.height as f64, size.width as f64, -(size.height as f64)], size.width, size.height);
                 if let Ok(px) = crate::crop::Cropper::read(&gpu, &shot) { hold.record(size.width, size.height, &px); }
@@ -793,7 +845,7 @@ fn present(gpu: Arc<Gpu>, window: Arc<Window>, surface: wgpu::Surface<'static>, 
         }
         owed |= dirty;
         crate::prof::report(&prof_label);
-        if !owed && last_present.elapsed() < HEARTBEAT { std::thread::sleep(Duration::from_millis(2)); continue; }
+        if !owed && last_present.elapsed() < HEARTBEAT { wait_published(&mut pub_seen); continue; }
         step(7);
         let present_at = std::time::Instant::now();
         let tex = match surface.get_current_texture() {

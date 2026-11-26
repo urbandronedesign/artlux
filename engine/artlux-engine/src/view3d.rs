@@ -381,6 +381,8 @@ pub struct Shared {
     pub pictures: HashMap<String, (u64, Arc<Picture>)>,
     /// E4b: what every light is doing this tick (lightpack Head::resolve), by fixture id.
     pub beams: Arc<HashMap<String, crate::lightpack::Beam>>,
+    /// O2-5: bumped when `beams` is replaced with something different — the presenter's change key reads it.
+    pub beams_gen: u64,
     pub cam: Cam,
     /// Bumped when the camera is set from OUTSIDE the window (the host's "open here"), not by its mouse.
     pub cam_set: u64,
@@ -1000,6 +1002,7 @@ pub fn present(gpu: Arc<Gpu>, window: Arc<Window>, surface: wgpu::Surface<'stati
     // E4b: how many spots cast shadows this frame (Rendered only, as in the editor).
     #[allow(unused_assignments)]
     let mut shadow_n = 0usize;
+    let mut shadow_draw: bool;   // O2-5: set each frame by the shadow key
     // E4b: Rendered's matte stage floor (RenderedMode: 400 × 400 m, #1c1c1c, 3 mm under the grid), lit by the rig.
     let floor_ub = obj_ub();
     write_obj(&floor_ub, &[400., 0., 0., 0., 0., 0., -400., 0., 0., 1., 0., 0., 0., -0.003, 0., 1.], [0.0113, 0.0113, 0.0113, 1.0], [0.0; 4]);
@@ -1030,6 +1033,13 @@ pub fn present(gpu: Arc<Gpu>, window: Arc<Window>, surface: wgpu::Surface<'stati
     let mut led_bufs: Option<(wgpu::Buffer, wgpu::Buffer, u32)> = None;
     let mut overlay: Option<(wgpu::Buffer, u32)> = None;
     let mut scene_ver = 0u64;
+    // O2-5 — PRESENT ON CHANGE (the projector outputs' E6i rule, now the 3D view's): what the last presented frame was
+    // drawn from, when it was presented, how many file loads have landed; and what the spots' shadow maps were drawn
+    // from — a still view drew 8 shadow maps, the 4× MSAA scene, AO and bloom at the display's rate (60–144 a second).
+    let mut last_key = 0u64;
+    let mut last_present = std::time::Instant::now() - Duration::from_secs(1);
+    let mut loads = 0u64;
+    let mut shadow_key = 0u64;
     let mut colors_gen = u64::MAX;
     let mut scene: Option<Arc<Scene>> = None;
 
@@ -1069,9 +1079,9 @@ pub fn present(gpu: Arc<Gpu>, window: Arc<Window>, surface: wgpu::Surface<'stati
 
         // What the render thread and the window published.
         let frame_at = std::time::Instant::now();
-        let (sc, colors, pics, cam, beam_states, hover_axis, mut drag) = {
+        let (sc, colors, pics, cam, beam_states, hover_axis, mut drag, beams_gen) = {
             let s = shared.lock().unwrap();
-            (s.scene.clone(), s.colors.clone(), s.pictures.clone(), s.cam, s.beams.clone(), s.hover_axis, s.drag.clone())
+            (s.scene.clone(), s.colors.clone(), s.pictures.clone(), s.cam, s.beams.clone(), s.hover_axis, s.drag.clone(), s.beams_gen)
         };
         // A finished drag's offset is drawn until the scene that carries the committed positions arrives.
         if let (Some(dg), Some((ver, _))) = (&drag, &sc) {
@@ -1134,6 +1144,7 @@ pub fn present(gpu: Arc<Gpu>, window: Arc<Window>, surface: wgpu::Surface<'stati
         }
         // Files that finished loading: upload.
         while let Ok((path, r)) = load_rx.try_recv() {
+            loads += 1;
             match r {
                 Ok(cpu) => {
                     // E4b: the triangles, kept for picking (positions only; the vertex stride is 8 floats).
@@ -1155,6 +1166,19 @@ pub fn present(gpu: Arc<Gpu>, window: Arc<Window>, surface: wgpu::Surface<'stati
                 Err(e) => eprintln!("artlux-engine: 3D view: {e}"),
             }
         }
+        // O2-5: everything a frame is drawn from. Unchanged (and the heartbeat not due — a window the compositor lost is
+        // never left empty): nothing is drawn, nothing presented; the compositor keeps showing the last frame.
+        let key = {
+            use std::hash::{Hash, Hasher};
+            let mut h = std::collections::hash_map::DefaultHasher::new();
+            (size.width, size.height, sc.as_ref().map(|s| s.0), colors.as_ref().map(|c| c.0), beams_gen, hover_axis, loads).hash(&mut h);
+            [cam.target[0], cam.target[1], cam.target[2], cam.yaw, cam.pitch, cam.dist, cam.fov].map(f32::to_bits).hash(&mut h);
+            // Pictures, order-free (a cloned map need not iterate in the same order).
+            pics.iter().map(|(sid, (g, _))| { let mut e = std::collections::hash_map::DefaultHasher::new(); (sid, g).hash(&mut e); e.finish() }).fold(0u64, |a, x| a ^ x).hash(&mut h);
+            if let Some(dg) = &drag { format!("{dg:?}").hash(&mut h); }
+            h.finish()
+        };
+        if key == last_key && last_present.elapsed() < Duration::from_millis(250) { std::thread::sleep(Duration::from_millis(4)); continue; }
         // LED colours: the composed buffer, fixture by fixture at the packer's offsets.
         if let (Some((g, raw, bases)), Some((_, cb, n)), Some(sc)) = (&colors, &led_bufs, &scene) {
             if *g != colors_gen {
@@ -1260,6 +1284,17 @@ pub fn present(gpu: Arc<Gpu>, window: Arc<Window>, surface: wgpu::Surface<'stati
                 gpu.queue.write_buffer(&shadow_cams[k].0, 0, &bytes(&cv));
             }
             shadow_n = if look.rendered { n } else { 0 };
+            // O2-5: the shadow maps are a function of the spots' cameras and the casters (the scene, the files loaded, a
+            // drag) — drawn again only when one of those moves, not on every frame (an LED colour does not move them).
+            let sk = {
+                use std::hash::{Hash, Hasher};
+                let mut h = std::collections::hash_map::DefaultHasher::new();
+                (scene_ver, loads, shadow_n).hash(&mut h);
+                for x in &mats[..shadow_n * 16] { x.to_bits().hash(&mut h); }
+                if let Some(dg) = &drag { format!("{dg:?}").hash(&mut h); }
+                h.finish()
+            };
+            if sk == shadow_key { shadow_draw = false; } else { shadow_key = sk; shadow_draw = true; }
             v.extend_from_slice(&[n as f32, look.rendered as u32 as f32, (shadow_n > 0) as u32 as f32, 0.0]);
             v.extend_from_slice(&mats);
             gpu.queue.write_buffer(&light_buf, 0, &bytes(&v));
@@ -1404,7 +1439,7 @@ pub fn present(gpu: Arc<Gpu>, window: Arc<Window>, surface: wgpu::Surface<'stati
 
         // E4b: the spots' shadow maps (Rendered): every caster seen from each spot — the venue meshes that wear their
         // own material (a picture is a MeshBasic screen in the editor: no shadow), and the heads' housings.
-        if shadow_n > 0 {
+        if shadow_n > 0 && shadow_draw {
             if let Some(sc) = &scene {
                 for k in 0..shadow_n {
                     let mut pass = enc.begin_render_pass(&wgpu::RenderPassDescriptor {
@@ -1584,6 +1619,7 @@ pub fn present(gpu: Arc<Gpu>, window: Arc<Window>, surface: wgpu::Surface<'stati
         gpu.queue.submit([enc.finish()]);
         window.pre_present_notify();
         gpu.queue.present(frame);   // wgpu 30: presenting is the queue's, after the submit
+        last_key = key; last_present = std::time::Instant::now();
         crate::prof::add("frame", frame_at.elapsed());
         crate::prof::report("view3d");
     }

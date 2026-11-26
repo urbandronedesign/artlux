@@ -655,6 +655,8 @@ pub struct Renderer {
     dsamp: wgpu::Sampler,
     far_bind: wgpu::BindGroup,
     dmaps: HashMap<[u32; 16], (wgpu::TextureView, wgpu::TextureView, wgpu::BindGroup)>,
+    /// O2-4: what the occlusion maps were last drawn from (the projectors, every caster's mesh and place).
+    dmap_key: u64,
     planes: HashMap<(u64, u64), GpuMesh>,
     glbs: HashMap<String, GlbState>,
     loaded_tx: Sender<Loaded>,
@@ -813,7 +815,7 @@ impl Renderer {
         });
         let dim_buf = d.create_buffer(&wgpu::BufferDescriptor { label: Some("calib3d dim"), size: 16, usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST, mapped_at_creation: false });
         Renderer { pipe_double, pipe_front, lin_double, lin_front, post_samples, post_pipe, post_buf, post_bind: None, cam_buf, cam_bind, obj_layout, obj: None, tex_layout, sampler,
-            depth_pipe, depth_u: None, dmap_layout, dsamp, far_bind, dmaps: HashMap::new(),
+            depth_pipe, depth_u: None, dmap_layout, dsamp, far_bind, dmaps: HashMap::new(), dmap_key: 0,
             layout: own_layout, own_module, own_pipes: HashMap::new(), glb_imgs: HashMap::new(), own_views: HashMap::new(), own_binds: HashMap::new(), own_tex_layout, own_white, planes: HashMap::new(), glbs: HashMap::new(),
             loaded_tx, loaded_rx, texs: HashMap::new(), targets: None, dim_pipe, dim_buf, resolved: None, out_id: out_id.to_string() }
     }
@@ -982,6 +984,9 @@ impl Renderer {
 
     /// Draw the venue into `target` (Rgba8Unorm, w × h, BOTTOM-UP as the projector raster is), cleared to black.
     /// `pictures`: surface id → its picture; `dim`: projectorBrightness × the surface's opacity.
+    /// O2-3: a venue file still on its way in (drawn every pass until it lands, then only on a change).
+    pub fn loading(&self) -> bool { self.glbs.values().any(|g| matches!(g, GlbState::Loading)) }
+
     pub fn draw(&mut self, gpu: &Gpu, view: &View, pictures: &HashMap<String, (u64, Arc<Picture>)>, target: &wgpu::TextureView, w: u32, h: u32, dim: f64) {
         let d = &gpu.device;
         let post = view.post.as_ref();
@@ -1223,7 +1228,26 @@ impl Renderer {
         // With the post pass the scene resolves into the linear picture, and the pass writes `resolve`.
         let scene_resolve = lin.as_ref().unwrap_or(resolve);
         let mut enc = d.create_command_encoder(&Default::default());
-        for (m, k) in keys.iter().enumerate() {
+        // O2-4: the maps are a function of the projectors (their view-projections) and the casters (which mesh, where,
+        // whether it has loaded) — NOT of the pictures. Drawn again only when that moves: a film on a calibrated venue
+        // re-drew every map on every frame, in every presenter. (A map made new this pass always draws: its key is new.)
+        let dk = {
+            use std::hash::{Hash, Hasher};
+            let mut h = std::collections::hash_map::DefaultHasher::new();
+            keys.hash(&mut h);
+            for dr in &draws {
+                let ready = match (&dr.plane, &dr.glb) {
+                    (Some(k), _) => self.planes.contains_key(k),
+                    (_, Some((p, slot))) => matches!(self.glbs.get(p), Some(GlbState::Ready(m)) if m.get(*slot).is_some_and(|x| x.is_some())),
+                    _ => false,
+                };
+                (&dr.plane, &dr.glb, dr.world.map(f32::to_bits), ready).hash(&mut h);
+            }
+            h.finish()
+        };
+        let draw_maps = dk != self.dmap_key;
+        self.dmap_key = dk;
+        for (m, k) in keys.iter().enumerate().filter(|_| draw_maps) {
             let (colour, zbuf, _) = &self.dmaps[k];
             // Cleared WHITE (beyond DEPTH_FAR — nothing in the way), depth 1; no background (beginPass nulls it).
             let mut pass = enc.begin_render_pass(&wgpu::RenderPassDescriptor {

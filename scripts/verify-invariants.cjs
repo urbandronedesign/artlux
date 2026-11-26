@@ -4291,7 +4291,7 @@ check(
     const r = read(rt);
     if (!/let viewing = self\.view_open\(\);/.test(r)) problems.push('runtime.rs no longer asks whether a 3D view is open before deciding to compose');
     if (!/!doc\.owns && self\.projectors\.is_empty\(\) && !viewing/.test(r)) problems.push('runtime.rs composes only for the wire / projectors again — an open 3D view would go dark on a show the engine does not own');
-    if (!/if viewing \{ (crate::prof::time\("view", \|\| )?self\.publish_view\(doc, &raw\)\)?; \}/.test(r)) problems.push('runtime.rs no longer publishes the LED colours to the 3D view');
+    if (!/if viewing \{ (crate::prof::time\("view", \|\| )?self\.publish_view\(doc, &raw(, fresh)?\)\)?; \}/.test(r)) problems.push('runtime.rs no longer publishes the LED colours to the 3D view');
     if (!/matrixWorld/.test(read(ev))) problems.push('engineView.tsx no longer sends the editor\'s world matrices');
     return problems.length ? problems.join('; ') : null;
   },
@@ -9099,7 +9099,7 @@ check(
     const problems = [];
     const o = raw('engine/artlux-engine/src/outputs.rs');
     if (/\.with_window_level\(WindowLevel::AlwaysOnTop\)/.test(o)) problems.push('outputs.rs creates the window always-on-top again (its surface then cannot be configured)');
-    if (!/configured = Some\(size\);[\s\S]{0,600}window\.set_window_level\(WindowLevel::AlwaysOnTop\)/.test(o)) problems.push('outputs.rs no longer raises the window to topmost after configuring it');
+    if (!/configured = Some\(size\);[\s\S]{0,800}window\.set_window_level\(WindowLevel::AlwaysOnTop\)/.test(o)) problems.push('outputs.rs no longer raises the window to topmost after configuring it');
     const pa = read('src/renderer/projector/ProjectorApp.tsx');
     if (!/raf = requestAnimationFrame\(frame\);\s*\n\s*if \(coveredRef\.current\) return;/.test(pa)) problems.push('a covered projector window draws again (twice the GPU work for a hidden picture)');
     const eh = read('src/main/engineHost.ts');
@@ -10195,6 +10195,36 @@ check(
     if (!/plain_warp\.get_or_insert_with\(\|\| projector::Warp::new\(&gpu\)\)\.draw\(/.test(o)) problems.push('outputs.rs: the plain presenter no longer keeps its own Warp');
     if (!/content_texture_from_into\(&gpu, t, p\.crop\.unwrap_or\(\[0, 0, p\.w, p\.h\]\), reuse\)/.test(o)) problems.push('outputs.rs no longer copies a new picture INTO its content texture (a new 44 MB texture per 4K frame again)');
     if (!/self\.ms\.as_ref\(\)\.map\(\|m\| m\.0\) != Some\(\(w, h, format, samples\)\)/.test(src('projector.rs'))) problems.push('projector.rs Warp no longer keeps its MSAA target by size');
+    return problems.length ? problems.join('; ') : null;
+  },
+);
+
+check(
+  'the engine does NOTHING when nothing changed — the LED pass, composites, calibrated venues, occlusion maps, the 3D view, the hold, idle presenters',
+  'plans/engine-optimisation-and-deferred-3d.md O2 (2026-11-26). Each of these redrew on every tick or every vblank ' +
+  'whatever moved: the LED pass re-sampled every LED of a still show, a timeline composite re-copied its tracks and bumped ' +
+  'its generation (so every output re-copied it too), a calibrated venue rendered and presented at 60 a second (8x MSAA), ' +
+  'its occlusion maps were redrawn in every presenter, the 3D view drew 8 shadow maps + MSAA + AO + bloom at the display ' +
+  'rate, the hold re-read its whole raster twice a second and an idle presenter woke 500 times a second. Measured on the ' +
+  'O2 bench: a still show\'s render tick 1.13 -> 0.27 ms and engine CPU 13 -> 5 %, the 3D window 60 -> 4 frames a second, ' +
+  'a still calibrated venue GPU 13 -> 4 % and 60 -> 4 presents a second, a 25 fps film on it 60 -> 25. Nothing fails when a ' +
+  'gate goes — the cost silently comes back. Each gate is a KEY of what the work depends on; this checks each one exists.',
+  () => {
+    const problems = [];
+    const src = (f) => read('engine/artlux-engine/src/' + f);
+    const rt = src('runtime.rs'), out = src('outputs.rs'), v3 = src('view3d.rs'), c3 = src('calib3d.rs');
+    if (!/let fresh = !\(key == self\.led_key && !self\.led_raw\.is_empty\(\)\);/.test(rt)) problems.push('runtime.rs: the LED pass has no change key (O2-1) — a still show re-samples every LED every tick');
+    if (!/for s in &doc\.surfaces \{ \(&s\.id, self\.gens\.get\(&s\.id\), self\.pictures\.contains_key\(&s\.id\), doc\.opacity\.get\(&s\.id\)/.test(rt)) problems.push('runtime.rs: the LED key no longer covers every surface\'s picture generation, presence and opacity (a change would be MISSED — stale LEDs)');
+    if (!/if self\.comp_keys\.get\(sid\) == Some\(&key\) && self\.pictures\.contains_key\(sid\) \{ return; \}/.test(rt)) problems.push('runtime.rs: a timeline composite is redrawn (and its generation bumped) with nothing changed (O2-2)');
+    if (!/if fresh \|\| sh\.colors\.is_none\(\)/.test(rt) || !/sh\.beams_gen \+= 1/.test(rt)) problems.push('runtime.rs: the 3D view gets new LED colours / beams every tick again — it could never idle (O2-5)');
+    if (!/if calib_drawn != Some\(ck\) \|\| r\.loading\(\) \{/.test(out)) problems.push('outputs.rs: a calibrated venue is drawn on every pass again (O2-3)');
+    if (!/calib_drawn = None;   \/\/ O2-3: a new raster is empty/.test(out)) problems.push('outputs.rs: a reconfigured raster no longer forgets the venue key — the venue would stay BLACK after a swapchain is remade at the same size');
+    if (!/let draw_maps = dk != self\.dmap_key;/.test(c3)) problems.push('calib3d.rs: the occlusion maps are redrawn every frame again (O2-4)');
+    if (!/if key == last_key && last_present\.elapsed\(\) < Duration::from_millis\(250\)/.test(v3)) problems.push('view3d.rs: the 3D view draws every vblank again (O2-5)');
+    if (!/if sk == shadow_key \{ shadow_draw = false; \}/.test(v3)) problems.push('view3d.rs: the shadow maps are redrawn on every frame again (O2-5)');
+    if (!/proj_hold_at\.elapsed\(\) >= crate::hold::PROJ_EVERY && hold_dirty/.test(out)) problems.push('outputs.rs: the hold re-reads an unchanged raster (O2-6)');
+    if (!/wait_published\(&mut pub_seen\); continue;/.test(out) || /std::thread::sleep\(Duration::from_millis\(2\)\); continue;/.test(out)) problems.push('outputs.rs: an idle presenter polls on a timer again instead of waiting for a publish (O2-7)');
+    if (!/if changed \{ crate::outputs::notify_published\(\); \}/.test(rt)) problems.push('runtime.rs no longer wakes the presenters when it publishes — they would see a new picture only on their 16 ms timeout (O2-7)');
     return problems.length ? problems.join('; ') : null;
   },
 );

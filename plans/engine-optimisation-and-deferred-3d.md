@@ -416,6 +416,36 @@ and presenter CPU.
 | O2-6 | The projector hold recorded only when `drawn` changed; NDI-send of unchanged content reuses the last frame | O-4 (part) |
 | O2-7 | Presenters wake on a publish signal (AtomicU64 / Condvar) + the heartbeat, not a 2 ms poll | O-5 |
 
+> ✅ **O2 done 2026-11-26 — every item.** Each gate is a KEY of what the work depends on (a hash), kept beside the work:
+> the LED pass (document, brightness, each surface's picture generation / presence / opacity → the last buffer re-sent),
+> a composite (its tracks' generations, alphas, opacities, blends, size → picture and generation kept), a calibrated
+> venue (venue version, its pictures' generations, settings, size; drawn every pass only while a file is loading; a
+> reconfigured raster forgets the key), the occlusion maps (projectors, casters, which have loaded — not the pictures),
+> the 3D view (scene, LED colours, pictures, camera, beams, hover, drag, loads; 250 ms heartbeat; the render thread now
+> publishes colours only when the buffer was redrawn and beams only when they differ), its shadow maps (spots' cameras +
+> casters), the hold and the NDI capture (read back only after a draw), and idle presenters wait on a publish signal
+> (`outputs::notify_published`, at most 16 ms) instead of a 2 ms poll. **New bench:** `E:\zaki\artlux-engine-test\
+> O2-still-calib\bench.cjs` (still show with the 3D window in Rendered; a calibrated venue with a 4K still; with a 4K
+> film). **Measured:**
+>
+> | | before O2 | after O2 |
+> |---|---|---|
+> | still show: engine CPU · render tick p50 · LED passes | 13.2 % · 1.13 ms · 30 / s | **4.8 % · 0.27 ms · 0** |
+> | still show: 3D window frames | 60 / s | **4 / s** (the heartbeat) |
+> | calibrated 4K still: GPU · presents · engine CPU | 13.3 % · 60 / s · 9.0 % | **4.1 % · 3.8 / s · 3.2 %** |
+> | calibrated 4K film: presents · engine CPU | 60 / s · 17.8 % | **25 / s** (the film) · 13.6–15.8 % |
+> | 4K heavy show (10 min): tick p50 / p99 / worst p99 · app CPU | 8.3 / 14.7 / 78 ms · 266 % | **7.1 / 12.5 / 67 ms · 253 %** |
+>
+> **One cost moved, not removed:** with a film on a calibrated venue the render thread's tick p50 went 2.7 → 3.8 ms
+> (three runs), and in the heavy show a window's draw 0.9 → 1.5 ms — the venue (and the outputs) now draw exactly when
+> a new frame is published, so the render thread's DEVICE-WIDE waits (`mp4.wait`, `leds.wait`: `poll(Wait None)`)
+> now include that draw instead of meeting it at random. The work is less (CPU down, every frame there); the coupling
+> is R1, which O3-1 removes. **Proof:** parity identical / unchanged as O1; `test:engine-runtime`, takeover,
+> `test:native-projectors` (plain, `--windowed`, `--ndi`, `--calibrated`, `--hold`, `--calibrated --windowed`,
+> `--calibrated --glb --calib-occlude`), `test:engine-hold`, `test:video-frame-clock`, `test:engine-beams`,
+> `test:engine-shadows` and `--ao` pass. Guarded ("the engine does NOTHING when nothing changed…", one check per gate,
+> mutation-tested); two older guards widened for the new argument / one comment line, their rule unchanged.
+
 **Exit:** the still-show bench near zero GPU and a few % CPU; the calibrated bench's GPU per output drops by the
 fraction of frames whose pictures did not change; the 3D view idles. A guard per gate (each was a regression in
 waiting): "the calibrated presenter does not set `dirty` without a key change", "composite keeps its generation
