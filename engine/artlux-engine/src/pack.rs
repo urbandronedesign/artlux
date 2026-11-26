@@ -140,83 +140,124 @@ fn color_order(o: Option<&str>) -> [usize; 3] {
     }
 }
 
-pub fn pack(raw: &[u8], fixtures: &[Fixture], controllers: &[Controller], def: &Defaults, lut: &[u8; 256]) -> Vec<Destination> {
-    let ctrls: BTreeMap<&str, &Controller> = controllers.iter().map(|c| (c.id.as_str(), c)).collect();
-    // Insertion-ordered destinations (the TS object's key order), each keyed as destKey() spells it.
-    let mut order: Vec<String> = Vec::new();
-    let mut dests: BTreeMap<String, Destination> = BTreeMap::new();
-    let mut offset: i64 = 0;
+/// O4-2 — THE PACKING PLAN, made once per document (plans/engine-optimisation-and-deferred-3d.md). Everything `pack`
+/// decides from the PATCH alone — each fixture's destination (resolveDest / destKey: JavaScript's `||` / `??` over the
+/// output override, the controller and the defaults), the destinations in the order they are first met, and their
+/// `sparse` — none of which moves from one tick to the next. It used to be re-decided for every fixture on every tick
+/// (strings formatted, JSON values cloned), and every DMX byte then paid a map lookup and an insert: measured at
+/// 50 000 RGBW LEDs, 3.3 ms a tick for packing alone.
+pub struct PackPlan {
+    /// Every destination, in first-met order, with no universes yet.
+    dests: Vec<Destination>,
+    /// Per fixture (in order): its destination's index.
+    fix: Vec<usize>,
+}
 
-    for f in fixtures {
-        let ctrl = f.controller_id.as_deref().and_then(|id| ctrls.get(id).copied());
+impl PackPlan {
+    pub fn new(fixtures: &[Fixture], controllers: &[Controller], def: &Defaults) -> PackPlan {
+        let ctrls: BTreeMap<&str, &Controller> = controllers.iter().map(|c| (c.id.as_str(), c)).collect();
+        let mut index: BTreeMap<String, usize> = BTreeMap::new();
+        let mut dests: Vec<Destination> = Vec::new();
+        let mut fix = Vec::with_capacity(fixtures.len());
         let none = Value::Null;
-        let (o_proto, o_ip, o_bc, o_port, o_prio, o_sparse) = match f.output.as_ref() {
-            Some(o) => (&o.protocol, &o.ip, &o.broadcast, &o.port, &o.priority, &o.sparse),
-            None => (&none, &none, &none, &none, &none, &none),
-        };
-        let (c_proto, c_ip, c_bc, c_port, c_prio) = match ctrl {
-            Some(c) => (&c.protocol, &c.ip, &c.broadcast, &c.port, &c.priority),
-            None => (&none, &none, &none, &none, &none),
-        };
-        // resolveDest — `f.output?.x || ctrl?.x || def.x` for protocol and ip, `??` for broadcast.
         let def_proto = Value::String(def.protocol.clone());
         let def_ip = Value::String(def.ip.clone());
         let def_bc = Value::Bool(def.broadcast);
-        let protocol = or(or(o_proto, c_proto), &def_proto).clone();
-        let wire_ip = or(or(o_ip, c_ip), &def_ip).clone();
-        let broadcast = coalesce(coalesce(o_bc, c_bc), &def_bc).clone();
-        let port = or(o_port, c_port).clone();   // `f.output?.port || ctrl?.port` — may stay falsy
-        let enttec = protocol.as_str() == Some("enttec");
-        // For a USB widget the COM path IS the address: `wire.port ?? ''`.
-        let ip = if enttec { if port.nullish() { Value::String(String::new()) } else { port.clone() } } else { wire_ip.clone() };
-        let priority = coalesce(o_prio, c_prio).clone();
-        let sparse = coalesce(o_sparse, &Value::Bool(false)).clone();
-        // destKey
-        let key = if enttec {
-            format!("enttec|{}", if port.nullish() { String::new() } else { port.text() })
-        } else {
-            format!("{}|{}|{}", protocol.text(), wire_ip.text(), if broadcast.truthy() { 1 } else { 0 })
-        };
-        if !dests.contains_key(&key) {
-            order.push(key.clone());
-            dests.insert(key.clone(), Destination { key: key.clone(), ip, protocol, broadcast, sparse: Value::Bool(false), priority, universes: BTreeMap::new(), inserted: Vec::new() });
+        for f in fixtures {
+            let ctrl = f.controller_id.as_deref().and_then(|id| ctrls.get(id).copied());
+            let (o_proto, o_ip, o_bc, o_port, o_prio, o_sparse) = match f.output.as_ref() {
+                Some(o) => (&o.protocol, &o.ip, &o.broadcast, &o.port, &o.priority, &o.sparse),
+                None => (&none, &none, &none, &none, &none, &none),
+            };
+            let (c_proto, c_ip, c_bc, c_port, c_prio) = match ctrl {
+                Some(c) => (&c.protocol, &c.ip, &c.broadcast, &c.port, &c.priority),
+                None => (&none, &none, &none, &none, &none),
+            };
+            // resolveDest — `f.output?.x || ctrl?.x || def.x` for protocol and ip, `??` for broadcast.
+            let protocol = or(or(o_proto, c_proto), &def_proto).clone();
+            let wire_ip = or(or(o_ip, c_ip), &def_ip).clone();
+            let broadcast = coalesce(coalesce(o_bc, c_bc), &def_bc).clone();
+            let port = or(o_port, c_port).clone();   // `f.output?.port || ctrl?.port` — may stay falsy
+            let enttec = protocol.as_str() == Some("enttec");
+            // For a USB widget the COM path IS the address: `wire.port ?? ''`.
+            let ip = if enttec { if port.nullish() { Value::String(String::new()) } else { port.clone() } } else { wire_ip.clone() };
+            let priority = coalesce(o_prio, c_prio).clone();
+            let sparse = coalesce(o_sparse, &Value::Bool(false)).clone();
+            // destKey
+            let key = if enttec {
+                format!("enttec|{}", if port.nullish() { String::new() } else { port.text() })
+            } else {
+                format!("{}|{}|{}", protocol.text(), wire_ip.text(), if broadcast.truthy() { 1 } else { 0 })
+            };
+            let k = *index.entry(key.clone()).or_insert_with(|| {
+                dests.push(Destination { key, ip, protocol, broadcast, sparse: Value::Bool(false), priority, universes: BTreeMap::new(), inserted: Vec::new() });
+                dests.len() - 1
+            });
+            // `dest.sparse || sparse` — JavaScript keeps the VALUE, not a bool.
+            if !dests[k].sparse.truthy() { dests[k].sparse = sparse; }
+            fix.push(k);
         }
-        let dest = dests.get_mut(&key).expect("inserted above");
-        // `dest.sparse || sparse` — JavaScript keeps the VALUE, not a bool.
-        if !dest.sparse.truthy() { dest.sparse = sparse; }
+        PackPlan { dests, fix }
+    }
 
-        let mut universe = f.universe;
-        let mut channel = f.start_address - 1;
-        // writeCh: spill into the next universe past channel 512; a universe exists only once written.
-        let mut write = |val: u8, dest: &mut Destination| {
-            if channel >= 512 { universe += 1; channel = 0; }
-            if !dest.universes.contains_key(&universe) { dest.inserted.push(universe); }
-            let arr = dest.universes.entry(universe).or_insert_with(|| vec![0u8; 512]);
-            if (0..512).contains(&channel) { arr[channel as usize] = val; }
-            channel += 1;
-        };
+    /// The universes for this frame: `pack`'s bytes, with the patch decided once. `fixtures` must be the ones the
+    /// plan was made from (a light's `light_channels` are read now — they change by the tick).
+    pub fn pack(&self, raw: &[u8], fixtures: &[Fixture], lut: &[u8; 256]) -> Vec<Destination> {
+        let mut dests: Vec<Destination> = self.dests.clone();
+        let mut offset: i64 = 0;
+        let mut vals: Vec<u8> = Vec::new();
+        for (f, &k) in fixtures.iter().zip(&self.fix) {
+            let dest = &mut dests[k];
+            vals.clear();
+            if f.light {
+                vals.extend_from_slice(&f.light_channels);
+                write_run(dest, f.universe, f.start_address - 1, &vals);
+                offset += f.led_count;
+                continue;
+            }
+            let o = color_order(f.color_order.as_str());
+            // `(f.channelsPerPixel ?? 4) === 4` — strictly the NUMBER 4 writes the white channel.
+            let four = f.channels_per_pixel.nullish() || f.channels_per_pixel.as_f64() == Some(4.0);
+            for _ in 0..f.led_count.max(0) {
+                let idx = offset * 4;
+                if idx + 3 >= raw.len() as i64 { break; }
+                let idx = idx as usize;
+                let px = [raw[idx], raw[idx + 1], raw[idx + 2]];
+                vals.push(lut[px[o[0]] as usize]);
+                vals.push(lut[px[o[1]] as usize]);
+                vals.push(lut[px[o[2]] as usize]);
+                if four { vals.push(lut[raw[idx + 3] as usize]); }
+                offset += 1;
+            }
+            write_run(dest, f.universe, f.start_address - 1, &vals);
+        }
+        dests
+    }
+}
 
-        if f.light {
-            for &v in &f.light_channels { write(v, dest); }
-            offset += f.led_count;
+/// packUniverses' writeCh over a whole fixture's values: past channel 512 it spills into the next universe, a universe
+/// exists (and is `inserted`) the moment a value is written to it — even at a channel that is not stored — and a
+/// channel outside 0..512 is not stored. The map is touched once per universe the run enters, not once per byte.
+fn write_run(dest: &mut Destination, mut universe: i64, mut channel: i64, vals: &[u8]) {
+    let mut i = 0;
+    while i < vals.len() {
+        if channel >= 512 { universe += 1; channel = 0; }
+        if !dest.universes.contains_key(&universe) { dest.inserted.push(universe); }
+        let arr = dest.universes.entry(universe).or_insert_with(|| vec![0u8; 512]);
+        if channel < 0 {
+            // (start address 0 or below: the TS writes nothing until the channel reaches 0)
+            i += 1; channel += 1;
             continue;
         }
-        let o = color_order(f.color_order.as_str());
-        // `(f.channelsPerPixel ?? 4) === 4` — strictly the NUMBER 4 writes the white channel.
-        let four = f.channels_per_pixel.nullish() || f.channels_per_pixel.as_f64() == Some(4.0);
-        for _ in 0..f.led_count.max(0) {
-            let idx = offset * 4;
-            if idx + 3 >= raw.len() as i64 { break; }
-            let idx = idx as usize;
-            let px = [raw[idx], raw[idx + 1], raw[idx + 2]];
-            write(lut[px[o[0]] as usize], dest);
-            write(lut[px[o[1]] as usize], dest);
-            write(lut[px[o[2]] as usize], dest);
-            if four { write(lut[raw[idx + 3] as usize], dest); }
-            offset += 1;
-        }
+        let n = ((512 - channel) as usize).min(vals.len() - i);
+        arr[channel as usize..channel as usize + n].copy_from_slice(&vals[i..i + n]);
+        i += n; channel += n as i64;
     }
-    order.into_iter().map(|k| dests.remove(&k).expect("ordered key")).collect()
+}
+
+/// The universes for one frame — `PackPlan::new` then `PackPlan::pack` (the runtime keeps the plan per document).
+pub fn pack(raw: &[u8], fixtures: &[Fixture], controllers: &[Controller], def: &Defaults, lut: &[u8; 256]) -> Vec<Destination> {
+    PackPlan::new(fixtures, controllers, def).pack(raw, fixtures, lut)
 }
 
 // ── The parity harness's entry: a batch of cases in, their destinations (and LUTs) out ──────────────

@@ -10245,13 +10245,36 @@ check(
     for (const f of ['sample.rs', 'mf.rs', 'spout.rs', 'compose.rs', 'outputs.rs', 'crop.rs', 'runtime.rs', 'yuv.rs'])
       if (/submission_index: None/.test(src(f))) problems.push(`${f} waits for the whole device again (submission_index: None) — wait on your own submission (crate::wait_own / PendingRead)`);
     const rt = src('runtime.rs');
-    if (!/compose::frame_submit\(/.test(rt) || !/led_pending: Option<\(u64, crate::PendingRead\)>/.test(rt)) problems.push('runtime.rs: the LED read-back is waited for in the tick again (O3-2)');
+    if (!/compose::frame_submit(_with)?\(/.test(rt) || !/led_pending: Option<\(u64, crate::PendingRead\)>/.test(rt)) problems.push('runtime.rs: the LED read-back is waited for in the tick again (O3-2)');
     if (!/if self\.led_raw_rev != doc\.rev \{\s*if let Some\(\(rev, p\)\) = self\.led_pending\.take\(\)/.test(rt)) problems.push('runtime.rs: a NEW DOCUMENT no longer waits for its own LED buffer — an older one would be packed against the new fixtures (every LED at the wrong offset)');
     const out = src('outputs.rs');
     if (/crate::crop::Cropper::read\(/.test(out) || !/ndi_pending = Some\(crate::crop::Cropper::start_read\(/.test(out) || !/hold_pending = Some\(crate::crop::Cropper::start_read\(/.test(out)) problems.push('outputs.rs: the NDI capture or the hold reads back synchronously again (O3-3)');
     const hi = src('hapimport.rs');
     if (!/const READERS: usize = 2;/.test(hi) || !/if k == i \{ break r; \}/.test(hi) || !/fn frame_ahead_is_the_direct_read_in_any_order/.test(hi)) problems.push('hapimport.rs: the reader no longer has two workers matched by index, or its order test is gone (O3-5)');
     if (!/h\.frame_ahead\(idx, next\)/.test(rt)) problems.push('runtime.rs: the HAP read-ahead no longer follows the clock (O3-5)');
+    return problems.length ? problems.join('; ') : null;
+  },
+);
+
+check(
+  'the engine does the per-show work ONCE per document — the packing plan, the LED plan, the HAP verdict — and the 3D view gets every head',
+  'plans/engine-optimisation-and-deferred-3d.md O4 (2026-11-26). Packing re-decided every fixture\'s destination and paid ' +
+  'a map lookup per DMX byte on every tick (50 000 RGBW LEDs: 3.3 ms a tick, a still show included); the LED pass rebuilt ' +
+  'its layout, atlas and buffers and re-uploaded 32 B per LED per pass; every document re-read and decoded frame 0 of ' +
+  'every HAP file (a scene fade sends ~14 documents a second: 16-20 ms each on the 4K heavy show, 0.74 after). Measured ' +
+  'at 50 000 LEDs: a still show\'s tick 3.36 -> 0.32 ms, a film\'s 7.32 -> 2.99 ms, the engine 35 -> 22 % CPU. pack() is ' +
+  'PackPlan::new + PackPlan::pack, so test:pack-parity holds the fast path to the TypeScript packer byte for byte.',
+  () => {
+    const problems = [];
+    const src = (f) => read('engine/artlux-engine/src/' + f);
+    const pk = src('pack.rs'), rt = src('runtime.rs'), cp = src('compose.rs'), sm = src('sample.rs'), sv = src('serve.rs');
+    if (!/pub struct PackPlan \{/.test(pk) || !/pub fn pack\([^)]*\) -> Vec<Destination> \{\s*PackPlan::new\(fixtures, controllers, def\)\.pack\(raw, fixtures, lut\)\s*\}/.test(pk)) problems.push('pack.rs: pack() is no longer PackPlan::new + PackPlan::pack — the parity test would stop covering the path the runtime takes');
+    if (!/doc\.pack_plan\.pack\(&raw, &doc\.pfix, &doc\.lut\)/.test(rt) || /pack::pack\(&raw/.test(rt)) problems.push('runtime.rs re-decides the routing every tick again (O4-2)');
+    if (!/if self\.led_plan\.as_ref\(\)\.map\(\|p\| p\.0\) != Some\(doc\.rev\)/.test(rt) || !/compose::frame_submit_with\(/.test(rt)) problems.push('runtime.rs rebuilds the LED plan every pass again (O4-1)');
+    if (!/pub struct LedPlan \{/.test(cp) || !/pub struct SampleSet \{/.test(sm)) problems.push('the LED plan or the sampling set is gone (O4-1)');
+    if (/read_frame\(p, 0\)\.map_err/.test(rt) || !/fn hap_check\(&mut self, p: &str\)/.test(rt)) problems.push('runtime.rs re-reads frame 0 of every HAP file on every document again (O4-3)');
+    if (/self\.last_doc = Some\(d\.clone\(\)\)/.test(rt) || !/rt\.last_doc = Some\(m\["doc"\]\.take\(\)\);/.test(sv)) problems.push('the document is deep-copied to keep it again (O4-3)');
+    if (!/for \(id, f\) in &self\.light_fix \{\s*if self\.light_beams\.contains_key\(id\) \{ continue; \}/.test(rt)) problems.push('runtime.rs no longer resolves EVERY head for the 3D view — a head the app did not send stays dark (O4-6)');
     return problems.length ? problems.join('; ') : null;
   },
 );

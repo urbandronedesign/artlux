@@ -125,19 +125,21 @@ pub fn run(policy: AdapterPolicy) -> ExitCode {
             let mut dropped: u64 = 0;
             while let Ok(first) = rx.recv() {
                 let mut tick: Option<serde_json::Value> = None;
-                let handle = |rt: &mut crate::runtime::Runtime, m: serde_json::Value, tick: &mut Option<serde_json::Value>, dropped: &mut u64| match m["type"].as_str() {
+                let handle = |rt: &mut crate::runtime::Runtime, mut m: serde_json::Value, tick: &mut Option<serde_json::Value>, dropped: &mut u64| match m["type"].as_str() {
                     Some("tick") => { if tick.is_some() { *dropped += 1; } *tick = Some(m) }
                     Some("doc") => {
-                        let (rev, owns, why) = rt.doc(&m["doc"]);
+                        let (rev, owns, why) = crate::prof::time("doc", || rt.doc(&m["doc"]));
                         let line = format!(r#"{{"type":"owns","rev":{rev},"owns":{owns},"why":{}}}"#, json_str(&why));
                         let mut o = std::io::stdout().lock();
                         let _ = writeln!(o, "{line}").and_then(|_| o.flush());
                         drop(o);
                         proj_rev.store(rev, std::sync::atomic::Ordering::SeqCst);
-                        if let Err(w) = rt.projectors(&m["doc"]) {
+                        if let Err(w) = crate::prof::time("doc.proj", || rt.projectors(&m["doc"])) {
                             let mut o = std::io::stdout().lock();
                             let _ = writeln!(o, r#"{{"type":"projOwns","rev":{rev},"owns":false,"why":{},"open":0}}"#, json_str(&w)).and_then(|_| o.flush());
                         }
+                        // O4-3: the document is KEPT for a re-answer (item 2d step 5), moved, not deep-copied.
+                        rt.last_doc = Some(m["doc"].take());
                         *tick = None;   // a tick for the old document is not this document's frame
                     }
                     Some("output") => rt.output(&m),

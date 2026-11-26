@@ -99,13 +99,75 @@ pub fn sample_texture(gpu: &Gpu, tex: &wgpu::Texture, led_data: &[f32], meta_dat
 /// O3-2: the sampling pass SUBMITTED, its read-back in flight (None: no LEDs). The runtime collects it a tick later.
 #[allow(clippy::too_many_arguments)]
 pub fn sample_submit(gpu: &Gpu, tex: &wgpu::Texture, led_data: &[f32], meta_data: &[f32], seg_data: &[f32], rect_data: &[f32], brightness: f32, surfaces: u32) -> Result<Option<crate::PendingRead>, EngineError> {
+    Ok(SampleSet::new(gpu, tex, led_data, meta_data, seg_data, rect_data, surfaces).map(|s| s.submit(gpu, brightness)))
+}
+
+/// O4-1 — THE SAMPLING PASS'S BUFFERS, made once per document and kept: the LEDs (16 B each), their meta, the segment
+/// parameters, the atlas rects, the output and the bind group over the atlas. They were made — and the LED data
+/// re-uploaded, 3.2 MB at 100 k LEDs — on every LED pass. Per pass now: the brightness written, one dispatch, one copy
+/// into a new read-back (it is in flight a tick: O3-2). The output buffer is reused safely: the one queue runs a pass's
+/// copy before the next pass overwrites it.
+pub struct SampleSet { count: u32, surfaces: u32, params: wgpu::Buffer, out: wgpu::Buffer, bind: wgpu::BindGroup, _keep: [wgpu::Buffer; 4] }
+
+impl SampleSet {
+    #[allow(clippy::too_many_arguments)]
+    pub fn new(gpu: &Gpu, tex: &wgpu::Texture, led_data: &[f32], meta_data: &[f32], seg_data: &[f32], rect_data: &[f32], surfaces: u32) -> Option<SampleSet> {
+        let d = &gpu.device;
+        let count = (led_data.len() / 4) as u32;
+        if count == 0 { return None; }
+        let (pipeline, sampler) = sample_pipeline(gpu);
+        let params = d.create_buffer(&wgpu::BufferDescriptor { label: Some("params"), size: 16, usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST, mapped_at_creation: false });
+        let led = storage(gpu, "led", led_data);
+        let seg = storage(gpu, "segParams", seg_data);
+        let meta = storage(gpu, "meta", meta_data);
+        let rects = storage(gpu, "rects", rect_data);
+        let out = d.create_buffer(&wgpu::BufferDescriptor { label: Some("out"), size: count as u64 * 4, usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_SRC, mapped_at_creation: false });
+        let view = tex.create_view(&Default::default());
+        let bind = d.create_bind_group(&wgpu::BindGroupDescriptor {
+            label: Some("sample"), layout: &pipeline.get_bind_group_layout(0),
+            entries: &[
+                wgpu::BindGroupEntry { binding: 0, resource: wgpu::BindingResource::Sampler(&sampler) },
+                wgpu::BindGroupEntry { binding: 1, resource: wgpu::BindingResource::TextureView(&view) },
+                wgpu::BindGroupEntry { binding: 2, resource: led.as_entire_binding() },
+                wgpu::BindGroupEntry { binding: 3, resource: out.as_entire_binding() },
+                wgpu::BindGroupEntry { binding: 4, resource: params.as_entire_binding() },
+                wgpu::BindGroupEntry { binding: 5, resource: seg.as_entire_binding() },
+                wgpu::BindGroupEntry { binding: 6, resource: meta.as_entire_binding() },
+                wgpu::BindGroupEntry { binding: 7, resource: rects.as_entire_binding() },
+            ],
+        });
+        Some(SampleSet { count, surfaces, params, out, bind, _keep: [led, seg, meta, rects] })
+    }
+
+    /// One pass at `brightness`, its read-back in flight.
+    pub fn submit(&self, gpu: &Gpu, brightness: f32) -> crate::PendingRead {
+        let d = &gpu.device;
+        let (pipeline, _) = sample_pipeline(gpu);
+        let mut p = [0u8; 16];
+        p[0..4].copy_from_slice(&brightness.to_le_bytes());
+        p[4..8].copy_from_slice(&self.count.to_le_bytes());
+        p[8..12].copy_from_slice(&self.surfaces.to_le_bytes());
+        gpu.queue.write_buffer(&self.params, 0, &p);
+        let out_len = self.count as u64 * 4;
+        let readback = d.create_buffer(&wgpu::BufferDescriptor { label: Some("out readback"), size: out_len, usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::MAP_READ, mapped_at_creation: false });
+        let mut enc = d.create_command_encoder(&Default::default());
+        {
+            let mut pass = enc.begin_compute_pass(&Default::default());
+            pass.set_pipeline(&pipeline);
+            pass.set_bind_group(0, &self.bind, &[]);
+            pass.dispatch_workgroups(self.count.div_ceil(64), 1, 1);
+        }
+        enc.copy_buffer_to_buffer(&self.out, 0, &readback, 0, out_len);
+        let idx = crate::submit(gpu, [enc.finish()]);
+        crate::PendingRead::start(readback, out_len as usize, idx)
+    }
+}
+
+/// The sampling pipeline and the app's sampler (linear, clamp-to-edge — WebGPUMapper's constructor), once per device.
+fn sample_pipeline(gpu: &Gpu) -> (wgpu::ComputePipeline, wgpu::Sampler) {
     let d = &gpu.device;
-    let count = (led_data.len() / 4) as u32;
-    if count == 0 { return Ok(None); }
-    // O1-1: the pipeline and the app's sampler (linear, clamp-to-edge — WebGPUMapper's constructor), built once per
-    // device; they were compiled on every tick.
     static SAMPLE: crate::PerDevice<(), (wgpu::ComputePipeline, wgpu::Sampler)> = crate::PerDevice::new();
-    let (pipeline, sampler) = SAMPLE.get(d, (), || {
+    SAMPLE.get(d, (), || {
         let module = d.create_shader_module(wgpu::ShaderModuleDescriptor { label: Some("sample"), source: wgpu::ShaderSource::Wgsl(SAMPLE_WGSL.into()) });
         let pipeline = d.create_compute_pipeline(&wgpu::ComputePipelineDescriptor { label: Some("sample"), layout: None, module: &module, entry_point: Some("main"), compilation_options: Default::default(), cache: None });
         let sampler = d.create_sampler(&wgpu::SamplerDescriptor {
@@ -115,42 +177,5 @@ pub fn sample_submit(gpu: &Gpu, tex: &wgpu::Texture, led_data: &[f32], meta_data
             ..Default::default()
         });
         (pipeline, sampler)
-    });
-    let mut p = [0u8; 16];
-    p[0..4].copy_from_slice(&brightness.to_le_bytes());
-    p[4..8].copy_from_slice(&count.to_le_bytes());
-    p[8..12].copy_from_slice(&surfaces.to_le_bytes());
-    let params = d.create_buffer(&wgpu::BufferDescriptor { label: Some("params"), size: 16, usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST, mapped_at_creation: false });
-    gpu.queue.write_buffer(&params, 0, &p);
-    let led = storage(gpu, "led", led_data);
-    let seg = storage(gpu, "segParams", seg_data);
-    let meta = storage(gpu, "meta", meta_data);
-    let rects = storage(gpu, "rects", rect_data);
-    let out_len = count as u64 * 4;
-    let out = d.create_buffer(&wgpu::BufferDescriptor { label: Some("out"), size: out_len, usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_SRC, mapped_at_creation: false });
-    let readback = d.create_buffer(&wgpu::BufferDescriptor { label: Some("out readback"), size: out_len, usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::MAP_READ, mapped_at_creation: false });
-    let view = tex.create_view(&Default::default());
-    let bind = d.create_bind_group(&wgpu::BindGroupDescriptor {
-        label: Some("sample"), layout: &pipeline.get_bind_group_layout(0),
-        entries: &[
-            wgpu::BindGroupEntry { binding: 0, resource: wgpu::BindingResource::Sampler(&sampler) },
-            wgpu::BindGroupEntry { binding: 1, resource: wgpu::BindingResource::TextureView(&view) },
-            wgpu::BindGroupEntry { binding: 2, resource: led.as_entire_binding() },
-            wgpu::BindGroupEntry { binding: 3, resource: out.as_entire_binding() },
-            wgpu::BindGroupEntry { binding: 4, resource: params.as_entire_binding() },
-            wgpu::BindGroupEntry { binding: 5, resource: seg.as_entire_binding() },
-            wgpu::BindGroupEntry { binding: 6, resource: meta.as_entire_binding() },
-            wgpu::BindGroupEntry { binding: 7, resource: rects.as_entire_binding() },
-        ],
-    });
-    let mut enc = d.create_command_encoder(&Default::default());
-    {
-        let mut pass = enc.begin_compute_pass(&Default::default());
-        pass.set_pipeline(&pipeline);
-        pass.set_bind_group(0, &bind, &[]);
-        pass.dispatch_workgroups(count.div_ceil(64), 1, 1);
-    }
-    enc.copy_buffer_to_buffer(&out, 0, &readback, 0, out_len);
-    let idx = crate::submit(gpu, [enc.finish()]);
-    Ok(Some(crate::PendingRead::start(readback, out_len as usize, idx)))
+    })
 }

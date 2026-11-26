@@ -514,6 +514,40 @@ E6h hold and the stall watchdog still pass (`test:engine-hold` phases incl. S).
 | O4-5 | Parity harnesses behind a flag (or 1-in-N sampling) once a phase is signed off; `evaluate_clock` returns a small overrides struct, not a cloned tree | R5 |
 | O4-6 | Head states resolved for every head from the engine's own solved bytes, not only inside the comparison | V10 |
 
+> ✅ **O4 done 2026-11-27 — O4-1, O4-2, O4-3, O4-6; O4-4 and O4-5 measured and NOT needed now.**
+> - **O4-2** `pack.rs PackPlan`: every fixture's destination (resolveDest / destKey), the destinations in first-met
+>   order and their `sparse`, decided once per document; per tick each fixture's values are written as RUNS (the
+>   universe map touched once per universe entered, not per byte). `pack()` IS `PackPlan::new + pack`, so
+>   `test:pack-parity` (16 projects, 464 cases, 1 982 464 DMX bytes) holds the fast path to the TypeScript packer —
+>   identical; a writer that lost a universe's insertion fails it (396 frames differ).
+> - **O4-1** `compose.rs LedPlan` + `sample.rs SampleSet`: surface order, LED data, atlas layout, the atlas texture and
+>   the sampling buffers, once per document (the runtime keeps it by document rev); per pass the cells and the
+>   brightness. Sampling / image parity and `test:engine-runtime` unchanged.
+> - **O4-3** the HAP verdict cached per file version (size + mtime, the same error text) — it read and decoded frame 0
+>   of every HAP source on every document; the kept document is MOVED (serve.rs), not deep-copied.
+> - **O4-6** the 3D view resolves EVERY head (the wire's rule unchanged: only what the app sends is solved there).
+> - **Found by measuring, not as the audit assumed:** the scene-switch stall is NOT the document (M1). New timers
+>   (`doc`, `open.mp4`, `open.hap`, `mp4.find`) show it is a FILM'S FIRST FRAME after the switch, decoded from its key
+>   frame up to the surface's time on the render thread (`mp4.find` up to 307 ms; several films switching at once
+>   ≈ 500–700 ms) — an O3-4 matter (a decoder thread, or the next scene's decoders pre-rolled), not O4. What the
+>   documents DID cost: a scene fade sends ~14 a second, each 16–20 ms on the 4K heavy show — now **0.6–1.1 ms**.
+>   **O4-4** (the fade as tick data instead of documents) is therefore deferred: at ~1 ms a document the cost is gone,
+>   and it would mean porting the app's transitions with their easing. **O4-5** (parity harnesses in production): the
+>   `eval` stage that holds them measures 0.01–0.02 ms on every bench (none has a big light rig) — left as it is.
+>
+> | | before O4 | after O4 |
+> |---|---|---|
+> | 50 000 LEDs, still: pack · tick · engine CPU | 3.30 · 3.36 ms · 22.5 % | **0.27 · 0.32 ms · 13.7 %** |
+> | 50 000 LEDs, 4K film: LED pass · pack · tick · engine CPU | 1.85 · 3.27 · 7.32 ms · 34.8 % | **0.43 · 0.26 · 2.99 ms · 21.8 %** |
+> | 4K heavy show, O3 / O4 back to back: tick p50 / p99 · LED pass · pack | 8.11 / 12.91 · 1.61 · 0.32 ms | **6.84 / 11.42 · 1.01 · 0.07 ms** |
+> | 4K heavy show: a document during a fade (p50) | 19.67 ms | **0.6–1.1 ms** |
+>
+> New bench `E:\zaki\artlux-engine-test\O4-50k\bench.cjs` (400 universes, Art-Net listened to: all alive). Proof: the
+> parity suite (pack, sampling, wire, light-pack, light-show 961 ticks / 0 differing, light-eval, engine-runtime,
+> projector unchanged), takeover, `test:native-projectors` (plain, `--windowed`, `--ndi`, `--calibrated`, `--hold`,
+> `--calibrated --glb --calib-occlude`), `test:engine-hold`, `test:video-frame-clock`, beams, shadows, AO. Guarded
+> ("the engine does the per-show work ONCE per document…", mutation-tested); one O3 regex re-pointed at the renamed call.
+
 **Exit:** the 50 k-LED bench: tick CPU dominated by the GPU pass, pack < 1 ms; documents per second during a fade
 ≈ 0; `test:pack-parity`, `test:light-pack-parity`, lanes parity unchanged.
 

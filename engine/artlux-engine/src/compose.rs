@@ -140,23 +140,45 @@ pub fn frame_cached(gpu: &Gpu, doc: &FrameDoc, cache: Option<(&mut TexCache, &Ha
     }
 }
 
+/// O4-1 — WHAT THE LED PASS KNOWS FROM THE DOCUMENT ALONE, made once per document: the surfaces' order, the atlas
+/// layout, the atlas texture and the sampling buffers (sample.rs SampleSet). `surface_order`, `build_led_data` (trig per
+/// LED), `plan_atlas` (up to three packing attempts) and every buffer were rebuilt — and 32 B per LED uploaded — on every
+/// LED pass. Per pass now: the cells drawn (pictures, opacities) and the brightness written.
+pub struct LedPlan { order: Vec<String>, packed: layout::Packed, atlas_view: wgpu::TextureView, sample: crate::sample::SampleSet, _atlas: wgpu::Texture }
+
+impl LedPlan {
+    /// None: no LEDs.
+    pub fn new(gpu: &Gpu, doc: &FrameDoc) -> Option<LedPlan> {
+        let d = &gpu.device;
+        let order = layout::surface_order(doc.fixtures, doc.surfaces);
+        let seg_count = layout::count_segments(doc.fixtures);
+        let leds = layout::build_led_data(doc.fixtures, doc.surfaces, &order, seg_count);
+        if leds.total == 0 { return None; }
+        let max_dim = d.limits().max_texture_dimension_2d as f64;
+        let plan = layout::plan_atlas(&order, doc.fixtures, doc.surfaces, max_dim);
+        let packed = plan.packed.unwrap_or(layout::Packed { rects: vec![], w: 1.0, h: 1.0 });
+        let (aw, ah) = (packed.w as u32, packed.h as u32);
+        let atlas = d.create_texture(&wgpu::TextureDescriptor {
+            label: Some("engine atlas"), size: wgpu::Extent3d { width: aw, height: ah, depth_or_array_layers: 1 },
+            mip_level_count: 1, sample_count: 1, dimension: wgpu::TextureDimension::D2, format: wgpu::TextureFormat::Rgba8Unorm,
+            usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::TEXTURE_BINDING, view_formats: &[],
+        });
+        let atlas_view = atlas.create_view(&Default::default());
+        let rects = layout::atlas_rect_data(&packed.rects, packed.w, packed.h);
+        let sample = crate::sample::SampleSet::new(gpu, &atlas, &leds.led, &leds.meta, &layout::build_seg_params(doc.fixtures), &rects, order.len() as u32)?;
+        Some(LedPlan { order, packed, atlas_view, sample, _atlas: atlas })
+    }
+}
+
 /// O3-2: `frame_cached` with its read-back left IN FLIGHT (None: no LEDs) — the runtime collects it a tick later.
-pub fn frame_submit(gpu: &Gpu, doc: &FrameDoc, mut cache: Option<(&mut TexCache, &HashMap<String, u64>)>) -> Result<Option<crate::PendingRead>, EngineError> {
+pub fn frame_submit(gpu: &Gpu, doc: &FrameDoc, cache: Option<(&mut TexCache, &HashMap<String, u64>)>) -> Result<Option<crate::PendingRead>, EngineError> {
+    match LedPlan::new(gpu, doc) { Some(p) => frame_submit_with(gpu, doc, cache, &p).map(Some), None => Ok(None) }
+}
+
+/// One LED pass with a plan made for THIS document (`LedPlan::new`) — the runtime keeps it per document (O4-1).
+pub fn frame_submit_with(gpu: &Gpu, doc: &FrameDoc, mut cache: Option<(&mut TexCache, &HashMap<String, u64>)>, plan: &LedPlan) -> Result<crate::PendingRead, EngineError> {
     let d = &gpu.device;
-    let order = layout::surface_order(doc.fixtures, doc.surfaces);
-    let seg_count = layout::count_segments(doc.fixtures);
-    let leds = layout::build_led_data(doc.fixtures, doc.surfaces, &order, seg_count);
-    if leds.total == 0 { return Ok(None); }
-    let max_dim = d.limits().max_texture_dimension_2d as f64;
-    let plan = layout::plan_atlas(&order, doc.fixtures, doc.surfaces, max_dim);
-    let packed = plan.packed.unwrap_or(layout::Packed { rects: vec![], w: 1.0, h: 1.0 });
-    let (aw, ah) = (packed.w as u32, packed.h as u32);
-    let atlas = d.create_texture(&wgpu::TextureDescriptor {
-        label: Some("engine atlas"), size: wgpu::Extent3d { width: aw, height: ah, depth_or_array_layers: 1 },
-        mip_level_count: 1, sample_count: 1, dimension: wgpu::TextureDimension::D2, format: wgpu::TextureFormat::Rgba8Unorm,
-        usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::TEXTURE_BINDING, view_formats: &[],
-    });
-    let atlas_view = atlas.create_view(&Default::default());
+    let (order, packed, atlas_view) = (&plan.order, &plan.packed, &plan.atlas_view);
     // O1-1: built once per device (it was compiled on every tick).
     static STRETCH: crate::PerDevice<(), (wgpu::RenderPipeline, wgpu::Sampler)> = crate::PerDevice::new();
     let (pipeline, sampler) = STRETCH.get(d, (), || {
@@ -247,8 +269,7 @@ pub fn frame_submit(gpu: &Gpu, doc: &FrameDoc, mut cache: Option<(&mut TexCache,
         }
     }
     gpu.queue.submit([enc.finish()]);
-    let rects = layout::atlas_rect_data(&packed.rects, packed.w, packed.h);
-    crate::sample::sample_submit(gpu, &atlas, &leds.led, &leds.meta, &layout::build_seg_params(doc.fixtures), &rects, doc.brightness.clamp(0.0, 1.0), order.len() as u32)
+    Ok(plan.sample.submit(gpu, doc.brightness.clamp(0.0, 1.0)))
 }
 
 /// The picture's mip chain, Skia-style: each level halves (floor), a 2-wide box where the source size is

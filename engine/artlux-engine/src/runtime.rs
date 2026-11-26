@@ -47,8 +47,6 @@ struct Doc {
     lfix: Vec<layout::Fixture>,
     surfaces: Vec<layout::Surface>,
     pfix: Vec<pack::Fixture>,
-    controllers: Vec<pack::Controller>,
-    defaults: pack::Defaults,
     lut: [u8; 256],
     port: u16,
     sources: HashMap<String, Source>,
@@ -58,6 +56,8 @@ struct Doc {
     owns: bool,
     /// E1f-2: the fixtures the HOST says are lights (indices into pfix).
     lights: Vec<usize>,
+    /// O4-2: the patch's routing, decided once for this document (pack.rs PackPlan).
+    pack_plan: pack::PackPlan,
 }
 
 pub struct Runtime {
@@ -199,6 +199,12 @@ pub struct Runtime {
     /// O3-2: the LED pass submitted this tick, its read-back in flight (with the document it was drawn for), and the
     /// document `led_raw` was drawn for.
     led_pending: Option<(u64, crate::PendingRead)>,
+    /// O4-1: the LED pass's plan, for the document it was made for (None inside: that document has no LEDs).
+    led_plan: Option<(u64, Option<compose::LedPlan>)>,
+    /// O4-3: a HAP file's verdict (can the engine read and decode it?), by path, while its size and mtime hold — the
+    /// verdict read and decoded frame 0 of EVERY HAP source on EVERY document (4–7 ms a 4K file; a scene fade sends a
+    /// document a frame: measured 14 a second at 16–20 ms each on the 4K heavy show).
+    hap_checked: HashMap<String, (Option<(u64, Option<std::time::SystemTime>)>, Result<(), String>)>,
     led_raw_rev: u64,
     /// O3-5: the time between ticks (a running average) and when the last one came — the HAP read-ahead's horizon.
     tick_at: Option<std::time::Instant>,
@@ -229,7 +235,7 @@ impl Runtime {
             #[cfg(feature = "ndi")] ndis: HashMap::new(),
             #[cfg(windows)] mp4s: HashMap::new(), haps: HashMap::new(), conv: None,
             #[cfg(windows)] cams: HashMap::new(), resolved: HashMap::new(), pending_cams: HashMap::new(), last_doc: None, redo: false,
-            view: None, view_scene_ver: 0, view_published: HashMap::new(), view_colors_gen: 0, view_last_summary: String::new(), clock_diffs: 0, transport: Default::default(), draw_at: None, draw_stats: (0, 0, 0), draw_max_step: 0, comp_draw: (0, 0), vids: HashMap::new(), frame_agree: (0, 0), clock_ticks: 0, comp_sub: HashMap::new(), next_drawn: 0, handovers: 0, clip_bad: Default::default(), src_paths: HashMap::new(), judge: Default::default(), clock_rev: 0, lanes: Vec::new(), auto_fx: HashMap::new(), auto_diffs: 0, auto_ticks: 0, show: Default::default(), light_diffs: 0, light_ticks: 0, rig: None, light_fix: HashMap::new(), byte_diffs: 0, byte_ticks: 0, light_solved: HashMap::new(), light_beams: HashMap::new(), cropper: None, slice_keys: HashMap::new(), led_key: 0, led_raw: Vec::new(), led_pending: None, led_raw_rev: u64::MAX, tick_at: None, tick_dt: 1.0 / 60.0, comp_keys: HashMap::new(),
+            view: None, view_scene_ver: 0, view_published: HashMap::new(), view_colors_gen: 0, view_last_summary: String::new(), clock_diffs: 0, transport: Default::default(), draw_at: None, draw_stats: (0, 0, 0), draw_max_step: 0, comp_draw: (0, 0), vids: HashMap::new(), frame_agree: (0, 0), clock_ticks: 0, comp_sub: HashMap::new(), next_drawn: 0, handovers: 0, clip_bad: Default::default(), src_paths: HashMap::new(), judge: Default::default(), clock_rev: 0, lanes: Vec::new(), auto_fx: HashMap::new(), auto_diffs: 0, auto_ticks: 0, show: Default::default(), light_diffs: 0, light_ticks: 0, rig: None, light_fix: HashMap::new(), byte_diffs: 0, byte_ticks: 0, light_solved: HashMap::new(), light_beams: HashMap::new(), cropper: None, slice_keys: HashMap::new(), led_key: 0, led_raw: Vec::new(), led_pending: None, led_plan: None, hap_checked: HashMap::new(), led_raw_rev: u64::MAX, tick_at: None, tick_dt: 1.0 / 60.0, comp_keys: HashMap::new(),
             #[cfg(windows)] bake: None }
     }
 
@@ -678,8 +684,9 @@ impl Runtime {
         let kinds: Vec<String> = d["surfaces"].as_array().into_iter().flatten().map(|s| { let id = s["id"].as_str().unwrap_or_default(); let k = &d["sources"][id]; format!("{}={}{}", s["name"].as_str().unwrap_or(id), k["kind"].as_str().unwrap_or("?"), k["why"].as_str().map(|w| format!(" ({w})")).unwrap_or_default()) }).collect();
         let summary = kinds.join(", ");
         if summary != self.sources_summary { eprintln!("artlux-engine: sources: {summary}"); self.sources_summary = summary; }
-        let mut doc = Doc { rev, lfix, surfaces, pfix, controllers, defaults, lut: pack::gamma_lut(d["gamma"].as_f64().unwrap_or(1.0)),
-            port: d["port"].as_u64().unwrap_or(6454) as u16, sources, base_opacity: opacity.clone(), opacity, owns: false, lights: Vec::new() };
+        let pack_plan = pack::PackPlan::new(&pfix, &controllers, &defaults);
+        let mut doc = Doc { rev, lfix, surfaces, pfix, lut: pack::gamma_lut(d["gamma"].as_f64().unwrap_or(1.0)),
+            port: d["port"].as_u64().unwrap_or(6454) as u16, sources, base_opacity: opacity.clone(), opacity, owns: false, lights: Vec::new(), pack_plan };
         self.load_lanes(&d["lanes"]);
         let show = crate::light::Show::from_json(&d["lighting"]);
         if !show.is_empty() && self.show.is_empty() { eprintln!("artlux-engine: lighting: the light show is evaluated by the engine and checked against the app's"); }
@@ -758,8 +765,16 @@ impl Runtime {
         self.pictures.retain(|k, _| ids.iter().any(|i| i == k));
         let verdict = self.verdict(d, &mut doc);
         self.doc = Some(doc);
-        self.last_doc = Some(d.clone());
         verdict
+    }
+
+    /// O4-3: `read_frame(p, 0)`'s verdict, decided once per file version (size + mtime) — the same error text.
+    fn hap_check(&mut self, p: &str) -> Result<(), String> {
+        let key = std::fs::metadata(p).ok().map(|m| (m.len(), m.modified().ok()));
+        if let Some((k, r)) = self.hap_checked.get(p) { if *k == key { return r.clone(); } }
+        let r = crate::hapimport::read_frame(p, 0).map(|_| ());
+        self.hap_checked.insert(p.to_string(), (key, r.clone()));
+        r
     }
 
     /// Can the engine draw EVERYTHING this document samples? The host's per-surface answer, plus the
@@ -797,14 +812,14 @@ impl Runtime {
                             // TRACK (as per surface), so a file the engine cannot read leaves the show to the app.
                             Some("hap") => {
                                 let p = ks["path"].as_str().unwrap_or_default();
-                                crate::hapimport::read_frame(p, 0).map_err(|e| format!("surface '{}': timeline HAP clip: {e}", name_of(d, sid)))?;
+                                self.hap_check(p).map_err(|e| format!("surface '{}': timeline HAP clip: {e}", name_of(d, sid)))?;
                             }
                             Some("mp4") => {
                                 #[cfg(windows)]
                                 {
                                     let Some(Source::Mp4(p, _)) = doc.sources.get(key) else { unreachable!() };
                                     if self.mp4s.get(key).is_none_or(|(q, _)| q != p) {
-                                        let rx = crate::mf::Mp4In::open_with(p, Some(&self.gpu)).map_err(|e| format!("surface '{}': timeline MP4 clip: {e}", name_of(d, sid)))?;
+                                        let rx = crate::prof::time("open.mp4", || crate::mf::Mp4In::open_with(p, Some(&self.gpu))).map_err(|e| format!("surface '{}': timeline MP4 clip: {e}", name_of(d, sid)))?;
                                         if let Some(why) = &rx.software_why { eprintln!("artlux-engine: timeline track {key}: MP4 decoded in software ({why})"); }
                                         self.mp4s.insert(key.to_string(), (p.clone(), rx));
                                     }
@@ -851,7 +866,7 @@ impl Runtime {
                     {
                         let Some(Source::Mp4(p, _)) = doc.sources.get(sid) else { unreachable!() };
                         if self.mp4s.get(sid).is_none_or(|(q, _)| q != p) {
-                            let rx = crate::mf::Mp4In::open_with(p, Some(&self.gpu)).map_err(|e| format!("surface '{}': MP4 {e}", name_of(d, sid)))?;
+                            let rx = crate::prof::time("open.mp4", || crate::mf::Mp4In::open_with(p, Some(&self.gpu))).map_err(|e| format!("surface '{}': MP4 {e}", name_of(d, sid)))?;
                             if let Some(why) = &rx.software_why { eprintln!("artlux-engine: surface '{}': MP4 decoded in software ({why})", name_of(d, sid)); }
                             self.mp4s.insert(sid.clone(), (p.clone(), rx));
                         }
@@ -868,7 +883,7 @@ impl Runtime {
                 }
             }
             if let Some(Source::Hap(p)) = doc.sources.get(sid) {
-                crate::hapimport::read_frame(p, 0).map_err(|e| format!("surface '{}': HAP {e}", name_of(d, sid)))?;
+                self.hap_check(p).map_err(|e| format!("surface '{}': HAP {e}", name_of(d, sid)))?;
             }
         }
         Ok(())
@@ -1060,8 +1075,13 @@ impl Runtime {
     /// placed on the wire (`light_solved`); the app's stand in for a light the engine was not given.
     /// `check` false: solve and place only (E3h — the bytes at the engine's own clock, no comparison).
     fn check_bytes(&mut self, v: &Value, ours: Option<&(crate::light::Roles, crate::light::Colors)>, check: bool) {
-        let (Some(rig), Some(app)) = (self.rig.as_mut(), v["lights"].as_object()) else { return };
-        if app.is_empty() { return; }
+        let Some(rig) = self.rig.as_mut() else { return };
+        let empty = serde_json::Map::new();
+        let app = v["lights"].as_object().unwrap_or(&empty);
+        let view_open = self.view.as_ref().is_some_and(|(_, o)| o.load(std::sync::atomic::Ordering::Relaxed));
+        // (The wire's rule is unchanged: nothing is solved when the app sent no light bytes. O4-6 below still gives the
+        // 3D view every head.)
+        if app.is_empty() && !view_open { return; }
         let map = |x: &Value| -> HashMap<String, f64> { x.as_object().into_iter().flatten().map(|(k, y)| (k.clone(), y.as_f64().unwrap_or(f64::NAN))).collect() };
         let maps = |x: &Value| -> HashMap<String, HashMap<String, f64>> { x.as_object().into_iter().flatten().map(|(k, y)| (k.clone(), map(y))).collect() };
         let (app_roles, app_colors);
@@ -1077,7 +1097,6 @@ impl Runtime {
         let owned: HashMap<String, std::collections::HashSet<String>> = v["lown"].as_object().into_iter().flatten().map(|(k, a)| (k.clone(), a.as_array().into_iter().flatten().filter_map(|x| x.as_str().map(str::to_string)).collect())).collect();
         let mut why: Vec<String> = Vec::new();
         let mut nbytes = 0usize;
-        let view_open = self.view.as_ref().is_some_and(|(_, o)| o.load(std::sync::atomic::Ordering::Relaxed));
         for (id, bytes) in app {
             let want: Vec<u64> = bytes.as_array().into_iter().flatten().map(|b| b.as_u64().unwrap_or(0)).collect();
             let got: Vec<u8> = match self.light_fix.get(id) {
@@ -1101,7 +1120,20 @@ impl Runtime {
                 why.push(format!("{id} (channel {}): app {:?}, engine {:?}", at + 1, want, got));
             }
         }
-        if !check { return; }
+        // O4-6 — EVERY HEAD IN THE 3D VIEW. Beams were resolved only for the heads in the app's light-byte message, so a
+        // head the app did not send this tick (or a tick with none) stayed dark in the engine's view — which a renderer
+        // lighting the venue with every head (plans/engine-optimisation-and-deferred-3d.md §4) cannot have. Each head
+        // not resolved above is resolved from the same roles, colours, cue and live values; the wire is not touched.
+        if view_open {
+            for (id, f) in &self.light_fix {
+                if self.light_beams.contains_key(id) { continue; }
+                if let Some(head) = rig.head(f) {
+                    let o = crate::lightpack::Over { owned: owned.get(id), color: colors.get(id), cue: cue.get(id), roles: roles.get(id), live: live.get(id) };
+                    self.light_beams.insert(id.clone(), head.resolve(&f["dmx"], &o));
+                }
+            }
+        }
+        if !check || app.is_empty() { return; }
         self.byte_ticks += 1;
         if !why.is_empty() {
             self.byte_diffs += 1;
@@ -1268,7 +1300,7 @@ impl Runtime {
                 Source::Hap(p) => {
                     if self.clip_bad.contains(sid) && self.pictures.contains_key(sid) { continue; }
                     if self.haps.get(sid).is_none_or(|h| &h.path != p) {
-                        match crate::hapimport::HapIn::open(p) {
+                        match crate::prof::time("open.hap", || crate::hapimport::HapIn::open(p)) {
                             Ok(h) => { self.haps.insert(sid.clone(), h); }
                             Err(e) if sid.starts_with("clip:") => { eprintln!("artlux-engine: clock: {sid} not drawn ahead: {e}"); self.clip_bad.insert(sid.clone()); continue; }
                             Err(e) => return Err(e),
@@ -1361,7 +1393,7 @@ impl Runtime {
                         if let Some((_, rx)) = self.mp4s.get(sid).filter(|(q, _)| q == _path) {
                             if *dur_us > 0 && abs >= *dur_us && local < rx.first_ts() { local += *dur_us; }
                         }
-                        let shown = self.mp4s.get_mut(sid).filter(|(q, _)| q == _path).and_then(|(_, rx)| rx.frame_at(local).ok().map(|f| f.ts_us));
+                        let shown = self.mp4s.get_mut(sid).filter(|(q, _)| q == _path).and_then(|(_, rx)| crate::prof::time("mp4.find", || rx.frame_at(local).ok().map(|f| f.ts_us)));
                         let key = (((abs - local + shown.unwrap_or(local)).max(0) as u64) << 2) | 1;
                         if self.gens.get(sid) != Some(&key) || !self.pictures.contains_key(sid) {
                             // The verdict opens the decoders of the surfaces the LEDS sample; a surface only a
@@ -1369,7 +1401,7 @@ impl Runtime {
                             let ahead = sid.starts_with("clip:");
                             if ahead && self.clip_bad.contains(sid) { continue; }
                             if self.mp4s.get(sid).is_none_or(|(q, _)| q != _path) {
-                                match crate::mf::Mp4In::open_with(_path, Some(&self.gpu)) {
+                                match crate::prof::time("open.mp4", || crate::mf::Mp4In::open_with(_path, Some(&self.gpu))) {
                                     Ok(rx) => {
                                         // E3k: a next clip's colour space is judged HERE — the app has decoded no frame
                                         // of it yet. The engine draws BT.709 limited range (unspecified counts as it).
@@ -1542,7 +1574,11 @@ impl Runtime {
         let mut prev = self.led_pending.take();
         if key != self.led_key {
             let fd = compose::FrameDoc { fixtures: &doc.lfix, surfaces: &doc.surfaces, pictures: &self.pictures, opacity: &doc.opacity, brightness };
-            match crate::prof::time("leds", || compose::frame_submit(&self.gpu, &fd, Some((&mut self.cache, &self.gens)))) {
+            if self.led_plan.as_ref().map(|p| p.0) != Some(doc.rev) {
+                self.led_plan = Some((doc.rev, crate::prof::time("leds.plan", || compose::LedPlan::new(&self.gpu, &fd))));
+            }
+            let plan = self.led_plan.as_ref().and_then(|p| p.1.as_ref());
+            match crate::prof::time("leds", || plan.map(|pl| compose::frame_submit_with(&self.gpu, &fd, Some((&mut self.cache, &self.gens)), pl)).transpose()) {
                 Ok(Some(p)) => self.led_pending = Some((doc.rev, p)),
                 Ok(None) => { self.led_raw = Vec::new(); self.led_raw_rev = doc.rev; prev = None; }   // no LEDs (an older pass in flight is stale)
                 Err(e) => { self.led_key = 0; return Err(e.to_string()); }
@@ -1574,7 +1610,7 @@ impl Runtime {
         if viewing { crate::prof::time("view", || self.publish_view(doc, &raw, fresh)); }
         if !doc.owns { self.led_raw = raw; return Ok(()); }
         let frame = crate::prof::time("pack", || {
-            let dests = pack::pack(&raw, &doc.pfix, &doc.controllers, &doc.defaults, &doc.lut);
+            let dests = doc.pack_plan.pack(&raw, &doc.pfix, &doc.lut);   // O4-2: the routing decided at load
             wire::encode_frame(&dests, doc.port)
         });
         self.led_raw = raw;   // kept for the next tick's O2-1 key
