@@ -302,6 +302,10 @@ export const IPC = {
   /** E4b — main → renderer: a click in the engine's 3D view picked this fixture (null: empty space), `add` when
    *  Shift / Ctrl was held. The editor applies it to its own selection. */
   NATIVE_ENGINE_VIEW3D_PICK: 'native-engine:view3d-pick',
+  /** E6i — main → renderer (push) and renderer → main (invoke): the projector outputs whose app windows are COVERED
+   *  (the engine shows them, or holds its last picture there across a restart). The editor's frame pump streams them
+   *  nothing — they draw nothing (measured: 25 bitmaps a second per window, made and thrown away). */
+  NATIVE_ENGINE_PROJECTORS_COVERED: 'native-engine:projectors-covered',
   /** E4b — main → renderer: a drag on the engine window's gizmo: phase start / move / end and the gesture so far
    *  (an offset in world metres, a world rotation about the anchor, a scale per handle axis). The editor applies
    *  it as its own gizmo's. */
@@ -2002,6 +2006,9 @@ export interface ArtluxApi {
   /** E4b: a click in the engine's 3D view window picked a fixture, or (`model`) a venue model / screen; both null:
    *  empty space. `add` = Shift / Ctrl. */
   onNativeEngineView3dPick?(cb: (id: string | null, add: boolean, model: string | null) => void): () => void;
+  /** E6i: the projector outputs (surface ids) whose app windows are covered — now, and on every change. */
+  nativeEngineProjectorsCovered?(): Promise<string[]>;
+  onNativeEngineProjectorsCovered?(cb: (ids: string[]) => void): () => void;
   /** E4b: a drag on the engine window's gizmo — the gesture so far. */
   onNativeEngineView3dGizmo?(cb: (phase: 'start' | 'move' | 'end', gesture: EngineGizmoGesture) => void): () => void;
   /**

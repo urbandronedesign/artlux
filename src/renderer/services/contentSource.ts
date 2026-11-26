@@ -869,6 +869,14 @@ export function nativeTick(key: string, content: SurfaceContent, timeSec: number
   return contentSourceRegistry.get(content.type)?.nativeTick?.(key, content, timeSec);
 }
 
+/** E6i: a codec surface's playback CLOCK (µs, the decoder's absolute time) when its codec reports one — what the native
+ *  engine follows for a surface it decodes itself (VideoCodecContribution.surfaceClockUs). */
+export function getSurfaceClockUs(key: string, content: SurfaceContent): number | undefined {
+  if (content.type !== SourceType.VIDEO) return undefined;
+  const e = media.get(key);
+  return e && e.type === 'CODEC' ? videoCodecRegistry.get(e.codecId)?.surfaceClockUs?.(e.path) : undefined;
+}
+
 export function getDrawableGeneration(key: string, content: SurfaceContent): number | undefined {
   // PLUGIN TYPES GET TO ANSWER. Without this branch the function had no default case at all, so every
   // non-VIDEO source answered `undefined` — "assume it changed" — and the three consumers that pay per

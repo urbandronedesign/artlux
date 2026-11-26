@@ -1268,14 +1268,27 @@ impl Runtime {
                     { let _ = name; self.pictures.remove(sid); }
                 }
                 Source::Mp4(_path, dur_us) => {
-                    // THE FRAME THE APP IS SHOWING: its VideoFrame.timestamp, sent by the host. A looping surface's
-                    // decoder runs in ABSOLUTE time (each loop adds the file's duration — mp4Decoder tsOfAbs), so
-                    // it is folded back into the file here.
+                    // THE SURFACE'S TIME, sent by the host: its playback CLOCK (E6i — mp4Codec.surfaceClockUs; the app
+                    // need not decode the film for us), or, from a codec without one, the VideoFrame.timestamp the app
+                    // drew. Either way the frame shown is the decoder's latest at or before it (frame_at) — the app's own
+                    // rule — and the picture is re-made only when THAT frame changes (a clock moving within one frame
+                    // costs nothing). A looping surface runs in ABSOLUTE time (each loop adds the file's duration —
+                    // mp4Decoder tsOfAbs), folded back into the file here.
                     #[cfg(windows)]
                     if let Some(abs) = v["mp4"][sid].as_i64() {
-                        let key = ((abs.max(0) as u64) << 2) | 1;
+                        let mut local = if *dur_us > 0 { abs - abs.div_euclid(*dur_us) * dur_us } else { abs };
+                        // A FILE WHOSE FIRST FRAME IS SHOWN LATE (first presentation time > 0, e.g. 83 333 µs) and whose
+                        // last frames run past the loop: the app's decoder runs in ABSOLUTE time, so in the gap before
+                        // the first frame of loop k it shows the TAIL of loop k − 1 (mp4Decoder tsOfAbs) — the engine
+                        // held the first frame there instead (measured 2026-11-26: tos_night, 2 of 127 frames never
+                        // shown per loop, 23.6 new pictures a second for a 24 fps film). Asked for the previous loop's
+                        // time instead; the first loop has none (the app shows its first frame, as frame_at does).
+                        if let Some((_, rx)) = self.mp4s.get(sid).filter(|(q, _)| q == _path) {
+                            if *dur_us > 0 && abs >= *dur_us && local < rx.first_ts() { local += *dur_us; }
+                        }
+                        let shown = self.mp4s.get_mut(sid).filter(|(q, _)| q == _path).and_then(|(_, rx)| rx.frame_at(local).ok().map(|f| f.ts_us));
+                        let key = (((abs - local + shown.unwrap_or(local)).max(0) as u64) << 2) | 1;
                         if self.gens.get(sid) != Some(&key) || !self.pictures.contains_key(sid) {
-                            let local = if *dur_us > 0 { abs - abs.div_euclid(*dur_us) * dur_us } else { abs };
                             // The verdict opens the decoders of the surfaces the LEDS sample; a surface only a
                             // PROJECTOR shows is opened on first use (as stills are loaded on first use above).
                             let ahead = sid.starts_with("clip:");

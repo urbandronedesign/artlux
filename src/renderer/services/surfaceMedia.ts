@@ -251,7 +251,9 @@ export function nativeGeneration(s: Surface): number | undefined {
   const t = s.content.type === SourceType.LAYER || s.content.type === SourceType.PROGRAM ? timeline.getPlayhead() : timeline.getShowTime();
   const bake = bakeStore.nativeFor(s, t, timeline.activePoolKey());
   if (bake) return bake.gen;
-  return contentSource.getDrawableGeneration(s.id, s.content);
+  // E6i: the surface CLOCK where the codec has one — the engine picks the frame at or before it from its own decode,
+  // so the app need not decode the film for it. Else the frame the app decoded.
+  return contentSource.getSurfaceClockUs(s.id, s.content) ?? contentSource.getDrawableGeneration(s.id, s.content);
 }
 
 // E1f: what the NATIVE engine is to draw for this surface — the same branches as getDrawable below, in the

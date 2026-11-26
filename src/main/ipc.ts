@@ -3,7 +3,7 @@ import { readFile, stat } from 'node:fs/promises';
 import { existsSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { IPC, type OutputConfig, type InputConfig, type ProjectData, type RigData, type Prefs, type OscConfig, type OscOutPacket, type AssetType, type WindowCommand, type RendererFault, type LogRecord, type BlendWatchEntry } from '../../shared/protocol';
 import * as output from './transport/outputManager';
-import { noteOutputConfig, noteDoc, noteTick, engineBake, noteScene3d, noteView3d, engineEnabled, noteBakedMap, noteRaster, engineWireStats } from './engineHost';
+import { noteOutputConfig, noteDoc, noteTick, engineBake, noteScene3d, noteView3d, engineEnabled, noteBakedMap, noteRaster, engineWireStats, projectorsCovered } from './engineHost';
 import * as input from './transport/input';
 import * as discovery from './transport/discovery';
 import * as osc from './transport/oscManager';
@@ -49,6 +49,7 @@ export function registerIpc(getWindow: () => BrowserWindow | null): void {
 
     // E1f: the native engine's live link — relayed as-is (engineHost.ts); a no-op when the engine is off.
     ipcMain.handle(IPC.NATIVE_ENGINE_ENABLED, () => engineEnabled());
+    ipcMain.handle(IPC.NATIVE_ENGINE_PROJECTORS_COVERED, () => projectorsCovered());
     ipcMain.handle(IPC.NATIVE_ENGINE_DISPLAYS, () => Object.fromEntries(screen.getAllDisplays().map((d) => [String(d.id), [d.bounds.width, d.bounds.height]])));
     ipcMain.on(IPC.NATIVE_ENGINE_DOC, (_e, json: string, rev: number) => { if (typeof json === 'string') noteDoc(json, Number(rev)); });
     ipcMain.on(IPC.NATIVE_ENGINE_TICK, (_e, json: string) => { if (typeof json === 'string') noteTick(json); });

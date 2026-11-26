@@ -9342,7 +9342,7 @@ check(
     if (!/mp4\[s\.id\] = g;/.test(n) || !/hap, mp4, ndi, (camfp, )?(shader, )?(blobs, )?(comp, times, )?lights/.test(n)) problems.push('the tick no longer carries each MP4 surface frame timestamp');
     if (/an MP4 on a projector/.test(n)) problems.push('an MP4 on a projector is refused again (the engine draws it: one device, outputs.rs content_texture_from)');
     const r = raw('engine/artlux-engine/src/runtime.rs');
-    if (!/let local = if \*dur_us > 0 \{ abs - abs\.div_euclid\(\*dur_us\) \* dur_us \} else \{ abs \};/.test(r)) problems.push('runtime.rs no longer folds a looping surface timestamp back into the file');
+    if (!/let (mut )?local = if \*dur_us > 0 \{ abs - abs\.div_euclid\(\*dur_us\) \* dur_us \} else \{ abs \};/.test(r)) problems.push('runtime.rs no longer folds a looping surface timestamp back into the file');
     if (!/Mp4In::open_with\(p, Some\(&self\.gpu\)\)/.test(r)) problems.push('the runtime no longer decodes MP4 on the GPU');
     if (!/eng\.length >= 8 && worst <= 1/.test(raw('scripts/test-native-takeover.cjs'))) problems.push('test-native-takeover no longer requires every frame of the MP4 clip from the engine');
     return problems.length ? problems.join('; ') : null;
@@ -9749,6 +9749,23 @@ check(
     // 2026-11-26: a presenter's swapchain RECONFIGURE (the host re-laying out windowed outputs) timed out waiting for the
     // device to idle under load, and wgpu's uncaptured error PANICKED the thread — the window frozen for good.
     if (!/let scope = d\.push_error_scope\(wgpu::ErrorFilter::Validation\);\s*surface\.configure\(d,[\s\S]{0,900}if let Some\(e\) = pollster::block_on\(scope\.pop\(\)\)[\s\S]{0,900}continue;/.test(raw('engine/artlux-engine/src/outputs.rs'))) problems.push('an engine presenter reconfigures its swapchain without catching the error (a timeout under load panicked the thread: the window froze for good)');
+    // 2026-11-26 (four MP4s on four windowed outputs): the editor streamed 25 bitmaps a second to every COVERED window,
+    // all thrown away, and each engine window presented 60 a second for a 25 fps picture. Measured after: the app's
+    // processes 45–66 % → ~11 % of a core, the engine's presents = its new pictures.
+    {
+      const appTsx = read('src/renderer/App.tsx'), ehc = read('src/main/engineHost.ts'), outs = raw('engine/artlux-engine/src/outputs.rs');
+      if (!/if \(covered\.has\(surfaceId\)\) continue;/.test(appTsx) || !/onNativeEngineProjectorsCovered\?\.\(setCovered\)/.test(appTsx)) problems.push('the editor streams frames to projector windows the engine covers again (they draw nothing — every bitmap is thrown away)');
+      if (!/w\.webContents\.send\(IPC\.NATIVE_ENGINE_PROJECTORS_COVERED, ids\)/.test(ehc)) problems.push('engineHost no longer tells the editor which projector windows are covered');
+      if (!/if !owed && last_present\.elapsed\(\) < HEARTBEAT \{/.test(outs)) problems.push('an engine presenter presents at the display rate whatever the picture\'s again (present on change, with a heartbeat)');
+      // The films were decoded TWICE: the engine followed the frame the APP decoded, and judging the colour space
+      // decoded a frame every tick. Now the engine follows the surface CLOCK and picks its own frame; the verdict is
+      // kept per file. Measured: the GPU's video decoder 12–17 % → 7 % (app-only 8 %).
+      const mc = read('plugins/mp4/src/mp4Codec.ts'), rt = raw('engine/artlux-engine/src/runtime.rs');
+      if (!/surfaceClockUs: \(path\) => \(surfaces\.has\(path\) \? Math\.round\(clock \* 1e6\) : undefined\)/.test(mc) || !/const v = verdicts\.get\(path\);\s*if \(v\) return v;/.test(mc)) problems.push('the MP4 codec no longer hands the engine its surface clock, or judges the colour space by decoding a frame every tick (the app decodes the film again for the engine)');
+      if (!/return contentSource\.getSurfaceClockUs\(s\.id, s\.content\) \?\? contentSource\.getDrawableGeneration\(s\.id, s\.content\);/.test(read('src/renderer/services/surfaceMedia.ts'))) problems.push('nativeLink sends the engine the frame the app decoded instead of the surface clock');
+      if (!/let key = \(\(\(abs - local \+ shown\.unwrap_or\(local\)\)\.max\(0\) as u64\) << 2\) \| 1;/.test(rt)) problems.push('the engine re-makes an MP4 picture whenever the clock moves, not when its frame changes');
+      if (!/if \*dur_us > 0 && abs >= \*dur_us && local < rx\.first_ts\(\) \{ local \+= \*dur_us; \}/.test(rt)) problems.push('the engine holds the first frame where the app shows the previous loop\'s tail (a file whose first frame is shown late — tos_night: 2 of 127 frames lost a loop)');
+    }
     if (!/enginePlace\.set\(surfaceId, physical\)/.test(pj) || !/const placed = enginePlace\.get\(surfaceId\)/.test(pj)) problems.push('the document is rebuilt from the hidden window\'s bounds instead of the engine\'s reported place');
     const eh = read('src/main/engineHost.ts');
     if (/noteDoc\(lastDoc,/.test(eh)) problems.push('engineHost re-sends the ANNOTATED document (stale reasons stick) — rebuild from lastDocRaw');
@@ -9980,7 +9997,7 @@ check(
       if (!/docRefused = m\.owns \? null :/.test(eh) || /answeredRev === lastDocRev && lastWhy \?/.test(eh)) problems.push('engineHost takes main\'s own "the engine hung / exited" for the engine refusing the document — the app\'s live frames would replace the held one across a death');
       if (!/output\.setAppSilenced\(\(\) => appEmergency\(\) === null\);/.test(eh)) problems.push('engineHost no longer silences the app\'s frames while the engine is in charge');
       for (const w of ["stopping ? 'the app is quitting'", "s === 'refused'", "s === 'gave-up'", "s === 'missing'"]) if (!eh.includes(w)) problems.push(`engineHost appEmergency no longer counts ${w} as an emergency — the rig would stay dark`);
-      if (!/for \(const id of ids\) heldIds\.add\(id\);/.test(eh) || !/function applyCover\(\): void \{ setProjectorsCovered\(new Set\(\[\.\.\.\(projOwns\?\.ids \?\? \[\]\), \.\.\.heldIds\]\), heldIds\); \}/.test(eh)) problems.push('an engine death uncovers the app\'s projector windows again (E6i step 3: they stay covered, the held picture on them, until the engine is back or an emergency)');
+      if (!/for \(const id of ids\) heldIds\.add\(id\);/.test(eh) || !/function applyCover\(\): void \{\s*const covered = new Set\(\[\.\.\.\(projOwns\?\.ids \?\? \[\]\), \.\.\.heldIds\]\);\s*setProjectorsCovered\(covered, heldIds\);/.test(eh)) problems.push('an engine death uncovers the app\'s projector windows again (E6i step 3: they stay covered, the held picture on them, until the engine is back or an emergency)');
       if ((eh.match(/projectorsEmergency\('/g) || []).length < 2) problems.push('a refused / given-up engine no longer hands the held projector outputs back to the app\'s drawing');
       if (!/<HeldPicture \/>\s*\n\s*\{windowed && <BadgeCanvas/.test(pa) || !/paused: covered,/.test(pa)) problems.push('ProjectorApp no longer shows the held picture (under the badge) or no longer pauses its panels while covered');
       if (!/frameloop=\{paused \|\| capped \? 'never' : frameloop\}/.test(read('plugins/calibration/src/ProjectorScene.tsx'))) problems.push('render-from-projector keeps drawing in a covered window (the engine shows that output)');

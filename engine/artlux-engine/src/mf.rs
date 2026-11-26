@@ -75,6 +75,8 @@ pub(crate) fn startup() -> Result<(), String> {
 
 pub struct Mp4In {
     track: Track,
+    /// The track's first presentation time (µs), found once at open (first_ts).
+    first: i64,
     file: File,
     mft: IMFTransform,
     out_type: Option<IMFMediaType>,
@@ -223,7 +225,8 @@ impl Mp4In {
             t.SetUINT64(&MF_MT_FRAME_SIZE, (track.width as u64) << 32 | track.height as u64).map_err(|e| e.to_string())?;
             t.SetUINT32(&MF_MT_INTERLACE_MODE, MFVideoInterlace_Progressive.0 as u32).map_err(|e| e.to_string())?;
             mft.SetInputType(0, &t, 0).map_err(|e| format!("{path}: the decoder refuses this stream: {e}"))?;
-            let mut me = Mp4In { track, file, mft, out_type: None, coded: (0, 0), visible: [0; 4], stride: 0, provides_samples: false, out_size: 0,
+            let first = track.samples.iter().map(|s| track.ts_us(s)).min().unwrap_or(0);
+            let mut me = Mp4In { track, first, file, mft, out_type: None, coded: (0, 0), visible: [0; 4], stride: 0, provides_samples: false, out_size: 0,
                 next: 0, queue: VecDeque::new(), last: None, draining: false, drained: false, hw, software_why, path: path.to_string() };
             me.set_output()?;
             let _ = me.mft.ProcessMessage(MFT_MESSAGE_NOTIFY_BEGIN_STREAMING, 0);
@@ -258,6 +261,10 @@ impl Mp4In {
             Ok(())
         }
     }
+
+    /// The track's first presentation time (µs) — above 0 in a file whose first frame is shown late (a B-frame
+    /// composition offset with no edit list).
+    pub fn first_ts(&self) -> i64 { self.first }
 
     pub fn colour(&self) -> Colour {
         unsafe {

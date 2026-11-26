@@ -626,8 +626,17 @@ fn present(gpu: Arc<Gpu>, window: Arc<Window>, surface: wgpu::Surface<'static>, 
         reg.push((spec.id.clone(), ph.clone(), loops.clone()));
     }
     let step = |k: u32| ph.store(k, Ordering::Relaxed);
+    // E6i — PRESENT ON CHANGE. The window was presented at the display's rate whatever the picture's (measured: 60 a
+    // second for a 25 fps film, four windows). A pass that drew nothing new now presents nothing — the compositor keeps
+    // the last frame — except every HEARTBEAT, so a window the compositor lost (a display change) is never left empty.
+    // A calibrated venue renders every pass (its pictures move) and so presents every pass.
+    const HEARTBEAT: Duration = Duration::from_millis(250);
+    let mut last_present = std::time::Instant::now() - HEARTBEAT;
+    // A change drawn but not yet presented (the swapchain said occluded / timed out) stays owed until it is.
+    let mut owed = false;
     while !stop.load(Ordering::SeqCst) {
         loops.fetch_add(1, Ordering::Relaxed);
+        let mut dirty = false;
         step(1);
         if stats && st_at.elapsed() >= Duration::from_secs(5) {
             let s = st_at.elapsed().as_secs_f64();
@@ -669,6 +678,7 @@ fn present(gpu: Arc<Gpu>, window: Arc<Window>, surface: wgpu::Surface<'static>, 
             raster = Some((tex, bind));
             configured = Some(size);
             drawn = None;
+            dirty = true;
             // TOPMOST only AFTER the swapchain exists. Created always-on-top AND borderless-fullscreen, the
             // window's surface could not be configured at all ("Invalid surface", measured; without the
             // level it presents). Raised now, it sits above the app's covered window on this display.
@@ -695,6 +705,7 @@ fn present(gpu: Arc<Gpu>, window: Arc<Window>, surface: wgpu::Surface<'static>, 
         // E6f: RENDER-FROM-PROJECTOR — the venue from the solved projector, every frame (its pictures move; the
         // draw is the app's per-frame scene render), into the same bottom-up raster the flip pass presents.
         if let (Some((view, pics)), false, Some((tex, _))) = (&calib, booting, &raster) {
+            dirty = true;
             let target = tex.create_view(&Default::default());
             let r = calib_r.get_or_insert_with(|| crate::calib3d::Renderer::new(&gpu, &spec.id));
             if view.warped {
@@ -721,6 +732,7 @@ fn present(gpu: Arc<Gpu>, window: Arc<Window>, surface: wgpu::Surface<'static>, 
             }
             drawn = None;
         } else if drawn != Some((gen, ov, booting, size)) {
+            dirty = true;
             if let Some((tex, _)) = &raster {
                 let target = tex.create_view(&Default::default());
                 match (&pic, booting) {
@@ -772,6 +784,8 @@ fn present(gpu: Arc<Gpu>, window: Arc<Window>, surface: wgpu::Surface<'static>, 
                 if let Ok(px) = crate::crop::Cropper::read(&gpu, &shot) { hold.record(size.width, size.height, &px); }
             }
         }
+        owed |= dirty;
+        if !owed && last_present.elapsed() < HEARTBEAT { std::thread::sleep(Duration::from_millis(2)); continue; }
         step(7);
         let tex = match surface.get_current_texture() {
             wgpu::CurrentSurfaceTexture::Success(t) | wgpu::CurrentSurfaceTexture::Suboptimal(t) => t,
@@ -822,6 +836,8 @@ fn present(gpu: Arc<Gpu>, window: Arc<Window>, surface: wgpu::Surface<'static>, 
         window.pre_present_notify();
         step(11);
         gpu.queue.present(tex);
+        last_present = std::time::Instant::now();
+        owed = false;
         st_presents += 1;
     }
 }

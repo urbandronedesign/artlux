@@ -360,6 +360,13 @@ export interface VideoCodecContribution {
   // Omit it and callers simply treat every frame as new — correct, just not free.
   surfaceGeneration?(path: string): number | undefined;
 
+  // OPTIONAL (E6i). The surface playback CLOCK, in µs of the decoder's absolute time (a looping surface's clock keeps
+  // counting; the file's duration folds it) — what surfaceFrame() would show the frame at or before. The native engine
+  // follows THIS for a surface it decodes itself, so it needs no decoded frame from the app: with it, the app decodes
+  // only when something of its own shows the picture (the editor preview, a fixture sampling it, an uncovered output).
+  // Omit it and the engine follows surfaceGeneration (the frame the app decoded) — the app then decodes for it.
+  surfaceClockUs?(path: string): number | undefined;
+
   // Timeline layer frame at a clip-local time (playhead-driven). `layerKey` scopes the GPU canvas.
   layerFrame(layerKey: string, path: string, clipTimeSec: number): CanvasImageSource | null;
   releaseLayer(layerKey: string): void;

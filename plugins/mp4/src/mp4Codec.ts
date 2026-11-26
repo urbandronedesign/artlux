@@ -7,7 +7,22 @@ import * as dec from './mp4Decoder';
 // MEASURED: an 8-bit NV12 frame, BT.709 matrix and primaries, limited range, the BT.709 or sRGB transfer. Decided on
 // THE APP'S OWN current VideoFrame (`frame`, or this surface's), which knows the stream's colour; anything else stays
 // the app's with the reason. Before the app has a frame there is nothing to judge: the next document asks again.
+// E6i — THE VERDICT IS KEPT PER FILE. It is asked on every link tick; judging it meant DECODING a frame every tick
+// (dec.frame(path, clock)) — which, with the engine following the surface clock (surfaceClockUs), was the only thing
+// left making the app decode a film the engine decodes and shows itself (measured: the GPU's video decoder 12–17 %
+// against 6–8 % app-only, four films). A file's colour space does not change; its first decoded frame decides.
+const verdicts = new Map<string, NativeSource>();
 function mp4NativeSource(path: string, frame?: unknown): NativeSource {
+  if (frame === undefined) {
+    const v = verdicts.get(path);
+    if (v) return v;
+  }
+  const r = judge(path, frame);
+  // Only a FINAL answer is kept: "no decoded frame yet" / "duration not known yet" are asked again.
+  if (frame === undefined && !/yet$/.test('why' in r ? r.why : '')) verdicts.set(path, r);
+  return r;
+}
+function judge(path: string, frame?: unknown): NativeSource {
   const vf = (frame !== undefined ? frame : dec.frame(path, clock)) as VideoFrame | null | undefined;
   if (!vf || typeof (vf as VideoFrame).format === 'undefined') return { kind: 'unsupported', why: 'an MP4 with no decoded frame yet' };
   if (vf.format !== 'NV12') return { kind: 'unsupported', why: `an MP4 decoded as ${vf.format} (the engine draws 8-bit NV12 only)` };
@@ -69,7 +84,9 @@ export const mp4Codec: VideoCodecContribution = {
   // that pay per frame (the 3D texture upload, the projector pump's createImageBitmap) skip repeats
   // on it; see mp4Decoder.generation.
   surfaceGeneration: (path) => dec.generation(path),
-  closeSurface: (path) => { surfaces.delete(path); dec.close(path); },
+  // E6i: the free-running surface clock the native engine follows (it picks the frame itself — mf.rs frame_at).
+  surfaceClockUs: (path) => (surfaces.has(path) ? Math.round(clock * 1e6) : undefined),
+  closeSurface: (path) => { surfaces.delete(path); verdicts.delete(path); dec.close(path); },
 
   // Timeline layer: playhead-exact, on a DEDICATED per-layer decoder (keyed by layerKey) so a scrub
   // seeks frame-exactly without disturbing the playing surface's decoder, and layers scrub independently.

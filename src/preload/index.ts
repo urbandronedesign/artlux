@@ -51,6 +51,12 @@ const api: ArtluxApi = {
         ipcRenderer.on(IPC.NATIVE_ENGINE_VIEW3D_GIZMO, listener);
         return () => { ipcRenderer.removeListener(IPC.NATIVE_ENGINE_VIEW3D_GIZMO, listener); };
     },
+    nativeEngineProjectorsCovered: () => ipcRenderer.invoke(IPC.NATIVE_ENGINE_PROJECTORS_COVERED) as Promise<string[]>,
+    onNativeEngineProjectorsCovered: (cb: (ids: string[]) => void) => {
+        const listener = (_e: unknown, ids: string[]) => cb(Array.isArray(ids) ? ids : []);
+        ipcRenderer.on(IPC.NATIVE_ENGINE_PROJECTORS_COVERED, listener);
+        return () => { ipcRenderer.removeListener(IPC.NATIVE_ENGINE_PROJECTORS_COVERED, listener); };
+    },
     onNativeEngineView3dPick: (cb: (id: string | null, add: boolean, model: string | null) => void) => {
         const listener = (_e: unknown, id: string | null, add: boolean, model: string | null) => cb(id, !!add, model ?? null);
         ipcRenderer.on(IPC.NATIVE_ENGINE_VIEW3D_PICK, listener);

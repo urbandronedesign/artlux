@@ -2857,6 +2857,40 @@ fallback until a source/output is proven byte-identical — risk 2):
 > covered windows (received 25/s, drawn 0/s) while the engine decodes them again, and (2) the engine presents 60 a
 > second whatever the picture's rate. **Next:** the app stops decoding / streaming what the engine shows; the presenter
 > presents on change.
+>
+> ✅ **Done 2026-11-26 — NOTHING STREAMED TO A COVERED WINDOW, AND PRESENT ON CHANGE.** (1) Main tells the editor which
+> projector windows are covered (`NATIVE_ENGINE_PROJECTORS_COVERED`, pushed from `applyCover` — the engine's outputs
+> and the ones held across a restart — and asked once at start); the frame pump skips them entirely and drops its dedup
+> state on a change, so an uncovered window (given back, an emergency) gets its picture at once. (2) An engine presenter
+> presents only when it drew something new (a new picture, new settings, a resize — a calibrated venue every pass),
+> a change it could not present stays owed, and a 250 ms heartbeat presents regardless. **Measured** (the same bench,
+> two runs): the app's processes **45–66 % → 11–18 %** of a core (covered windows receive 0 bitmaps a second), each
+> engine window presents = its new pictures (24–25 / s, was 60), GPU load **16 % → 10–11 %**; the engine run's total
+> CPU **47–56 %** against **60–70 %** app-only — the engine path now costs LESS than the app alone. All four windows
+> moving; `test:native-projectors` (plain, `--windowed`, `--ndi`, `--hold`, `--windowed --hold`, `--calibrated`,
+> `--partial`, `--windowed --ndi --partial`), `test:engine-hold` and takeover pass. `--mp4` fails its count bar —
+> 2 532 pixels by 1 (bar 0.1 % = 2 073; recorded at 1 322 in E1f) — the SAME with present-on-change switched off and
+> deterministic, so not this change: this box's MP4 colour conversion differs by 1 (as `test:mp4-parity` does here).
+> **Left:** the films are still decoded TWICE (the video decoder 12–17 % against 6–8 %) — the engine follows the
+> frame the APP is showing (nativeLink's `mp4` generations), so the app's decode is the engine's clock; removing it
+> means the engine keeping its own video clock (a design change, not a cut).
+>
+> ✅ **Done 2026-11-26 — EACH FILM DECODED ONCE: THE ENGINE FOLLOWS THE SURFACE CLOCK.** The MP4 codec hands out its
+> free-running surface clock (SDK `VideoCodecContribution.surfaceClockUs`, µs of the decoder's absolute time) and
+> `surfaceMedia.nativeGeneration` sends THAT for an MP4 surface instead of the frame the app decoded; the engine picks
+> its own frame at or before it (`mf.rs frame_at` — the app's rule) and re-makes the picture only when that frame
+> changes. `mp4NativeSource` keeps its colour verdict per file: it used to decode a frame on EVERY link tick to judge
+> it, which was the last thing making the app decode a film the engine shows. The app now decodes only for something
+> of its own (the editor preview, a fixture sampling the surface, an uncovered projector window). **Found on the way
+> (and in the engine before this — hidden while it counted the app's timestamps as new pictures):** a file whose first
+> frame is shown LATE (tos_night: frames 83 333 → 5 333 333 µs, the app looping it at 5.3 s) lost 2 of its 127 frames
+> a loop — the app's decoder, in absolute time, shows the previous loop's TAIL in the gap before the first frame, the
+> engine held the first frame there; now it asks for the previous loop's time in that gap (`Mp4In::first_ts`, found
+> once at open) — 127 / 127 a loop, each one frame-step apart. **Measured** (the four-film bench): the GPU's video
+> decoder **12–17 % → 6–7 %** (app-only 8 %), the app's processes ~8 % of a core, engine path total **42–43 %**
+> against **38–62 %** app-only, GPU load **7–13 %** against 8–10 %; every window 24.0 / 25.0 new pictures a second.
+> `test:video-frame-clock` (HAP + two films) OK; `test:native-projectors` plain, `--windowed`, `--hold`, `--ndi`,
+> `--calibrated`, `test:engine-hold` and takeover pass; `--mp4` the same pre-existing 2 532 pixels by 1.
 
 ## 9d. E4 started early — the 3D view in the engine (owner, 2026-11-24)
 

@@ -403,7 +403,20 @@ let lastProjWhy = '';
 // E6i step 3: outputs the engine owned when it died, held (covered, its last picture on them) until the restarted
 // engine answers for them — or an EMERGENCY hands them to the app's own drawing (projectorsEmergency).
 const heldIds = new Set<string>();
-function applyCover(): void { setProjectorsCovered(new Set([...(projOwns?.ids ?? []), ...heldIds]), heldIds); }
+function applyCover(): void {
+  const covered = new Set([...(projOwns?.ids ?? []), ...heldIds]);
+  setProjectorsCovered(covered, heldIds);
+  // E6i: the editor's frame pump stops streaming to these windows (they draw nothing) — and starts again the moment
+  // one is uncovered (the engine gave it back, or an emergency).
+  const ids = [...covered].sort(), key = ids.join('\n');
+  if (key !== coveredKey) {
+    coveredKey = key;
+    for (const w of BrowserWindow.getAllWindows()) if (!w.isDestroyed()) w.webContents.send(IPC.NATIVE_ENGINE_PROJECTORS_COVERED, ids);
+  }
+}
+let coveredKey = '';
+/** E6i: the projector outputs whose app windows are covered right now (the editor asks at start). */
+export function projectorsCovered(): string[] { return [...new Set([...(projOwns?.ids ?? []), ...heldIds])]; }
 /** E6i step 3: the engine will not come back (refused / gave up) — the app's windows draw their outputs again. */
 function projectorsEmergency(why: string): void {
   if (!heldIds.size) return;

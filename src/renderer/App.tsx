@@ -4398,6 +4398,14 @@ const App: React.FC = () => {
       // generation never advances, so a generation-only check would skip it forever and the new
       // window would stay black. A changed port always re-sends.
       const sentGen = new Map<string, { port: unknown; gen: number }>();
+      // E6i — WINDOWS THE NATIVE ENGINE COVERS ARE STREAMED NOTHING. Their ProjectorApp does not draw (covered), so every
+      // bitmap made for them was thrown away: measured, four MP4 outputs on the engine — 25 createImageBitmap + transfers a
+      // second per window, all discarded. On a change the dedup state is dropped, so a window uncovered (the engine gave it
+      // back, an emergency) is sent its picture at once, a paused source included.
+      let covered = new Set<string>();
+      const setCovered = (ids: string[]) => { covered = new Set(ids); sentGen.clear(); idle.clear(); };
+      void window.artlux?.nativeEngineProjectorsCovered?.().then(setCovered).catch(() => { /* no engine */ });
+      const offCovered = window.artlux?.onNativeEngineProjectorsCovered?.(setCovered);
       // Surfaces we've already told to go black, so the idle notice is sent once per transition
       // rather than every tick.
       const idle = new Set<string>();
@@ -4462,6 +4470,7 @@ const App: React.FC = () => {
           // starve the third projector of a wall.
           const wantSurface: { port: MessagePort; outId: string; refId: string }[] = [];
           for (const [surfaceId, port] of projectorPortsRef.current) {
+              if (covered.has(surfaceId)) continue;   // E6i: the engine shows it — see `covered` above
               const surface = surfacesRef.current.find(s => s.id === surfaceId);
               if (!surface) continue;
               // A SLICE is classified by the surface it CROPS — its own type says nothing about where
@@ -4696,7 +4705,7 @@ const App: React.FC = () => {
           if (coarse && wantSurface.length > 0) extraCursor = (extraCursor + EXTRA_PER_TICK) % wantSurface.length;
       };
       raf = requestAnimationFrame(tick);
-      return () => cancelAnimationFrame(raf);
+      return () => { cancelAnimationFrame(raf); offCovered?.(); };
   }, []);
 
   // NVAPI hardware warp/blend: detect once on mount (false on the stub build / non-pro GPUs → GLSL path).
