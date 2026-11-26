@@ -152,11 +152,13 @@ as a hang: ticks relayed for 3 s with no `sent` back (after this engine has draw
 a late ping tick) → hold, kill, restart (`ARTLUX_ENGINE_TEST_STALL_FILE` is the engine's hook to cause one). **Projector
 outputs** too: each presenter keeps its output's last picture (`<hold file>.proj-<id>`, every 500 ms, `ProjHold`);
 on a death main hands it to the app's window (`projector:held`) BEFORE uncovering it, and drops it when the engine
-owns the outputs again. `test:native-projectors --hold` proves it with `ARTLUX_NO_APP_PROJECTOR=1` (a TEST HOOK: the
-app's window draws nothing of its own — `HeldOnly`) and `ARTLUX_ENGINE_TEST_RESTART_MS` (a slow restart, so the
-screen can be photographed in between). `node scripts/test-engine-hold.cjs
-[--packaged <ArtLux.exe>]` proves it with `ARTLUX_NO_APP_WIRE=1` (a TEST HOOK: the app's frames never reach the wire,
-as with no browser engine).
+owns the outputs again. `test:native-projectors --hold` proves it through the real ProjectorApp (since E6i step 3 the
+app's window of an engine output never draws; `ARTLUX_ENGINE_TEST_RESTART_MS` slows the restart so the screen can be
+photographed in between). `node scripts/test-engine-hold.cjs [--packaged <ArtLux.exe>]` proves the wire, and its phase
+M the emergency (`ARTLUX_ENGINE_TEST_MISSING=1`: no engine — the app drives the wire).
+**Measuring the engine's outputs:** `ARTLUX_ENGINE_STATS=1` makes each presenter log `stats output '<id>': N presents/s,
+M new pictures/s` every 5 s (the engine's side of ProjectorApp's `__artluxProjStats`), and a watchdog log
+`STUCK output '<id>' … in step <k>` for a presenter whose loop has not come round for 2 s.
 Proof: `node scripts/test-engine-runtime.cjs` (the engine alone, over stdio) and
 `node scripts/test-native-takeover.cjs [--packaged <ArtLux.exe>]` (the real app: who sends each packet, and
 the bytes) and `node scripts/test-native-projectors.cjs [--windowed] [--ndi [--editor]] [--hwwarp [--no-nvapi]] [--calibrated [--glb] [--distort] [--calib-blend] [--calib-warp [--ndi]] [--calib-occlude] [--calib-own] [--calib-layer] [--calib-refused]] [--hold]` (the real app in

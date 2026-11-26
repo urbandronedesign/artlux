@@ -2843,6 +2843,20 @@ fallback until a source/output is proven byte-identical — risk 2):
 > GLTFLoader makes one mesh per primitive. **E6i on Windows is complete**: what is left refused for a calibrated
 > venue is an object-space normal map, a transformed / second-UV map, alpha / light / bump maps, and material types
 > other than MeshStandardMaterial (an unlit or KHR_materials_* material).
+>
+> **Measured 2026-11-26 — FOUR MP4s ON FOUR WINDOWED OUTPUTS** (packaged Show, four real films 24/25 fps, 25 s warm, 20 s
+> measured, twice each). **A bug, fixed:** in every engine run one or two of the four windows FROZE for good — a
+> presenter's swapchain reconfigure (the host re-laying out the windowed outputs) timed out waiting for the device to
+> idle ("Failed to wait for GPU to come idle before reconfiguring the Surface") and wgpu's uncaptured error panicked
+> the thread; now an error scope and a retry on the next pass (3 runs after: all four moving; the retry never fired —
+> the scope's round trip shifts the timing — but a failure is no longer fatal). Found with the new
+> `ARTLUX_ENGINE_STATS=1` (per-output presents / new pictures per second, and a STUCK-step watchdog). **Measured:**
+> both modes put 24–25 new pictures a second on every window (the films' rate). The engine run costs MORE: CPU total
+> 97–119 % of a core against 50–80 % app-only (app 45–66 % + engine 51–53 %), GPU 16 % against 7–9 %, the video
+> decoder 13 % against 7 %, GPU memory +0.8 GB — because (1) the app STILL decodes every film and streams it to its
+> covered windows (received 25/s, drawn 0/s) while the engine decodes them again, and (2) the engine presents 60 a
+> second whatever the picture's rate. **Next:** the app stops decoding / streaming what the engine shows; the presenter
+> presents on change.
 
 ## 9d. E4 started early — the 3D view in the engine (owner, 2026-11-24)
 

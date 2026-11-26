@@ -540,6 +540,27 @@ impl Pending {
 }
 
 /// One output's presenter: redraw the raster when the picture or the settings move, flip it every vblank.
+/// DIAGNOSIS (ARTLUX_ENGINE_STATS=1): each presenter's current step and finished loops; a watchdog reports a presenter
+/// whose loop has not come round for 2 s, and the step it is in.
+static PHASES: std::sync::OnceLock<Mutex<Vec<(String, Arc<std::sync::atomic::AtomicU32>, Arc<std::sync::atomic::AtomicU64>)>>> = std::sync::OnceLock::new();
+fn phase_watch() {
+    std::thread::spawn(|| {
+        let mut last: HashMap<String, (u64, std::time::Instant)> = HashMap::new();
+        loop {
+            std::thread::sleep(Duration::from_millis(500));
+            for (id, ph, n) in PHASES.get_or_init(Default::default).lock().unwrap().iter() {
+                let k = n.load(Ordering::Relaxed);
+                let e = last.entry(id.clone()).or_insert((k, std::time::Instant::now()));
+                if e.0 != k { *e = (k, std::time::Instant::now()); }
+                else if e.1.elapsed() >= Duration::from_secs(2) {
+                    eprintln!("artlux-engine: STUCK output '{id}' for {:.1} s in step {}", e.1.elapsed().as_secs_f64(), ph.load(Ordering::Relaxed));
+                    e.1 = std::time::Instant::now();
+                }
+            }
+        }
+    });
+}
+
 fn present(gpu: Arc<Gpu>, window: Arc<Window>, surface: wgpu::Surface<'static>, stop: Arc<AtomicBool>, shared: Arc<Mutex<Shared>>, spec: Spec) {
     let d = &gpu.device;
     let caps = surface.get_capabilities(&gpu.adapter);
@@ -553,6 +574,7 @@ fn present(gpu: Arc<Gpu>, window: Arc<Window>, surface: wgpu::Surface<'static>, 
         primitive: Default::default(), depth_stencil: None, multisample: Default::default(), multiview_mask: None, cache: None,
     });
     let mut configured: Option<PhysicalSize<u32>> = None;
+    let mut configure_fails = 0u32;
     let mut raster: Option<(wgpu::Texture, wgpu::BindGroup)> = None;
     let mut content: Option<(u64, wgpu::Texture)> = None;
     // Item 3: the calibration map, uploaded ONCE (a map is ~10 MB; the app also uploads it once).
@@ -592,15 +614,51 @@ fn present(gpu: Arc<Gpu>, window: Arc<Window>, surface: wgpu::Surface<'static>, 
     // top-first by the same exact same-size crop the NDI capture uses, every PROJ_EVERY.
     let mut proj_hold = crate::hold::ProjHold::open(&spec.id).map(|h| (h, crate::crop::Cropper::new(&gpu)));
     let mut proj_hold_at = std::time::Instant::now() - crate::hold::PROJ_EVERY;
+    // MEASUREMENT (ARTLUX_ENGINE_STATS=1): what this window puts on the wall — presents, and NEW pictures (a content
+    // generation it had not shown) — per second, every 5 s. The engine's side of ProjectorApp's __artluxProjStats.
+    let stats = std::env::var("ARTLUX_ENGINE_STATS").is_ok_and(|v| v == "1");
+    let (mut st_at, mut st_presents, mut st_new) = (std::time::Instant::now(), 0u32, 0u32);
+    let (ph, loops) = (Arc::new(std::sync::atomic::AtomicU32::new(0)), Arc::new(std::sync::atomic::AtomicU64::new(0)));
+    if stats {
+        let mut reg = PHASES.get_or_init(Default::default).lock().unwrap();
+        if reg.is_empty() { phase_watch(); }
+        reg.retain(|r| r.0 != spec.id);
+        reg.push((spec.id.clone(), ph.clone(), loops.clone()));
+    }
+    let step = |k: u32| ph.store(k, Ordering::Relaxed);
     while !stop.load(Ordering::SeqCst) {
+        loops.fetch_add(1, Ordering::Relaxed);
+        step(1);
+        if stats && st_at.elapsed() >= Duration::from_secs(5) {
+            let s = st_at.elapsed().as_secs_f64();
+            eprintln!("artlux-engine: stats output '{}': {:.1} presents/s, {:.1} new pictures/s", spec.id, st_presents as f64 / s, st_new as f64 / s);
+            st_at = std::time::Instant::now(); st_presents = 0; st_new = 0;
+        }
         let size = window.inner_size();
         if size.width == 0 || size.height == 0 { std::thread::sleep(Duration::from_millis(50)); continue; }
+        step(2);
         if configured != Some(size) {
+            // ⚠ A RECONFIGURE CAN FAIL UNDER LOAD, AND MUST NOT KILL THE OUTPUT. wgpu waits for the WHOLE device to go idle
+            // before resizing a swapchain, with a timeout; with four windowed outputs, four video decoders and the render
+            // thread all submitting, it timed out ("Failed to wait for GPU to come idle before reconfiguring the Surface")
+            // — and an uncaptured wgpu error PANICS the thread: the window froze on its last frame, or black, for good
+            // (found 2026-11-26: four MP4s on four windowed outputs, the host re-laying them out — one or two of four
+            // frozen in every run). Captured now, and simply tried again on the next pass.
+            let scope = d.push_error_scope(wgpu::ErrorFilter::Validation);
             surface.configure(d, &wgpu::SurfaceConfiguration {
                 usage: wgpu::TextureUsages::RENDER_ATTACHMENT, format, width: size.width, height: size.height,
                 present_mode: wgpu::PresentMode::Fifo, desired_maximum_frame_latency: 2, alpha_mode: caps.alpha_modes[0],
                 view_formats: vec![], color_space: wgpu::SurfaceColorSpace::Auto,
             });
+            if let Some(e) = pollster::block_on(scope.pop()) {
+                configure_fails += 1;
+                if configure_fails == 1 || configure_fails % 100 == 0 {
+                    eprintln!("artlux-engine: output '{}': swapchain {}x{} not configured yet ({configure_fails}×) — retrying: {}", spec.id, size.width, size.height, e.to_string().lines().last().unwrap_or("").trim());
+                }
+                std::thread::sleep(Duration::from_millis(50));
+                continue;
+            }
+            if configure_fails > 0 { eprintln!("artlux-engine: output '{}': swapchain {}x{} configured after {configure_fails} retr{}", spec.id, size.width, size.height, if configure_fails == 1 { "y" } else { "ies" }); configure_fails = 0; }
             let tex = d.create_texture(&wgpu::TextureDescriptor {
                 label: Some("projector raster"), size: wgpu::Extent3d { width: size.width, height: size.height, depth_or_array_layers: 1 },
                 mip_level_count: 1, sample_count: 1, dimension: wgpu::TextureDimension::D2, format: wgpu::TextureFormat::Rgba8Unorm,
@@ -617,6 +675,7 @@ fn present(gpu: Arc<Gpu>, window: Arc<Window>, surface: wgpu::Surface<'static>, 
             // E6f: not a WINDOWED output — that one is an ordinary window, like the app's.
             if spec.window.is_none() { window.set_window_level(WindowLevel::AlwaysOnTop); }
         }
+        step(3);
         // What to show now: the surface's picture and this output's settings, as last published.
         let (pic, opts, booting, badge, calib) = {
             let s = shared.lock().unwrap();
@@ -630,6 +689,7 @@ fn present(gpu: Arc<Gpu>, window: Arc<Window>, surface: wgpu::Surface<'static>, 
             });
             (s.pictures.get(&spec.surface_id).cloned(), s.opts.get(&spec.id).cloned(), s.booting, spec.badge.as_ref().and_then(|k| s.badges.get(k).cloned()), calib)
         };
+        step(4);
         let (ov, o) = opts.unwrap_or((0, spec.opts.clone()));
         let gen = pic.as_ref().map_or(0, |p| p.0);
         // E6f: RENDER-FROM-PROJECTOR — the venue from the solved projector, every frame (its pictures move; the
@@ -666,6 +726,7 @@ fn present(gpu: Arc<Gpu>, window: Arc<Window>, surface: wgpu::Surface<'static>, 
                 match (&pic, booting) {
                     (Some((g, p)), false) => {
                         if content.as_ref().map(|c| c.0) != Some(*g) {
+                            st_new += 1;
                             // Item 2c-4: a picture already on the GPU (an MP4 frame — the render thread and these
                             // presenters share ONE device, serve.rs) is copied there, its visible rect only.
                             content = Some((*g, match &p.tex {
@@ -703,6 +764,7 @@ fn present(gpu: Arc<Gpu>, window: Arc<Window>, surface: wgpu::Surface<'static>, 
         }
         #[cfg(not(feature = "ndi"))]
         let _ = &mut ndi_at;
+        step(6);
         if let (Some((hold, cut)), Some((rt, _)), false) = (&mut proj_hold, &raster, booting) {
             if proj_hold_at.elapsed() >= crate::hold::PROJ_EVERY {
                 proj_hold_at = std::time::Instant::now();
@@ -710,6 +772,7 @@ fn present(gpu: Arc<Gpu>, window: Arc<Window>, surface: wgpu::Surface<'static>, 
                 if let Ok(px) = crate::crop::Cropper::read(&gpu, &shot) { hold.record(size.width, size.height, &px); }
             }
         }
+        step(7);
         let tex = match surface.get_current_texture() {
             wgpu::CurrentSurfaceTexture::Success(t) | wgpu::CurrentSurfaceTexture::Suboptimal(t) => t,
             wgpu::CurrentSurfaceTexture::Timeout | wgpu::CurrentSurfaceTexture::Occluded => { std::thread::sleep(Duration::from_millis(8)); continue; }
@@ -753,8 +816,12 @@ fn present(gpu: Arc<Gpu>, window: Arc<Window>, surface: wgpu::Surface<'static>, 
                 }
             }
         }
+        step(9);
         gpu.queue.submit([enc.finish()]);
+        step(10);
         window.pre_present_notify();
+        step(11);
         gpu.queue.present(tex);
+        st_presents += 1;
     }
 }

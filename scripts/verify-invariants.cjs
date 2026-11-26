@@ -9746,6 +9746,9 @@ check(
     const pj = read('src/main/projector.ts');
     if (!/const hide = c && !held\.has\(surfaceId\);\s*if \(displayId === WINDOWED_DISPLAY && win\.isVisible\(\) === hide\) \{ if \(hide\) win\.hide\(\); else win\.showInactive\(\); \}/.test(pj)) problems.push('a covered windowed output is no longer hidden (or no longer shown again when uncovered)');
     if (!/if \(!covered\.has\(surfaceId\)\) win\.showInactive\(\)/.test(pj)) problems.push('a windowed output opened while covered is shown anyway');
+    // 2026-11-26: a presenter's swapchain RECONFIGURE (the host re-laying out windowed outputs) timed out waiting for the
+    // device to idle under load, and wgpu's uncaptured error PANICKED the thread — the window frozen for good.
+    if (!/let scope = d\.push_error_scope\(wgpu::ErrorFilter::Validation\);\s*surface\.configure\(d,[\s\S]{0,900}if let Some\(e\) = pollster::block_on\(scope\.pop\(\)\)[\s\S]{0,900}continue;/.test(raw('engine/artlux-engine/src/outputs.rs'))) problems.push('an engine presenter reconfigures its swapchain without catching the error (a timeout under load panicked the thread: the window froze for good)');
     if (!/enginePlace\.set\(surfaceId, physical\)/.test(pj) || !/const placed = enginePlace\.get\(surfaceId\)/.test(pj)) problems.push('the document is rebuilt from the hidden window\'s bounds instead of the engine\'s reported place');
     const eh = read('src/main/engineHost.ts');
     if (/noteDoc\(lastDoc,/.test(eh)) problems.push('engineHost re-sends the ANNOTATED document (stale reasons stick) — rebuild from lastDocRaw');
