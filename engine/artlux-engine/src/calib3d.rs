@@ -78,6 +78,9 @@ pub struct Own {
     /// E6i step 4b: opacity, alphaTest, transparent (NormalBlending, drawn after the opaque, far to near by `z` — three's
     /// projected bounding-sphere centre), depthWrite, forceSinglePass, aoMapIntensity.
     pub opacity: f32, pub alpha_test: f32, pub transparent: bool, pub depth_write: bool, pub single: bool, pub ao: f32, pub z: f32,
+    /// E6i step 4d: vertexColors (COLOR_0 × diffuse; × alpha too when the attribute has four components), and the
+    /// normal map's TBN from the mesh's own TANGENT attribute (three's USE_TANGENT) rather than screen derivatives.
+    pub vertex_colors: bool, pub vertex_alpha: bool, pub tangents: bool,
 }
 /// A map: three's sampler for it, and — a map that is not a PNG — the raster key of the APP's decode of it.
 #[derive(Clone, Debug)]
@@ -143,6 +146,8 @@ fn xf_of(x: &Value) -> Option<Xf> {
         transparent: o["transparent"].as_bool().unwrap_or(false), depth_write: o["depthWrite"].as_bool().unwrap_or(true),
         single: o["forceSinglePass"].as_bool().unwrap_or(false), ao: o["aoMapIntensity"].as_f64().unwrap_or(1.0) as f32,
         z: o["z"].as_f64().unwrap_or(0.0) as f32,
+        vertex_colors: o["vertexColors"].as_bool().unwrap_or(false), vertex_alpha: o["vertexAlpha"].as_bool().unwrap_or(false),
+        tangents: o["tangents"].as_bool().unwrap_or(false),
     }));
     // A mesh that says it wears its own material but whose material did not parse is no mesh (drawn as nothing,
     // never as something else).
@@ -357,7 +362,8 @@ struct Cam { p: mat4x4<f32> };
 @group(0) @binding(0) var<uniform> cam: Cam;
 // flags = (double-sided, back-sided, toneMappingExposure, _)
 // flags.w = has a map; mf = (has emissiveMap, has metalnessMap, has aoMap, aoMapIntensity); tr = (opacity, alphaTest,
-// transparent, normalScale.y); n0.w = has a normalMap, emissive.w = normalScale.x.
+// transparent, normalScale.y); n0.w = has a normalMap, emissive.w = normalScale.x; n1.w = vertex colours, n2.w = vertex
+// alpha, dir.w = the normal map's frame from the mesh's own tangents.
 struct Own { mv: mat4x4<f32>, n0: vec4<f32>, n1: vec4<f32>, n2: vec4<f32>, color: vec4<f32>, emissive: vec4<f32>,
              ambient: vec4<f32>, sky: vec4<f32>, ground: vec4<f32>, dir: vec4<f32>, flags: vec4<f32>, mf: vec4<f32>, tr: vec4<f32> };
 @group(1) @binding(0) var<uniform> own: Own;
@@ -375,9 +381,10 @@ struct Own { mv: mat4x4<f32>, n0: vec4<f32>, n1: vec4<f32>, n2: vec4<f32>, color
 @group(2) @binding(9) var osnor: sampler;
 
 // vpos = mvPosition.xyz (three's −vViewPosition), for the normal map's screen-space tangent frame.
-struct OOut { @builtin(position) pos: vec4<f32>, @location(0) vn: vec3<f32>, @location(1) uv: vec2<f32>, @location(2) vpos: vec3<f32> };
+struct OOut { @builtin(position) pos: vec4<f32>, @location(0) vn: vec3<f32>, @location(1) uv: vec2<f32>, @location(2) vpos: vec3<f32>,
+              @location(3) col: vec4<f32>, @location(4) vt: vec3<f32>, @location(5) vb: vec3<f32> };
 
-@vertex fn vs(@location(0) p: vec3<f32>, @location(1) n: vec3<f32>, @location(2) uv: vec2<f32>) -> OOut {
+@vertex fn vs(@location(0) p: vec3<f32>, @location(1) n: vec3<f32>, @location(2) uv: vec2<f32>, @location(3) col: vec4<f32>, @location(4) tan: vec4<f32>) -> OOut {
   var o: OOut;
   let mvp = own.mv * vec4<f32>(p, 1.0);
   var c = cam.p * mvp;
@@ -393,6 +400,14 @@ struct OOut { @builtin(position) pos: vec4<f32>, @location(0) vn: vec3<f32>, @lo
   // path's flip) — turned back: GLTFLoader's textures are flipY false, so glTF's v samples the image as stored.
   o.uv = vec2<f32>(uv.x, 1.0 - uv.y);
   o.vpos = mvp.xyz;
+  // color_vertex: vColor = color (rgb, or rgba with vertex alpha) — applied in the fragment where the material asks.
+  o.col = col;
+  // tangent_vertex / normal_vertex (USE_TANGENT): transformedTangent = (modelViewMatrix × (tangent.xyz, 0)).xyz, negated
+  // for BackSide; vTangent = normalize(it); vBitangent = normalize(cross(vNormal, vTangent) × tangent.w).
+  var tt = (own.mv * vec4<f32>(tan.xyz, 0.0)).xyz;
+  if (own.flags.y > 0.5) { tt = -tt; }
+  o.vt = normalize(tt);
+  o.vb = normalize(cross(o.vn, o.vt) * tan.w);
   return o;
 }
 
@@ -412,6 +427,8 @@ fn lit(i: OOut, ff: bool) -> vec4<f32> {
   // diffuseColor = vec4(diffuse, opacity); map_fragment: *= texel; alphatest_fragment: discard below alphaTest.
   var dc = vec4<f32>(own.color.rgb, own.tr.x);
   if (own.flags.w > 0.5) { dc = dc * texel; }
+  // color_fragment: diffuseColor.rgb *= vColor.rgb (USE_COLOR), diffuseColor *= vColor (USE_COLOR_ALPHA).
+  if (own.n1.w > 0.5) { dc = vec4<f32>(dc.rgb * i.col.rgb, select(dc.a, dc.a * i.col.a, own.n2.w > 0.5)); }
   if (own.tr.y > 0.0 && dc.a < own.tr.y) { discard; }
   let diffuse = dc.rgb;
   // metalnessmap_fragment: metalnessFactor *= texelMetalness.b; emissivemap_fragment: totalEmissiveRadiance *= texel.rgb.
@@ -434,6 +451,8 @@ fn lit(i: OOut, ff: bool) -> vec4<f32> {
     let sc = select(inverseSqrt(det), 0.0, det == 0.0);
     var t = T * sc;
     var b = B * sc;
+    // USE_TANGENT: tbn = mat3(normalize(vTangent), normalize(vBitangent), normal) — the mesh's own tangents.
+    if (own.dir.w > 0.5) { t = normalize(i.vt); b = normalize(i.vb); }
     if (own.flags.x > 0.5) { t = t * faceDirection; b = b * faceDirection; }
     var mapN = tnor.xyz * 2.0 - 1.0;
     mapN = vec3<f32>(mapN.xy * vec2<f32>(own.emissive.w, own.tr.w), mapN.z);
@@ -593,7 +612,8 @@ struct U { q: vec4<f32> };
 }
 "#;
 
-struct GpuMesh { vb: wgpu::Buffer, ib: wgpu::Buffer, n: u32 }
+/// `ex` (E6i step 4d, a GLB's meshes): the second vertex buffer the OWN pipelines read — colour and tangent per vertex.
+struct GpuMesh { vb: wgpu::Buffer, ib: wgpu::Buffer, n: u32, ex: Option<wgpu::Buffer> }
 /// What the post pass reads: (w, h, blend key) it was made for, and its bind group.
 struct PostBind { key: (u32, u32, u64), bind: wgpu::BindGroup, _texs: Vec<wgpu::Texture> }
 enum GlbState { Loading, Ready(Vec<Option<GpuMesh>>), Failed }
@@ -803,7 +823,7 @@ impl Renderer {
         let d = &gpu.device;
         let vb = d.create_buffer_init(&wgpu::util::BufferInitDescriptor { label: Some("calib3d vb"), contents: &f32s(verts), usage: wgpu::BufferUsages::VERTEX });
         let ib = d.create_buffer_init(&wgpu::util::BufferInitDescriptor { label: Some("calib3d ib"), contents: &idx.iter().flat_map(|x| x.to_le_bytes()).collect::<Vec<u8>>(), usage: wgpu::BufferUsages::INDEX });
-        GpuMesh { vb, ib, n: idx.len() as u32 }
+        GpuMesh { vb, ib, n: idx.len() as u32, ex: None }
     }
 
     /// A venue GLB's meshes, by three's mesh slot — loaded OFF this thread (a CAD venue takes seconds), drawn once in.
@@ -818,7 +838,9 @@ impl Renderer {
                     for pr in &cpu.prims {
                         let mut v = pr.verts.clone();
                         for k in (0..v.len()).step_by(8) { v[k + 7] = 1.0 - v[k + 7]; }
-                        by_slot[pr.slot] = Some(Self::mesh(gpu, &v, &pr.idx));
+                        let mut m = Self::mesh(gpu, &v, &pr.idx);
+                        m.ex = Some(wgpu::util::DeviceExt::create_buffer_init(&gpu.device, &wgpu::util::BufferInitDescriptor { label: Some("calib3d ex"), contents: &f32s(&pr.extra), usage: wgpu::BufferUsages::VERTEX }));
+                        by_slot[pr.slot] = Some(m);
                     }
                     eprintln!("artlux-engine: output '{}': venue {p} loaded ({n} meshes)", self.out_id);
                     let mut img_of: Vec<[Option<usize>; 5]> = vec![[None; 5]; n];
@@ -1020,10 +1042,12 @@ impl Renderer {
                         let mut u: Vec<f32> = Vec::with_capacity(64);
                         u.extend_from_slice(&xf.mv);
                         let on = |j: usize| if keys[j].is_some() { 1.0 } else { 0.0 };
-                        for c in 0..3 { u.extend_from_slice(&[o.nm[c * 3], o.nm[c * 3 + 1], o.nm[c * 3 + 2], if c == 0 { on(4) } else { 0.0 }]); }
+                        let vc = [on(4), if o.vertex_colors { 1.0 } else { 0.0 }, if o.vertex_colors && o.vertex_alpha { 1.0 } else { 0.0 }];
+                        for c in 0..3 { u.extend_from_slice(&[o.nm[c * 3], o.nm[c * 3 + 1], o.nm[c * 3 + 2], vc[c]]); }
                         u.extend_from_slice(&[o.color[0], o.color[1], o.color[2], o.metalness]);
                         u.extend_from_slice(&[o.emissive[0], o.emissive[1], o.emissive[2], o.normal_scale[0]]);
-                        for v in [l.ambient, l.sky, l.ground, l.dir] { u.extend_from_slice(&[v[0], v[1], v[2], 0.0]); }
+                        for v in [l.ambient, l.sky, l.ground] { u.extend_from_slice(&[v[0], v[1], v[2], 0.0]); }
+                        u.extend_from_slice(&[l.dir[0], l.dir[1], l.dir[2], if o.tangents && keys[4].is_some() { 1.0 } else { 0.0 }]);
                         u.extend_from_slice(&[if side == 2 { 1.0 } else { 0.0 }, if side == 1 { 1.0 } else { 0.0 }, 1.0, on(0)]);
                         u.extend_from_slice(&[on(1), on(2), on(3), o.ao]);
                         u.extend_from_slice(&[o.opacity, o.alpha_test, if o.transparent { 1.0 } else { 0.0 }, o.normal_scale[1]]);
@@ -1078,9 +1102,13 @@ impl Renderer {
                     let cull = match side { 0 => Some(wgpu::Face::Back), 1 => Some(wgpu::Face::Front), _ => None };
                     let pipe = d.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
                         label: Some("calib3d own"), layout: Some(&self.layout),
-                        vertex: wgpu::VertexState { module: &self.own_module, entry_point: Some("vs"), compilation_options: Default::default(), buffers: &[Some(wgpu::VertexBufferLayout {
-                            array_stride: 32, step_mode: wgpu::VertexStepMode::Vertex,
-                            attributes: &wgpu::vertex_attr_array![0 => Float32x3, 1 => Float32x3, 2 => Float32x2] })] },
+                        vertex: wgpu::VertexState { module: &self.own_module, entry_point: Some("vs"), compilation_options: Default::default(), buffers: &[
+                            Some(wgpu::VertexBufferLayout { array_stride: 32, step_mode: wgpu::VertexStepMode::Vertex,
+                                attributes: &wgpu::vertex_attr_array![0 => Float32x3, 1 => Float32x3, 2 => Float32x2] }),
+                            // E6i step 4d: colour, tangent.
+                            Some(wgpu::VertexBufferLayout { array_stride: 32, step_mode: wgpu::VertexStepMode::Vertex,
+                                attributes: &wgpu::vertex_attr_array![3 => Float32x4, 4 => Float32x4] }),
+                        ] },
                         fragment: Some(wgpu::FragmentState { module: &self.own_module, entry_point: Some(fs), compilation_options: Default::default(), targets: &[Some(wgpu::ColorTargetState {
                             format: fmt, write_mask: wgpu::ColorWrites::ALL,
                             // three's NormalBlending, premultipliedAlpha false: blendFuncSeparate(SRC_ALPHA, ONE_MINUS_SRC_ALPHA, ONE, ONE_MINUS_SRC_ALPHA).
@@ -1239,7 +1267,9 @@ impl Renderer {
                     pass.set_bind_group(1, obj_bind, &[(i as u64 * OBJ_STRIDE) as u32]);
                     pass.set_bind_group(2, maps, &[]);
                     pass.set_bind_group(3, &self.far_bind, &[]);
+                    let Some(ex) = &mesh.ex else { continue };
                     pass.set_vertex_buffer(0, mesh.vb.slice(..));
+                    pass.set_vertex_buffer(1, ex.slice(..));
                     pass.set_index_buffer(mesh.ib.slice(..), wgpu::IndexFormat::Uint32);
                     pass.draw_indexed(0..mesh.n, 0, 0..1);
                     continue;

@@ -443,7 +443,9 @@ fn bytes(v: &[f32]) -> Vec<u8> { v.iter().flat_map(|x| x.to_le_bytes()).collect(
 
 /// `slot`: this primitive's index among the file's three.js MESHES (see `Content`).
 /// `maps` (E6i step 4): the images of its base-colour, emissive, metallic-roughness, occlusion and normal textures.
-pub(crate) struct CpuPrim { pub(crate) local: [f32; 16], pub(crate) verts: Vec<f32>, pub(crate) idx: Vec<u32>, pub(crate) color: [f32; 4], pub(crate) image: Option<usize>, pub(crate) unlit: bool, pub(crate) slot: usize, pub(crate) maps: [Option<usize>; 5] }
+/// `extra` (E6i step 4d): per vertex, COLOR_0 (RGBA, linear, normalised as the GPU normalises it; white where the file
+/// has none) then TANGENT (xyzw; (1, 0, 0, 1) where none) — 8 floats a vertex.
+pub(crate) struct CpuPrim { pub(crate) local: [f32; 16], pub(crate) verts: Vec<f32>, pub(crate) idx: Vec<u32>, pub(crate) color: [f32; 4], pub(crate) image: Option<usize>, pub(crate) unlit: bool, pub(crate) slot: usize, pub(crate) maps: [Option<usize>; 5], pub(crate) extra: Vec<f32> }
 pub(crate) struct CpuGlb { pub(crate) prims: Vec<CpuPrim>, pub(crate) images: Vec<(u32, u32, Vec<u8>)> }
 
 fn node_matrix(n: &gltf::Node) -> [f32; 16] {
@@ -501,9 +503,17 @@ pub(crate) fn load_glb(path: &str) -> Result<CpuGlb, String> {
                     let t = uv.get(i).copied().unwrap_or([0.0, 0.0]);
                     verts.extend_from_slice(&[pos[i][0], pos[i][1], pos[i][2], n[0], n[1], n[2], t[0], t[1]]);
                 }
+                let cols: Option<Vec<[f32; 4]>> = r.read_colors(0).map(|c| c.into_rgba_f32().collect());
+                let tans: Option<Vec<[f32; 4]>> = r.read_tangents().map(|t| t.collect());
+                let mut extra = Vec::with_capacity(pos.len() * 8);
+                for i in 0..pos.len() {
+                    extra.extend_from_slice(&cols.as_ref().and_then(|c| c.get(i).copied()).unwrap_or([1.0; 4]));
+                    extra.extend_from_slice(&tans.as_ref().and_then(|t| t.get(i).copied()).unwrap_or([1.0, 0.0, 0.0, 1.0]));
+                }
                 let mat = p.material();
                 let pbr = mat.pbr_metallic_roughness();
                 out.push(CpuPrim {
+                    extra,
                     local: world, verts, idx, color: pbr.base_color_factor(),
                     image: pbr.base_color_texture().map(|t| t.texture().source().index()),
                     unlit: mat.unlit(), slot,

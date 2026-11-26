@@ -178,7 +178,12 @@ if (CALIB_TEX) {
   const nrm = new Float32Array([0, 0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 1]);
   const uv = new Float32Array([0, 2, 3, 2, 3, 0, 0, 0]);
   const idx = new Uint16Array([0, 1, 2, 0, 2, 3]);
-  const parts = [Buffer.from(pos.buffer), Buffer.from(nrm.buffer), Buffer.from(uv.buffer), Buffer.from(idx.buffer), ...images];
+  // --tex-full (E6i step 4d): per-vertex COLOR_0 (RGBA: four corners, one translucent) and TANGENT ((1, 0, 0, −1): u runs
+  // along +x, v down −y) — the two extra attributes, as their own buffer views after the images.
+  const col = new Float32Array([1, 0.2, 0.1, 1, 0.1, 1, 0.3, 1, 0.2, 0.3, 1, 0.6, 1, 1, 0.2, 1]);
+  const tan = new Float32Array([1, 0, 0, -1, 1, 0, 0, -1, 1, 0, 0, -1, 1, 0, 0, -1]);
+  const parts = [Buffer.from(pos.buffer), Buffer.from(nrm.buffer), Buffer.from(uv.buffer), Buffer.from(idx.buffer), ...images, Buffer.from(col.buffer), Buffer.from(tan.buffer)];
+  const colView = 4 + images.length, tanView = colView + 1;
   const views = []; let off = 0; const pad = (b) => Buffer.concat([b, Buffer.alloc((4 - (b.length % 4)) % 4)]);
   const bin = Buffer.concat(parts.map((b) => { views.push({ buffer: 0, byteOffset: off, byteLength: b.length }); const p = pad(b); off += p.length; return p; }));
   const quat = (deg) => [0, Math.sin(deg * Math.PI / 360), 0, Math.cos(deg * Math.PI / 360)];
@@ -193,10 +198,15 @@ if (CALIB_TEX) {
     nodes.push({ mesh: 1, name: 'cut', translation: [0.9, 0.85, 0.6], scale: [0.25, 0.3, 1] });
     nodes.push({ mesh: 2, name: 'glassA', translation: [-0.3, 0.9, 1.0], rotation: quat(30), scale: [0.25, 0.3, 1] });
     nodes.push({ mesh: 3, name: 'glassB', translation: [-0.35, 0.8, 1.5], rotation: quat(-15), scale: [0.22, 0.28, 1] });
+    // A VERTEX-COLOURED quad (white base, colours from COLOR_0) and a NORMAL-MAPPED quad with its OWN TANGENTS.
+    materials.push({ pbrMetallicRoughness: { baseColorFactor: [1, 1, 1, 1], metallicFactor: 0 } });
+    materials.push({ pbrMetallicRoughness: { baseColorFactor: [0.9, 0.8, 0.6, 1], metallicFactor: 0.1 }, normalTexture: { index: 5, scale: 1 } });
+    nodes.push({ mesh: 4, name: 'painted', translation: [-1.1, 0.95, 0.6], rotation: quat(-20), scale: [0.25, 0.3, 1] });
+    nodes.push({ mesh: 5, name: 'tangent', translation: [0.4, 0.95, 0.9], rotation: quat(10), scale: [0.2, 0.25, 1] });
   }
   const json = {
     asset: { version: '2.0' }, scene: 0, scenes: [{ nodes: nodes.map((_, k) => k) }], nodes,
-    meshes: materials.map((_, k) => ({ primitives: [{ attributes: { POSITION: 0, NORMAL: 1, TEXCOORD_0: 2 }, indices: 3, material: k }] })),
+    meshes: materials.map((_, k) => ({ primitives: [{ attributes: { POSITION: 0, NORMAL: 1, TEXCOORD_0: 2, ...(k === 4 ? { COLOR_0: 4 } : {}), ...(k === 5 ? { TANGENT: 5 } : {}) }, indices: 3, material: k }] })),
     materials,
     textures: images.map((_, k) => ({ source: k, sampler: 0 })), samplers: [{ magFilter: 9729, minFilter: 9987, wrapS: 10497, wrapT: 10497 }],
     images: images.map((_, k) => ({ bufferView: 4 + k, mimeType: k === 0 && TEX_JPEG ? 'image/jpeg' : 'image/png' })),
@@ -205,6 +215,8 @@ if (CALIB_TEX) {
       { bufferView: 1, componentType: 5126, count: 4, type: 'VEC3' },
       { bufferView: 2, componentType: 5126, count: 4, type: 'VEC2' },
       { bufferView: 3, componentType: 5123, count: 6, type: 'SCALAR' },
+      { bufferView: colView, componentType: 5126, count: 4, type: 'VEC4' },
+      { bufferView: tanView, componentType: 5126, count: 4, type: 'VEC4' },
     ],
     bufferViews: views, buffers: [{ byteLength: bin.length }],
   };

@@ -144,6 +144,7 @@ function mapSpec(t: THREE.Texture | null, srgb: boolean): MapSpec | null | { why
 type OwnSpec = {
   color: number[]; metalness: number; emissive: number[]; side: number; maps: (MapSpec | null)[]; normalScale: number[];
   opacity: number; alphaTest: number; transparent: boolean; depthWrite: boolean; forceSinglePass: boolean; aoMapIntensity: number; z?: number;
+  vertexColors: boolean; vertexAlpha: boolean; tangents: boolean;
 };
 function ownMaterial(o: THREE.Mesh): OwnSpec | { why: string } {
   const m = o.material as THREE.MeshStandardMaterial | THREE.Material[];
@@ -153,13 +154,16 @@ function ownMaterial(o: THREE.Mesh): OwnSpec | { why: string } {
   if (other) return { why: `a material with a ${other}` };
   const maps: (MapSpec | null)[] = [];
   if (m.normalMap && m.normalMapType !== THREE.TangentSpaceNormalMap) return { why: 'an object-space normal map' };
-  if (m.normalMap && o.geometry.getAttribute('tangent')) return { why: 'a normal map on a mesh with its own tangents' };
+  // E6i step 4d: a mesh's own TANGENT attribute (three's USE_TANGENT frame) and VERTEX COLOURS are drawn too — the
+  // engine reads both from the GLB (COLOR_0, TANGENT). Colours asked for with none on the mesh would be WebGL's
+  // default attribute (black): refused rather than guessed.
+  const tangent = o.geometry.getAttribute('tangent'), color = o.geometry.getAttribute('color');
+  if (m.vertexColors && !color) return { why: 'vertex colours on a mesh with none' };
   for (const [t, srgb] of [[m.map, true], [m.emissiveMap, true], [m.metalnessMap, false], [m.aoMap, false], [m.normalMap, false]] as const) {
     const r = mapSpec(t, srgb);
     if (r && 'why' in r) return { why: r.why };
     maps.push(r as MapSpec | null);
   }
-  if (m.vertexColors) return { why: 'vertex colours' };
   // E6i step 4b — TRANSPARENCY as three draws it: NormalBlending (straight alpha), after the opaque, far to near; an
   // alpha test (glTF MASK) discards. What else changes the blend or the order is refused.
   if (m.alphaHash) return { why: 'an alpha-hashed material' };
@@ -173,6 +177,7 @@ function ownMaterial(o: THREE.Mesh): OwnSpec | { why: string } {
   // working space), metalness; the side decides the culling and the double-sided normal flip.
   return {
     color: [m.color.r, m.color.g, m.color.b], metalness: m.metalness, emissive: m.emissive.clone().multiplyScalar(m.emissiveIntensity).toArray(), side: m.side,
+    vertexColors: m.vertexColors, vertexAlpha: !!color && color.itemSize === 4, tangents: !!tangent && !!m.normalMap,
     maps, normalScale: [m.normalScale.x, m.normalScale.y], opacity: m.opacity, alphaTest: m.alphaTest, transparent: m.transparent, depthWrite: m.depthWrite, forceSinglePass: m.forceSinglePass, aoMapIntensity: m.aoMapIntensity,
   };
 }

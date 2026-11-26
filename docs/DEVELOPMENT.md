@@ -109,12 +109,13 @@ distortion → blend → sRGB in one pass, from `renderLook.ts`'s values), and a
 becomes the warp stage's source, geometry only — and then its NDI send). It also draws projected **occlusion** (the
 projector's depth map, as `projectorDepth.ts` renders it) and a venue mesh in its **own material** (a plain
 `MeshStandardMaterial` — colour, metalness, emissive, and (E6i step 4) its **base-colour, emissive, metalness, AO and
-tangent-space normal maps** (a normal map on a mesh without tangents: three's screen-space `getTangentFrame`), mipmapped on the GPU as WebGL's generateMipmap does; a PNG map is read from the GLB, any other (a JPEG…) is
+tangent-space normal maps** (on a mesh without tangents three's screen-space `getTangentFrame`, with its own TANGENT
+attribute USE_TANGENT's frame), its **vertex colours** (COLOR_0, × alpha with four components), mipmapped on the GPU as WebGL's generateMipmap does; a PNG map is read from the GLB, any other (a JPEG…) is
 the APP's decode shipped as a raster `vmap:<uuid>`, because JPEG decoders differ — and its **transparency**: an alpha
 test (glTF MASK) and blending (BLEND: NormalBlending, drawn after the opaque far to near by three's sort depth, a
-double-sided one in two passes) — lit by the window's ambient + hemisphere lights; a normal map on a mesh with its
-own tangents or in object space, a transformed /
-non-UV-0 map, vertex colours, several materials on one mesh or another material type is refused;
+double-sided one in two passes) — lit by the window's ambient + hemisphere lights; an object-space normal map, a
+transformed / non-UV-0 map, vertex colours asked for on a mesh with none, several materials on one mesh (GLTFLoader
+never makes one) or another material type is refused;
 `test:native-projectors --calibrated --calib-tex [--tex-full | --tex-npot | --tex-jpeg]` proves it), and a **timeline layer** shown on the venue (a
 hidden LAYER surface per bound layer, composited as any timeline surface). It does not draw an NDI send of an
 unwarped calibrated output (the app sends nothing there), nor an output with a calibration session open on it.

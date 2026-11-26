@@ -2829,6 +2829,20 @@ fallback until a source/output is proven byte-identical — risk 2):
 > with its own TANGENT attribute (three's other path). `--tex-full` with a ripple normal map on the wall (scale 0.8):
 > **identical, 2 073 600 / 2 073 600**; the engine's normal map switched off as a probe: 69 812 pixels by up to 7.
 > Still refused: vertex colours, several materials on one mesh, a mesh with its own tangents.
+>
+> ✅ **E6i step 4d done 2026-11-26 — VERTEX COLOURS AND A MESH'S OWN TANGENTS.** Every GLB mesh now has a second vertex
+> buffer the OWN pipelines read (`GpuMesh.ex`: COLOR_0 RGBA — normalised as the GPU normalises it, white where none —
+> then TANGENT xyzw, (1, 0, 0, 1) where none; `CpuPrim.extra`). color_vertex / color_fragment: diffuseColor.rgb ×=
+> vColor.rgb, × its alpha too when the attribute has four components (three's vertexAlphas). A normal map on a mesh
+> WITH tangents takes three's USE_TANGENT frame: vTangent = normalize((modelView × (t.xyz, 0)).xyz) (negated
+> BackSide), vBitangent = normalize(cross(vNormal, vTangent) × t.w), tbn = (vTangent, vBitangent, normal) — instead
+> of the screen-space one. Vertex colours on a mesh without a colour attribute would be WebGL's default (black):
+> refused. `--tex-full` grew a vertex-coloured quad (four corner colours) and a normal-mapped quad with its own
+> TANGENT: **identical, 2 073 600 / 2 073 600** (a rerun: 2 pixels by 1 — the MSAA edges); both paths switched off in the engine as a probe: 97 551 pixels by
+> up to 113, at exactly those two quads. Several materials on one mesh stays refused, and no GLB reaches it:
+> GLTFLoader makes one mesh per primitive. **E6i on Windows is complete**: what is left refused for a calibrated
+> venue is an object-space normal map, a transformed / second-UV map, alpha / light / bump maps, and material types
+> other than MeshStandardMaterial (an unlit or KHR_materials_* material).
 
 ## 9d. E4 started early — the 3D view in the engine (owner, 2026-11-24)
 
