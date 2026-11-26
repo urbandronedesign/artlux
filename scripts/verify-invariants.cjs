@@ -9970,7 +9970,7 @@ check(
   'plans/native-engine.md E6e. Default-on is the step that puts the engine under every Windows show, so the ' +
   'ways back must be explicit and must not drift: --no-native-engine / ARTLUX_NATIVE_ENGINE=0 (a test\'s app-side ' +
   'reference, a tech at a venue) beat everything; --native-engine / =1 force it on anywhere; off any platform but ' +
-  'Windows (E6g: no MP4 / camera / Syphon / bake encode in the engine on macOS yet); then the per-machine ' +
+  'Windows (the owner, 2026-11-26: Windows only — macOS and Linux keep the browser engine); then the per-machine ' +
   'Preferences ▸ Engine ▸ Native output engine (Prefs.nativeEngineOff — named for the polarity so ABSENCE means on). ' +
   'And every parity test that compares the engine with the app must launch its APP run with --no-native-engine: with ' +
   'the engine on by default, an app run that just omits --native-engine silently compares the engine with itself.',
@@ -9981,7 +9981,7 @@ check(
     const body = (eh.match(/function decide\(\)[\s\S]*?\n\}/) || [''])[0];
     let at = -1;
     for (const o of order) { const i = body.indexOf(o); if (i < 0 || i < at) { problems.push(`engineHost decide(): "${o}" is missing or out of order`); break; } at = i; }
-    if (!/if \(process\.platform !== 'win32'\) return \{ on: false,/.test(body)) problems.push('engineHost decide(): off any platform but Windows (E6g)');
+    if (!/if \(process\.platform !== 'win32'\) return \{ on: false,/.test(body)) problems.push('engineHost decide(): off any platform but Windows (Windows only, 2026-11-26)');
     if (!/return \{ on: true, why: 'the default on Windows' \};\s*\}$/.test(body)) problems.push('engineHost decide(): the engine is no longer ON by default on Windows');
     if (!/nativeEngineOff\?: boolean;/.test(read('shared/protocol.ts'))) problems.push('Prefs.nativeEngineOff is gone');
     const pr = read('src/renderer/components/Preferences.tsx');
@@ -10129,6 +10129,33 @@ check(
     if (!/getHapClockUs\(path\)/.test(raw('plugins/hap/src/hapCodec.ts')) || !/return active\.has\(path\) \? clock \* 1e6 : undefined;/.test(raw('plugins/hap/src/hapPlayer.ts'))) problems.push('the HAP codec no longer hands out its surface clock (hapPlayer clock)');
     const nl = raw('src/renderer/engine/nativeLink.ts');
     if (!/const c = contentSource\.getSurfaceClockUs\(s\.id, s\.content\);\s*if \(c !== undefined\) hapc\[s\.id\] = c;/.test(nl) || !/hap, hapc, mp4,/.test(nl)) problems.push('the tick no longer carries each HAP surface clock (hapc)');
+    return problems.length ? problems.join('; ') : null;
+  },
+);
+
+check(
+  'the native engine is WINDOWS ONLY — macOS and Linux ship without it and keep the browser engine, which still outputs everywhere',
+  'The owner, 2026-11-26: "we will use only windows for our shows; mac and linux can stay on the old technology" ' +
+  '(plans/native-engine.md: E6g dropped). So the release must never need the engine off Windows: build.yml builds it ' +
+  'on the Windows runner only, it is declared only in build.win.extraResources (a declared source missing on a Mac ' +
+  'or Linux runner would fail verify:resources and the package), engine.yml tests it on Windows only (it no longer ' +
+  'compiles elsewhere — its bake encoder is Media Foundation), engineHost turns it off off Windows, and the BROWSER ' +
+  'frame engine — the macOS / Linux output, and Windows\' emergency path — still puts frames on the wire with no ' +
+  'platform gate. A "delete the browser engine" (the old E6i) would leave every Mac and Linux show dark.',
+  () => {
+    const problems = [];
+    const bw = raw('.github/workflows/build.yml');
+    if (!/- name: Build the native render engine \(Windows\)\s*\n\s*if: runner\.os == 'Windows'\s*\n\s*run: npm run build:engine/.test(bw)) problems.push('build.yml builds the engine on a runner other than Windows (or not at all)');
+    const ew = raw('.github/workflows/engine.yml');
+    if (!/^\s*os: \[windows-latest\]\s*$/m.test(ew)) problems.push('engine.yml runs the engine on a runner other than Windows');
+    const b = JSON.parse(raw('package.json')).build;
+    const has = (l) => (l || []).some((r) => /artlux-engine/.test(typeof r === 'string' ? r : r.from || ''));
+    if (!has(b.win && b.win.extraResources)) problems.push('the engine is not in build.win.extraResources (the Windows package would ship without it)');
+    if (has(b.extraResources) || has(b.mac && b.mac.extraResources) || has(b.linux && b.linux.extraResources)) problems.push('the engine is declared for a macOS / Linux package (verify:resources would fail it there)');
+    if (!/if \(process\.platform !== 'win32'\) return \{ on: false,/.test(raw('src/main/engineHost.ts'))) problems.push('engineHost no longer turns the engine off off Windows');
+    const fe = raw('src/renderer/engine/frameEngine.ts'), ms = raw('src/renderer/services/mockSocketService.ts'), fp = raw('src/renderer/engine/framePort.ts');
+    if (!/sendArtNetFrame\(/.test(fe) || !/if \(sendFramePort\(encoded\)\) return;\s*window\.artlux\.sendArtNet\(encoded\);/.test(ms)) problems.push('the browser frame engine no longer sends its frames (the macOS / Linux output: frameEngine → sendArtNetFrame → the frame port, else IPC)');
+    if (/process\.platform|win32|navigator\.platform|userAgentData/.test(fe + ms + fp)) problems.push('the browser frame engine is gated by platform (it is the output on macOS and Linux)');
     return problems.length ? problems.join('; ') : null;
   },
 );

@@ -53,7 +53,8 @@ function decide(): { on: boolean; why: string } {
   if (process.env.ARTLUX_NATIVE_ENGINE === '0') return { on: false, why: 'ARTLUX_NATIVE_ENGINE=0' };
   if (process.argv.includes('--native-engine')) return { on: true, why: '--native-engine' };
   if (process.env.ARTLUX_NATIVE_ENGINE === '1') return { on: true, why: 'ARTLUX_NATIVE_ENGINE=1' };
-  if (process.platform !== 'win32') return { on: false, why: `not on ${process.platform} yet` };
+  // Windows only (the owner, 2026-11-26): macOS and Linux keep the browser engine — it is their output.
+  if (process.platform !== 'win32') return { on: false, why: `Windows only — ${process.platform} uses the browser engine` };
   if (getPrefs().nativeEngineOff === true) logger.log('warn', 'engine', 'pref-off-ignored', { why: 'Preferences no longer turns the native engine off (E6i) — --no-native-engine does, for a test or a tech' });
   return { on: true, why: 'the default on Windows' };
 }

@@ -1,5 +1,9 @@
 # A native render engine — every pixel in one Rust process, the UI as a client, any view on any screen
 
+> **Platforms (the owner, 2026-11-26): WINDOWS ONLY.** *"we will use only windows for our shows; mac and linux can
+> stay on the old technology."* The engine ships and runs on Windows; macOS and Linux keep the browser engine for
+> good (E6g dropped). See the 2026-11-26 entry at the end of E6 — §6b's three-runner CI is now Windows-only.
+>
 > **Status:** 🟦 **ADOPTED by the owner 2026-11-20 — nothing built yet.** This is the target
 > architecture. Phase E5 (multi-window UI, §9a) goes first; the engine phases E0–E4 follow. Branch
 > `plan/multiscreen-workspace`.
@@ -236,6 +240,10 @@ lavapipe/software-adapter trap becomes a hard check in the engine from adapter i
 adapter refuses to start a show unless it is explicitly allowed (CI only, below).
 
 ### 6b. CI — the engine builds, tests and ships on all three runners
+
+> **Superseded 2026-11-26 — Windows only** (the owner's decision, see the header): `engine.yml` runs on
+> `windows-latest` alone and `build.yml` builds and ships the engine only in the Windows package; macOS and Linux
+> packages carry no engine and run the browser engine. The three-runner design below is kept as written.
 
 The engine joins `build.yml`, under the same rules as the existing native crates (built strictly,
 staged into `extraResources`, `fail-fast: false` across the matrix):
@@ -2918,6 +2926,17 @@ fallback until a source/output is proven byte-identical — risk 2):
 > **Left:** the visible editor still decodes 4K HAP for its own preview (the app's processes ~300 % of a core in a HAP Q
 > scene) — a preview at the Stage's size would be the next cut; and nothing yet decodes HAP's chunks in parallel (5–6 ms
 > a 4K HAP Q frame on the read-ahead thread, inside a frame's time).
+>
+> ✅ **Decided 2026-11-26 — WINDOWS ONLY; E6g DROPPED; THE PLAN IS COMPLETE.** The owner: *"we will use only windows
+> for our shows; mac and linux can stay on the old technology."* So E6g (the macOS engine) will not be built, and the
+> browser engine is not deleted — it IS the output on macOS and Linux, and Windows' emergency path (E6i step 3). What
+> that needed: nothing in the release — `build.yml` already builds the engine only on the Windows runner
+> (`if: runner.os == 'Windows'`) and ships it only in `build.win.extraResources`, and `engineHost.decide()` turns it
+> off off Windows — and `engine.yml` made Windows-only (its macOS / Linux jobs had failed since 33d6c6e, E6a: the
+> engine's bake encoder is Media Foundation, so it no longer compiles there; nothing shipped was affected, only a red
+> cross on every push). `verify:invariants` now holds the shape: the engine Windows-only in both workflows and the
+> package config, off elsewhere at runtime, and the browser frame engine still putting frames on the wire with no
+> platform gate.
 
 ## 9d. E4 started early — the 3D view in the engine (owner, 2026-11-24)
 

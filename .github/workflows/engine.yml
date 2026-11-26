@@ -1,20 +1,20 @@
 name: Engine
-
-# THE NATIVE ENGINE on all three OSes, from its first commit (plans/native-engine.md §6b).
+# THE NATIVE ENGINE, on Windows — the only platform it ships on (the owner, 2026-11-26: "we will use only windows
+# for our shows; mac and linux can stay on the old technology"). macOS and Linux run the BROWSER engine, which is
+# not built here; build.yml never builds the engine for them either (its step is Windows-only and the binary is
+# only in build.win.extraResources). Until 2026-11-25 this ran on all three runners (plans/native-engine.md §6b);
+# the engine stopped compiling off Windows with E6a (its video encoder is Media Foundation), and keeping those
+# jobs would only keep a red cross on every push. Guarded by verify:invariants.
 #
-# The hosted runners have NO GPU, so each one runs the engine on the software adapter it has:
-# WARP (Windows, D3D12), lavapipe (Linux, Vulkan via mesa-vulkan-drivers), and whatever Metal device
-# the macOS runner exposes. Two claims per runner:
+# The hosted runner has NO GPU, so the engine runs on WARP (D3D12's software adapter). Two claims:
 #   1. the engine REFUSES a software adapter by default — a venue machine must never run a show on a
-#      CPU rasterizer by accident (Windows + Linux; a macOS runner's Metal device is a paravirtual GPU,
-#      not a CPU adapter, so the claim does not apply there);
+#      CPU rasterizer by accident;
 #   2. with software allowed, the offscreen render and the LED sampling match the committed goldens
 #      BYTE FOR BYTE — the same goldens a hardware GPU matches.
-# Performance is never judged here; that stays on the RTX PC and a real Mac.
+# Performance is never judged here; that stays on the RTX PC.
 #
 # Its own workflow, not a job in build.yml: build.yml packages installers on release tags only, and the
 # engine is tested on every push that touches it.
-
 on:
   workflow_dispatch:
   push:
@@ -27,7 +27,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [windows-latest, macos-latest, ubuntu-latest]
+        os: [windows-latest]
     runs-on: ${{ matrix.os }}
     defaults:
       run:
@@ -47,15 +47,6 @@ jobs:
             engine/target
           key: ${{ matrix.os }}-engine-${{ hashFiles('engine/Cargo.lock') }}
 
-      # lavapipe: Mesa's software Vulkan driver, the Linux runner's only adapter. The X11 / Wayland /
-      # xkbcommon headers are for the engine's windows (winit, E0b), per plan §6b. libudev-dev: the output
-      # core (native/output-engine, linked since E1c) pulls `serialport`, whose libudev-sys needs it.
-      - name: Install Vulkan (lavapipe) + window-system headers
-        if: runner.os == 'Linux'
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y mesa-vulkan-drivers libvulkan1 vulkan-tools             libxkbcommon-dev libwayland-dev libx11-dev libxcursor-dev libxrandr-dev libxi-dev pkg-config libudev-dev
-
       - name: Build
         run: cargo build --release --locked --manifest-path engine/Cargo.toml -p artlux-engine
 
@@ -63,7 +54,6 @@ jobs:
         run: engine/target/release/artlux-engine --info
 
       - name: A software adapter is refused by default
-        if: runner.os != 'macOS'
         run: |
           set +e
           engine/target/release/artlux-engine --selftest
