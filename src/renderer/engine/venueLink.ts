@@ -108,7 +108,9 @@ export function venueLayers(scene: Scene3D): string[] {
 // specular, and with no environment map and no direct light there is none). Only a map three uses plainly: UV set 0,
 // no transform (KHR_texture_transform), not flipped (glTF's), the colour space its slot expects, no anisotropy.
 // Still refused: normal (three's tangent-space maths), alpha, light, bump, displacement, env maps.
-const MAPS = ['normalMap', 'alphaMap', 'lightMap', 'bumpMap', 'displacementMap', 'envMap'] as const;
+// E6i step 4c: a tangent-space NORMAL map too, on a mesh without tangents (three's screen-space tangent frame,
+// getTangentFrame — the engine runs it as written); one with a TANGENT attribute takes three's other path: refused.
+const MAPS = ['alphaMap', 'lightMap', 'bumpMap', 'displacementMap', 'envMap'] as const;
 function plainMap(t: THREE.Texture, srgb: boolean): string | null {
   if (t.channel !== 0) return `a map on UV set ${t.channel}`;
   if (t.offset.x !== 0 || t.offset.y !== 0 || t.repeat.x !== 1 || t.repeat.y !== 1 || t.rotation !== 0) return 'a transformed map';
@@ -140,7 +142,7 @@ function mapSpec(t: THREE.Texture | null, srgb: boolean): MapSpec | null | { why
   return { wrapS: t.wrapS, wrapT: t.wrapT, mag: t.magFilter, min: t.minFilter, ...(raster ? { raster } : {}) };
 }
 type OwnSpec = {
-  color: number[]; metalness: number; emissive: number[]; side: number; maps: (MapSpec | null)[];
+  color: number[]; metalness: number; emissive: number[]; side: number; maps: (MapSpec | null)[]; normalScale: number[];
   opacity: number; alphaTest: number; transparent: boolean; depthWrite: boolean; forceSinglePass: boolean; aoMapIntensity: number; z?: number;
 };
 function ownMaterial(o: THREE.Mesh): OwnSpec | { why: string } {
@@ -150,7 +152,9 @@ function ownMaterial(o: THREE.Mesh): OwnSpec | { why: string } {
   const other = MAPS.find((k) => (m as unknown as Record<string, unknown>)[k]);
   if (other) return { why: `a material with a ${other}` };
   const maps: (MapSpec | null)[] = [];
-  for (const [t, srgb] of [[m.map, true], [m.emissiveMap, true], [m.metalnessMap, false], [m.aoMap, false]] as const) {
+  if (m.normalMap && m.normalMapType !== THREE.TangentSpaceNormalMap) return { why: 'an object-space normal map' };
+  if (m.normalMap && o.geometry.getAttribute('tangent')) return { why: 'a normal map on a mesh with its own tangents' };
+  for (const [t, srgb] of [[m.map, true], [m.emissiveMap, true], [m.metalnessMap, false], [m.aoMap, false], [m.normalMap, false]] as const) {
     const r = mapSpec(t, srgb);
     if (r && 'why' in r) return { why: r.why };
     maps.push(r as MapSpec | null);
@@ -169,7 +173,7 @@ function ownMaterial(o: THREE.Mesh): OwnSpec | { why: string } {
   // working space), metalness; the side decides the culling and the double-sided normal flip.
   return {
     color: [m.color.r, m.color.g, m.color.b], metalness: m.metalness, emissive: m.emissive.clone().multiplyScalar(m.emissiveIntensity).toArray(), side: m.side,
-    maps, opacity: m.opacity, alphaTest: m.alphaTest, transparent: m.transparent, depthWrite: m.depthWrite, forceSinglePass: m.forceSinglePass, aoMapIntensity: m.aoMapIntensity,
+    maps, normalScale: [m.normalScale.x, m.normalScale.y], opacity: m.opacity, alphaTest: m.alphaTest, transparent: m.transparent, depthWrite: m.depthWrite, forceSinglePass: m.forceSinglePass, aoMapIntensity: m.aoMapIntensity,
   };
 }
 

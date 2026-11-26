@@ -155,7 +155,8 @@ if (CALIB_TEX) {
     execSync(`"${path.join(ROOT, 'node_modules', 'electron', 'dist', 'electron.exe')}" "${js}"`, { env: env0, stdio: 'ignore' });
     img = fs.readFileSync(jpgf);
   }
-  // --tex-full (E6i step 4b): the wall also wears an EMISSIVE map, a METALLIC-ROUGHNESS map and an OCCLUSION map, and
+  // --tex-full (E6i step 4b/c): the wall also wears an EMISSIVE map, a METALLIC-ROUGHNESS map, an OCCLUSION map and a
+  // NORMAL map (no tangents — three's screen-space tangent frame), and
   // in front of it stand a CUT-OUT (alphaMode MASK: an RGBA PNG with holes and half-alpha rings, double-sided) and two
   // GLASS panes (alphaMode BLEND — one double-sided, one not), overlapping, so the far-to-near sort decides the picture.
   const png = (w, h, f) => { const q = new PNG({ width: w, height: h }); for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) q.data.set(f(x, y), (y * w + x) * 4); return PNG.sync.write(q); };
@@ -165,6 +166,12 @@ if (CALIB_TEX) {
     images.push(png(128, 128, (x, y) => [0, 60 + y, Math.round(255 * Math.abs(Math.sin(x / 9))), 255]));                         // metallic (B), roughness (G)
     images.push(png(128, 128, (x, y) => { const r = Math.hypot(x - 64, y - 64); return [Math.max(40, Math.min(255, Math.round(r * 4))), 0, 0, 255]; }));   // occlusion (R)
     images.push(png(128, 128, (x, y) => { const r = Math.hypot((x % 32) - 16, (y % 32) - 16); return [40 + x, 200 - y, 120, r < 6 ? 0 : r < 9 ? 90 : 255]; }));   // cut-out
+    // A tangent-space NORMAL map (E6i step 4c): ripples, h = sin(x/6)·cos(y/9), n = normalize(−∂h/∂x, −∂h/∂y, 1).
+    images.push(png(128, 128, (x, y) => {
+      const dx = Math.cos(x / 6) / 6 * Math.cos(y / 9) * 3, dy = -Math.sin(x / 6) * Math.sin(y / 9) / 9 * 3;
+      const l = Math.hypot(dx, dy, 1);
+      return [Math.round((-dx / l * 0.5 + 0.5) * 255), Math.round((-dy / l * 0.5 + 0.5) * 255), Math.round((1 / l * 0.5 + 0.5) * 255), 255];
+    }));
   }
   // A 4 m × 2.5 m quad in its own XY plane, normal +Z; UVs 0..3 × 0..2 — every mesh here is this quad, placed by its node.
   const pos = new Float32Array([-2, -1.25, 0, 2, -1.25, 0, 2, 1.25, 0, -2, 1.25, 0]);
@@ -177,7 +184,7 @@ if (CALIB_TEX) {
   const quat = (deg) => [0, Math.sin(deg * Math.PI / 360), 0, Math.cos(deg * Math.PI / 360)];
   const materials = [{ pbrMetallicRoughness: { baseColorFactor: [1, 0.92, 0.85, 1], baseColorTexture: { index: 0 }, metallicFactor: TEX_FULL ? 0.8 : 0.15, roughnessFactor: 0.8,
     ...(TEX_FULL ? { metallicRoughnessTexture: { index: 2 } } : {}) },
-    ...(TEX_FULL ? { emissiveTexture: { index: 1 }, emissiveFactor: [0.6, 0.5, 0.3], occlusionTexture: { index: 3, strength: 0.7 } } : {}) }];
+    ...(TEX_FULL ? { emissiveTexture: { index: 1 }, emissiveFactor: [0.6, 0.5, 0.3], occlusionTexture: { index: 3, strength: 0.7 }, normalTexture: { index: 5, scale: 0.8 } } : {}) }];
   const nodes = [{ mesh: 0, name: 'wall' }];
   if (TEX_FULL) {
     materials.push({ pbrMetallicRoughness: { baseColorTexture: { index: 4 }, metallicFactor: 0 }, alphaMode: 'MASK', alphaCutoff: 0.5, doubleSided: true });

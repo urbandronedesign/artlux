@@ -2818,6 +2818,17 @@ fallback until a source/output is proven byte-identical — risk 2):
 > one double-sided, overlapping each other and the cut-out): **identical, 2 073 600 / 2 073 600**; the sort reversed
 > as a probe: 10 298 pixels by up to 25 — the order is load-bearing and right. Still refused: normal maps (three's
 > tangent-space maths), vertex colours, several materials on one mesh, alpha / light / bump maps.
+>
+> ✅ **E6i step 4c done 2026-11-26 — NORMAL MAPS.** A tangent-space `normalMap` on a mesh WITHOUT tangents — GLTFLoader's
+> usual case (Blender exports no tangents by default) — is drawn as three draws it: normal_fragment_begin's
+> `getTangentFrame(−vViewPosition, normal, vNormalMapUv)` written out (screen-space derivatives of the view position
+> and the UVs; × faceDirection when double-sided), then normal_fragment_maps (texel × 2 − 1, xy × normalScale,
+> normalize(tbn × mapN)), the perturbed normal lighting the hemisphere. The derivatives are HLSL `ddx` on both sides
+> (ANGLE's D3D11, wgpu's DX12), and the raster is bottom-up as GL's window is, so `dpdy` is GL's `dFdy`. A fifth map
+> slot (linear), glTF's normalTexture, its scale as three's normalScale. Refused: an object-space normal map, a mesh
+> with its own TANGENT attribute (three's other path). `--tex-full` with a ripple normal map on the wall (scale 0.8):
+> **identical, 2 073 600 / 2 073 600**; the engine's normal map switched off as a probe: 69 812 pixels by up to 7.
+> Still refused: vertex colours, several materials on one mesh, a mesh with its own tangents.
 
 ## 9d. E4 started early — the 3D view in the engine (owner, 2026-11-24)
 

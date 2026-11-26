@@ -71,8 +71,10 @@ pub struct Xf { pub mv: [f32; 16], pub world: [f32; 16], pub own: Option<Own> }
 #[derive(Clone, Debug)]
 pub struct Own {
     pub color: [f32; 3], pub metalness: f32, pub emissive: [f32; 3], pub side: u8, pub nm: [f32; 9],
-    /// E6i step 4: map, emissiveMap, metalnessMap, aoMap (glTF's base colour, emissive, metallic-roughness, occlusion).
-    pub maps: [Option<MapRef>; 4],
+    /// E6i step 4: map, emissiveMap, metalnessMap, aoMap, normalMap (glTF's base colour, emissive, metallic-roughness,
+    /// occlusion, normal) — and the normal map's normalScale.
+    pub maps: [Option<MapRef>; 5],
+    pub normal_scale: [f32; 2],
     /// E6i step 4b: opacity, alphaTest, transparent (NormalBlending, drawn after the opaque, far to near by `z` — three's
     /// projected bounding-sphere centre), depthWrite, forceSinglePass, aoMapIntensity.
     pub opacity: f32, pub alpha_test: f32, pub transparent: bool, pub depth_write: bool, pub single: bool, pub ao: f32, pub z: f32,
@@ -86,7 +88,7 @@ pub struct MapRef { pub s: MapSampler, pub raster: Option<String> }
 type MapKey = (String, usize, MapSampler, bool);
 
 /// E6i step 4: an own mesh's draw — its side (this pass's), blending, depth write, its maps, its sort depth.
-struct OwnDraw { side: u8, blend: bool, depth_write: bool, maps: [Option<MapKey>; 4], z: f32 }
+struct OwnDraw { side: u8, blend: bool, depth_write: bool, maps: [Option<MapKey>; 5], z: f32 }
 
 /// E6i step 4: a base-colour MAP (the GLB's own baseColorTexture — the engine reads the image from the file, as three's
 /// GLTFLoader does) and three's sampler for it, as its constants: wrapS / wrapT (RepeatWrapping 1000, ClampToEdge 1001,
@@ -133,8 +135,10 @@ fn xf_of(x: &Value) -> Option<Xf> {
             };
             let a = o["maps"].as_array();
             [one(a.and_then(|a| a.first()).unwrap_or(&Value::Null))?, one(a.and_then(|a| a.get(1)).unwrap_or(&Value::Null))?,
-             one(a.and_then(|a| a.get(2)).unwrap_or(&Value::Null))?, one(a.and_then(|a| a.get(3)).unwrap_or(&Value::Null))?]
+             one(a.and_then(|a| a.get(2)).unwrap_or(&Value::Null))?, one(a.and_then(|a| a.get(3)).unwrap_or(&Value::Null))?,
+             one(a.and_then(|a| a.get(4)).unwrap_or(&Value::Null))?]
         },
+        normal_scale: fl::<2>(&o["normalScale"]).unwrap_or([1.0, 1.0]),
         opacity: o["opacity"].as_f64().unwrap_or(1.0) as f32, alpha_test: o["alphaTest"].as_f64().unwrap_or(0.0) as f32,
         transparent: o["transparent"].as_bool().unwrap_or(false), depth_write: o["depthWrite"].as_bool().unwrap_or(true),
         single: o["forceSinglePass"].as_bool().unwrap_or(false), ao: o["aoMapIntensity"].as_f64().unwrap_or(1.0) as f32,
@@ -353,7 +357,7 @@ struct Cam { p: mat4x4<f32> };
 @group(0) @binding(0) var<uniform> cam: Cam;
 // flags = (double-sided, back-sided, toneMappingExposure, _)
 // flags.w = has a map; mf = (has emissiveMap, has metalnessMap, has aoMap, aoMapIntensity); tr = (opacity, alphaTest,
-// transparent, _).
+// transparent, normalScale.y); n0.w = has a normalMap, emissive.w = normalScale.x.
 struct Own { mv: mat4x4<f32>, n0: vec4<f32>, n1: vec4<f32>, n2: vec4<f32>, color: vec4<f32>, emissive: vec4<f32>,
              ambient: vec4<f32>, sky: vec4<f32>, ground: vec4<f32>, dir: vec4<f32>, flags: vec4<f32>, mf: vec4<f32>, tr: vec4<f32> };
 @group(1) @binding(0) var<uniform> own: Own;
@@ -367,8 +371,11 @@ struct Own { mv: mat4x4<f32>, n0: vec4<f32>, n1: vec4<f32>, n2: vec4<f32>, color
 @group(2) @binding(5) var osmet: sampler;
 @group(2) @binding(6) var oao: texture_2d<f32>;
 @group(2) @binding(7) var osao: sampler;
+@group(2) @binding(8) var onor: texture_2d<f32>;
+@group(2) @binding(9) var osnor: sampler;
 
-struct OOut { @builtin(position) pos: vec4<f32>, @location(0) vn: vec3<f32>, @location(1) uv: vec2<f32> };
+// vpos = mvPosition.xyz (three's −vViewPosition), for the normal map's screen-space tangent frame.
+struct OOut { @builtin(position) pos: vec4<f32>, @location(0) vn: vec3<f32>, @location(1) uv: vec2<f32>, @location(2) vpos: vec3<f32> };
 
 @vertex fn vs(@location(0) p: vec3<f32>, @location(1) n: vec3<f32>, @location(2) uv: vec2<f32>) -> OOut {
   var o: OOut;
@@ -385,6 +392,7 @@ struct OOut { @builtin(position) pos: vec4<f32>, @location(0) vn: vec3<f32>, @lo
   // vMapUv = uv (no transform; the host refuses one). The geometry's v was turned to 1 − v at load (the content
   // path's flip) — turned back: GLTFLoader's textures are flipY false, so glTF's v samples the image as stored.
   o.uv = vec2<f32>(uv.x, 1.0 - uv.y);
+  o.vpos = mvp.xyz;
   return o;
 }
 
@@ -394,6 +402,13 @@ fn lit(i: OOut, ff: bool) -> vec4<f32> {
   let temi = textureSample(oemi, osemi, i.uv);
   let tmet = textureSample(omet, osmet, i.uv);
   let tao = textureSample(oao, osao, i.uv);
+  let tnor = textureSample(onor, osnor, i.uv);
+  // normalmap_pars_fragment getTangentFrame's derivatives — here, in uniform control flow (dFdx → HLSL ddx on both
+  // sides: ANGLE's D3D11 and wgpu's DX12). The raster is bottom-up as GL's window is, so dpdy is GL's dFdy.
+  let q0 = dpdx(i.vpos);
+  let q1 = dpdy(i.vpos);
+  let st0 = dpdx(i.uv);
+  let st1 = dpdy(i.uv);
   // diffuseColor = vec4(diffuse, opacity); map_fragment: *= texel; alphatest_fragment: discard below alphaTest.
   var dc = vec4<f32>(own.color.rgb, own.tr.x);
   if (own.flags.w > 0.5) { dc = dc * texel; }
@@ -406,6 +421,24 @@ fn lit(i: OOut, ff: bool) -> vec4<f32> {
   let faceDirection = select(-1.0, 1.0, ff);
   var normal = normalize(i.vn);
   if (own.flags.x > 0.5) { normal = normal * faceDirection; }
+  // E6i step 4c — a TANGENT-SPACE NORMAL MAP with no tangents (GLTFLoader's usual case): normal_fragment_begin's
+  // tbn = getTangentFrame(−vViewPosition, normal, vNormalMapUv) (× faceDirection when double-sided), then
+  // normal_fragment_maps: mapN = texel × 2 − 1, mapN.xy *= normalScale, normal = normalize(tbn × mapN).
+  if (own.n0.w > 0.5) {
+    let N = normal;
+    let q1perp = cross(q1, N);
+    let q0perp = cross(N, q0);
+    let T = q1perp * st0.x + q0perp * st1.x;
+    let B = q1perp * st0.y + q0perp * st1.y;
+    let det = max(dot(T, T), dot(B, B));
+    let sc = select(inverseSqrt(det), 0.0, det == 0.0);
+    var t = T * sc;
+    var b = B * sc;
+    if (own.flags.x > 0.5) { t = t * faceDirection; b = b * faceDirection; }
+    var mapN = tnor.xyz * 2.0 - 1.0;
+    mapN = vec3<f32>(mapN.xy * vec2<f32>(own.emissive.w, own.tr.w), mapN.z);
+    normal = normalize(mat3x3<f32>(t, b, N) * mapN);
+  }
   // lights_physical_fragment: diffuseContribution = diffuseColor.rgb * (1 - metalnessFactor).
   let diffuseContribution = diffuse * (1.0 - metalness);
   // lights_fragment_begin: irradiance = ambientLightColor; += getHemisphereLightIrradiance(hemi, normal).
@@ -592,9 +625,9 @@ pub struct Renderer {
     own_pipes: HashMap<(u8, bool, bool, bool), wgpu::RenderPipeline>,   // (side, post pass?, blend, depth write)
     /// E6i step 4: each venue GLB's images (decoded RGBA) and, by three's mesh slot, its maps' images — the textures made
     /// of them (by source, image, sampler, sRGB?), and the four-map bindings of the own pipelines' group 2.
-    glb_imgs: HashMap<String, (Vec<[Option<usize>; 4]>, Arc<Vec<(u32, u32, Vec<u8>)>>)>,
+    glb_imgs: HashMap<String, (Vec<[Option<usize>; 5]>, Arc<Vec<(u32, u32, Vec<u8>)>>)>,
     own_views: HashMap<MapKey, (wgpu::TextureView, wgpu::Sampler)>,
-    own_binds: HashMap<[Option<MapKey>; 4], wgpu::BindGroup>,
+    own_binds: HashMap<[Option<MapKey>; 5], wgpu::BindGroup>,
     own_tex_layout: wgpu::BindGroupLayout,
     own_white: (wgpu::TextureView, wgpu::Sampler),
     depth_u: Option<(u64, wgpu::Buffer, wgpu::BindGroup)>,
@@ -690,7 +723,7 @@ impl Renderer {
         });
         let own_module = d.create_shader_module(wgpu::ShaderModuleDescriptor { label: Some("calib3d own"), source: wgpu::ShaderSource::Wgsl(OWN.into()) });
         // E6i step 4: the own pipelines' group 2 — four maps, each a texture and its own sampler — and a white 1×1.
-        let own_tex_layout = d.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor { label: Some("calib3d own maps"), entries: &(0..8u32).map(|b| wgpu::BindGroupLayoutEntry {
+        let own_tex_layout = d.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor { label: Some("calib3d own maps"), entries: &(0..10u32).map(|b| wgpu::BindGroupLayoutEntry {
             binding: b, visibility: wgpu::ShaderStages::FRAGMENT, count: None,
             ty: if b % 2 == 0 { wgpu::BindingType::Texture { sample_type: wgpu::TextureSampleType::Float { filterable: true }, view_dimension: wgpu::TextureViewDimension::D2, multisampled: false } }
                 else { wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering) } }).collect::<Vec<_>>() });
@@ -788,7 +821,7 @@ impl Renderer {
                         by_slot[pr.slot] = Some(Self::mesh(gpu, &v, &pr.idx));
                     }
                     eprintln!("artlux-engine: output '{}': venue {p} loaded ({n} meshes)", self.out_id);
-                    let mut img_of: Vec<[Option<usize>; 4]> = vec![[None; 4]; n];
+                    let mut img_of: Vec<[Option<usize>; 5]> = vec![[None; 5]; n];
                     for pr in &cpu.prims { img_of[pr.slot] = pr.maps; }
                     self.own_views.retain(|k, _| k.0 != p);
                     self.own_binds.clear();
@@ -871,8 +904,8 @@ impl Renderer {
     }
 
     /// E6i step 4: the own pipelines' group 2 for these four maps (white where there is none).
-    fn own_bind(&self, gpu: &Gpu, keys: &[Option<MapKey>; 4]) -> Option<wgpu::BindGroup> {
-        let mut views = Vec::with_capacity(4);
+    fn own_bind(&self, gpu: &Gpu, keys: &[Option<MapKey>; 5]) -> Option<wgpu::BindGroup> {
+        let mut views = Vec::with_capacity(5);
         for k in keys { views.push(match k { Some(k) => self.own_views.get(k)?, None => &self.own_white }); }
         let entries: Vec<wgpu::BindGroupEntry> = views.iter().enumerate().flat_map(|(j, (v, s))| [
             wgpu::BindGroupEntry { binding: j as u32 * 2, resource: wgpu::BindingResource::TextureView(v) },
@@ -968,7 +1001,7 @@ impl Renderer {
                     // the host says a map and the file has none → not drawn (never drawn as something else).
                     // Each map's texture: the file's image (a PNG), or the app's decode once it has arrived. One not
                     // there yet → the mesh is not drawn yet (as while the geometry loads); never drawn without it.
-                    let mut keys: [Option<MapKey>; 4] = Default::default();
+                    let mut keys: [Option<MapKey>; 5] = Default::default();
                     let mut ready = true;
                     for (j, r) in o.maps.iter().enumerate() {
                         let Some(r) = r else { continue };
@@ -986,14 +1019,14 @@ impl Renderer {
                     for side in passes {
                         let mut u: Vec<f32> = Vec::with_capacity(64);
                         u.extend_from_slice(&xf.mv);
-                        for c in 0..3 { u.extend_from_slice(&[o.nm[c * 3], o.nm[c * 3 + 1], o.nm[c * 3 + 2], 0.0]); }
-                        u.extend_from_slice(&[o.color[0], o.color[1], o.color[2], o.metalness]);
-                        u.extend_from_slice(&[o.emissive[0], o.emissive[1], o.emissive[2], 0.0]);
-                        for v in [l.ambient, l.sky, l.ground, l.dir] { u.extend_from_slice(&[v[0], v[1], v[2], 0.0]); }
                         let on = |j: usize| if keys[j].is_some() { 1.0 } else { 0.0 };
+                        for c in 0..3 { u.extend_from_slice(&[o.nm[c * 3], o.nm[c * 3 + 1], o.nm[c * 3 + 2], if c == 0 { on(4) } else { 0.0 }]); }
+                        u.extend_from_slice(&[o.color[0], o.color[1], o.color[2], o.metalness]);
+                        u.extend_from_slice(&[o.emissive[0], o.emissive[1], o.emissive[2], o.normal_scale[0]]);
+                        for v in [l.ambient, l.sky, l.ground, l.dir] { u.extend_from_slice(&[v[0], v[1], v[2], 0.0]); }
                         u.extend_from_slice(&[if side == 2 { 1.0 } else { 0.0 }, if side == 1 { 1.0 } else { 0.0 }, 1.0, on(0)]);
                         u.extend_from_slice(&[on(1), on(2), on(3), o.ao]);
-                        u.extend_from_slice(&[o.opacity, o.alpha_test, if o.transparent { 1.0 } else { 0.0 }, 0.0]);
+                        u.extend_from_slice(&[o.opacity, o.alpha_test, if o.transparent { 1.0 } else { 0.0 }, o.normal_scale[1]]);
                         let mut b = f32s(&u);
                         b.resize(OBJ_STRIDE as usize, 0);
                         objs.extend_from_slice(&b);

@@ -11,7 +11,7 @@ the machine log says why. If the engine restarts, your lights and projectors kee
 rather than flicking to a different drawing. See [Preferences](docs/user-guide/12-preferences-monitoring.md).
 
 Calibrated projectors whose venue model has image textures on its walls, floor or props (PNG or JPEG), glowing
-(emissive) textures, glass or other see-through materials, or cut-outs now stay on the engine too, and look the same as
+(emissive) textures, surface relief (normal maps), glass or other see-through materials, or cut-outs now stay on the engine too, and look the same as
 before.
 
 Projector outputs are decided one by one: calibrating one projector, or an output with no display chosen, keeps only
