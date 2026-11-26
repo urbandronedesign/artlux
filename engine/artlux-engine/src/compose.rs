@@ -298,6 +298,7 @@ pub fn mip_level(sx: f64, sy: f64, levels: usize) -> f32 {
 const HAP_WGSL: &str = r#"
 @group(0) @binding(0) var blocks: texture_2d<f32>;
 @group(0) @binding(1) var<uniform> mode: vec4<u32>;   // x: 0 direct (alpha kept), 1 scaled YCoCg, 2 direct (alpha 1)
+                                                      // y: 1 = premultiply as Picture::canvas does, on the 8-bit values
 
 @vertex
 fn vs(@builtin(vertex_index) i: u32) -> @builtin(position) vec4<f32> {
@@ -318,6 +319,14 @@ fn fs(@builtin(position) pos: vec4<f32>) -> @location(0) vec4<f32> {
         return vec4<f32>((y + co - cg) / 255.0, (y + cg) / 255.0, (y - co - cg) / 255.0, 1.0);
     }
     if (mode.x == 2u) { return vec4<f32>(c.rgb, 1.0); }
+    if (mode.y == 1u) {
+        // compose.rs premultiply / mul_div_255_round (Skia's SkMulDiv255Round) on the 8-bit texel, in integers — the
+        // CPU did exactly this on the read-back bytes, so the picture is bit-identical. A BC texel is k/255 exactly.
+        let q = vec4<u32>(round(clamp(c, vec4<f32>(0.0), vec4<f32>(1.0)) * 255.0));
+        let p = q.rgb * q.a + vec3<u32>(128u);
+        let m = (p + (p >> vec3<u32>(8u))) >> vec3<u32>(8u);
+        return vec4<f32>(vec3<f32>(m) / 255.0, f32(q.a) / 255.0);
+    }
     return c;
 }
 "#;
@@ -338,27 +347,30 @@ pub fn hap_picture(gpu: &Gpu, format: crate::hapimport::hap::HapFormat, w: u32, 
         let rgba = hapimport::cpu_rgba(format, w, h, blocks)?;
         hapimport::upload_rgba(gpu, w.div_ceil(4) * 4, h.div_ceil(4) * 4, &rgba)
     };
-    Ok(Picture::canvas(w, h, texels(gpu, &tex, w, h, mode)?))
+    // H4K (2026-11-26): THE PICTURE STAYS ON THE GPU. It used to be read back (33 MB at 4K), premultiplied on the CPU,
+    // cloned per consumer and uploaded again — 13–15 ms a 4K frame on the render thread, measured; two 4K HAP Q / Alpha
+    // surfaces held the windows and the wire at 9–12 new pictures a second (the films are 24–30). The pass now renders
+    // into the picture's own texture and premultiplies there (mode.y), bit for bit what Picture::canvas did.
+    let (out, _) = hap_texture(gpu, &tex, w, h, mode, true);
+    Ok(Picture::gpu_frame(w, h, out, [0, 0, w, h]))
 }
 
 /// The top-left `w`×`h` texels of `tex` (any colour format, BC included) as RGBA8, through the per-texel
 /// pass above (`mode` as there: 0 as stored, 1 HapQ, 2 opaque). BGRA storage reads back as RGBA.
-pub fn texels(gpu: &Gpu, tex: &wgpu::Texture, w: u32, h: u32, mode: u32) -> Result<Vec<u8>, String> {
+/// The pass behind `texels` and `hap_picture`: the top-left `w`×`h` texels of `tex` (any colour format, BC included)
+/// rendered into a new RGBA8 texture (`mode` as there: 0 as stored, 1 HapQ, 2 opaque; `premul` premultiplies as
+/// Picture::canvas does). Sampled, copied and rendered to by the consumers. Returns the submitted texture and the
+/// row pitch a read-back of it needs. The pipeline is built ONCE per device (it was built per frame).
+pub fn hap_texture(gpu: &Gpu, tex: &wgpu::Texture, w: u32, h: u32, mode: u32, premul: bool) -> (wgpu::Texture, u32) {
     let d = &gpu.device;
     let target = d.create_texture(&wgpu::TextureDescriptor {
         label: Some("texels"), size: wgpu::Extent3d { width: w, height: h, depth_or_array_layers: 1 },
         mip_level_count: 1, sample_count: 1, dimension: wgpu::TextureDimension::D2, format: wgpu::TextureFormat::Rgba8Unorm,
-        usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::COPY_SRC, view_formats: &[],
+        usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::COPY_SRC | wgpu::TextureUsages::TEXTURE_BINDING, view_formats: &[],
     });
-    let module = d.create_shader_module(wgpu::ShaderModuleDescriptor { label: Some("hap"), source: wgpu::ShaderSource::Wgsl(HAP_WGSL.into()) });
-    let pipeline = d.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
-        label: Some("hap"), layout: None,
-        vertex: wgpu::VertexState { module: &module, entry_point: Some("vs"), buffers: &[], compilation_options: Default::default() },
-        fragment: Some(wgpu::FragmentState { module: &module, entry_point: Some("fs"), targets: &[Some(wgpu::TextureFormat::Rgba8Unorm.into())], compilation_options: Default::default() }),
-        primitive: Default::default(), depth_stencil: None, multisample: Default::default(), multiview_mask: None, cache: None,
-    });
+    let pipeline = hap_pipeline(gpu);
     let ubuf = d.create_buffer(&wgpu::BufferDescriptor { label: Some("hap mode"), size: 16, usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST, mapped_at_creation: false });
-    gpu.queue.write_buffer(&ubuf, 0, &[mode.to_le_bytes(), [0; 4], [0; 4], [0; 4]].concat());
+    gpu.queue.write_buffer(&ubuf, 0, &[mode.to_le_bytes(), (premul as u32).to_le_bytes(), [0; 4], [0; 4]].concat());
     let view = tex.create_view(&Default::default());
     let bind = d.create_bind_group(&wgpu::BindGroupDescriptor {
         label: Some("hap"), layout: &pipeline.get_bind_group_layout(0),
@@ -367,8 +379,6 @@ pub fn texels(gpu: &Gpu, tex: &wgpu::Texture, w: u32, h: u32, mode: u32) -> Resu
             wgpu::BindGroupEntry { binding: 1, resource: ubuf.as_entire_binding() },
         ],
     });
-    let row = (w * 4).div_ceil(256) * 256;
-    let readback = d.create_buffer(&wgpu::BufferDescriptor { label: Some("hap readback"), size: (row * h) as u64, usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::MAP_READ, mapped_at_creation: false });
     let target_view = target.create_view(&Default::default());
     let mut enc = d.create_command_encoder(&Default::default());
     {
@@ -384,6 +394,34 @@ pub fn texels(gpu: &Gpu, tex: &wgpu::Texture, w: u32, h: u32, mode: u32) -> Resu
         pass.set_bind_group(0, &bind, &[]);
         pass.draw(0..3, 0..1);
     }
+    gpu.queue.submit([enc.finish()]);
+    (target, (w * 4).div_ceil(256) * 256)
+}
+
+/// The HAP pass's pipeline, built once per device (a test may open more than one).
+fn hap_pipeline(gpu: &Gpu) -> wgpu::RenderPipeline {
+    static PIPE: std::sync::Mutex<Vec<(wgpu::Device, wgpu::RenderPipeline)>> = std::sync::Mutex::new(Vec::new());
+    let mut cache = PIPE.lock().unwrap_or_else(|e| e.into_inner());
+    if let Some((_, p)) = cache.iter().find(|(dev, _)| dev == &gpu.device) { return p.clone(); }
+    let d = &gpu.device;
+    let module = d.create_shader_module(wgpu::ShaderModuleDescriptor { label: Some("hap"), source: wgpu::ShaderSource::Wgsl(HAP_WGSL.into()) });
+    let pipeline = d.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+        label: Some("hap"), layout: None,
+        vertex: wgpu::VertexState { module: &module, entry_point: Some("vs"), buffers: &[], compilation_options: Default::default() },
+        fragment: Some(wgpu::FragmentState { module: &module, entry_point: Some("fs"), targets: &[Some(wgpu::TextureFormat::Rgba8Unorm.into())], compilation_options: Default::default() }),
+        primitive: Default::default(), depth_stencil: None, multisample: Default::default(), multiview_mask: None, cache: None,
+    });
+    cache.push((d.clone(), pipeline.clone()));
+    pipeline
+}
+
+/// The top-left `w`×`h` texels of `tex` (any colour format, BC included) as RGBA8, through the per-texel
+/// pass above (`mode` as there: 0 as stored, 1 HapQ, 2 opaque). BGRA storage reads back as RGBA.
+pub fn texels(gpu: &Gpu, tex: &wgpu::Texture, w: u32, h: u32, mode: u32) -> Result<Vec<u8>, String> {
+    let (target, row) = hap_texture(gpu, tex, w, h, mode, false);
+    let d = &gpu.device;
+    let readback = d.create_buffer(&wgpu::BufferDescriptor { label: Some("hap readback"), size: (row * h) as u64, usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::MAP_READ, mapped_at_creation: false });
+    let mut enc = d.create_command_encoder(&Default::default());
     enc.copy_texture_to_buffer(target.as_image_copy(),
         wgpu::TexelCopyBufferInfo { buffer: &readback, layout: wgpu::TexelCopyBufferLayout { offset: 0, bytes_per_row: Some(row), rows_per_image: Some(h) } },
         wgpu::Extent3d { width: w, height: h, depth_or_array_layers: 1 });

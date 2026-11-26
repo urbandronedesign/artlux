@@ -75,6 +75,12 @@ export function getHapGeneration(path: string): number | undefined {
   return s && s.index >= 0 ? s.index : undefined;
 }
 
+// H4K (native engine): the surface playback CLOCK, µs — tick() shows frame round(clock × fps) of it. The engine follows
+// THIS (it reads the file itself), so it is not held to the frames this window managed to decode.
+export function getHapClockUs(path: string): number | undefined {
+  return active.has(path) ? clock * 1e6 : undefined;
+}
+
 export function getHapAspect(path: string): number | null {
   const info = hapDecode.getInfo(path);
   return info && info.width > 0 && info.height > 0 ? info.width / info.height : null;

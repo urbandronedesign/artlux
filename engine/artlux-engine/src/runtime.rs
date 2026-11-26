@@ -115,6 +115,8 @@ pub struct Runtime {
     /// the GPU conversion they share (yuv.rs).
     #[cfg(windows)]
     mp4s: HashMap<String, (String, crate::mf::Mp4In)>,
+    /// H4K: one HAP reader per source key (hapimport::HapIn — parsed once, open, reading ahead).
+    haps: HashMap<String, crate::hapimport::HapIn>,
     conv: Option<crate::yuv::GpuConvert>,
     /// Item 2d step 5: one SHARED camera reader per surface (camshared.rs — the app keeps the camera), the
     /// label it was resolved from, and the last frame drawn.
@@ -212,7 +214,7 @@ impl Runtime {
             outputs: None, projectors: Vec::new(), proj_published: HashMap::new(), proj_opts: HashMap::new(), calib_surfaces: Vec::new(), venue_published: HashMap::new(), calib_ver: 0, opts_ver: 0,
             #[cfg(windows)] spouts: HashMap::new(),
             #[cfg(feature = "ndi")] ndis: HashMap::new(),
-            #[cfg(windows)] mp4s: HashMap::new(), conv: None,
+            #[cfg(windows)] mp4s: HashMap::new(), haps: HashMap::new(), conv: None,
             #[cfg(windows)] cams: HashMap::new(), resolved: HashMap::new(), pending_cams: HashMap::new(), last_doc: None, redo: false,
             view: None, view_scene_ver: 0, view_published: HashMap::new(), view_colors_gen: 0, view_last_summary: String::new(), clock_diffs: 0, transport: Default::default(), draw_at: None, draw_stats: (0, 0, 0), draw_max_step: 0, comp_draw: (0, 0), vids: HashMap::new(), frame_agree: (0, 0), clock_ticks: 0, comp_sub: HashMap::new(), next_drawn: 0, handovers: 0, clip_bad: Default::default(), src_paths: HashMap::new(), judge: Default::default(), clock_rev: 0, lanes: Vec::new(), auto_fx: HashMap::new(), auto_diffs: 0, auto_ticks: 0, show: Default::default(), light_diffs: 0, light_ticks: 0, rig: None, light_fix: HashMap::new(), byte_diffs: 0, byte_ticks: 0, light_solved: HashMap::new(), light_beams: HashMap::new(), cropper: None, slice_keys: HashMap::new(),
             #[cfg(windows)] bake: None }
@@ -698,6 +700,7 @@ impl Runtime {
         }
         self.src_paths.retain(|k, _| doc.sources.contains_key(k));
         self.clip_bad.retain(|k| doc.sources.contains_key(k));
+        self.haps.retain(|k, h| matches!(doc.sources.get(k), Some(Source::Hap(q)) if q == &h.path));
         #[cfg(windows)]
         self.mp4s.retain(|k, (p, _)| matches!(doc.sources.get(k), Some(Source::Mp4(q, _)) if q == p));
         #[cfg(windows)]
@@ -1216,12 +1219,28 @@ impl Runtime {
                     self.gen += 1; self.gens.insert(sid.clone(), self.gen << 2 | 2);
                 }
                 Source::Hap(p) => {
-                    // THE FRAME THE APP IS SHOWING (its index, sent by the host), not a clock of our own.
-                    let idx = v["hap"][sid].as_u64().unwrap_or(0) as usize;
+                    if self.clip_bad.contains(sid) && self.pictures.contains_key(sid) { continue; }
+                    if self.haps.get(sid).is_none_or(|h| &h.path != p) {
+                        match crate::hapimport::HapIn::open(p) {
+                            Ok(h) => { self.haps.insert(sid.clone(), h); }
+                            Err(e) if sid.starts_with("clip:") => { eprintln!("artlux-engine: clock: {sid} not drawn ahead: {e}"); self.clip_bad.insert(sid.clone()); continue; }
+                            Err(e) => return Err(e),
+                        }
+                    }
+                    let h = self.haps.get_mut(sid).expect("opened above");
+                    // H4K: THE SURFACE CLOCK where the host sends one (`hapc`, µs — hapCodec.surfaceClockUs): the frame is
+                    // the app's own rule for it (hapPlayer.tick, HapIn::index_at), so the engine is not held to the
+                    // frames the APP managed to decode (measured: 4K HAP Q held to 9–12 a second). Else — a track's
+                    // clip, an older host — the frame the app is showing (its index).
+                    let idx = match v["hapc"][sid].as_f64() {
+                        Some(us) => h.index_at(us / 1e6),
+                        None => v["hap"][sid].as_u64().unwrap_or(0) as usize,
+                    };
                     let key = ((idx as u64) << 2) | 1;
                     if self.gens.get(sid) != Some(&key) || !self.pictures.contains_key(sid) {
                         if self.clip_bad.contains(sid) { continue; }
-                        let pic = crate::hapimport::read_frame(p, idx).and_then(|(w, h, fmt, blocks, _)| compose::hap_picture(&self.gpu, fmt, w, h, &blocks).map_err(|e| e.to_string()));
+                        let (w, hh) = (h.w, h.h);
+                        let pic = h.frame(idx).and_then(|(fmt, blocks)| compose::hap_picture(&self.gpu, fmt, w, hh, &blocks).map_err(|e| e.to_string()));
                         match pic {
                             Ok(pic) => { self.pictures.insert(sid.clone(), pic); self.gens.insert(sid.clone(), key); }
                             // E3k: a next clip the engine cannot draw holds its track; it never fails the tick.

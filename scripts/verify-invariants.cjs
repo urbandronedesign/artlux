@@ -9339,7 +9339,7 @@ check(
     if (!/if \(vf\.format !== 'NV12'\)/.test(c) || !/cs\?\.matrix === 'bt709' && cs\?\.fullRange === false && cs\?\.primaries === 'bt709'/.test(c)) problems.push('the mp4 codec no longer limits the engine to the proven MP4 frames (8-bit NV12, BT.709 limited)');
     if (!/durUs: info\.durationSec \* 1e6/.test(c)) problems.push('the MP4 source no longer carries the file duration the engine folds the loop with');
     const n = raw('src/renderer/engine/nativeLink.ts');
-    if (!/mp4\[s\.id\] = g;/.test(n) || !/hap, mp4, ndi, (camfp, )?(shader, )?(blobs, )?(comp, times, )?lights/.test(n)) problems.push('the tick no longer carries each MP4 surface frame timestamp');
+    if (!/mp4\[s\.id\] = g;/.test(n) || !/hap, (hapc, )?mp4, ndi, (camfp, )?(shader, )?(blobs, )?(comp, times, )?lights/.test(n)) problems.push('the tick no longer carries each MP4 surface frame timestamp');
     if (/an MP4 on a projector/.test(n)) problems.push('an MP4 on a projector is refused again (the engine draws it: one device, outputs.rs content_texture_from)');
     const r = raw('engine/artlux-engine/src/runtime.rs');
     if (!/let (mut )?local = if \*dur_us > 0 \{ abs - abs\.div_euclid\(\*dur_us\) \* dur_us \} else \{ abs \};/.test(r)) problems.push('runtime.rs no longer folds a looping surface timestamp back into the file');
@@ -10096,6 +10096,39 @@ check(
     const ehs = read('src/main/engineHost.ts');
     if (!/const shm = rasterShm\(surfaceId, rgba\);\s*if \(shm\) \{/.test(ehs) || !/if \(RASTER_FILES \|\| process\.platform !== 'win32'\) return null;/.test(ehs)) problems.push('engineHost no longer sends rasters through shared memory on Windows (files only where it cannot, or ARTLUX_RASTER_FILES=1)');
     if (!/\(Some\(name\), _\) => self\.shm_read\(name, v\),/.test(raw('engine/artlux-engine/src/runtime.rs'))) problems.push('the engine no longer reads a raster out of shared memory');
+    return problems.length ? problems.join('; ') : null;
+  },
+);
+
+check(
+  'the native engine plays 4K HAP at the film rate: the picture stays on the GPU, the file is read ahead, and the engine follows the HAP surface clock',
+  'plans/native-engine.md H4K (2026-11-26). The one-hour 4K soak (two windowed outputs + 5 000 RGBW LEDs) held every scene ' +
+  'with a 4K HAP Q / Alpha surface to 9–12 new pictures a second (the films are 24–30), on the windows AND the wire. ' +
+  'Measured per 4K frame on the render thread: 13–15 ms making the picture (upload, a GPU→CPU read-back of 33 MB, a CPU ' +
+  'premultiply, a 33 MB clone per consumer, an upload again — and a pipeline built per frame) and 4–7 ms re-parsing the ' +
+  'file index, re-opening it, reading and unpacking. Now: the pass renders into the picture texture and premultiplies there ' +
+  '(bit-identical — hapimport gpu_picture_tests, which fails with the premultiply off), the pipeline is built once, and a ' +
+  'HapIn per source keeps the file parsed and open and reads the NEXT frame on its own thread (0.4 ms on the render thread ' +
+  'against 7.3). And the engine follows the HAP surface CLOCK (hapc — hapPlayer, round(clock × fps) looped, the app rule), ' +
+  'not the frame the APP managed to decode, which itself ran at 9–12 a second at 4K.',
+  () => {
+    const problems = [];
+    const co = raw('engine/artlux-engine/src/compose.rs');
+    const hp = co.slice(co.indexOf('pub fn hap_picture('), co.indexOf('pub fn hap_texture('));
+    if (!/let \(out, _\) = hap_texture\(gpu, &tex, w, h, mode, true\);\s*Ok\(Picture::gpu_frame\(w, h, out, \[0, 0, w, h\]\)\)/.test(hp) || /texels\(gpu|Picture::canvas\(/.test(hp)) problems.push('hap_picture reads the picture back to the CPU again (it must stay on the GPU, premultiplied in the pass)');
+    if (!/if \(mode\.y == 1u\) \{[\s\S]{0,400}let p = q\.rgb \* q\.a \+ vec3<u32>\(128u\);\s*let m = \(p \+ \(p >> vec3<u32>\(8u\)\)\) >> vec3<u32>\(8u\);/.test(co)) problems.push('the HAP pass no longer premultiplies with SkMulDiv255Round on the 8-bit texel (the picture would differ from Picture::canvas)');
+    if (!/static PIPE: std::sync::Mutex<Vec<\(wgpu::Device, wgpu::RenderPipeline\)>>/.test(co) || (co.match(/create_render_pipeline\(&wgpu::RenderPipelineDescriptor \{\s*label: Some\("hap"\)/g) || []).length !== 1) problems.push('the HAP pipeline is no longer built once per device');
+    const hi = raw('engine/artlux-engine/src/hapimport.rs');
+    if (!/pub struct HapIn \{/.test(hi) || !/let next = \(i \+ 1\) % self\.n;\s*if self\.tx\.send\(next\)\.is_ok\(\) \{ self\.asked = Some\(next\); \}/.test(hi)) problems.push('HapIn no longer reads the next frame ahead');
+    if (!/\(\(\(\(clock_s \* self\.fps\)\.round\(\) as i64\) % n \+ n\) % n\) as usize/.test(hi)) problems.push('HapIn::index_at is no longer the app rule round(clock × fps) looped (hapPlayer.tick)');
+    if (!/fn hap_picture_on_the_gpu_is_the_old_picture\(\)/.test(hi)) problems.push('the GPU-picture parity test is gone');
+    const rt = raw('engine/artlux-engine/src/runtime.rs');
+    const hb = rt.slice(rt.indexOf('                Source::Hap(p) => {'), rt.indexOf('                Source::Spout(name) => {'));
+    if (/read_frame\(/.test(hb) || !/crate::hapimport::HapIn::open\(p\)/.test(hb) || !/match v\["hapc"\]\[sid\]\.as_f64\(\) \{\s*Some\(us\) => h\.index_at\(us \/ 1e6\),\s*None => v\["hap"\]\[sid\]\.as_u64\(\)/.test(hb)) problems.push('the engine HAP tick no longer reads through HapIn at the surface clock (with the app index only as the fallback)');
+    if (!/self\.haps\.retain\(\|k, h\| matches!\(doc\.sources\.get\(k\), Some\(Source::Hap\(q\)\) if q == &h\.path\)\);/.test(rt)) problems.push('a HAP reader outlives its source (an open file and a thread per removed surface)');
+    if (!/getHapClockUs\(path\)/.test(raw('plugins/hap/src/hapCodec.ts')) || !/return active\.has\(path\) \? clock \* 1e6 : undefined;/.test(raw('plugins/hap/src/hapPlayer.ts'))) problems.push('the HAP codec no longer hands out its surface clock (hapPlayer clock)');
+    const nl = raw('src/renderer/engine/nativeLink.ts');
+    if (!/const c = contentSource\.getSurfaceClockUs\(s\.id, s\.content\);\s*if \(c !== undefined\) hapc\[s\.id\] = c;/.test(nl) || !/hap, hapc, mp4,/.test(nl)) problems.push('the tick no longer carries each HAP surface clock (hapc)');
     return problems.length ? problems.join('; ') : null;
   },
 );

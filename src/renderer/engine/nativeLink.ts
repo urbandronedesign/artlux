@@ -449,10 +449,16 @@ function link(inputs: LinkInputs, surfaces: Surface[], fixtures: Fixture[], brig
     window.artlux?.nativeEngineDoc?.(JSON.stringify(doc), rev);
   }
   const hap: Record<string, number> = {};
+  // H4K: each HAP surface's playback CLOCK (µs, unrounded — the engine applies the app's round(clock × fps) to it):
+  // the engine reads the file itself and follows this, not the frame the app managed to decode (measured: 4K HAP Q
+  // held to 9–12 new pictures a second by the app's decode). The index stays for a codec without a clock.
+  const hapc: Record<string, number> = {};
   for (const s of surfaces) {
     if (sources[s.id].kind !== 'hap') continue;
     const g = contentSource.getDrawableGeneration(s.id, s.content);
     if (g !== undefined) hap[s.id] = g;
+    const c = contentSource.getSurfaceClockUs(s.id, s.content);
+    if (c !== undefined) hapc[s.id] = c;
   }
   // Item 2c-4: each MP4 surface's frame ON SCREEN — the VideoFrame.timestamp the app is drawing (the codec's
   // generation: absolute, a looping surface adds the file's duration per loop; the engine folds it back).
@@ -538,5 +544,5 @@ function link(inputs: LinkInputs, surfaces: Surface[], fixtures: Fixture[], brig
   // on the previous one (measured: 0.3 s off for two seconds at a show's start). The engine re-anchors only when
   // the revision changes, so a repeat costs it a comparison. ~300 bytes on a tick that already carries kilobytes.
   const tp = timeline.transportAnchor() ?? undefined;
-  return JSON.stringify({ rev, t: at.t ?? timeline.getShowTime(), ph: at.ph ?? timeline.getPlayhead(), fm: timeline.getFrameTimeMs(), tp, auto, lroles, lcolors, lcue, llive: lightLive, lown, brightness, hap, mp4, ndi, camfp, shader, blobs, comp, times, lights, proj: { brightness: projBrightness, booting: projBooting } });
+  return JSON.stringify({ rev, t: at.t ?? timeline.getShowTime(), ph: at.ph ?? timeline.getPlayhead(), fm: timeline.getFrameTimeMs(), tp, auto, lroles, lcolors, lcue, llive: lightLive, lown, brightness, hap, hapc, mp4, ndi, camfp, shader, blobs, comp, times, lights, proj: { brightness: projBrightness, booting: projBooting } });
 }

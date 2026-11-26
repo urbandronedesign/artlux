@@ -2891,6 +2891,33 @@ fallback until a source/output is proven byte-identical — risk 2):
 > against **38–62 %** app-only, GPU load **7–13 %** against 8–10 %; every window 24.0 / 25.0 new pictures a second.
 > `test:video-frame-clock` (HAP + two films) OK; `test:native-projectors` plain, `--windowed`, `--hold`, `--ndi`,
 > `--calibrated`, `test:engine-hold` and takeover pass; `--mp4` the same pre-existing 2 532 pixels by 1.
+>
+> ✅ **Done 2026-11-26 — 4K HAP AT THE FILM'S RATE (H4K).** Two one-hour soaks of a heavy show (the owner's ask): two
+> WINDOWED projector outputs, an LED wall, 5 000 RGBW LEDs (40 universes × 125 px × 4 ch, Art-Net), five scenes of HAP
+> + H.264 MP4 switched by the state machine every 60 s, the editor visible (`E:\zaki\artlux-engine-test\H-heavy-hour`,
+> `…\H4K-heavy-hour` — `make.cjs`, `soak.cjs`, `encode.sh`). **1080p:** clean for the hour (60 / 60 switches, every
+> universe alive every minute, 24–30 new pictures a second in each window, memory flat ~1.9 GB). **4K** (3840×2160,
+> made with ffmpeg: H.264 50 Mb/s BT.709 limited, HAP, HAP Q, HAP Alpha): nothing failed, but every scene with a 4K HAP Q
+> or Alpha surface held the windows AND the wire to **9–12 new pictures a second** (the films are 24–30). Measured on the
+> render thread per 4K frame: **13–15 ms making the picture** — the BC blocks uploaded, rendered, READ BACK (33 MB),
+> premultiplied on the CPU, cloned per consumer (33 MB each) and uploaded again, through a pipeline BUILT PER FRAME — and
+> **4–7 ms** re-parsing the file index, re-opening it, reading and unpacking. And the engine drew the frame the APP had
+> decoded (its index), which the app itself managed at about that rate at 4K. **Fixed:** (1) `hap_picture` renders into
+> the picture's own texture (`Picture::gpu_frame`) and premultiplies there with Skia's integer rounding on the 8-bit
+> texel — bit-identical (permanent `gpu_picture_tests`: random DXT5 / DXT1 / YCoCg blocks, old path vs new; with the
+> premultiply off it fails; on 4K files, a real alpha ramp — 8.3 M see-through pixels — 0 differ); the pipeline is built
+> once per device. (2) `HapIn`: a file parsed once and kept open, its NEXT frame read and unpacked on its own thread —
+> 0.41 ms on the render thread for a 4K HAP Q frame against 7.34 (and identical to `read_frame` on in-order, jump,
+> wrap and repeat requests). (3) The engine follows the HAP surface CLOCK (`hapc`, `hapCodec.surfaceClockUs` — the
+> player's clock; `HapIn::index_at` is the app's `round(clock × fps)` looped), the app's index only for a track clip or a
+> codec without a clock. A 4K HAP Q frame: ~21 ms → ~1.5 ms of render thread. `test:image-parity` on 7 HAP clips (the
+> four battle clips, 4K HAP / HAP Q / the alpha ramp): every LED identical to the engine before the change (its 11
+> failures — `small`, `spSmall`, `hapQ` max 2 — the same on the baseline engine built from 0fb03fd: this box, not this
+> change); `test:video-frame-clock`, `test:native-projectors` (plain, `--windowed`, `--hold`, `--ndi`, `--calibrated`),
+> `test:engine-hold`, takeover pass; `--mp4` the same pre-existing 2 532 pixels by 1. **The 4K hour again:** clean for the hour on the same build of everything else — every scene 24–26 new pictures a second in the windows (the lowest window-minute 22.1; were 8.7–12 in the HAP Q / Alpha scenes) and 23–27 on the wire (was 8.4–11), 60 / 60 switches, all 40 universes alive every minute, no engine restart, memory 2.4–2.9 GB with no climb; the engine itself 57–132 % of a core (was 103–121 % for less than half the pictures).
+> **Left:** the visible editor still decodes 4K HAP for its own preview (the app's processes ~300 % of a core in a HAP Q
+> scene) — a preview at the Stage's size would be the next cut; and nothing yet decodes HAP's chunks in parallel (5–6 ms
+> a 4K HAP Q frame on the read-ahead thread, inside a frame's time).
 
 ## 9d. E4 started early — the 3D view in the engine (owner, 2026-11-24)
 

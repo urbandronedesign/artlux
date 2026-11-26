@@ -231,6 +231,68 @@ pub fn read_frame(path: &str, frame: usize) -> Result<(u32, u32, HapFormat, Vec<
     Ok((v.width, v.height, d.format, d.data, n))
 }
 
+/// H4K (2026-11-26): ONE HAP FILE, PARSED ONCE AND KEPT OPEN, READ AHEAD. `read_frame` re-parsed the file's index,
+/// re-opened it, read and unpacked the frame on the render thread, every new frame — 4–7 ms a 4K HAP Q / Alpha frame
+/// (measured), on the thread that also draws, samples and packs. A worker thread now reads and unpacks the NEXT frame
+/// (the one after the one asked for: a playing surface's next) while the render thread draws this one; a jump (a seek,
+/// a scene) waits for the frame asked for, as before. One request in flight at a time.
+pub struct HapIn {
+    pub path: String,
+    pub w: u32,
+    pub h: u32,
+    /// The file's frame rate and frame count — mov.rs, the SAME parser as the app's hap.node, so the same numbers.
+    pub fps: f64,
+    pub n: usize,
+    tx: std::sync::mpsc::Sender<usize>,
+    rx: std::sync::mpsc::Receiver<(usize, Result<(HapFormat, Vec<u8>), String>)>,
+    asked: Option<usize>,
+}
+
+impl HapIn {
+    pub fn open(path: &str) -> Result<HapIn, String> {
+        let v = mov::parse(path)?;
+        if v.frames.is_empty() { return Err("the file has no video frames".into()); }
+        let mut file = std::fs::File::open(path).map_err(|e| e.to_string())?;
+        let frames = v.frames.clone();
+        let (tx, ask) = std::sync::mpsc::channel::<usize>();
+        let (give, rx) = std::sync::mpsc::channel();
+        std::thread::Builder::new().name("hap read".into()).spawn(move || {
+            while let Ok(i) = ask.recv() {
+                let s = frames[i.min(frames.len() - 1)];
+                let r = (|| {
+                    file.seek(SeekFrom::Start(s.offset)).map_err(|e| e.to_string())?;
+                    let mut buf = vec![0u8; s.size as usize];
+                    file.read_exact(&mut buf).map_err(|e| e.to_string())?;
+                    hap::decode_frame(&buf).map(|d| (d.format, d.data))
+                })();
+                if give.send((i, r)).is_err() { break; }
+            }
+        }).map_err(|e| e.to_string())?;
+        Ok(HapIn { path: path.to_string(), w: v.width, h: v.height, fps: v.fps, n: v.frames.len(), tx, rx, asked: None })
+    }
+
+    /// Frame `i` (clamped to the last) as (format, blocks); then the frame after it is read ahead.
+    pub fn frame(&mut self, i: usize) -> Result<(HapFormat, Vec<u8>), String> {
+        let i = i.min(self.n - 1);
+        let gone = || "the HAP reader stopped".to_string();
+        if self.asked != Some(i) {
+            if self.asked.take().is_some() { let _unwanted = self.rx.recv().map_err(|_| gone())?; }   // a read-ahead nobody wants
+            self.tx.send(i).map_err(|_| gone())?;
+        }
+        self.asked = None;
+        let (_, r) = self.rx.recv().map_err(|_| gone())?;
+        let next = (i + 1) % self.n;
+        if self.tx.send(next).is_ok() { self.asked = Some(next); }
+        r
+    }
+
+    /// The frame the app's surface player shows at `clock_s` (hapPlayer.tick: round(clock × fps), looped).
+    pub fn index_at(&self, clock_s: f64) -> usize {
+        let n = self.n as i64;
+        ((((clock_s * self.fps).round() as i64) % n + n) % n) as usize
+    }
+}
+
 /// The app's names for the formats (native/hap/src/lib.rs's HapFrame.format).
 pub fn format_from_str(s: &str) -> Option<HapFormat> {
     Some(match s {
@@ -241,4 +303,32 @@ pub fn format_from_str(s: &str) -> Option<HapFormat> {
         "bptc" => HapFormat::Bptc,
         _ => return None,
     })
+}
+
+#[cfg(test)]
+mod gpu_picture_tests {
+    /// H4K: hap_picture keeps the picture on the GPU and premultiplies in the pass. It must be BIT-IDENTICAL to the old
+    /// path (texels read back + compose::premultiply on the CPU) for every format the engine draws. Random bytes are
+    /// valid BC1 / BC3 blocks, so every alpha and colour value appears. (Checked on 4K files 2026-11-26 too: a real
+    /// alpha ramp, 8.3 M transparent pixels, 0 differ; with the premultiply off, 12.7 M bytes differ.)
+    #[test]
+    fn hap_picture_on_the_gpu_is_the_old_picture() {
+        use super::hap::HapFormat;
+        let Ok(gpu) = crate::Gpu::open(crate::AdapterPolicy { allow_software: true, force_software: false }) else { eprintln!("no GPU: skipped"); return };
+        if !super::has_bc(&gpu) { eprintln!("no BC textures: skipped"); return; }
+        let (w, h) = (96u32, 64u32);
+        let mut seed = 0x2545_f491_4f6c_dd1du64;
+        for (fmt, mode, bpb) in [(HapFormat::Dxt5, 0u32, 16usize), (HapFormat::Dxt1, 2, 8), (HapFormat::ScaledYCoCg, 1, 16)] {
+            let blocks: Vec<u8> = (0..(w / 4 * h / 4) as usize * bpb).map(|_| { seed ^= seed << 13; seed ^= seed >> 7; seed ^= seed << 17; seed as u8 }).collect();
+            let bc = super::upload_bc(&gpu, fmt, w, h, &blocks).unwrap();
+            let mut old = crate::compose::texels(&gpu, &bc, w, h, mode).unwrap();
+            crate::compose::premultiply(&mut old);
+            let pic = crate::compose::hap_picture(&gpu, fmt, w, h, &blocks).unwrap();
+            let new = crate::yuv::read_rgba(&gpu, pic.tex.as_ref().expect("on the GPU"), pic.w, pic.h).unwrap();
+            assert!(pic.rgba.is_empty(), "no CPU copy");
+            let see_through = old.chunks(4).filter(|p| p[3] != 255).count();
+            assert_eq!(old, new, "{fmt:?}: {} bytes differ", old.iter().zip(&new).filter(|(a, b)| a != b).count());
+            if fmt == HapFormat::Dxt5 { assert!(see_through > 1000, "the test must cover alpha ({see_through})"); }
+        }
+    }
 }

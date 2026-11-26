@@ -28,6 +28,7 @@ export const hapCodec: VideoCodecContribution = {
   surfaceFrame: (path) => hapPlayer.getHapCanvas(path),
   closeSurface: (path) => hapPlayer.close(path),
   surfaceGeneration: (path) => hapPlayer.getHapGeneration(path),
+  surfaceClockUs: (path) => hapPlayer.getHapClockUs(path),         // H4K: what the native engine follows
 
   // Timeline layer — playhead-driven exact frame (verbatim from syncHapLayer). `layerKey` scopes the
   // GPU canvas (one per layer); the decode ring is shared per file path inside hapDecode.
