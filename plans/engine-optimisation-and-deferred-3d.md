@@ -672,6 +672,33 @@ E6h hold and the stall watchdog still pass (`test:engine-hold` phases incl. S).
 >
 > **Left of O5-2:** one picture texture per SURFACE (by id — what O5-1 should have been), and the 3D view and the
 > calibrated presenters as cameras + pass graphs over one scene (with D0).
+>
+> ✅ **O3-4 done 2026-11-27 — THE MP4 DECODER OFF THE RENDER THREAD** (owner chose it over the rest of O5-2: "O3-4 MP4
+> thread"). `mp4worker.rs`: a thread per film owns `mf::Mp4In` (moved whole, as preroll.rs moves one) and its own
+> converter, and keeps the frames the clock will reach converted ahead — ~120 ms of film (2–6 frames), in presentation
+> order ACROSS THE LOOP, so the wrap's seek happens there, early. The render thread finds the frame on screen from the
+> file's timetable (`Mp4In::frame_times`; `index_at` is `frame_at`'s rule — the frame at t within 2 µs, else the last
+> before, else the first) and takes its picture; one the worker has not got (a jump, a scrub, the first frame of a
+> film) is asked for and WAITED on, as before — the frame shown is always the one the clock names. Two traps, both
+> found by the soak: a worker must not read ahead before the render thread first asks (a pre-rolled decoder sits
+> mid-file; reading ahead from frame 0 seeks it back and the cut stalls), and the NV12 conversion pipeline is built
+> once per (device, space) — a compile per new film's worker was a stall at every cut.
+>
+> | 4K heavy show, 250 s each, back to back | before | after |
+> |---|---|---|
+> | render tick p50 · p99 · worst p99 | 7.58 · 12.1 · 57.5 ms | **6.14 · 9.5 · 23.4** |
+> | `sources` p50 · worst p99 | 6.14 · 56.5 ms | **4.47 · 21.5** |
+> | 5-s windows with a tick over 30 ms | 18 of 60 (worst 214 ms) | **3 of 60** (worst 104 — start-up and cuts) |
+> | MP4 on the render thread per new frame (`mp4`) | p50 1.97 ms | **0.01** (a ready picture) |
+> | wire | 40 universes, 26 new payloads/s | the same |
+> | GPU memory (machine) | 3 202 MiB | 3 526 MiB (+~320: the frames held ready) |
+>
+> Frame-exact: `test:video-frame-clock` 100 % (1080p) and 99.8 % (4K — as before) of ticks on the app's frame; every
+> projector, takeover, hold, runtime, pack / wire, light-show and bake test as before; `--mp4`, image-parity's 11 the
+> known failures. **Pre-existing, seen here:** `test:video-frame-clock` with `tos_night.mp4` (a late first frame)
+> is 76 % — identical with the engine before this change. **Left:** the first frame of a film at a cut is still a
+> miss the render thread waits for (worst 53 ms — the pre-roll positioned the decoder, not a picture); the frames held
+> ready cost GPU memory (`LEAD_US` / `LEAD_MAX` in mp4worker.rs set it).
 
 ### What is NOT in this plan, deliberately
 

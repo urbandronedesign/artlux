@@ -156,9 +156,14 @@ fn main(@builtin(global_invocation_id) id: vec3<u32>) {
 pub struct GpuConvert { pipelines: std::sync::Mutex<Vec<(Space, wgpu::ComputePipeline)>> }
 
 fn pipeline_for(gpu: &crate::Gpu, space: Space) -> wgpu::ComputePipeline {
-    let m = gpu.device.create_shader_module(wgpu::ShaderModuleDescriptor { label: Some("nv12 convert"), source: wgpu::ShaderSource::Wgsl(space.wgsl().into()) });
-    gpu.device.create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
-        label: Some("nv12 convert"), layout: None, module: &m, entry_point: Some("main"), compilation_options: Default::default(), cache: None,
+    // O3-4: once per (device, space) — every film's decoder thread makes a converter (mp4worker.rs), and a compile at
+    // a scene's cut is a stall there.
+    static P: crate::PerDevice<Space, wgpu::ComputePipeline> = crate::PerDevice::new();
+    P.get(&gpu.device, space, || {
+        let m = gpu.device.create_shader_module(wgpu::ShaderModuleDescriptor { label: Some("nv12 convert"), source: wgpu::ShaderSource::Wgsl(space.wgsl().into()) });
+        gpu.device.create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
+            label: Some("nv12 convert"), layout: None, module: &m, entry_point: Some("main"), compilation_options: Default::default(), cache: None,
+        })
     })
 }
 

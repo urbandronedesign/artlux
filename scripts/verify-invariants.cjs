@@ -10364,6 +10364,31 @@ check(
   },
 );
 
+check(
+  'each film\'s MP4 decoder runs on its OWN thread, keeping the next frames ready across the loop, and the frame shown is still the one the clock names',
+  'plans/engine-optimisation-and-deferred-3d.md O3-4 (2026-11-27). The render thread ran every film\'s decoder: ~2 ms a ' +
+  'film per new frame (decode to the clock, the D3D11 copy\'s spin, the conversion\'s wait) and, at every LOOP, the seek ' +
+  'to the first key frame — 40-60 ms with every output and the whole wire frozen. mp4worker.rs moves the decoder to a ' +
+  'thread per film that converts the frames the clock will reach, across the wrap; the render thread finds the frame on ' +
+  'screen from the file\'s timetable (Mp4In::frame_at\'s rule — index_at) and takes it, or asks and WAITS (a jump). ' +
+  'Measured on the 4K heavy show, back to back: tick p50 7.6 -> 6.1 ms, worst p99 57.5 -> 23.4, 5-s windows with a tick ' +
+  'over 30 ms 18 -> 3 of 60. Two traps: the worker must not read ahead before the render thread first asks (a pre-rolled ' +
+  'decoder sits mid-file — reading ahead from frame 0 seeks it back), and the NV12 conversion pipeline is built once per ' +
+  'device (a compile per new film\'s worker was a stall at every cut).',
+  () => {
+    const problems = [];
+    const w = raw('engine/artlux-engine/src/mp4worker.rs'), rt = read('engine/artlux-engine/src/runtime.rs'), yuv = read('engine/artlux-engine/src/yuv.rs');
+    if (!/mp4s: HashMap<String, \(String, crate::mp4worker::Mp4Worker\)>/.test(rt)) problems.push('runtime.rs no longer keeps its films as decoder threads (mp4worker::Mp4Worker)');
+    if ((rt.match(/crate::mp4worker::Mp4Worker::start\(self\.gpu\.clone\(\), rx,/g) || []).length < 3) problems.push('a place the runtime opens an MP4 no longer hands the decoder to its thread');
+    if (/rx\.frame_at\(local\)/.test(rt) || /rx\.picture\(&self\.gpu, conv, local\)/.test(rt)) problems.push('runtime.rs decodes an MP4 on the render thread again');
+    if (!/rx\.shown\(local\)/.test(rt) || !/rx\.picture\(local\)/.test(rt)) problems.push('runtime.rs no longer takes the frame on screen from the worker');
+    if (!/let n = pts\.partition_point\(\|&t\| t <= local \+ EPS_US\);/.test(w) || !/fn index_at_is_frame_ats_rule\(/.test(w)) problems.push('mp4worker.rs index_at is no longer frame_at\'s rule (the frame at t within 2 µs, else the last before), or lost its test');
+    if (!/let Some\(now\) = now else \{/.test(w)) problems.push('the worker reads ahead before the render thread first asks — a pre-rolled decoder would be sent back to frame 0');
+    if (!/static P: crate::PerDevice<Space, wgpu::ComputePipeline>/.test(yuv)) problems.push('yuv.rs compiles the NV12 conversion per converter again (a stall at every cut)');
+    return problems.length ? problems.join('; ') : null;
+  },
+);
+
 const ok = (m) => console.log(`\x1b[32m✓\x1b[0m ${m}`);
 const bad = (m) => console.error(`\x1b[31m✗\x1b[0m ${m}`);
 

@@ -66,6 +66,7 @@ impl Frame {
 
 /// The colour description the decoder read from the stream, in WebCodecs' words — for the report only:
 /// what the engine draws is decided on the APP's VideoFrame.colorSpace.
+#[derive(Clone)]
 pub struct Colour { pub matrix: &'static str, pub full_range: Option<bool>, pub primaries: &'static str, pub transfer: &'static str }
 
 pub(crate) fn startup() -> Result<(), String> {
@@ -265,6 +266,15 @@ impl Mp4In {
     /// The track's first presentation time (µs) — above 0 in a file whose first frame is shown late (a B-frame
     /// composition offset with no edit list).
     pub fn first_ts(&self) -> i64 { self.first }
+
+    /// O3-4: every frame's presentation time (µs), sorted — the timetable mp4worker.rs answers "the frame at t" from,
+    /// without the decoder.
+    pub fn frame_times(&self) -> Vec<i64> {
+        let mut v: Vec<i64> = self.track.samples.iter().map(|s| self.track.ts_us(s)).collect();
+        v.sort_unstable();
+        v.dedup();
+        v
+    }
 
     pub fn colour(&self) -> Colour {
         unsafe {

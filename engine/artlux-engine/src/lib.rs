@@ -27,6 +27,8 @@ pub mod mp4demux;
 #[cfg(windows)]
 pub mod mf;
 #[cfg(windows)]
+pub mod mp4worker;
+#[cfg(windows)]
 pub mod encode;
 #[cfg(windows)]
 pub mod cam;

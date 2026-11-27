@@ -114,7 +114,8 @@ pub struct Runtime {
     /// Item 2c-4: one MP4 decoder per surface (mf.rs — on the GPU where the decoder takes the device), and
     /// the GPU conversion they share (yuv.rs).
     #[cfg(windows)]
-    mp4s: HashMap<String, (String, crate::mf::Mp4In)>,
+    /// O3-4: each film's decoder runs on its own thread (mp4worker.rs), keeping the next frames ready.
+    mp4s: HashMap<String, (String, crate::mp4worker::Mp4Worker)>,
     /// E6j: films of the scene the show is about to enter, opened and positioned ahead (preroll.rs), by `preroll::key`.
     #[cfg(windows)]
     prerolls: HashMap<String, crate::preroll::Preroll>,
@@ -856,7 +857,7 @@ impl Runtime {
                                     if self.mp4s.get(key).is_none_or(|(q, _)| q != p) {
                                         let rx = crate::prof::time("open.mp4", || crate::mf::Mp4In::open_with(p, Some(&self.gpu))).map_err(|e| format!("surface '{}': timeline MP4 clip: {e}", name_of(d, sid)))?;
                                         if let Some(why) = &rx.software_why { eprintln!("artlux-engine: timeline track {key}: MP4 decoded in software ({why})"); }
-                                        self.mp4s.insert(key.to_string(), (p.clone(), rx));
+                                        self.mp4s.insert(key.to_string(), (p.clone(), crate::mp4worker::Mp4Worker::start(self.gpu.clone(), rx, key)));
                                     }
                                 }
                                 #[cfg(not(windows))]
@@ -906,7 +907,7 @@ impl Runtime {
                                 None => crate::prof::time("open.mp4", || crate::mf::Mp4In::open_with(p, Some(&self.gpu))).map_err(|e| format!("surface '{}': MP4 {e}", name_of(d, sid)))?,
                             };
                             if let Some(why) = &rx.software_why { eprintln!("artlux-engine: surface '{}': MP4 decoded in software ({why})", name_of(d, sid)); }
-                            self.mp4s.insert(sid.clone(), (p.clone(), rx));
+                            self.mp4s.insert(sid.clone(), (p.clone(), crate::mp4worker::Mp4Worker::start(self.gpu.clone(), rx, sid)));
                         }
                     }
                     #[cfg(not(windows))]
@@ -1444,7 +1445,8 @@ impl Runtime {
                             if *dur_us > 0 && abs >= *dur_us && local < rx.first_ts() { local += *dur_us; }
                         }
                         let find_at = std::time::Instant::now();
-                        let shown = self.mp4s.get_mut(sid).filter(|(q, _)| q == _path).and_then(|(_, rx)| crate::prof::time("mp4.find", || rx.frame_at(local).ok().map(|f| f.ts_us)));
+                        // O3-4: the frame on screen, from the file's timetable — the decoder is the worker's.
+                        let shown = self.mp4s.get(sid).filter(|(q, _)| q == _path).map(|(_, rx)| rx.shown(local));
                         // A SLOW FIND names itself: the film, the time asked, how long — the scene-switch stall's evidence.
                         let took = find_at.elapsed();
                         if took > std::time::Duration::from_millis(50) { eprintln!("artlux-engine: mp4: '{sid}' took {:.0} ms to reach {} µs of {} (abs {abs}, loop {})", took.as_secs_f64() * 1e3, local, _path, if *dur_us > 0 { abs.div_euclid(*dur_us) } else { 0 }); }
@@ -1470,15 +1472,15 @@ impl Runtime {
                                         if !ok && self.judge.contains(sid) {
                                             return Err(format!("track {sid}: an MP4 in colour space {}/{}/{}/{:?} (the engine draws BT.709 limited range only)", c.matrix, c.primaries, c.transfer, c.full_range));
                                         }
-                                        self.mp4s.insert(sid.clone(), (_path.clone(), rx));
+                                        self.mp4s.insert(sid.clone(), (_path.clone(), crate::mp4worker::Mp4Worker::start(self.gpu.clone(), rx, sid)));
                                     }
                                     Err(e) if ahead => { eprintln!("artlux-engine: clock: {sid} not drawn ahead: MP4 {e}"); self.clip_bad.insert(sid.clone()); continue; }
                                     Err(e) => return Err(format!("surface {sid}: MP4 {e}")),
                                 }
                             }
-                            let conv = self.conv.get_or_insert_with(|| crate::yuv::GpuConvert::new(&self.gpu));
-                            if let Some((_, rx)) = self.mp4s.get_mut(sid) {
-                                match crate::prof::time("mp4", || rx.picture(&self.gpu, conv, local)) {
+                            if let Some((_, rx)) = self.mp4s.get(sid) {
+                                // O3-4: the worker's picture of that frame — ready, or asked for and waited on.
+                                match crate::prof::time("mp4", || rx.picture(local)) {
                                     Ok(pic) => { self.pictures.insert(sid.clone(), pic); self.gens.insert(sid.clone(), key); }
                                     Err(e) if ahead => { eprintln!("artlux-engine: clock: {sid} not drawn ahead: {e}"); self.clip_bad.insert(sid.clone()); }
                                     Err(e) => return Err(format!("surface {sid}: {e}")),
