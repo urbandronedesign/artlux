@@ -725,6 +725,10 @@ E6h hold and the stall watchdog still pass (`test:engine-hold` phases incl. S).
 
 - **The editor's own 4K HAP preview decode** (~300 % of a core in a HAP Q scene, H4K "Left") — an app-side change
   (a preview at the Stage's size), owned by the app, not the engine. Listed so it is not forgotten.
+- **The editor's own WebGL 3D view while the engine's 3D window is open** (D0 bench, 2026-11-27: 52–63 % of a core
+  and most of the machine's GPU load with 100 heads, against the engine's 1–10 %) — it keeps drawing the same rig
+  behind the engine window. An app-side change (pause it while the engine's window shows the scene). Listed so it is
+  not forgotten.
 - **Multi-queue / async compute.** wgpu exposes one queue; with O1–O3 the single queue stops being the bottleneck.
   Revisit only if O0's numbers say otherwise.
 - **macOS / Linux** — the engine is Windows only (owner, 2026-11-26).
@@ -848,6 +852,29 @@ and an embedded `sharedTexture` in the editor are presentation targets of the sa
 | **D3** | Shadow atlas: top-N by importance, static casters cached, round-robin updates when many heads move; transparents (BLEND) forward over the clusters; `doubleSided` / `alphaMode` honoured | 3 wk | `test:engine-shadows` re-based; a glTF with BLEND glass correct; a moving 50-head chase holds frame rate |
 | **D4** | AO on G-buffer normals; beams kept as additive cones but fed by the light list (no 48 cap — a fill-rate budget instead); LED / overlay passes after lighting; four-view layout (3d-workbench Phase 2 on the engine) | 2–3 wk | `test:engine-ao` re-based; four views at once with one scene resident |
 | **D5** | Volumetric beams (froxel grid sampling the shadow atlas + gobos), gobo / iris / focus / prism roles in `lightpack` + the gobo array; projectors as picture-cookie lights | 4–6 wk (incl. fixture-library data) | a gobo'd beam in haze occluded by a truss; parity of the new roles with the app's precedence stack (`test:light-pack-parity` extended) |
+
+> 📏 **D0 measured first, 2026-11-27** (owner: "go" on D0 — the bench before any change). Bench
+> `E:/zaki/artlux-engine-test/D0-heads/bench.cjs`: N MAC 250 Beams on a grid at 6 m, all open, the engine's 3D window
+> in Rendered; `still` (nothing moves) and `orbit` (the engine camera moved ~57×/s — a redraw every frame);
+> `--away` puts the editor on another context so its own WebGL view of the rig stops drawing. The 3D frame now
+> reports its stages (`v.prep` scene / beams / LED gather / placements, `v.acquire` the swapchain image, `v.encode`
+> passes to submit) — before, one `frame` timer that included the acquire.
+>
+> | packaged Show, RTX box | 100 still | 100 orbit | 300 still | 300 orbit |
+> |---|---|---|---|---|
+> | engine CPU | 0.7 % | 9.9 % | 2.2 % | 12.8 % |
+> | 3D frames/s · `frame` p50 (CPU) | 4 (the heartbeat) · 1.33 ms | 58 · 1.11 ms | 4 · 1.68 ms | 58 · 1.40 ms |
+> | `v.prep` · `v.encode` p50 | 0.33 · 0.77 | 0.35 · 0.57 | 0.41 · 1.04 | 0.44 · 0.77 |
+> | GPU load, machine (editor away) | 4.3 % | 11.0 % | 4.8 % | 14.4 % |
+> | the editor itself, ON the 3D context (100) | 52 % CPU, 15.6 % GPU | 63 % CPU | | |
+>
+> **What it says.** D0's performance exit is ALREADY MET: still, the view draws only its 250 ms heartbeat (V1) with
+> cached shadows (V2) — the machine idles at 4–5 % GPU with 300 heads. Orbiting, a frame is ~1.1–1.4 ms of CPU and
+> ~1.2 ms of GPU at 300 heads. **V5** (instanced housings) can save at most the housings' share of `v.encode` —
+> +200 housings cost +0.2 ms — and **V4** has nothing to save here (one model; housings are written per scene, not per
+> frame). Neither is worth doing for speed; they are PLUMBING for D1's G-buffer, and land with it. The visible limit
+> at 100 heads is the 48-beam cap (D2), and the biggest 3D cost on the machine is the EDITOR's own WebGL view (52–63 %
+> of a core while its 3D context is up) — outside this plan ("What is NOT in this plan").
 | **D6** | Optional: LED bars as line lights; TAA if SMAA is judged insufficient; GPU-driven draws (indirect) if O0/D2 show the CPU submits matter | — | as decided then |
 
 **Total ≈ 3–4 months of one developer after O1–O3**, consistent with the native-engine plan's original E4 estimate.

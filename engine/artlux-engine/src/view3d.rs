@@ -1432,11 +1432,17 @@ pub fn present(gpu: Arc<Gpu>, window: Arc<Window>, surface: wgpu::Surface<'stati
             }
         }
 
+        // D0: the frame's stages — `v.prep` (everything up to here: scene, beams, LED gather, placements), `v.acquire`
+        // (the swapchain image: the vsync wait lives here, so `frame` alone said little), `v.encode` (passes to submit).
+        crate::prof::add("v.prep", frame_at.elapsed());
+        let acquire_at = std::time::Instant::now();
         let frame = match surface.get_current_texture() {
             wgpu::CurrentSurfaceTexture::Success(t) | wgpu::CurrentSurfaceTexture::Suboptimal(t) => t,
             wgpu::CurrentSurfaceTexture::Timeout | wgpu::CurrentSurfaceTexture::Occluded => { std::thread::sleep(Duration::from_millis(8)); continue; }
             _ => { configured = None; continue; }
         };
+        crate::prof::add("v.acquire", acquire_at.elapsed());
+        let encode_at = std::time::Instant::now();
         let view = frame.texture.create_view(&Default::default());
         let (msaa, depth) = targets.as_ref().unwrap();
         let mut enc = d.create_command_encoder(&Default::default());
@@ -1621,6 +1627,7 @@ pub fn present(gpu: Arc<Gpu>, window: Arc<Window>, surface: wgpu::Surface<'stati
         // The last step: bloom + AgX in Rendered, a straight copy in Shaded (post.rs).
         post.finish(&gpu.queue, &mut enc, &view, look.rendered);
         gpu.queue.submit([enc.finish()]);
+        crate::prof::add("v.encode", encode_at.elapsed());
         window.pre_present_notify();
         gpu.queue.present(frame);   // wgpu 30: presenting is the queue's, after the submit
         last_key = key; last_present = std::time::Instant::now();
