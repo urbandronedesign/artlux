@@ -44,6 +44,7 @@ pub mod gizmo;
 pub mod grid;
 pub mod prof;
 pub mod preroll;
+pub mod scenegpu;
 pub mod post;
 pub mod ao;
 pub mod shader;

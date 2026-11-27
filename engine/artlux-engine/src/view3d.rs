@@ -758,7 +758,8 @@ struct DOut { @builtin(position) pos: vec4<f32>, @location(0) d: f32 };
 
 /// A file's geometry, shared by every placement of it.
 struct GpuPrim { vb: wgpu::Buffer, ib: wgpu::Buffer, n: u32, local: [f32; 16], color: [f32; 4], image: Option<usize>, unlit: bool, slot: usize }
-struct GpuGlb { prims: Vec<GpuPrim>, texs: Vec<wgpu::TextureView> }
+/// `_held` (O5-2a): the shared buffers and textures (scenegpu.rs) the prims and views are of — held while drawn.
+struct GpuGlb { prims: Vec<GpuPrim>, texs: Vec<wgpu::TextureView>, _held: (Arc<crate::scenegpu::GlbBufs>, Vec<Arc<wgpu::Texture>>) }
 /// One PLACEMENT's per-primitive state: its own uniforms (its matrix, its content) and the bind group for
 /// the texture it currently wears. Per model, not per file — two placements of one file used to share a
 /// uniform buffer, so both drew wherever the last one was written.
@@ -1022,7 +1023,7 @@ pub fn present(gpu: Arc<Gpu>, window: Arc<Window>, surface: wgpu::Surface<'stati
     };
 
     // glTF: loaded on a helper thread, uploaded here.
-    let (load_tx, load_rx) = std::sync::mpsc::channel::<(String, Result<CpuGlb, String>)>();
+    let (load_tx, load_rx) = std::sync::mpsc::channel::<(String, Result<Arc<crate::scenegpu::Loaded>, String>)>();
     let mut glbs: HashMap<String, Option<GpuGlb>> = HashMap::new();   // None = loading (or failed)
     let mut insts: HashMap<String, Vec<PrimInst>> = HashMap::new();    // model id → its placement's prims
     let mut planes: HashMap<String, PlaneGpu> = HashMap::new();
@@ -1100,7 +1101,7 @@ pub fn present(gpu: Arc<Gpu>, window: Arc<Window>, surface: wgpu::Surface<'stati
                         if !glbs.contains_key(path) {
                             glbs.insert(path.clone(), None);
                             let (tx, p) = (load_tx.clone(), path.clone());
-                            let _ = std::thread::Builder::new().name("glb".into()).spawn(move || { let r = load_glb(&p); let _ = tx.send((p, r)); });
+                            let _ = std::thread::Builder::new().name("glb".into()).spawn(move || { let r = crate::scenegpu::cpu(&p); let _ = tx.send((p, r)); });
                         }
                     }
                 }
@@ -1146,21 +1147,24 @@ pub fn present(gpu: Arc<Gpu>, window: Arc<Window>, surface: wgpu::Surface<'stati
         while let Ok((path, r)) = load_rx.try_recv() {
             loads += 1;
             match r {
-                Ok(cpu) => {
+                Ok(l) => {
+                    let cpu = &l.cpu;
                     // E4b: the triangles, kept for picking (positions only; the vertex stride is 8 floats).
                     let picks: Vec<PickPrim> = cpu.prims.iter().map(|p| PickPrim { local: p.local, pos: p.verts.chunks_exact(8).map(|v| [v[0], v[1], v[2]]).collect(), idx: p.idx.clone() }).collect();
                     shared.lock().unwrap().meshes.insert(path.clone(), Arc::new(picks));
                     model_outline_key = String::new();   // a file that loads may be the selected one
-                    let texs: Vec<wgpu::TextureView> = cpu.images.iter().map(|(w, h, px)| tex_rgba(&gpu, *w, *h, px).create_view(&Default::default())).collect();
-                    let prims = cpu.prims.into_iter().map(|p| {
-                        let vb = buf_init(&gpu, "glb vb", &bytes(&p.verts), wgpu::BufferUsages::VERTEX);
-                        let ib = buf_init(&gpu, "glb ib", &p.idx.iter().flat_map(|x| x.to_le_bytes()).collect::<Vec<u8>>(), wgpu::BufferUsages::INDEX);
-                        GpuPrim { vb, ib, n: p.idx.len() as u32, local: p.local, color: p.color, image: p.image, unlit: p.unlit, slot: p.slot }
+                    // O5-2a: the file's images and buffers from the shared store (scenegpu.rs) — the parse is the one the
+                    // calibrated outputs use too.
+                    let held: Vec<Arc<wgpu::Texture>> = cpu.images.iter().enumerate().map(|(i, (w, h, px))| crate::scenegpu::image(&gpu, &l.key, i, crate::scenegpu::ImageUse::View, || tex_rgba(&gpu, *w, *h, px))).collect();
+                    let texs: Vec<wgpu::TextureView> = held.iter().map(|t| t.create_view(&Default::default())).collect();
+                    let bufs = crate::scenegpu::bufs(&gpu, &l, false);
+                    let prims = cpu.prims.iter().enumerate().map(|(i, p)| {
+                        GpuPrim { vb: bufs.vb[i].clone(), ib: bufs.ib[i].clone(), n: p.idx.len() as u32, local: p.local, color: p.color, image: p.image, unlit: p.unlit, slot: p.slot }
                     }).collect::<Vec<_>>();
                     eprintln!("artlux-engine: 3D view loaded {path} ({} meshes)", prims.iter().map(|p: &GpuPrim| p.slot + 1).max().unwrap_or(0));
                     // Placements of this file built before it loaded (none) or against an older load: rebuild.
                     if let Some(sc) = &scene { for m in &sc.models { if matches!(&m.kind, ModelKind::Glb(p) if *p == path) { insts.remove(&m.id); } } }
-                    glbs.insert(path, Some(GpuGlb { prims, texs }));
+                    glbs.insert(path, Some(GpuGlb { prims, texs, _held: (bufs, held) }));
                     depth_dirty = true;
                 }
                 Err(e) => eprintln!("artlux-engine: 3D view: {e}"),

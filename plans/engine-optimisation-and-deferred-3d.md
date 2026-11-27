@@ -626,6 +626,52 @@ E6h hold and the stall watchdog still pass (`test:engine-hold` phases incl. S).
 > | wire | 120 universes, 29.6 new payloads/s | the same |
 >
 > The app's own CPU (~165 %) in that bench is its editor preview decoding the same HAP (the "NOT in this plan" item).
+>
+> ✖ **O5-1 tried and DISCARDED 2026-11-27** (owner: "discard o5 1" — folded into O5-2). Built as specified: each
+> `Picture` carried one `Arc`-shared content texture, level 0 and the mip chain made separately on first need (the
+> calibrated venue reads level 0 only), replacing the per-output, per-3D-screen, per-venue and per-tick composite
+> copies. Correct (every projector / venue / clock / beams test as before; `--mp4`, `--baked`, image-parity's 11 the
+> known failures). **But it paid nothing and cost memory**, measured back to back (bench
+> `E:/zaki/artlux-engine-test/O5-mipped/bench.cjs`):
+>
+> | | before | O5-1 |
+> |---|---|---|
+> | 4K film on an output + the 3D view: engine CPU · tick p50 | 12.2 % · 1.85 ms | 12.7 % · 1.81 ms |
+> | three calibrated outputs, one 4K film: engine CPU | 16.1 % | 15.4 % |
+> | the same: GPU memory (two runs) | 2 822 / 3 099 MiB | 3 092 / 3 349 MiB (**+~260**) |
+>
+> Why: the copies it removed were already cheap after O1-3 (0.15 ms a visible-rect copy, 0.3 ms a chain) and a venue
+> draw is its geometry; and a SHARED texture has to be new per frame — O1-3's per-consumer textures were reused —
+> with several frames alive across the consumers' caches. Recycling them by size is unsafe here: a consumer keeps a
+> bare texture after its picture is gone, so a recycled one could show another surface's frame. **In O5-2 instead:**
+> `SceneGpu` owns one texture per SURFACE (by id), written by each new picture — reuse is then by construction, never
+> another surface's. The discarded diff is not kept in the repo.
+>
+> ✅ **O5-2a done 2026-11-27 — ONE VENUE ON THE GPU** (the first step of `SceneGpu`; owner: "go for recommendation").
+> `scenegpu.rs`, per file VERSION (path + size + mtime): `cpu` — the GLB parsed ONCE (concurrent askers wait for it,
+> later ones take it while anyone holds it); `bufs` — its vertex / index buffers once per (device, file, flavour): the
+> 3D view's (v as stored) and the calibrated venue's (flippedUv's 1 − v, + the colour/tangent buffer), two flavours,
+> never N; `image` — a file image as a texture once per (device, file, image, use): the venue's sRGB/linear mipped own
+> maps, the 3D view's linear single level. All WEAK — a venue nobody shows is freed as before
+> (`one_parse_for_every_consumer`). calib3d's own-map mip shader is built once per (device, format) — it was compiled
+> per map. Consumers keep their own pipelines, shaders and arithmetic: residency only, calib3d's parity untouched.
+>
+> | three calibrated outputs + the 3D view, one 56 MB textured GLB | before | after |
+> |---|---|---|
+> | parses of the file | 4 | **1** (407 ms; two outputs waited for it, one found it done) |
+> | engine memory | 1 010 MB | **754 MB** |
+> | GPU memory (machine) | 4 024 MiB | 3 919 MiB |
+> | `draw.venue` p50 per output | 0.67 ms | 0.63 ms |
+>
+> (That file is one mesh and its buffers; a CAD venue of many meshes and maps saves more, proportionally — the O-3
+> estimate was ~0.9–1 GB per calibrated 4K output.) Every venue / 3D test passes: `--calibrated` with `--glb`,
+> `--calib-own`, `--calib-tex` (+ `--tex-npot`, `--tex-jpeg`), `--calib-occlude`, `--distort --calib-blend`,
+> `--calib-layer`, `--calib-warp`; beams, shadows, view-place, takeover, runtime. **Pre-existing, seen here:**
+> `--calib-tex --tex-full` fails its RESTART check only (C: 2 009 118 of 2 073 600 pixels, max 210 — the first
+> engine-vs-app check is pixel-exact) — identical, twice, with the engine BEFORE this change; recorded, not fixed here.
+>
+> **Left of O5-2:** one picture texture per SURFACE (by id — what O5-1 should have been), and the 3D view and the
+> calibrated presenters as cameras + pass graphs over one scene (with D0).
 
 ### What is NOT in this plan, deliberately
 

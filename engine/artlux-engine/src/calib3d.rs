@@ -617,7 +617,7 @@ struct GpuMesh { vb: wgpu::Buffer, ib: wgpu::Buffer, n: u32, ex: Option<wgpu::Bu
 /// What the post pass reads: (w, h, blend key) it was made for, and its bind group.
 struct PostBind { key: (u32, u32, u64), bind: wgpu::BindGroup, _texs: Vec<wgpu::Texture> }
 enum GlbState { Loading, Ready(Vec<Option<GpuMesh>>), Failed }
-type Loaded = (String, Result<crate::view3d::CpuGlb, String>);
+type Loaded = (String, Result<Arc<crate::scenegpu::Loaded>, String>);
 
 /// The renderer one presenter holds: pipelines, the venue's geometry, the surfaces' textures, its targets.
 pub struct Renderer {
@@ -645,8 +645,12 @@ pub struct Renderer {
     own_pipes: HashMap<(u8, bool, bool, bool), wgpu::RenderPipeline>,   // (side, post pass?, blend, depth write)
     /// E6i step 4: each venue GLB's images (decoded RGBA) and, by three's mesh slot, its maps' images — the textures made
     /// of them (by source, image, sampler, sRGB?), and the four-map bindings of the own pipelines' group 2.
-    glb_imgs: HashMap<String, (Vec<[Option<usize>; 5]>, Arc<Vec<(u32, u32, Vec<u8>)>>)>,
+    /// O5-2a: the parse itself (shared — scenegpu::cpu), held while this output shows the file, with its buffers.
+    glb_imgs: HashMap<String, (Vec<[Option<usize>; 5]>, Arc<crate::scenegpu::Loaded>)>,
+    glb_bufs: HashMap<String, Arc<crate::scenegpu::GlbBufs>>,
     own_views: HashMap<MapKey, (wgpu::TextureView, wgpu::Sampler)>,
+    /// O5-2a: the shared textures behind `own_views` (a GLB's images — scenegpu::image), held while in use.
+    own_texs: HashMap<MapKey, Arc<wgpu::Texture>>,
     own_binds: HashMap<[Option<MapKey>; 5], wgpu::BindGroup>,
     own_tex_layout: wgpu::BindGroupLayout,
     own_white: (wgpu::TextureView, wgpu::Sampler),
@@ -816,7 +820,7 @@ impl Renderer {
         let dim_buf = d.create_buffer(&wgpu::BufferDescriptor { label: Some("calib3d dim"), size: 16, usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST, mapped_at_creation: false });
         Renderer { pipe_double, pipe_front, lin_double, lin_front, post_samples, post_pipe, post_buf, post_bind: None, cam_buf, cam_bind, obj_layout, obj: None, tex_layout, sampler,
             depth_pipe, depth_u: None, dmap_layout, dsamp, far_bind, dmaps: HashMap::new(), dmap_key: 0,
-            layout: own_layout, own_module, own_pipes: HashMap::new(), glb_imgs: HashMap::new(), own_views: HashMap::new(), own_binds: HashMap::new(), own_tex_layout, own_white, planes: HashMap::new(), glbs: HashMap::new(),
+            layout: own_layout, own_module, own_pipes: HashMap::new(), glb_imgs: HashMap::new(), glb_bufs: HashMap::new(), own_views: HashMap::new(), own_texs: HashMap::new(), own_binds: HashMap::new(), own_tex_layout, own_white, planes: HashMap::new(), glbs: HashMap::new(),
             loaded_tx, loaded_rx, texs: HashMap::new(), targets: None, dim_pipe, dim_buf, resolved: None, out_id: out_id.to_string() }
     }
 
@@ -834,22 +838,24 @@ impl Renderer {
     fn glb(&mut self, gpu: &Gpu, path: &str) -> Option<&Vec<Option<GpuMesh>>> {
         while let Ok((p, r)) = self.loaded_rx.try_recv() {
             let st = match r {
-                Ok(cpu) => {
+                Ok(l) => {
+                    // O5-2a: the parse and the (v-flipped) buffers are the SHARED ones — every calibrated output on
+                    // this device draws the same buffers (scenegpu.rs; they were N copies).
+                    let cpu = &l.cpu;
                     let n = cpu.prims.iter().map(|p| p.slot + 1).max().unwrap_or(0);
                     let mut by_slot: Vec<Option<GpuMesh>> = (0..n).map(|_| None).collect();
-                    for pr in &cpu.prims {
-                        let mut v = pr.verts.clone();
-                        for k in (0..v.len()).step_by(8) { v[k + 7] = 1.0 - v[k + 7]; }
-                        let mut m = Self::mesh(gpu, &v, &pr.idx);
-                        m.ex = Some(wgpu::util::DeviceExt::create_buffer_init(&gpu.device, &wgpu::util::BufferInitDescriptor { label: Some("calib3d ex"), contents: &f32s(&pr.extra), usage: wgpu::BufferUsages::VERTEX }));
-                        by_slot[pr.slot] = Some(m);
+                    let bufs = crate::scenegpu::bufs(gpu, &l, true);
+                    for (i, pr) in cpu.prims.iter().enumerate() {
+                        by_slot[pr.slot] = Some(GpuMesh { vb: bufs.vb[i].clone(), ib: bufs.ib[i].clone(), n: pr.idx.len() as u32, ex: Some(bufs.ex[i].clone()) });
                     }
+                    self.glb_bufs.insert(p.clone(), bufs);
                     eprintln!("artlux-engine: output '{}': venue {p} loaded ({n} meshes)", self.out_id);
                     let mut img_of: Vec<[Option<usize>; 5]> = vec![[None; 5]; n];
                     for pr in &cpu.prims { img_of[pr.slot] = pr.maps; }
                     self.own_views.retain(|k, _| k.0 != p);
+                    self.own_texs.retain(|k, _| k.0 != p);
                     self.own_binds.clear();
-                    self.glb_imgs.insert(p.clone(), (img_of, Arc::new(cpu.images)));
+                    self.glb_imgs.insert(p.clone(), (img_of, l.clone()));
                     GlbState::Ready(by_slot)
                 }
                 Err(e) => { eprintln!("artlux-engine: output '{}': venue {p}: {e}", self.out_id); GlbState::Failed }
@@ -859,7 +865,7 @@ impl Renderer {
         if !self.glbs.contains_key(path) {
             self.glbs.insert(path.to_string(), GlbState::Loading);
             let (tx, p) = (self.loaded_tx.clone(), path.to_string());
-            std::thread::spawn(move || { let r = crate::view3d::load_glb(&p); let _ = tx.send((p, r)); });
+            std::thread::spawn(move || { let r = crate::scenegpu::cpu(&p); let _ = tx.send((p, r)); });
         }
         match self.glbs.get(path) { Some(GlbState::Ready(m)) => Some(m), _ => None }
     }
@@ -867,22 +873,47 @@ impl Renderer {
     /// E6i step 4 — A GLB's base-colour map as three uploads it: SRGB8_ALPHA8 (decoded to linear by the format before
     /// filtering), generateMipmap (ANGLE on D3D11: GenerateMips on the sRGB format — done on the GPU here, MIP), and
     /// the glTF sampler three made of it.
-    fn own_map(&self, gpu: &Gpu, key: &MapKey, pictures: &HashMap<String, (u64, Arc<Picture>)>) -> Option<(wgpu::TextureView, wgpu::Sampler)> {
+    fn own_map(&self, gpu: &Gpu, key: &MapKey, pictures: &HashMap<String, (u64, Arc<Picture>)>) -> Option<(wgpu::TextureView, wgpu::Sampler, Option<Arc<wgpu::Texture>>)> {
         // usize::MAX: the app's decode, a raster picture (opaque — the bytes as three uploaded them); otherwise the GLB's.
         let pic;
+        let mut shared: Option<&str> = None;
         let (w, h, rgba): (&u32, &u32, &Vec<u8>) = if key.1 == usize::MAX {
             pic = pictures.get(&key.0)?.1.clone();
             (&pic.w, &pic.h, &pic.rgba)
         } else {
-            let (_, imgs) = self.glb_imgs.get(&key.0)?;
-            let (w, h, rgba) = imgs.get(key.1)?;
+            let (_, l) = self.glb_imgs.get(&key.0)?;
+            shared = Some(&l.key);
+            let (w, h, rgba) = l.cpu.images.get(key.1)?;
             (w, h, rgba)
         };
         if *w == 0 || *h == 0 || rgba.len() < (*w * *h * 4) as usize { return None; }
+        // O5-2a: a GLB image is made ONCE for every calibrated output (scenegpu::image) — its texture and mips; the
+        // sampler (the glTF sampler three made) stays this key's own.
+        let tex = match shared {
+            Some(fk) => crate::scenegpu::image(gpu, fk, key.1, crate::scenegpu::ImageUse::VenueMap { srgb: key.3 }, || Self::own_map_texture(gpu, *w, *h, rgba, key.3)),
+            None => Arc::new(Self::own_map_texture(gpu, *w, *h, rgba, key.3)),
+        };
+        let d = &gpu.device;
+        let s = key.2;
+        let wrap = |m: u32| match m { 1001 => wgpu::AddressMode::ClampToEdge, 1002 => wgpu::AddressMode::MirrorRepeat, _ => wgpu::AddressMode::Repeat };
+        let lin = |f: u32| if matches!(f, 1003 | 1004 | 1005) { wgpu::FilterMode::Nearest } else { wgpu::FilterMode::Linear };
+        // minFilter: Nearest / Linear read the base level only; *MipmapNearest one level, *MipmapLinear two.
+        let mipped = matches!(s.min, 1004 | 1005 | 1007 | 1008);
+        let sampler = d.create_sampler(&wgpu::SamplerDescriptor {
+            label: Some("calib3d own map"), address_mode_u: wrap(s.wrap_s), address_mode_v: wrap(s.wrap_t),
+            mag_filter: lin(s.mag), min_filter: lin(s.min),
+            mipmap_filter: if matches!(s.min, 1005 | 1008) { wgpu::MipmapFilterMode::Linear } else { wgpu::MipmapFilterMode::Nearest },
+            lod_max_clamp: if mipped { 32.0 } else { 0.0 }, ..Default::default() });
+        Some((tex.create_view(&Default::default()), sampler, shared.map(|_| tex)))
+    }
+
+    /// The texture of an own map: the image, uploaded in its format, with a full mip chain made on the GPU (MIP).
+    fn own_map_texture(gpu: &Gpu, w: u32, h: u32, rgba: &[u8], srgb: bool) -> wgpu::Texture {
+        let (w, h) = (&w, &h);
         let d = &gpu.device;
         let levels = 32 - (*w).max(*h).leading_zeros();   // three: floor(log2(max)) + 1
         // map / emissiveMap are sRGB (decoded by the format), metalnessMap / aoMap linear data.
-        let fmt = if key.3 { wgpu::TextureFormat::Rgba8UnormSrgb } else { wgpu::TextureFormat::Rgba8Unorm };
+        let fmt = if srgb { wgpu::TextureFormat::Rgba8UnormSrgb } else { wgpu::TextureFormat::Rgba8Unorm };
         let t = d.create_texture(&wgpu::TextureDescriptor {
             label: Some("calib3d own map"), size: wgpu::Extent3d { width: *w, height: *h, depth_or_array_layers: 1 }, mip_level_count: levels, sample_count: 1,
             dimension: wgpu::TextureDimension::D2, format: fmt,
@@ -890,15 +921,18 @@ impl Renderer {
         gpu.queue.write_texture(wgpu::TexelCopyTextureInfo { texture: &t, mip_level: 0, origin: wgpu::Origin3d::ZERO, aspect: wgpu::TextureAspect::All },
             &rgba[..(*w * *h * 4) as usize], wgpu::TexelCopyBufferLayout { offset: 0, bytes_per_row: Some(*w * 4), rows_per_image: Some(*h) },
             wgpu::Extent3d { width: *w, height: *h, depth_or_array_layers: 1 });
-        // generateMipmap, on the GPU (MIP above).
-        let mm = d.create_shader_module(wgpu::ShaderModuleDescriptor { label: Some("calib3d mip"), source: wgpu::ShaderSource::Wgsl(MIP.into()) });
-        let pipe = d.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
-            label: Some("calib3d mip"), layout: None,
-            vertex: wgpu::VertexState { module: &mm, entry_point: Some("vs"), buffers: &[], compilation_options: Default::default() },
-            fragment: Some(wgpu::FragmentState { module: &mm, entry_point: Some("fs"), targets: &[Some(fmt.into())], compilation_options: Default::default() }),
-            primitive: Default::default(), depth_stencil: None, multisample: Default::default(), multiview_mask: None, cache: None,
+        // generateMipmap, on the GPU (MIP above). O5-2a: the pipeline once per (device, format) — it was compiled per map.
+        static MIPS: crate::PerDevice<wgpu::TextureFormat, (wgpu::RenderPipeline, wgpu::Sampler)> = crate::PerDevice::new();
+        let (pipe, lin) = MIPS.get(d, fmt, || {
+            let mm = d.create_shader_module(wgpu::ShaderModuleDescriptor { label: Some("calib3d mip"), source: wgpu::ShaderSource::Wgsl(MIP.into()) });
+            let pipe = d.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+                label: Some("calib3d mip"), layout: None,
+                vertex: wgpu::VertexState { module: &mm, entry_point: Some("vs"), buffers: &[], compilation_options: Default::default() },
+                fragment: Some(wgpu::FragmentState { module: &mm, entry_point: Some("fs"), targets: &[Some(fmt.into())], compilation_options: Default::default() }),
+                primitive: Default::default(), depth_stencil: None, multisample: Default::default(), multiview_mask: None, cache: None,
+            });
+            (pipe, d.create_sampler(&wgpu::SamplerDescriptor { label: Some("calib3d mip"), mag_filter: wgpu::FilterMode::Linear, min_filter: wgpu::FilterMode::Linear, ..Default::default() }))
         });
-        let lin = d.create_sampler(&wgpu::SamplerDescriptor { label: Some("calib3d mip"), mag_filter: wgpu::FilterMode::Linear, min_filter: wgpu::FilterMode::Linear, ..Default::default() });
         let mut enc = d.create_command_encoder(&Default::default());
         for lv in 1..levels {
             let one = |l: u32| t.create_view(&wgpu::TextureViewDescriptor { base_mip_level: l, mip_level_count: Some(1), ..Default::default() });
@@ -914,17 +948,7 @@ impl Renderer {
             pass.draw(0..3, 0..1);
         }
         gpu.queue.submit([enc.finish()]);
-        let s = key.2;
-        let wrap = |m: u32| match m { 1001 => wgpu::AddressMode::ClampToEdge, 1002 => wgpu::AddressMode::MirrorRepeat, _ => wgpu::AddressMode::Repeat };
-        let lin = |f: u32| if matches!(f, 1003 | 1004 | 1005) { wgpu::FilterMode::Nearest } else { wgpu::FilterMode::Linear };
-        // minFilter: Nearest / Linear read the base level only; *MipmapNearest one level, *MipmapLinear two.
-        let mipped = matches!(s.min, 1004 | 1005 | 1007 | 1008);
-        let sampler = d.create_sampler(&wgpu::SamplerDescriptor {
-            label: Some("calib3d own map"), address_mode_u: wrap(s.wrap_s), address_mode_v: wrap(s.wrap_t),
-            mag_filter: lin(s.mag), min_filter: lin(s.min),
-            mipmap_filter: if matches!(s.min, 1005 | 1008) { wgpu::MipmapFilterMode::Linear } else { wgpu::MipmapFilterMode::Nearest },
-            lod_max_clamp: if mipped { 32.0 } else { 0.0 }, ..Default::default() });
-        Some((t.create_view(&Default::default()), sampler))
+        t
     }
 
     /// E6i step 4: the own pipelines' group 2 for these four maps (white where there is none).
@@ -1104,7 +1128,12 @@ impl Renderer {
             // a transparent one blends (NormalBlending, straight alpha) and writes depth as its material says.
             if let Some(od) = &dr.own {
                 for k in od.maps.iter().flatten() {
-                    if !self.own_views.contains_key(k) { if let Some(v) = self.own_map(gpu, k, pictures) { self.own_views.insert(k.clone(), v); } }
+                    if !self.own_views.contains_key(k) {
+                        if let Some((v, s, t)) = self.own_map(gpu, k, pictures) {
+                            self.own_views.insert(k.clone(), (v, s));
+                            if let Some(t) = t { self.own_texs.insert(k.clone(), t); }
+                        }
+                    }
                 }
                 if !self.own_binds.contains_key(&od.maps) { if let Some(b) = self.own_bind(gpu, &od.maps) { self.own_binds.insert(od.maps.clone(), b); } }
                 let (side, blend, dw) = (od.side, od.blend, od.depth_write);

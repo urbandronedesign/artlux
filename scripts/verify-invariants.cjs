@@ -9909,7 +9909,8 @@ check(
       ['the window\'s lights from VENUE_LIGHTS', /hemi\.intensity = VENUE_LIGHTS\.hemisphere; hemi\.groundColor\.set\(VENUE_LIGHTS\.ground\);/],
     ]) if (!re.test(vl)) problems.push(`venueLink no longer uses ${what}`);
     if (!/const NEAR = 0\.05|PROJECTOR_NEAR as NEAR/.test(read('plugins/calibration/src/ProjectorScene.tsx'))) problems.push('ProjectorScene no longer takes its clip planes from renderLook (the engine\'s camera reads the same)');
-    const c = raw('engine/artlux-engine/src/calib3d.rs');
+    // O5-2a: the venue's v-flipped buffers are made in the shared store (scenegpu.rs bufs), read as calib3d's own.
+    const c = raw('engine/artlux-engine/src/calib3d.rs') + raw('engine/artlux-engine/src/scenegpu.rs');
     for (const [what, re] of [
       ['three\'s sRGBTransferOETF', /pow\(v, vec3<f32>\(0\.41666\)\) \* 1\.055 - vec3<f32>\(0\.055\), v \* 12\.92/],
       ['three\'s vertex maths (P × (MV × p))', /let mvp = obj\.mv \* vec4<f32>\(p, 1\.0\);\s*var c = cam\.p \* mvp;/],
@@ -10338,6 +10339,27 @@ check(
     if (!/hap_pics: HashMap<String, \(usize, Picture\)>/.test(rt)) problems.push('runtime.rs no longer keeps the last HAP picture per file');
     if (!/self\.hap_pics\.get\(&fk\)\.filter\(\|\(i, _\)\| \*i == idx\)/.test(rt)) problems.push('runtime.rs no longer shares a HAP picture for the same file AT THE SAME FRAME (a different frame must decode)');
     if (!/self\.hap_pics\.insert\(fk, \(idx,/.test(rt)) problems.push('runtime.rs no longer records the HAP picture it made for sharing');
+    return problems.length ? problems.join('; ') : null;
+  },
+);
+
+check(
+  'a venue file is parsed ONCE and resident ONCE per device, however many calibrated outputs and 3D views show it',
+  'plans/engine-optimisation-and-deferred-3d.md O5-2a (2026-11-27), the O-3 finding: every calibrated presenter ' +
+  '(calib3d glb) and the 3D view (view3d) parsed the venue GLB on its own thread, kept its own decoded images, ' +
+  'uploaded its own vertex / index buffers and made its own textures of the images (a calibrated output compiling a ' +
+  'mip shader per map) — N + 1 copies. Measured, three calibrated outputs + the 3D view over a 56 MB textured GLB: ' +
+  'four parses -> one (the others wait for it), engine memory 1010 -> 754 MB. The store holds WEAK references, so a ' +
+  'venue nobody shows is still freed (scenegpu one_parse_for_every_consumer).',
+  () => {
+    const problems = [];
+    const sg = raw('engine/artlux-engine/src/scenegpu.rs'), c3 = read('engine/artlux-engine/src/calib3d.rs'), v3 = read('engine/artlux-engine/src/view3d.rs');
+    if (!/crate::scenegpu::cpu\(&p\)/.test(c3) || !/crate::scenegpu::cpu\(&p\)/.test(v3)) problems.push('a consumer parses the venue itself again (calib3d / view3d must ask scenegpu::cpu)');
+    if (/crate::view3d::load_glb\(/.test(c3) || /[^:]load_glb\(&p\)/.test(v3)) problems.push('calib3d or view3d calls load_glb directly — a second parse of the same file');
+    if (!/crate::scenegpu::bufs\(gpu, &l, true\)/.test(c3) || !/crate::scenegpu::bufs\(&gpu, &l, false\)/.test(v3)) problems.push('the venue\'s buffers are no longer the shared ones (scenegpu::bufs)');
+    if (!/crate::scenegpu::image\(gpu, fk, key\.1, crate::scenegpu::ImageUse::VenueMap/.test(c3) || !/crate::scenegpu::image\(&gpu, &l\.key, i, crate::scenegpu::ImageUse::View/.test(v3)) problems.push('a GLB image is no longer made once for every consumer (scenegpu::image)');
+    if (!/static MIPS: crate::PerDevice<wgpu::TextureFormat/.test(c3)) problems.push('calib3d compiles its own-map mip shader per map again');
+    if (!/Weak<Loaded>/.test(sg) || !/fn one_parse_for_every_consumer\(/.test(sg)) problems.push('scenegpu no longer holds the parse weakly (a venue nobody shows would stay resident), or lost its test');
     return problems.length ? problems.join('; ') : null;
   },
 );
