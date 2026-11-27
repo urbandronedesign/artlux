@@ -10411,6 +10411,29 @@ check(
   },
 );
 
+check(
+  'only a LAUNCH film is not waited for — a cut, a pre-rolled film and a clip drawn ahead stay frame-exact',
+  'Launch wait, 2026-11-28 (plans/engine-optimisation-and-deferred-3d.md O3-4): a film opened in the engine\'s first ' +
+  'seconds is PATIENT — its surface is black until the frame the clock names is ready, instead of the whole render ' +
+  'thread waiting 165–200 ms for it. That trade is right only at launch, where nothing was shown before. A patient ' +
+  'pre-roll would draw one black tick at a timed cut; a patient next clip would hand over a picture-less decoder; and ' +
+  'a window that never closes would make every later cut late by a few frames — silently, on one surface.',
+  () => {
+    const problems = [];
+    const rt = read('engine/artlux-engine/src/runtime.rs');
+    const w = read('engine/artlux-engine/src/mp4worker.rs');
+    if (!/fn launching\(&self\) -> bool \{ self\.launch_at\.is_none_or\(\|t\| t\.elapsed\(\) < LAUNCH\) \}/.test(rt)) problems.push('runtime.rs no longer bounds the launch window by LAUNCH');
+    if (!/const LAUNCH: std::time::Duration = std::time::Duration::from_secs\([1-9]\);/.test(rt)) problems.push('LAUNCH is not a few seconds');
+    if (!/Some\(rx\) => \(rx, false\),/.test(rt)) problems.push('an adopted pre-roll (document path) is no longer waited on');
+    if (!/let patient = !ahead && adopted\.is_none\(\) && self\.launching\(\);/.test(rt)) problems.push('the tick path no longer excludes clips ahead and adopted pre-rolls from patience');
+    const starts = rt.match(/Mp4Worker::start\([^;]*\)/g) || [];
+    if (starts.length !== 3 || starts.some((s) => /, true\)/.test(s))) problems.push(`expected 3 Mp4Worker::start sites, none hard-patient (found ${starts.length})`);
+    if (!/Ok\(None\) => \{\}/.test(rt)) problems.push('the tick no longer leaves a patient film\'s surface empty');
+    if (!/if self\.patient\.swap\(false, Ordering::SeqCst\)/.test(w)) problems.push('a patient worker no longer stops being patient once its frame is ready');
+    return problems.length ? problems.join('; ') : null;
+  },
+);
+
 const ok = (m) => console.log(`\x1b[32m✓\x1b[0m ${m}`);
 const bad = (m) => console.error(`\x1b[31m✗\x1b[0m ${m}`);
 

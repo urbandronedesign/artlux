@@ -125,6 +125,11 @@ pub struct Runtime {
     /// (or a surface and a timeline clip) playing the same file at the same frame share one read, one un-Snappy, one
     /// upload and one pass (C4d: each decoded it on its own — two 4K HAP Q surfaces of one film, twice the work).
     hap_pics: HashMap<String, (usize, Picture)>,
+    /// When the first document arrived. A film opened within LAUNCH of it, and not pre-rolled, is the launch's: its
+    /// first frame is not waited for (mp4worker.rs `patient`). A window, not "the first document": the app's first
+    /// documents can name a surface's film only in the second or third (measured: Projector B `raster` in document 1,
+    /// `mp4` a moment later), and a cut that early is rare — at worst that surface is black a few frames, not the show.
+    launch_at: Option<std::time::Instant>,
     conv: Option<crate::yuv::GpuConvert>,
     /// Item 2d step 5: one SHARED camera reader per surface (camshared.rs — the app keeps the camera), the
     /// label it was resolved from, and the last frame drawn.
@@ -231,6 +236,9 @@ struct Bake { out: crate::encode::Mp4Writer, scaler: crate::bakescale::Scaler, s
 #[derive(Clone, Copy, PartialEq)]
 enum AutoLeaf { Opacity, Speed, Intensity }
 
+/// The launch window (`Runtime::launch_at`): films opened this soon after the first document are not waited for.
+const LAUNCH: std::time::Duration = std::time::Duration::from_secs(5);
+
 /// E3d: one automation lane as the engine samples it (timeline.ts LaneRT).
 struct LaneRt { path: String, sid: String, leaf: AutoLeaf, keys: Vec<crate::eval::Key>, log: bool, eps: f64, show: bool }
 
@@ -241,7 +249,7 @@ impl Runtime {
             outputs: None, projectors: Vec::new(), proj_published: HashMap::new(), proj_opts: HashMap::new(), calib_surfaces: Vec::new(), venue_published: HashMap::new(), calib_ver: 0, opts_ver: 0,
             #[cfg(windows)] spouts: HashMap::new(),
             #[cfg(feature = "ndi")] ndis: HashMap::new(),
-            #[cfg(windows)] mp4s: HashMap::new(), #[cfg(windows)] prerolls: HashMap::new(), haps: HashMap::new(), hap_pics: HashMap::new(), conv: None,
+            #[cfg(windows)] mp4s: HashMap::new(), #[cfg(windows)] prerolls: HashMap::new(), haps: HashMap::new(), hap_pics: HashMap::new(), launch_at: None, conv: None,
             #[cfg(windows)] cams: HashMap::new(), resolved: HashMap::new(), pending_cams: HashMap::new(), last_doc: None, redo: false,
             view: None, view_scene_ver: 0, view_published: HashMap::new(), view_colors_gen: 0, view_last_summary: String::new(), clock_diffs: 0, transport: Default::default(), draw_at: None, draw_stats: (0, 0, 0), draw_max_step: 0, comp_draw: (0, 0), vids: HashMap::new(), frame_agree: (0, 0), clock_ticks: 0, comp_sub: HashMap::new(), next_drawn: 0, handovers: 0, clip_bad: Default::default(), src_paths: HashMap::new(), judge: Default::default(), clock_rev: 0, lanes: Vec::new(), auto_fx: HashMap::new(), auto_diffs: 0, auto_ticks: 0, show: Default::default(), light_diffs: 0, light_ticks: 0, rig: None, light_fix: HashMap::new(), byte_diffs: 0, byte_ticks: 0, light_solved: HashMap::new(), light_beams: HashMap::new(), cropper: None, slice_keys: HashMap::new(), led_key: 0, led_raw: Vec::new(), led_pending: None, led_plan: None, hap_checked: HashMap::new(), led_raw_rev: u64::MAX, tick_at: None, tick_dt: 1.0 / 60.0, comp_keys: HashMap::new(),
             #[cfg(windows)] bake: None }
@@ -631,6 +639,7 @@ impl Runtime {
     }
 
     fn load(&mut self, d: &Value) -> Result<(), String> {
+        self.launch_at.get_or_insert_with(std::time::Instant::now);
         let rev = d["rev"].as_u64().unwrap_or(0);
         let parse = |k: &str| d[k].clone();
         let lfix: Vec<layout::Fixture> = serde_json::from_value(parse("fixtures")).map_err(|e| format!("fixtures: {e}"))?;
@@ -779,6 +788,9 @@ impl Runtime {
         verdict
     }
 
+    /// Within the launch window (`launch_at`): a film opened now is not waited for until its first frame is ready.
+    fn launching(&self) -> bool { self.launch_at.is_none_or(|t| t.elapsed() < LAUNCH) }
+
     /// E6j: the document's `preroll` list — a worker per film not open or pre-rolled yet; a pre-roll no longer listed is
     /// dropped once its predicted cut is 15 s past (or at once, if it had no predicted time).
     #[cfg(windows)]
@@ -857,7 +869,7 @@ impl Runtime {
                                     if self.mp4s.get(key).is_none_or(|(q, _)| q != p) {
                                         let rx = crate::prof::time("open.mp4", || crate::mf::Mp4In::open_with(p, Some(&self.gpu))).map_err(|e| format!("surface '{}': timeline MP4 clip: {e}", name_of(d, sid)))?;
                                         if let Some(why) = &rx.software_why { eprintln!("artlux-engine: timeline track {key}: MP4 decoded in software ({why})"); }
-                                        self.mp4s.insert(key.to_string(), (p.clone(), crate::mp4worker::Mp4Worker::start(self.gpu.clone(), rx, key)));
+                                        self.mp4s.insert(key.to_string(), (p.clone(), crate::mp4worker::Mp4Worker::start(self.gpu.clone(), rx, key, self.launching())));
                                     }
                                 }
                                 #[cfg(not(windows))]
@@ -902,12 +914,12 @@ impl Runtime {
                     {
                         let Some(Source::Mp4(p, _)) = doc.sources.get(sid) else { unreachable!() };
                         if self.mp4s.get(sid).is_none_or(|(q, _)| q != p) {
-                            let rx = match self.adopt_preroll(p, sid) {
-                                Some(rx) => rx,
-                                None => crate::prof::time("open.mp4", || crate::mf::Mp4In::open_with(p, Some(&self.gpu))).map_err(|e| format!("surface '{}': MP4 {e}", name_of(d, sid)))?,
+                            let (rx, patient) = match self.adopt_preroll(p, sid) {
+                                Some(rx) => (rx, false),   // positioned already: its frame is a short wait
+                                None => (crate::prof::time("open.mp4", || crate::mf::Mp4In::open_with(p, Some(&self.gpu))).map_err(|e| format!("surface '{}': MP4 {e}", name_of(d, sid)))?, self.launching()),
                             };
                             if let Some(why) = &rx.software_why { eprintln!("artlux-engine: surface '{}': MP4 decoded in software ({why})", name_of(d, sid)); }
-                            self.mp4s.insert(sid.clone(), (p.clone(), crate::mp4worker::Mp4Worker::start(self.gpu.clone(), rx, sid)));
+                            self.mp4s.insert(sid.clone(), (p.clone(), crate::mp4worker::Mp4Worker::start(self.gpu.clone(), rx, sid, patient)));
                         }
                     }
                     #[cfg(not(windows))]
@@ -1458,6 +1470,8 @@ impl Runtime {
                             if ahead && self.clip_bad.contains(sid) { continue; }
                             if self.mp4s.get(sid).is_none_or(|(q, _)| q != _path) {
                                 let adopted = if ahead { None } else { self.adopt_preroll(_path, sid) };
+                                // A next clip is drawn AHEAD of its cut, and a pre-roll is positioned: both waited on, as before.
+                                let patient = !ahead && adopted.is_none() && self.launching();
                                 match adopted.map(Ok).unwrap_or_else(|| crate::prof::time("open.mp4", || crate::mf::Mp4In::open_with(_path, Some(&self.gpu)))) {
                                     Ok(rx) => {
                                         // E3k: a next clip's colour space is judged HERE — the app has decoded no frame
@@ -1472,7 +1486,7 @@ impl Runtime {
                                         if !ok && self.judge.contains(sid) {
                                             return Err(format!("track {sid}: an MP4 in colour space {}/{}/{}/{:?} (the engine draws BT.709 limited range only)", c.matrix, c.primaries, c.transfer, c.full_range));
                                         }
-                                        self.mp4s.insert(sid.clone(), (_path.clone(), crate::mp4worker::Mp4Worker::start(self.gpu.clone(), rx, sid)));
+                                        self.mp4s.insert(sid.clone(), (_path.clone(), crate::mp4worker::Mp4Worker::start(self.gpu.clone(), rx, sid, patient)));
                                     }
                                     Err(e) if ahead => { eprintln!("artlux-engine: clock: {sid} not drawn ahead: MP4 {e}"); self.clip_bad.insert(sid.clone()); continue; }
                                     Err(e) => return Err(format!("surface {sid}: MP4 {e}")),
@@ -1481,7 +1495,8 @@ impl Runtime {
                             if let Some((_, rx)) = self.mp4s.get(sid) {
                                 // O3-4: the worker's picture of that frame — ready, or asked for and waited on.
                                 match crate::prof::time("mp4", || rx.picture(local)) {
-                                    Ok(pic) => { self.pictures.insert(sid.clone(), pic); self.gens.insert(sid.clone(), key); }
+                                    Ok(Some(pic)) => { self.pictures.insert(sid.clone(), pic); self.gens.insert(sid.clone(), key); }
+                                    Ok(None) => {}   // a launch film still decoding to the clock: nothing there yet (black)
                                     Err(e) if ahead => { eprintln!("artlux-engine: clock: {sid} not drawn ahead: {e}"); self.clip_bad.insert(sid.clone()); }
                                     Err(e) => return Err(format!("surface {sid}: {e}")),
                                 }

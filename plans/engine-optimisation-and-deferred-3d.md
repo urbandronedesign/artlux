@@ -720,6 +720,33 @@ E6h hold and the stall watchdog still pass (`test:engine-hold` phases incl. S).
 > only lever (more frames held ready) costs GPU memory, so nothing changed for it. A render-thread wait over 15 ms now
 > logs itself (`mp4: waited … for frame i/n …`, with the frame shown before and what the worker had ready) so a
 > recurrence names its cause. **Left, small:** pre-rolling the FIRST scene's films (a once-per-launch 215 ms).
+>
+> ✅ **The launch wait — done 2026-11-28** (owner: "go" on the recommendation). Not a pre-roll: at launch there is
+> nothing BEFORE the first scene to pre-roll during, and the first frame is mid-film (the app's film clock has run
+> 1–2 s by the engine's first tick), so the decode from the key frame has to happen somewhere. What changed is WHO
+> waits for it: a film opened in the engine's first 5 s with the show (`runtime.rs` `launch_at` / `LAUNCH`) and not
+> pre-rolled is PATIENT (`mp4worker.rs`): its frame is asked for without waiting, and that one surface stays black
+> until the frame the clock names is ready — the rest of the show (other outputs, every LED, the wire) runs on. A
+> window and not "the first document" because the app's first documents name the film only in the second
+> (Projector B `raster`, then `mp4`; measured — "until a second document" missed it one run in two). A cut, a
+> pre-rolled film and a next clip drawn ahead are NOT patient — waited on as before, so a cut stays frame-exact
+> (guarded in `verify:invariants`). H4K soak, launch, back to back on one session:
+>
+> | | before (×3) | after (×3) |
+> |---|---|---|
+> | render-thread wait for the first frame | 164–183 ms (+ 20 ms once, as it warmed) | none |
+> | worst render tick in the first seconds | 185–201 ms | 40–43 ms |
+> | the film's surface black at launch | — (everything frozen instead) | 1–9 ticks (≤ ~¼ s) |
+>
+> ("Before" ×3 includes one run of the new engine whose launch film arrived in a later document, before the window
+> replaced "the first document".) A first attempt also let the worker read the shown frame itself when it had nothing
+> ahead; it was taken out as unneeded — O3-4's read-ahead is untouched. Waits of 20–45 ms mid-film after a cut were
+> seen in 2 of 6 runs, one of them with that read-ahead as before: not this change, the same worker-behind-under-load
+> as the O3-4 follow-up's 53 ms.
+> **Left:** opening the launch film's decoder (`open.mp4`, ~93 ms) is still on the render thread, at the document —
+> it is also the verdict (a file the engine cannot read leaves the show to the app), so moving it changes when that
+> verdict is known; not done. Tests: test:video-frame-clock (venice → src_4437, 100 % the app's frames, 2 hand-overs)
+> and test:timeline-video-wire pass.
 
 ### What is NOT in this plan, deliberately
 

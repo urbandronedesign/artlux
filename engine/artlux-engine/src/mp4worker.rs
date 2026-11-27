@@ -12,6 +12,14 @@
 //! same rule as `Mp4In::frame_at`: the frame at it within 2 µs, else the last before it, else the first) and takes that
 //! picture. Only a frame the worker has not got — a scrub, a jump, the first frame — is asked for and WAITED for, as
 //! before: the frame shown is always the frame the clock names, never a late one.
+//!
+//! THE ONE EXCEPTION IS A FILM OPENED AT LAUNCH (`patient`, 2026-11-28). The app's film clock has run ~2 s by the time
+//! the engine's first tick asks, so the first frame is mid-film and the decoder must decode from the key frame up to it:
+//! measured 214.7 ms for frame 53 of a 4K film (H4K soak), then 38.7 ms more for frame 58 — every output and the whole
+//! wire frozen for a quarter of a second, once per launch. A patient worker is not waited on until it has delivered
+//! the frame the clock names once: until then the surface is black (nothing has been shown there yet — the app's own
+//! start is black too) and the clock's frame is asked for without waiting. A cut, a scrub, a pre-rolled film: waited
+//! on as before, so a cut stays frame-exact.
 
 use crate::compose::Picture;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -53,6 +61,8 @@ pub struct Mp4Worker {
     pts: Arc<Vec<i64>>,
     sh: Arc<(Mutex<St>, Condvar)>,
     stop: Arc<AtomicBool>,
+    /// Opened at launch and not caught up yet: `picture` answers None instead of waiting (module note).
+    patient: AtomicBool,
 }
 
 impl Drop for Mp4Worker {
@@ -70,7 +80,7 @@ pub fn index_at(pts: &[i64], local: i64) -> usize {
 }
 
 impl Mp4Worker {
-    pub fn start(gpu: Arc<crate::Gpu>, rx: crate::mf::Mp4In, sid: &str) -> Mp4Worker {
+    pub fn start(gpu: Arc<crate::Gpu>, rx: crate::mf::Mp4In, sid: &str, patient: bool) -> Mp4Worker {
         let pts = Arc::new(rx.frame_times());
         let (first, colour, software_why, path) = (rx.first_ts(), rx.colour(), rx.software_why.clone(), rx.path.clone());
         let sh: Arc<(Mutex<St>, Condvar)> = Arc::new((Mutex::new(St::default()), Condvar::new()));
@@ -126,7 +136,7 @@ impl Mp4Worker {
                 let _ = cv.wait_timeout_while(s, Duration::from_millis(100), |s| s.want.is_none() && s.now == Some(now) && !st2.load(Ordering::SeqCst));
             }
         });
-        Mp4Worker { path, software_why, first, colour, pts, sh, stop }
+        Mp4Worker { path, software_why, first, colour, pts, sh, stop, patient: AtomicBool::new(patient) }
     }
 
     pub fn first_ts(&self) -> i64 { self.first }
@@ -135,7 +145,8 @@ impl Mp4Worker {
     pub fn shown(&self, local: i64) -> i64 { self.pts.get(index_at(&self.pts, local)).copied().unwrap_or(local) }
 
     /// The picture on screen at `local`: the worker's, ready — or asked for and waited on (a frame it does not have).
-    pub fn picture(&self, local: i64) -> Result<Picture, String> {
+    /// None only from a PATIENT worker that has not delivered the clock's frame yet: draw nothing there (module note).
+    pub fn picture(&self, local: i64) -> Result<Option<Picture>, String> {
         let i = index_at(&self.pts, local);
         let n = self.pts.len().max(1);
         let (lock, cv) = &*self.sh;
@@ -147,7 +158,19 @@ impl Mp4Worker {
             s.pics.retain(|(k, _)| (*k + n - i) % n <= LEAD_MAX);
             cv.notify_all();
         }
-        if let Some((_, p)) = s.pics.iter().find(|(k, _)| *k == i) { crate::prof::add("mp4.ready", Duration::ZERO); return Ok(pic_clone(p)); }
+        if let Some((_, p)) = s.pics.iter().find(|(k, _)| *k == i) {
+            crate::prof::add("mp4.ready", Duration::ZERO);
+            if self.patient.swap(false, Ordering::SeqCst) { eprintln!("artlux-engine: mp4: first frame of {} ready ({i}/{n}) — drawn from here on", self.path); }
+            return Ok(Some(pic_clone(p)));
+        }
+        // PATIENT: ask for it (once — a decode already asked for is still running) and do not wait. Each ask lands
+        // nearer the clock (the decoder is past the key frame after the first), so it catches up in a few ticks.
+        if self.patient.load(Ordering::SeqCst) {
+            crate::prof::add("mp4.patient", Duration::ZERO);
+            if s.want.is_none() { s.want = Some(local); s.err = None; cv.notify_all(); }
+            if let Some(e) = s.err.take() { return Err(e); }
+            return Ok(None);
+        }
         let at = Instant::now();
         let held: Vec<usize> = s.pics.iter().map(|(k, _)| *k).collect();
         s.want = Some(local);
@@ -160,7 +183,7 @@ impl Mp4Worker {
                 if at.elapsed() > Duration::from_millis(15) {
                     eprintln!("artlux-engine: mp4: waited {:.1} ms for frame {i}/{n} of {} (shown before {was:?}, ready {held:?})", at.elapsed().as_secs_f64() * 1e3, self.path);
                 }
-                return Ok(pic_clone(p));
+                return Ok(Some(pic_clone(p)));
             }
             if let Some(e) = s.err.take() { return Err(e); }
             if self.stop.load(Ordering::SeqCst) { return Err("the decoder stopped".into()); }
