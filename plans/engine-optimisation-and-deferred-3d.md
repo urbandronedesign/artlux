@@ -490,7 +490,8 @@ when its key is unchanged", "view3d's loop has a change test".
 > what takes the LED wait and its spikes away. **O3-6 (frame latency 1, owner D5):** `ARTLUX_ENGINE_FRAME_LATENCY=1`
 > — four MP4 windows: every window still 24–25 new pictures / s, present p99 1.3 ms (worst 2.6 against 1.4 at 2); the
 > 4K heavy hour at 1: 40 / 40 universes, every window 23–29 new pictures / s, present p99 1.63 ms. No missed frame
-> seen at either load. Default left at 2 for the owner's decision.
+> seen at either load. Default left at 2 for the owner's decision → ✅ **owner 2026-11-27: "yes projectors run one frame
+behind"** — default 1; `ARTLUX_ENGINE_FRAME_LATENCY=2|3` brings the queue back on a machine that misses vblanks.
 > **O3-4 not done — the MP4 decoder thread.** `Mp4In` keeps its decoder, a pool of D3D11 frames (each a Media
 > Foundation sample), seeks and the cut hand-overs on the render thread; a worker would own decoder + slot copy +
 > conversion and serve "the picture at t" predicted ahead (O3-5's shape) — the L-sized, fragile item (mf.rs's own
@@ -766,7 +767,7 @@ and an embedded `sharedTexture` in the editor are presentation targets of the sa
 | **D2** | The app stops running its LED pipeline while the engine owns the wire (R6) | stop / keep hot | **stop**, resume on loss of ownership — the E6h hold already bridges a crash; today the app pays the full browser LED cost for frames nobody sends |
 | **D3** | When the engine's 3D look becomes the reference (R-1) | at D2 (lights > 8) / at E4's deletion of r3f / never | **at D2**, with the editor's view kept as Shaded-only fallback |
 | **D4** | Calibrated "UV-bake" performance mode (O-7) | opt-in with tolerance / not built | **opt-in**, after O2-3 shows how much is left |
-| **D5** | Projector frame latency 1 (O-6) | 1 / keep 2 | **measure in O0, then decide** |
+| **D5** | Projector frame latency 1 (O-6) | 1 / keep 2 | **measure in O0, then decide** → ✅ **1** (owner, 2026-11-27, on O3-6's numbers) |
 | **D6** | The deferred renderer's goal list (§4.1) | confirm / trim | confirm 1–7; gobos + volumetrics (D5) as the second wave |
 
 ---

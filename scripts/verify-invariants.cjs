@@ -10309,6 +10309,19 @@ check(
   },
 );
 
+check(
+  'the native engine\'s projector swapchains queue ONE frame by default (owner decision D5)',
+  'plans/engine-optimisation-and-deferred-3d.md D5 / O3-6 (2026-11-27). wgpu\'s default lets a swapchain queue 2 frames ' +
+  'ahead of the display — a frame of latency on every projector for nothing: at 1, four MP4 windows and the 4K heavy ' +
+  'hour showed no missed frame. The owner chose 1; ARTLUX_ENGINE_FRAME_LATENCY=2|3 is the per-machine way back.',
+  () => {
+    const o = raw('engine/artlux-engine/src/outputs.rs');   // raw: the line starts with `*L.get_or_init` and the comment stripper drops lines that start with `*`
+    if (!/ARTLUX_ENGINE_FRAME_LATENCY[^\n]*\.unwrap_or\(1\)\)/.test(o)) return 'outputs.rs frame_latency() no longer defaults to 1';
+    if (!/desired_maximum_frame_latency: frame_latency\(\)/.test(o)) return 'the projector swapchain no longer takes frame_latency()';
+    return null;
+  },
+);
+
 const ok = (m) => console.log(`\x1b[32m✓\x1b[0m ${m}`);
 const bad = (m) => console.error(`\x1b[31m✗\x1b[0m ${m}`);
 

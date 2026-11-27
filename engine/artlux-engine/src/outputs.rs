@@ -548,7 +548,7 @@ static PUBLISHED: (std::sync::Mutex<u64>, std::sync::Condvar) = (std::sync::Mute
 const WAKE_AT_LEAST: Duration = Duration::from_millis(16);
 fn frame_latency() -> u32 {
     static L: std::sync::OnceLock<u32> = std::sync::OnceLock::new();
-    *L.get_or_init(|| std::env::var("ARTLUX_ENGINE_FRAME_LATENCY").ok().and_then(|v| v.parse().ok()).filter(|v| (1..=3).contains(v)).unwrap_or(2))
+    *L.get_or_init(|| std::env::var("ARTLUX_ENGINE_FRAME_LATENCY").ok().and_then(|v| v.parse().ok()).filter(|v| (1..=3).contains(v)).unwrap_or(1))
 }
 pub fn notify_published() {
     let mut g = PUBLISHED.0.lock().unwrap_or_else(|e| e.into_inner());
@@ -689,9 +689,9 @@ fn present(gpu: Arc<Gpu>, window: Arc<Window>, surface: wgpu::Surface<'static>, 
             let scope = d.push_error_scope(wgpu::ErrorFilter::Validation);
             surface.configure(d, &wgpu::SurfaceConfiguration {
                 usage: wgpu::TextureUsages::RENDER_ATTACHMENT, format, width: size.width, height: size.height,
-                // O3-6: how many frames may queue ahead of the display (2: wgpu's default). 1 is a frame less latency
-                // and a higher risk of a missed vblank under load — measured before it is chosen (owner decision D5):
-                // ARTLUX_ENGINE_FRAME_LATENCY=1 for a run.
+                // O3-6 / D5: how many frames may queue ahead of the display. 1 (owner decision D5, 2026-11-27): a frame
+                // less latency on every projector than wgpu's default 2, measured first with no missed frame at either
+                // load (four MP4 windows; the 4K heavy hour). ARTLUX_ENGINE_FRAME_LATENCY=2|3 brings the queue back.
                 present_mode: wgpu::PresentMode::Fifo, desired_maximum_frame_latency: frame_latency(), alpha_mode: caps.alpha_modes[0],
                 view_formats: vec![], color_space: wgpu::SurfaceColorSpace::Auto,
             });

@@ -165,7 +165,8 @@ max in ms (`…wait` stages are time spent waiting for the GPU). `node scripts/e
 folds a run's reports into one table — the before / after of plans/engine-optimisation-and-deferred-3d.md.
 Two A/B switches from its O3: `ARTLUX_ENGINE_LED_SYNC=1` collects the LED read-back in the tick that drew it (by
 default it is collected one tick later — the owner's accepted latency), and `ARTLUX_ENGINE_FRAME_LATENCY=1|2|3` sets
-how many frames a projector swapchain may queue (default 2).
+how many frames a projector swapchain may queue (default 1 — the owner's decision D5; 2 is wgpu's default, the
+fallback if a machine ever misses vblanks under load).
 Proof: `node scripts/test-engine-runtime.cjs` (the engine alone, over stdio) and
 `node scripts/test-native-takeover.cjs [--packaged <ArtLux.exe>]` (the real app: who sends each packet, and
 the bytes) and `node scripts/test-native-projectors.cjs [--windowed] [--ndi [--editor]] [--hwwarp [--no-nvapi]] [--calibrated [--glb] [--distort] [--calib-blend] [--calib-warp [--ndi]] [--calib-occlude] [--calib-own] [--calib-layer] [--calib-refused]] [--hold]` (the real app in
