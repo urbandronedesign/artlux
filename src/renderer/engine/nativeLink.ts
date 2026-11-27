@@ -231,6 +231,22 @@ function shipFallbacks(surfaces: Surface[], fallback: Set<string>): void {
 }
 
 export function setProjectorBrightness(brightness: number): void { projBrightness = brightness; }
+
+// E6j — DECODER PRE-ROLL (engine preroll.rs). The films of the scenes the show is about to enter, and — for a timed edge
+// — the MP4 surface clock the cut is predicted at, carried in the document. The engine opens and positions them off its
+// render thread before the cut (a 4K film entering mid-file cost the render thread 115–307 ms at the cut, every output
+// and the whole wire frozen with it). A cut that comes later than predicted still finds them in place (the engine keeps
+// them at the live clock); an untimed edge (an operator, a sensor) gets the decoder opened only.
+const MP4_CODEC = 'mp4-webcodecs';
+let preroll: { path: string; at: number | null }[] = [];
+let prerollKey = '';
+export function setPreroll(films: { path: string; inSec: number | null }[]): void {
+  const now = contentSource.codecClocksUs()[MP4_CODEC];
+  const seen = new Set<string>();
+  preroll = films.filter((f) => contentSource.codecIdFor(f.path) === MP4_CODEC && !seen.has(f.path) && !!seen.add(f.path))
+    .map((f) => ({ path: f.path, at: now !== undefined && f.inSec !== null ? Math.round(now + f.inSec * 1e6) : null }));
+  prerollKey = JSON.stringify(preroll);
+}
 export function setBooting(booting: boolean): void { projBooting = booting; }
 
 // Item 3: each output's imported CALIBRATION MAP (an .mpcdi region, as the calibration plugin hands it to
@@ -432,7 +448,7 @@ function link(inputs: LinkInputs, surfaces: Surface[], fixtures: Fixture[], brig
   shipFallbacks(surfaces, fallback);
   for (const [key, content] of layerContent) if (sources[key]?.kind === 'raster') shipRaster(key, contentSource.nativeRaster(key, content));
   const sourcesKey = JSON.stringify(sources);
-  const refs = [surfaces, fixtures, inputs.fixtureProfiles, inputs.controllers, inputs.protocol, inputs.targetIp, inputs.broadcast, inputs.gamma, inputs.artNetPort, inputs.outputEnabled, projOutputs, projHwKey, venueScene, venueKey, venueLink.venueGen(), bakedSeq, ...lightingRefs()];
+  const refs = [prerollKey, surfaces, fixtures, inputs.fixtureProfiles, inputs.controllers, inputs.protocol, inputs.targetIp, inputs.broadcast, inputs.gamma, inputs.artNetPort, inputs.outputEnabled, projOutputs, projHwKey, venueScene, venueKey, venueLink.venueGen(), bakedSeq, ...lightingRefs()];
   if (sourcesKey !== lastSources || lanesKey !== lastLanes || refs.length !== lastRefs.length || refs.some((r, i) => r !== lastRefs[i])) {
     lastRefs = refs; lastSources = sourcesKey; lastLanes = lanesKey; rev++;
     const ln = lanesView ? timeline.nativeLanes(engineLane) : { gen: 0, lanes: [] };
@@ -440,7 +456,7 @@ function link(inputs: LinkInputs, surfaces: Surface[], fixtures: Fixture[], brig
     const doc = {
       rev, fixtures, surfaces, controllers: inputs.controllers,
       defaults: { protocol: inputs.protocol, ip: inputs.targetIp, broadcast: inputs.broadcast },
-      gamma: inputs.gamma, port: inputs.artNetPort, outputEnabled: inputs.outputEnabled, sources, lanes: ln, lighting: lightingDoc(),
+      gamma: inputs.gamma, port: inputs.artNetPort, outputEnabled: inputs.outputEnabled, sources, lanes: ln, lighting: lightingDoc(), preroll,
       lights: fixtures.filter((f) => isLight(f)).map((f) => f.id),
       profiles: lightProfiles(fixtures, inputs.fixtureProfiles),
       // E1f-3: main adds each output's display as PHYSICAL bounds (engineHost.ts) — it owns the screen.
@@ -544,5 +560,7 @@ function link(inputs: LinkInputs, surfaces: Surface[], fixtures: Fixture[], brig
   // on the previous one (measured: 0.3 s off for two seconds at a show's start). The engine re-anchors only when
   // the revision changes, so a repeat costs it a comparison. ~300 bytes on a tick that already carries kilobytes.
   const tp = timeline.transportAnchor() ?? undefined;
-  return JSON.stringify({ rev, t: at.t ?? timeline.getShowTime(), ph: at.ph ?? timeline.getPlayhead(), fm: timeline.getFrameTimeMs(), tp, auto, lroles, lcolors, lcue, llive: lightLive, lown, brightness, hap, hapc, mp4, ndi, camfp, shader, blobs, comp, times, lights, proj: { brightness: projBrightness, booting: projBooting } });
+  const clocks = contentSource.codecClocksUs();
+  const clk = clocks[MP4_CODEC] !== undefined ? { mp4: clocks[MP4_CODEC] } : {};   // E6j: the pre-roll follows it
+  return JSON.stringify({ rev, clk, t: at.t ?? timeline.getShowTime(), ph: at.ph ?? timeline.getPlayhead(), fm: timeline.getFrameTimeMs(), tp, auto, lroles, lcolors, lcue, llive: lightLive, lown, brightness, hap, hapc, mp4, ndi, camfp, shader, blobs, comp, times, lights, proj: { brightness: projBrightness, booting: projBooting } });
 }

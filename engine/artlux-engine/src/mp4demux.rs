@@ -100,6 +100,29 @@ fn top(f: &mut File) -> Result<Vec<([u8; 4], u64, u64)>, String> {
     Ok(out)
 }
 
+/// E6j pre-roll: the MOVIE's duration (mvhd), µs — what the app's mp4Decoder calls `durationSec` (mp4box
+/// `mp4.duration / mp4.timescale`), ×1e6 and rounded as the runtime rounds the host's `durUs`. A pre-rolled decoder folds
+/// the clock with it, so it must be the app's number exactly (the track's own duration may differ by a frame — over the
+/// loops of a long show that would put the decoder elsewhere, and adopting it would seek after all).
+pub fn movie_duration_us(path: &str) -> Result<i64, String> {
+    let mut f = File::open(path).map_err(|e| format!("{path}: {e}"))?;
+    let tops = top(&mut f)?;
+    let &(_, off, size) = tops.iter().find(|(t, _, _)| t == b"moov").ok_or("no moov box")?;
+    let mut moov = vec![0u8; size as usize];
+    f.seek(SeekFrom::Start(off)).map_err(|e| e.to_string())?;
+    f.read_exact(&mut moov).map_err(|e| e.to_string())?;
+    let mvhd = child(&moov, b"mvhd").ok_or("no mvhd")?;
+    let (scale, dur) = if mvhd.first() == Some(&1) {
+        if mvhd.len() < 32 { return Err("a short mvhd".into()); }
+        (be(&mvhd[20..24]) as f64, be(&mvhd[24..32]) as f64)
+    } else {
+        if mvhd.len() < 20 { return Err("a short mvhd".into()); }
+        (be(&mvhd[12..16]) as f64, be(&mvhd[16..20]) as f64)
+    };
+    if scale <= 0.0 { return Err("mvhd timescale 0".into()); }
+    Ok((dur / scale * 1e6).round() as i64)
+}
+
 pub fn open(path: &str) -> Result<(Track, File), String> {
     let mut f = File::open(path).map_err(|e| format!("{path}: {e}"))?;
     let tops = top(&mut f)?;

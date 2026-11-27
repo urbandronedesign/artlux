@@ -115,6 +115,9 @@ pub struct Runtime {
     /// the GPU conversion they share (yuv.rs).
     #[cfg(windows)]
     mp4s: HashMap<String, (String, crate::mf::Mp4In)>,
+    /// E6j: films of the scene the show is about to enter, opened and positioned ahead (preroll.rs), by `preroll::key`.
+    #[cfg(windows)]
+    prerolls: HashMap<String, crate::preroll::Preroll>,
     /// H4K: one HAP reader per source key (hapimport::HapIn — parsed once, open, reading ahead).
     haps: HashMap<String, crate::hapimport::HapIn>,
     conv: Option<crate::yuv::GpuConvert>,
@@ -233,7 +236,7 @@ impl Runtime {
             outputs: None, projectors: Vec::new(), proj_published: HashMap::new(), proj_opts: HashMap::new(), calib_surfaces: Vec::new(), venue_published: HashMap::new(), calib_ver: 0, opts_ver: 0,
             #[cfg(windows)] spouts: HashMap::new(),
             #[cfg(feature = "ndi")] ndis: HashMap::new(),
-            #[cfg(windows)] mp4s: HashMap::new(), haps: HashMap::new(), conv: None,
+            #[cfg(windows)] mp4s: HashMap::new(), #[cfg(windows)] prerolls: HashMap::new(), haps: HashMap::new(), conv: None,
             #[cfg(windows)] cams: HashMap::new(), resolved: HashMap::new(), pending_cams: HashMap::new(), last_doc: None, redo: false,
             view: None, view_scene_ver: 0, view_published: HashMap::new(), view_colors_gen: 0, view_last_summary: String::new(), clock_diffs: 0, transport: Default::default(), draw_at: None, draw_stats: (0, 0, 0), draw_max_step: 0, comp_draw: (0, 0), vids: HashMap::new(), frame_agree: (0, 0), clock_ticks: 0, comp_sub: HashMap::new(), next_drawn: 0, handovers: 0, clip_bad: Default::default(), src_paths: HashMap::new(), judge: Default::default(), clock_rev: 0, lanes: Vec::new(), auto_fx: HashMap::new(), auto_diffs: 0, auto_ticks: 0, show: Default::default(), light_diffs: 0, light_ticks: 0, rig: None, light_fix: HashMap::new(), byte_diffs: 0, byte_ticks: 0, light_solved: HashMap::new(), light_beams: HashMap::new(), cropper: None, slice_keys: HashMap::new(), led_key: 0, led_raw: Vec::new(), led_pending: None, led_plan: None, hap_checked: HashMap::new(), led_raw_rev: u64::MAX, tick_at: None, tick_dt: 1.0 / 60.0, comp_keys: HashMap::new(),
             #[cfg(windows)] bake: None }
@@ -764,8 +767,35 @@ impl Runtime {
         self.cache.retain(&|k| ids.iter().any(|i| i == k));
         self.pictures.retain(|k, _| ids.iter().any(|i| i == k));
         let verdict = self.verdict(d, &mut doc);
+        #[cfg(windows)]
+        self.prerolls_for(&d["preroll"]);   // AFTER the verdict: it adopts first (the switching document names the NEXT films)
         self.doc = Some(doc);
         verdict
+    }
+
+    /// E6j: the document's `preroll` list — a worker per film not open or pre-rolled yet; a pre-roll no longer listed is
+    /// dropped once its predicted cut is 15 s past (or at once, if it had no predicted time).
+    #[cfg(windows)]
+    fn prerolls_for(&mut self, list: &Value) {
+        let want: Vec<(String, String, Option<i64>)> = list.as_array().into_iter().flatten()
+            .filter_map(|e| e["path"].as_str().map(|p| (crate::preroll::key(p), p.to_string(), e["at"].as_i64()))).collect();
+        let open: std::collections::HashSet<String> = self.mp4s.values().map(|(p, _)| crate::preroll::key(p)).collect();
+        let clk = crate::preroll::CLOCK.load(std::sync::atomic::Ordering::Relaxed);
+        self.prerolls.retain(|k, p| want.iter().any(|w| &w.0 == k) || p.at.is_some_and(|a| clk != i64::MIN && clk < a + 15_000_000));
+        for (k, path, at) in want {
+            if open.contains(&k) || self.prerolls.contains_key(&k) { continue; }
+            self.prerolls.insert(k, crate::preroll::Preroll::start(self.gpu.clone(), path, at));
+        }
+    }
+
+    /// E6j: a pre-rolled decoder for `path`, if one was made — waiting up to 2 s for a worker still opening it.
+    #[cfg(windows)]
+    fn adopt_preroll(&mut self, path: &str, sid: &str) -> Option<crate::mf::Mp4In> {
+        let pr = self.prerolls.remove(&crate::preroll::key(path))?;
+        let at = std::time::Instant::now();
+        let rx = pr.take(std::time::Duration::from_secs(2));
+        eprintln!("artlux-engine: preroll: '{sid}' {} {path}{}", if rx.is_some() { "adopted" } else { "could not adopt" }, if rx.is_some() { format!(" (waited {:.1} ms)", at.elapsed().as_secs_f64() * 1e3) } else { String::new() });
+        rx
     }
 
     /// O4-3: `read_frame(p, 0)`'s verdict, decided once per file version (size + mtime) — the same error text.
@@ -866,7 +896,10 @@ impl Runtime {
                     {
                         let Some(Source::Mp4(p, _)) = doc.sources.get(sid) else { unreachable!() };
                         if self.mp4s.get(sid).is_none_or(|(q, _)| q != p) {
-                            let rx = crate::prof::time("open.mp4", || crate::mf::Mp4In::open_with(p, Some(&self.gpu))).map_err(|e| format!("surface '{}': MP4 {e}", name_of(d, sid)))?;
+                            let rx = match self.adopt_preroll(p, sid) {
+                                Some(rx) => rx,
+                                None => crate::prof::time("open.mp4", || crate::mf::Mp4In::open_with(p, Some(&self.gpu))).map_err(|e| format!("surface '{}': MP4 {e}", name_of(d, sid)))?,
+                            };
                             if let Some(why) = &rx.software_why { eprintln!("artlux-engine: surface '{}': MP4 decoded in software ({why})", name_of(d, sid)); }
                             self.mp4s.insert(sid.clone(), (p.clone(), rx));
                         }
@@ -897,6 +930,7 @@ impl Runtime {
             Some((n, wall, rate)) => self.transport.audio.feed(wall, n as f64 / rate),
             None => if self.transport.audio.measured() > 0.0 { self.transport.audio.clear(); },
         }
+        if let Some(c) = v["clk"]["mp4"].as_i64() { crate::preroll::CLOCK.store(c, std::sync::atomic::Ordering::Relaxed); }   // E6j
         let now = std::time::Instant::now();
         if let Some(t) = self.tick_at { self.tick_dt = self.tick_dt * 0.9 + (now - t).as_secs_f64().min(0.2) * 0.1; }
         self.tick_at = Some(now);
@@ -1393,7 +1427,11 @@ impl Runtime {
                         if let Some((_, rx)) = self.mp4s.get(sid).filter(|(q, _)| q == _path) {
                             if *dur_us > 0 && abs >= *dur_us && local < rx.first_ts() { local += *dur_us; }
                         }
+                        let find_at = std::time::Instant::now();
                         let shown = self.mp4s.get_mut(sid).filter(|(q, _)| q == _path).and_then(|(_, rx)| crate::prof::time("mp4.find", || rx.frame_at(local).ok().map(|f| f.ts_us)));
+                        // A SLOW FIND names itself: the film, the time asked, how long — the scene-switch stall's evidence.
+                        let took = find_at.elapsed();
+                        if took > std::time::Duration::from_millis(50) { eprintln!("artlux-engine: mp4: '{sid}' took {:.0} ms to reach {} µs of {} (abs {abs}, loop {})", took.as_secs_f64() * 1e3, local, _path, if *dur_us > 0 { abs.div_euclid(*dur_us) } else { 0 }); }
                         let key = (((abs - local + shown.unwrap_or(local)).max(0) as u64) << 2) | 1;
                         if self.gens.get(sid) != Some(&key) || !self.pictures.contains_key(sid) {
                             // The verdict opens the decoders of the surfaces the LEDS sample; a surface only a
@@ -1401,7 +1439,8 @@ impl Runtime {
                             let ahead = sid.starts_with("clip:");
                             if ahead && self.clip_bad.contains(sid) { continue; }
                             if self.mp4s.get(sid).is_none_or(|(q, _)| q != _path) {
-                                match crate::prof::time("open.mp4", || crate::mf::Mp4In::open_with(_path, Some(&self.gpu))) {
+                                let adopted = if ahead { None } else { self.adopt_preroll(_path, sid) };
+                                match adopted.map(Ok).unwrap_or_else(|| crate::prof::time("open.mp4", || crate::mf::Mp4In::open_with(_path, Some(&self.gpu)))) {
                                     Ok(rx) => {
                                         // E3k: a next clip's colour space is judged HERE — the app has decoded no frame
                                         // of it yet. The engine draws BT.709 limited range (unspecified counts as it).

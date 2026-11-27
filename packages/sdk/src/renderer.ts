@@ -367,6 +367,11 @@ export interface VideoCodecContribution {
   // Omit it and the engine follows surfaceGeneration (the frame the app decoded) — the app then decodes for it.
   surfaceClockUs?(path: string): number | undefined;
 
+  // OPTIONAL (E6j). The codec's free-running surface clock (µs) whether or not any surface plays — the clock a film
+  // will be at when it appears. The native engine pre-rolls the films of the scene the show is about to enter (opened
+  // and positioned before the cut, plans/engine-optimisation-and-deferred-3d.md) and needs it to know where.
+  clockUs?(): number | undefined;
+
   // Timeline layer frame at a clip-local time (playhead-driven). `layerKey` scopes the GPU canvas.
   layerFrame(layerKey: string, path: string, clipTimeSec: number): CanvasImageSource | null;
   releaseLayer(layerKey: string): void;

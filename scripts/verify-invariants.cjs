@@ -10279,6 +10279,36 @@ check(
   },
 );
 
+check(
+  'the native engine PRE-ROLLS the films of the scene the show is about to enter, off its render thread, and adopts them at the cut',
+  'plans/engine-optimisation-and-deferred-3d.md E6j (2026-11-27). The MP4 surface clock is one free-running clock, so a ' +
+  'film that appears at a scene switch starts MID-FILM: the render thread opened its decoder and decoded from the key ' +
+  'frame up to that point — 115-307 ms a 4K film, 0.5-0.7 s when several switched together, every output and the whole ' +
+  'wire frozen at each cut. The host names the next scenes\' films with the clock it predicts for a timed cut ' +
+  '(smLookahead: a timed edge\'s rank IS its delay); the engine opens and positions them on a worker, keeps them at the ' +
+  'live clock past the predicted moment, and adopts one where it would have opened it. Measured: every film adopted ' +
+  'with 0 ms of waiting, the cut\'s worst tick 500-700 -> 50-75 ms (the level of an ordinary loop wrap). Two traps it ' +
+  'depends on: the pre-rolls are pruned AFTER the verdict (the switching document already names the NEXT films — pruned ' +
+  'first, the one being adopted is dropped), and the duration a pre-roll folds the clock with is the movie header\'s ' +
+  '(mvhd — mp4box\'s, the app\'s; the track\'s may differ by a frame, and over a long show\'s loops that is a seek).',
+  () => {
+    const problems = [];
+    const src = (f) => read('engine/artlux-engine/src/' + f);
+    const rt = src('runtime.rs'), pr = src('preroll.rs'), dm = src('mp4demux.rs');
+    if (!/let verdict = self\.verdict\(d, &mut doc\);\s*#\[cfg\(windows\)\]\s*self\.prerolls_for\(&d\["preroll"\]\);/.test(rt)) problems.push('runtime.rs no longer prunes the pre-rolls AFTER the verdict — the film being adopted at the cut would be dropped first');
+    if ((rt.match(/self\.adopt_preroll\(/g) || []).length < 2) problems.push('runtime.rs no longer adopts a pre-rolled decoder at both places a surface\'s MP4 decoder is opened');
+    if (!/crate::preroll::CLOCK\.store\(c, /.test(rt) || !/v\["clk"\]\["mp4"\]/.test(rt)) problems.push('runtime.rs no longer takes the MP4 surface clock from the tick — a pre-roll cannot follow it');
+    if (!/pub fn movie_duration_us\(/.test(dm) || !/crate::mp4demux::movie_duration_us\(&p\)/.test(pr)) problems.push('preroll.rs no longer folds the clock with the MOVIE duration (mvhd, the app\'s number)');
+    if (!/Mp4In::open_with\(&p, Some\(&gpu\)\)/.test(pr) || !/unsafe impl Send for Moved \{\}/.test(pr)) problems.push('preroll.rs no longer opens the decoder on its worker');
+    const nl = read('src/renderer/engine/nativeLink.ts'), app = read('src/renderer/App.tsx'), mc = read('plugins/mp4/src/mp4Codec.ts');
+    if (!/export function setPreroll\(/.test(nl) || !/lighting: lightingDoc\(\), preroll,/.test(nl) || !/const refs = \[prerollKey,/.test(nl)) problems.push('nativeLink.ts no longer carries the pre-roll in the document (or a change of it no longer re-sends one)');
+    if (!/clk, t: at\.t \?\? timeline\.getShowTime\(\)/.test(nl)) problems.push('nativeLink.ts no longer sends the MP4 clock on the tick');
+    if (!/nativeLink\.setPreroll\(next\.flatMap\(/.test(app)) problems.push('App.tsx no longer feeds the engine the look-ahead\'s films');
+    if (!/clockUs: \(\) => Math\.round\(clock \* 1e6\)/.test(mc)) problems.push('the MP4 codec no longer reports its free-running clock (clockUs)');
+    return problems.length ? problems.join('; ') : null;
+  },
+);
+
 const ok = (m) => console.log(`\x1b[32m✓\x1b[0m ${m}`);
 const bad = (m) => console.error(`\x1b[31m✗\x1b[0m ${m}`);
 

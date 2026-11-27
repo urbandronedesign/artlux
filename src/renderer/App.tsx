@@ -3866,11 +3866,17 @@ const App: React.FC = () => {
   // budget allows is not something it can resolve — it can only refuse to evict them.
   useEffect(() => timelineEngine.subscribeSmState((stateId) => {
       if (!stateId) return;
-      const entries = reachableNext(stateMachineRef.current, stateId)
-        .slice(0, timelinePreloader.MAX_WARM)
+      const next = reachableNext(stateMachineRef.current, stateId).slice(0, timelinePreloader.MAX_WARM);
+      const entries = next
         .map(e => ({ key: e.sceneId, tl: scenesRef.current.find(s => s.id === e.sceneId)?.timeline }))
         .filter(e => !!e.tl);
       if (entries.length) timelinePreloader.predict(entries);
+      // E6j: the native engine pre-rolls the same scenes' films (nativeLink.setPreroll). A TIMED edge's rank IS its
+      // delay in seconds (smLookahead: tier 0 + the delay, < 1000), and this runs as the state is entered — so that is
+      // when the cut comes; any other edge has no time (the engine opens the decoder only).
+      nativeLink.setPreroll(next.flatMap(e => (scenesRef.current.find(s => s.id === e.sceneId)?.surfaces ?? [])
+        .filter(s => s.content?.type === SourceType.VIDEO && !!s.content.url)
+        .map(s => ({ path: s.content.url as string, inSec: e.score < 1000 ? e.score : null }))));
   }), []);
   // Start the tracking-take replay loop once (main window only).
   useEffect(() => { trackingPlayback.start(); }, []);

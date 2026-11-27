@@ -86,6 +86,8 @@ export const mp4Codec: VideoCodecContribution = {
   surfaceGeneration: (path) => dec.generation(path),
   // E6i: the free-running surface clock the native engine follows (it picks the frame itself — mf.rs frame_at).
   surfaceClockUs: (path) => (surfaces.has(path) ? Math.round(clock * 1e6) : undefined),
+  // E6j: the same clock with no surface playing — where a film of the NEXT scene will be when it appears.
+  clockUs: () => Math.round(clock * 1e6),
   closeSurface: (path) => { surfaces.delete(path); verdicts.delete(path); dec.close(path); },
 
   // Timeline layer: playhead-exact, on a DEDICATED per-layer decoder (keyed by layerKey) so a scrub

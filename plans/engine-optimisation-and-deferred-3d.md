@@ -548,6 +548,31 @@ E6h hold and the stall watchdog still pass (`test:engine-hold` phases incl. S).
 > `--calibrated --glb --calib-occlude`), `test:engine-hold`, `test:video-frame-clock`, beams, shadows, AO. Guarded
 > ("the engine does the per-show work ONCE per document…", mutation-tested); one O3 regex re-pointed at the renamed call.
 
+> ✅ **E6j done 2026-11-27 — DECODER PRE-ROLL (owner: "decoder pre roll first", before O5 / O3-4).** The O4 timers
+> named the scene-switch stall: a film that appears at a cut starts MID-FILM (the MP4 surface clock is the app's ONE
+> free-running clock — `abs 62 214 000` a minute into the show, so the film is at `abs mod duration`), and the render
+> thread opened its decoder (40–100 ms) and decoded from the key frame before that point up to it (115–307 ms a 4K
+> film; ~0.5–0.7 s with several films switching at once — every output and the whole wire frozen at each cut).
+> - **Host** (`App.tsx` → `nativeLink.setPreroll`): at each state entry, the films (`VIDEO` surfaces the MP4 codec
+>   decodes) of the scenes `reachableNext` ranks first — the same `MAX_WARM` the timeline preloader warms — with, for a
+>   TIMED edge (its rank IS its delay), the clock the cut is predicted at (`clockUs()` now + the delay; untimed: null).
+>   They travel in the document (`preroll`); the tick carries the MP4 clock (`clk.mp4`). SDK: `VideoCodecContribution.
+>   clockUs?()` — the codec's free-running clock with no surface playing (the MP4 codec implements it).
+> - **Engine** (`preroll.rs`): a worker per film opens the decoder OFF the render thread (the decoder's COM objects are
+>   in the multithreaded apartment; the value is moved whole to the render thread under a lock), positions it at the
+>   predicted time and FOLLOWS the live clock past it until adopted (a cut later than predicted — a fade's length — finds
+>   it in place), giving up 15 s after the prediction. The runtime ADOPTS one where it would have opened a decoder (the
+>   verdict, first use), and prunes the list only AFTER the verdict (the switching document already names the NEXT
+>   films). It folds the clock with the MOVIE duration (`mp4demux::movie_duration_us`, mvhd) — the app's mp4box number,
+>   checked identical on seven files; the track's may differ by a frame, and over a long show's loops that is a seek.
+> - **Measured** (the 4K heavy show, a switch a minute, 2 s fades): every film of every switch pre-rolled (103–690 ms on
+>   the worker) and adopted with **0.0 ms** of waiting; no slow first frame left at any switch; the worst tick in a
+>   switch window **500–700 → 50–75 ms** — the level of an ordinary window, where a film's LOOP WRAP (a seek back to
+>   its start, every ~11 s for the 11.36 s venice film) already costs 40–60 ms (`mp4.wait`; present before E6j — an
+>   O3-4 matter). Left: the show's FIRST scene (no state before it predicts it — 133 ms once at start); an untimed edge
+>   (an operator's GO, a sensor) gets the decoder opened ahead but positioned at the cut as before. Guarded (the order
+>   trap mutation-tested).
+
 **Exit:** the 50 k-LED bench: tick CPU dominated by the GPU pass, pack < 1 ms; documents per second during a fade
 ≈ 0; `test:pack-parity`, `test:light-pack-parity`, lanes parity unchanged.
 

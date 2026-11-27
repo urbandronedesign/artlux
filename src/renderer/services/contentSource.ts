@@ -869,6 +869,16 @@ export function nativeTick(key: string, content: SurfaceContent, timeSec: number
   return contentSourceRegistry.get(content.type)?.nativeTick?.(key, content, timeSec);
 }
 
+/** E6j: every codec's free-running surface clock (µs), by codec id — the native engine's pre-roll positions by it. */
+export function codecClocksUs(): Record<string, number> {
+  const out: Record<string, number> = {};
+  for (const c of videoCodecRegistry.all()) { const v = c.clockUs?.(); if (v !== undefined) out[c.id] = v; }
+  return out;
+}
+
+/** E6j: the codec that decodes `url` as a surface (its id), if one claims it. */
+export function codecIdFor(url: string): string | undefined { return videoCodecRegistry.forPath(url)?.id; }
+
 /** E6i: a codec surface's playback CLOCK (µs, the decoder's absolute time) when its codec reports one — what the native
  *  engine follows for a surface it decodes itself (VideoCodecContribution.surfaceClockUs). */
 export function getSurfaceClockUs(key: string, content: SurfaceContent): number | undefined {
