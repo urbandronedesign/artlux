@@ -696,9 +696,18 @@ E6h hold and the stall watchdog still pass (`test:engine-hold` phases incl. S).
 > Frame-exact: `test:video-frame-clock` 100 % (1080p) and 99.8 % (4K — as before) of ticks on the app's frame; every
 > projector, takeover, hold, runtime, pack / wire, light-show and bake test as before; `--mp4`, image-parity's 11 the
 > known failures. **Pre-existing, seen here:** `test:video-frame-clock` with `tos_night.mp4` (a late first frame)
-> is 76 % — identical with the engine before this change. **Left:** the first frame of a film at a cut is still a
-> miss the render thread waits for (worst 53 ms — the pre-roll positioned the decoder, not a picture); the frames held
-> ready cost GPU memory (`LEAD_US` / `LEAD_MAX` in mp4worker.rs set it).
+> is 76 % — identical with the engine before this change. The frames held ready cost GPU memory (`LEAD_US` /
+> `LEAD_MAX` in mp4worker.rs set it).
+>
+> **Follow-up 2026-11-27 — what is left is NOT the cut** (a diagnostic soak, every render-thread wait over 15 ms and
+> every slow read-ahead frame logged). An adopted film's first frame at a cut is a 2.4–4.8 ms wait (7 of 7); every
+> loop's seek (frame 0, 18–60 ms) ran on the worker 3–4 frames early and never reached the render thread. The only
+> waits over 15 ms were at START-UP — 215 ms for the first scene's first film (nothing pre-rolls the first scene)
+> and 39 ms while its decoder warmed — and the worst tick past start-up was 30 ms. The first run's 53 ms wait was a
+> worker falling behind mid-film under GPU contention (its conversion wait reached 49 ms); it did not recur, and the
+> only lever (more frames held ready) costs GPU memory, so nothing changed for it. A render-thread wait over 15 ms now
+> logs itself (`mp4: waited … for frame i/n …`, with the frame shown before and what the worker had ready) so a
+> recurrence names its cause. **Left, small:** pre-rolling the FIRST scene's films (a once-per-launch 215 ms).
 
 ### What is NOT in this plan, deliberately
 

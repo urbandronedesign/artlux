@@ -140,6 +140,7 @@ impl Mp4Worker {
         let n = self.pts.len().max(1);
         let (lock, cv) = &*self.sh;
         let mut s = lock.lock().unwrap_or_else(|e| e.into_inner());
+        let was = s.now;
         if s.now != Some(i) {
             s.now = Some(i);
             // What is behind the shown frame is never shown again (before a loop brings it round, when it is made anew).
@@ -148,11 +149,19 @@ impl Mp4Worker {
         }
         if let Some((_, p)) = s.pics.iter().find(|(k, _)| *k == i) { crate::prof::add("mp4.ready", Duration::ZERO); return Ok(pic_clone(p)); }
         let at = Instant::now();
+        let held: Vec<usize> = s.pics.iter().map(|(k, _)| *k).collect();
         s.want = Some(local);
         s.err = None;
         cv.notify_all();
         loop {
-            if let Some((_, p)) = s.pics.iter().find(|(k, _)| *k == i) { crate::prof::add("mp4.miss", at.elapsed()); return Ok(pic_clone(p)); }
+            if let Some((_, p)) = s.pics.iter().find(|(k, _)| *k == i) {
+                crate::prof::add("mp4.miss", at.elapsed());
+                // A long wait names itself: which frame, what was shown before, what the worker had ready.
+                if at.elapsed() > Duration::from_millis(15) {
+                    eprintln!("artlux-engine: mp4: waited {:.1} ms for frame {i}/{n} of {} (shown before {was:?}, ready {held:?})", at.elapsed().as_secs_f64() * 1e3, self.path);
+                }
+                return Ok(pic_clone(p));
+            }
             if let Some(e) = s.err.take() { return Err(e); }
             if self.stop.load(Ordering::SeqCst) { return Err("the decoder stopped".into()); }
             let left = MISS_TIMEOUT.saturating_sub(at.elapsed());
