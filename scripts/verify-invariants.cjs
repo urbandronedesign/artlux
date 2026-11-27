@@ -10322,6 +10322,26 @@ check(
   },
 );
 
+check(
+  'a chunked HAP frame un-Snappies on several threads, and one HAP file at one frame is decoded ONCE for every surface showing it',
+  'plans/engine-optimisation-and-deferred-3d.md O5-4 / O5-3 (2026-11-27). O5-4: the chunks of a chunked HAP frame are ' +
+  'independent by design, and hap.rs decoded them one after another — 5.7 ms a 4K HAP Q frame on the engine\'s render ' +
+  'thread (and in the app\'s hap.node, the same file); on 8 threads 1.25 ms, byte for byte the same ' +
+  '(a_chunked_frame_decodes_to_its_chunks_in_order). O5-3: three surfaces playing one 4K HAP Q file each read, ' +
+  'un-Snappied, uploaded and premultiplied it on their own — engine 144 % of a core, tick 9.0 ms; sharing the picture ' +
+  'by (file, frame) took it to 54 % and 4.1 ms.',
+  () => {
+    const problems = [];
+    const hap = raw('native/hap/src/hap.rs'), rt = read('engine/artlux-engine/src/runtime.rs');
+    if (!/std::thread::scope\(/.test(hap) || !/snap::raw::decompress_len\(raw\)/.test(hap)) problems.push('hap.rs decode_complex no longer decodes the chunks in parallel into one sized buffer');
+    if (!/fn a_chunked_frame_decodes_to_its_chunks_in_order\(/.test(hap)) problems.push('hap.rs lost the parallel-decode parity test');
+    if (!/hap_pics: HashMap<String, \(usize, Picture\)>/.test(rt)) problems.push('runtime.rs no longer keeps the last HAP picture per file');
+    if (!/self\.hap_pics\.get\(&fk\)\.filter\(\|\(i, _\)\| \*i == idx\)/.test(rt)) problems.push('runtime.rs no longer shares a HAP picture for the same file AT THE SAME FRAME (a different frame must decode)');
+    if (!/self\.hap_pics\.insert\(fk, \(idx,/.test(rt)) problems.push('runtime.rs no longer records the HAP picture it made for sharing');
+    return problems.length ? problems.join('; ') : null;
+  },
+);
+
 const ok = (m) => console.log(`\x1b[32m✓\x1b[0m ${m}`);
 const bad = (m) => console.error(`\x1b[31m✗\x1b[0m ${m}`);
 

@@ -593,6 +593,40 @@ E6h hold and the stall watchdog still pass (`test:engine-hold` phases incl. S).
 4. **Parallel Snappy** in `native/hap` (C4c) — also speeds the app's `hap.node`. **S.**
 5. **Optional, decision D4:** the calibrated "UV-bake" performance mode (O-7). **L.**
 
+> ✅ **O5-4 and O5-3 done 2026-11-27** (owner: "go" — O5, the small items first).
+>
+> **O5-4 parallel Snappy** (`native/hap/src/hap.rs` `decode_complex`, the one file the app's `hap.node` and the engine
+> both compile): every chunk's decompressed length is read from its Snappy preamble first, the output is sized once,
+> and the chunks decode on up to 8 threads straight into disjoint slices of it (`std::thread::scope`; a frame under
+> 1 MB, or of one chunk, stays on the calling thread). ffmpeg's 4K HAP test media is chunked (`0xC_`); a 1080p
+> single-section file is not, and cannot be — one Snappy stream is serial.
+>
+> | 4K frame, un-Snappy only (60 frames, release) | before | after |
+> |---|---|---|
+> | HAP (DXT1) | 3.01 ms | **0.85** |
+> | HAP Q | 5.67 ms | **1.25** |
+> | HAP Alpha | 5.67 ms | **1.24** |
+>
+> Byte for byte the serial result: `a_chunked_frame_decodes_to_its_chunks_in_order` (19 mixed Snappy / stored chunks,
+> with and without an offset table; a swapped slice is caught); `test:hap-exact` on the 4K HAP and HAP Q passes with the
+> new `hap.node`; image-parity has the same 11 pre-existing failures.
+>
+> **O5-3 one decode per (file, frame)** (`runtime.rs` `hap_pics`): the last picture made from each file is kept with
+> its frame index; another surface (or a timeline clip) at the SAME frame takes it — one read, one un-Snappy, one
+> upload, one premultiply pass. A different frame of the same file decodes as before. Readers stay per surface (their
+> read-ahead follows each surface's own clock). Bench `E:/zaki/artlux-engine-test/O5-shared/bench.cjs`: three 4K walls
+> playing one HAP Q file, 120 universes, back to back in one session:
+>
+> | three walls, one 4K HAP Q | before (O5-4 only) | after |
+> |---|---|---|
+> | engine CPU | 144 % of a core | **54 %** |
+> | `sources` p50 / p99 | 7.83 / 9.70 ms | **2.96 / 3.69** |
+> | tick p50 / worst p99 | 9.04 / 19.1 ms | **4.09 / 5.4** |
+> | HAP pictures made per 5 s | 450 | **151** (+ 302 shared) |
+> | wire | 120 universes, 29.6 new payloads/s | the same |
+>
+> The app's own CPU (~165 %) in that bench is its editor preview decoding the same HAP (the "NOT in this plan" item).
+
 ### What is NOT in this plan, deliberately
 
 - **The editor's own 4K HAP preview decode** (~300 % of a core in a HAP Q scene, H4K "Left") — an app-side change

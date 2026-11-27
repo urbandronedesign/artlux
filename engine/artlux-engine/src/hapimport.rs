@@ -389,3 +389,28 @@ mod gpu_picture_tests {
         }
     }
 }
+
+#[cfg(test)]
+mod o5_bench {
+    /// O5-4 measurement: per file in ARTLUX_HAP_FILES (`;`), the second-stage compressor of frame 0 and the decode time
+    /// of 60 frames (un-Snappy only, what hap.read pays). Prints `HAPBENCH path ty=0x.. chunks? ms/frame`.
+    #[test]
+    fn hap_decode_bench() {
+        use std::io::{Read, Seek, SeekFrom};
+        for p in std::env::var("ARTLUX_HAP_FILES").unwrap_or_default().split(';').filter(|p| !p.is_empty()) {
+            let mv = super::mov::parse(p).unwrap();
+            let mut f = std::fs::File::open(p).unwrap();
+            let mut bufs = Vec::new();
+            for s in mv.frames.iter().take(60) {
+                let mut b = vec![0u8; s.size as usize];
+                f.seek(SeekFrom::Start(s.offset)).unwrap(); f.read_exact(&mut b).unwrap(); bufs.push(b);
+            }
+            let ty = bufs[0][3];
+            let t = std::time::Instant::now();
+            let mut n = 0usize;
+            for b in &bufs { n += super::hap::decode_frame(b).unwrap().data.len(); }
+            println!("HAPBENCH {p} ty=0x{ty:02X} {}x{} {:.2} ms/frame ({} MB/frame)", mv.width, mv.height,
+                t.elapsed().as_secs_f64() * 1e3 / bufs.len() as f64, n / bufs.len() / 1_000_000);
+        }
+    }
+}

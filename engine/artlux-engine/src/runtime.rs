@@ -120,6 +120,10 @@ pub struct Runtime {
     prerolls: HashMap<String, crate::preroll::Preroll>,
     /// H4K: one HAP reader per source key (hapimport::HapIn — parsed once, open, reading ahead).
     haps: HashMap<String, crate::hapimport::HapIn>,
+    /// O5-3: the last HAP picture made from each FILE, by `preroll::key(path)` — (frame index, picture). Two surfaces
+    /// (or a surface and a timeline clip) playing the same file at the same frame share one read, one un-Snappy, one
+    /// upload and one pass (C4d: each decoded it on its own — two 4K HAP Q surfaces of one film, twice the work).
+    hap_pics: HashMap<String, (usize, Picture)>,
     conv: Option<crate::yuv::GpuConvert>,
     /// Item 2d step 5: one SHARED camera reader per surface (camshared.rs — the app keeps the camera), the
     /// label it was resolved from, and the last frame drawn.
@@ -236,7 +240,7 @@ impl Runtime {
             outputs: None, projectors: Vec::new(), proj_published: HashMap::new(), proj_opts: HashMap::new(), calib_surfaces: Vec::new(), venue_published: HashMap::new(), calib_ver: 0, opts_ver: 0,
             #[cfg(windows)] spouts: HashMap::new(),
             #[cfg(feature = "ndi")] ndis: HashMap::new(),
-            #[cfg(windows)] mp4s: HashMap::new(), #[cfg(windows)] prerolls: HashMap::new(), haps: HashMap::new(), conv: None,
+            #[cfg(windows)] mp4s: HashMap::new(), #[cfg(windows)] prerolls: HashMap::new(), haps: HashMap::new(), hap_pics: HashMap::new(), conv: None,
             #[cfg(windows)] cams: HashMap::new(), resolved: HashMap::new(), pending_cams: HashMap::new(), last_doc: None, redo: false,
             view: None, view_scene_ver: 0, view_published: HashMap::new(), view_colors_gen: 0, view_last_summary: String::new(), clock_diffs: 0, transport: Default::default(), draw_at: None, draw_stats: (0, 0, 0), draw_max_step: 0, comp_draw: (0, 0), vids: HashMap::new(), frame_agree: (0, 0), clock_ticks: 0, comp_sub: HashMap::new(), next_drawn: 0, handovers: 0, clip_bad: Default::default(), src_paths: HashMap::new(), judge: Default::default(), clock_rev: 0, lanes: Vec::new(), auto_fx: HashMap::new(), auto_diffs: 0, auto_ticks: 0, show: Default::default(), light_diffs: 0, light_ticks: 0, rig: None, light_fix: HashMap::new(), byte_diffs: 0, byte_ticks: 0, light_solved: HashMap::new(), light_beams: HashMap::new(), cropper: None, slice_keys: HashMap::new(), led_key: 0, led_raw: Vec::new(), led_pending: None, led_plan: None, hap_checked: HashMap::new(), led_raw_rev: u64::MAX, tick_at: None, tick_dt: 1.0 / 60.0, comp_keys: HashMap::new(),
             #[cfg(windows)] bake: None }
@@ -753,6 +757,7 @@ impl Runtime {
         self.src_paths.retain(|k, _| doc.sources.contains_key(k));
         self.clip_bad.retain(|k| doc.sources.contains_key(k));
         self.haps.retain(|k, h| matches!(doc.sources.get(k), Some(Source::Hap(q)) if q == &h.path));
+        self.hap_pics.retain(|k, _| doc.sources.values().any(|s| matches!(s, Source::Hap(q) if &crate::preroll::key(q) == k)));
         #[cfg(windows)]
         self.mp4s.retain(|k, (p, _)| matches!(doc.sources.get(k), Some(Source::Mp4(q, _)) if q == p));
         #[cfg(windows)]
@@ -1352,6 +1357,14 @@ impl Runtime {
                     let key = ((idx as u64) << 2) | 1;
                     if self.gens.get(sid) != Some(&key) || !self.pictures.contains_key(sid) {
                         if self.clip_bad.contains(sid) { continue; }
+                        // O5-3: the same file at the same frame was made already (another surface, a clip) — share it.
+                        let fk = crate::preroll::key(p);
+                        if let Some((_, pic)) = self.hap_pics.get(&fk).filter(|(i, _)| *i == idx) {
+                            let pic = Picture { w: pic.w, h: pic.h, rgba: pic.rgba.clone(), mips: pic.mips, crop: pic.crop, tex: pic.tex.clone() };
+                            self.pictures.insert(sid.clone(), pic); self.gens.insert(sid.clone(), key);
+                            crate::prof::add("hap.shared", std::time::Duration::ZERO);
+                            continue;
+                        }
                         let (w, hh) = (h.w, h.h);
                         // O3-5: read ahead where the clock will be at the NEXT tick (a 60 fps film on a 30 Hz tick skips a
                         // frame each tick — reading i + 1 was always the wrong one), or the next frame, whichever is later.
@@ -1362,7 +1375,10 @@ impl Runtime {
                         let read = crate::prof::time("hap.read", || h.frame_ahead(idx, next));
                         let pic = read.and_then(|(fmt, blocks)| crate::prof::time("hap.pic", || compose::hap_picture(&self.gpu, fmt, w, hh, &blocks)).map_err(|e| e.to_string()));
                         match pic {
-                            Ok(pic) => { self.pictures.insert(sid.clone(), pic); self.gens.insert(sid.clone(), key); }
+                            Ok(pic) => {
+                                self.hap_pics.insert(fk, (idx, Picture { w: pic.w, h: pic.h, rgba: pic.rgba.clone(), mips: pic.mips, crop: pic.crop, tex: pic.tex.clone() }));
+                                self.pictures.insert(sid.clone(), pic); self.gens.insert(sid.clone(), key);
+                            }
                             // E3k: a next clip the engine cannot draw holds its track; it never fails the tick.
                             Err(e) if sid.starts_with("clip:") => { eprintln!("artlux-engine: clock: {sid} not drawn ahead: {e}"); self.clip_bad.insert(sid.clone()); }
                             Err(e) => return Err(e),

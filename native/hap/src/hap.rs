@@ -170,7 +170,9 @@ fn decode_complex(section: &[u8]) -> Result<Vec<u8>, String> {
     // Chunk data begins right after the decode-instructions container. Offsets (when present)
     // are relative to that point; otherwise chunks are stored sequentially.
     let chunk_region = &section[after_di..];
-    let mut out: Vec<u8> = Vec::new();
+    // Every chunk's input and its decompressed length first (Snappy carries it in its preamble), so the output is
+    // sized once and each chunk decodes straight into its own slice of it.
+    let mut chunks: Vec<(&[u8], u8, usize)> = Vec::with_capacity(n);
     let mut seq = 0usize;
     for i in 0..n {
         let start = if offsets.len() == n { offsets[i] as usize } else { seq };
@@ -179,12 +181,90 @@ fn decode_complex(section: &[u8]) -> Result<Vec<u8>, String> {
             return Err("HAP chunk overruns frame".into());
         }
         let raw = &chunk_region[start..end];
-        match compressors[i] {
-            COMPRESSOR_NONE => out.extend_from_slice(raw),
-            COMPRESSOR_SNAPPY => out.extend_from_slice(&snappy_decode(raw)?),
+        let len = match compressors[i] {
+            COMPRESSOR_NONE => raw.len(),
+            COMPRESSOR_SNAPPY => snap::raw::decompress_len(raw).map_err(|e| format!("snappy: {e}"))?,
             other => return Err(format!("unsupported chunk compressor 0x{other:X}")),
-        }
+        };
+        chunks.push((raw, compressors[i], len));
         seq = end;
     }
+    let total: usize = chunks.iter().map(|c| c.2).sum();
+    let mut out = vec![0u8; total];
+    let mut dsts: Vec<&mut [u8]> = Vec::with_capacity(n);
+    let mut rest: &mut [u8] = &mut out;
+    for c in &chunks {
+        let (head, tail) = std::mem::take(&mut rest).split_at_mut(c.2);
+        dsts.push(head);
+        rest = tail;
+    }
+    let one = |(raw, comp, len): (&[u8], u8, usize), dst: &mut [u8]| -> Result<(), String> {
+        if comp == COMPRESSOR_NONE { dst.copy_from_slice(raw); return Ok(()); }
+        let got = snap::raw::Decoder::new().decompress(raw, dst).map_err(|e| format!("snappy: {e}"))?;
+        if got != len { return Err(format!("snappy: chunk gave {got} bytes, its preamble said {len}")); }
+        Ok(())
+    };
+    // O5-4 — PARALLEL SNAPPY (plans/engine-optimisation-and-deferred-3d.md C4c). The chunks of a chunked ("complex")
+    // frame are independent by design — that is what the HAP spec chunks them for — so they decode on several threads
+    // into disjoint slices of one buffer. Measured on the 4K test media (16 chunks a frame): a HAP Q frame 5.7 ms → see
+    // the plan's O5 entry. A small frame or a single chunk stays on the calling thread (a spawn costs more than it saves).
+    let workers = std::thread::available_parallelism().map_or(1, |p| p.get()).min(8).min(n);
+    if workers <= 1 || total < PARALLEL_FROM {
+        for (c, d) in chunks.into_iter().zip(dsts) { one(c, d)?; }
+        return Ok(out);
+    }
+    let mut jobs: Vec<Vec<((&[u8], u8, usize), &mut [u8])>> = (0..workers).map(|_| Vec::new()).collect();
+    for (i, job) in chunks.into_iter().zip(dsts).enumerate() { jobs[i % workers].push(job); }
+    let results: Vec<Result<(), String>> = std::thread::scope(|s| {
+        let hs: Vec<_> = jobs.into_iter().map(|js| s.spawn(move || {
+            for (c, d) in js { one(c, d)?; }
+            Ok(())
+        })).collect();
+        hs.into_iter().map(|h| h.join().unwrap_or_else(|_| Err("snappy: a chunk thread panicked".into()))).collect()
+    });
+    for r in results { r?; }
     Ok(out)
+}
+
+/// O5-4: a chunked frame smaller than this decodes on the calling thread.
+const PARALLEL_FROM: usize = 1 << 20;
+
+#[cfg(test)]
+mod parallel_tests {
+    /// O5-4: a chunked frame decoded on several threads is the chunks decoded one after another, byte for byte —
+    /// mixed Snappy / uncompressed chunks of uneven sizes, more chunks than workers, with and without an offset table.
+    #[test]
+    fn a_chunked_frame_decodes_to_its_chunks_in_order() {
+        fn sec(ty: u8, body: &[u8]) -> Vec<u8> {
+            let l = body.len();
+            let mut v = vec![(l & 0xff) as u8, ((l >> 8) & 0xff) as u8, ((l >> 16) & 0xff) as u8, ty];
+            v.extend_from_slice(body);
+            v
+        }
+        let mut seed = 0x2545F491u32;
+        let mut rnd = || { seed ^= seed << 13; seed ^= seed >> 17; seed ^= seed << 5; seed };
+        for with_offsets in [false, true] {
+            let (mut comps, mut sizes, mut offs, mut data, mut want) = (vec![], vec![], vec![], vec![], vec![]);
+            for i in 0..19u32 {
+                let len = 60_000 + (rnd() % 90_000) as usize;
+                let plain: Vec<u8> = (0..len).map(|j| if (j / 64) % 3 == 0 { (rnd() & 0xff) as u8 } else { (i as u8).wrapping_mul(7) }).collect();
+                let snappy = i % 4 != 1;
+                let stored = if snappy { snap::raw::Encoder::new().compress_vec(&plain).unwrap() } else { plain.clone() };
+                comps.push(if snappy { super::COMPRESSOR_SNAPPY } else { super::COMPRESSOR_NONE });
+                sizes.extend_from_slice(&(stored.len() as u32).to_le_bytes());
+                offs.extend_from_slice(&(data.len() as u32).to_le_bytes());
+                data.extend_from_slice(&stored);
+                want.extend_from_slice(&plain);
+            }
+            assert!(want.len() >= super::PARALLEL_FROM, "the test frame must take the parallel path");
+            let mut di = sec(super::SECTION_CHUNK_COMPRESSOR_TABLE, &comps);
+            di.extend(sec(super::SECTION_CHUNK_SIZE_TABLE, &sizes));
+            if with_offsets { di.extend(sec(super::SECTION_CHUNK_OFFSET_TABLE, &offs)); }
+            let mut body = sec(super::SECTION_DECODE_INSTRUCTIONS, &di);
+            body.extend_from_slice(&data);
+            let frame = sec((super::COMPRESSOR_COMPLEX << 4) | 0x0B, &body);
+            let d = super::decode_frame(&frame).unwrap();
+            assert!(d.data == want, "parallel decode differs (offsets: {with_offsets})");
+        }
+    }
 }
