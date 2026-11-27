@@ -673,6 +673,18 @@ E6h hold and the stall watchdog still pass (`test:engine-hold` phases incl. S).
 > **Left of O5-2:** one picture texture per SURFACE (by id — what O5-1 should have been), and the 3D view and the
 > calibrated presenters as cameras + pass graphs over one scene (with D0).
 >
+> ✖ **O5-2 closed 2026-11-27 — the per-surface picture is NOT built** (owner: "go" on the rest of O5-2; this is what
+> reading the code first found). Every calibrated presenter and the 3D view draws on ITS OWN THREAD
+> (`outputs.rs` `present:<id>`, `present:view3d`) from the picture and generation it was handed, and copies that
+> frame into its own kept texture (O1-3) — a 0.15 ms copy, which is the snapshot. One texture per surface written in
+> place by the render thread would be sampled by those threads asynchronously: a presenter drawing generation g
+> could show g + 1, and two edge-blended projectors wearing the same film could show DIFFERENT frames in their
+> overlap — a visible tear, where today each is gen-honest. Making it safe means a ring of textures alive per
+> consumer — which is O5-1, measured: no CPU gain, +~260 MiB. What it could save is memory only, (N − 1) copies of
+> each surface (≈ 33 MB a 4K surface per extra consumer). Not worth a frame-sync risk on blended projectors.
+> **The cameras + pass graphs half moves into D0** where it belongs: the residency it was for is done (O5-2a — the
+> venue resident once, D0's own exit criterion), and the pass-graph structure pays only when D1's G-buffer needs it.
+>
 > ✅ **O3-4 done 2026-11-27 — THE MP4 DECODER OFF THE RENDER THREAD** (owner chose it over the rest of O5-2: "O3-4 MP4
 > thread"). `mp4worker.rs`: a thread per film owns `mf::Mp4In` (moved whole, as preroll.rs moves one) and its own
 > converter, and keeps the frames the clock will reach converted ahead — ~120 ms of film (2–6 frames), in presentation
