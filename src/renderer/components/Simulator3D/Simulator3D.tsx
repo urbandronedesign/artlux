@@ -3,6 +3,7 @@ import { Canvas, useThree, useFrame } from '@react-three/fiber';
 import { OrbitControls, GizmoHelper, GizmoViewport } from '@react-three/drei';
 import type * as THREE from 'three';
 import { Move3d, Rotate3d, Maximize, BoxSelect, Video, Globe, Box, Magnet, Scan, Cuboid, LayoutGrid, Crosshair, ChevronDown, Sparkles, Ruler, AppWindow } from 'lucide-react';
+import { Button } from '../ui';
 import { Fixture, Vec3, Euler3, FixtureProfile } from '../../types';
 
 // One shared empty map, so a scene with no profiled fixtures allocates nothing per render.
@@ -370,6 +371,17 @@ const Simulator3D: React.FC<Props> = ({
   // engine running (`--native-engine`); closing the window from its title bar comes back as an event.
   const [engineView, setEngineView] = useState(false);
   const [engineAvailable, setEngineAvailable] = useState(false);
+  // WHILE THE ENGINE'S WINDOW SHOWS THE SCENE, THIS VIEW STOPS DRAWING (D0 bench, 2026-11-27 —
+  // plans/engine-optimisation-and-deferred-3d.md "What is NOT in this plan"). It kept drawing the same rig
+  // behind the engine window: 52–63 % of a core and most of the machine's GPU with 100 heads, against the
+  // engine's 1–10 % for the window that was actually being looked at. Paused exactly as a hidden context
+  // pauses it (frameloop 'never'; nothing unmounts — the lazy-but-sticky rule), and the engine link keeps
+  // working: EngineViewLink runs on a timer, not useFrame, and buildScene refreshes the world matrices
+  // itself. `drawHereToo` is the operator's way back, for content the engine does not draw yet, or for
+  // calibration picks in this view; it lasts until the engine window closes.
+  const [drawHereToo, setDrawHereToo] = useState(false);
+  useEffect(() => { if (!engineView) setDrawHereToo(false); }, [engineView]);
+  const engineCovers = engineView && !drawHereToo;
   useEffect(() => {
     let alive = true;
     void window.artlux?.nativeEngineEnabled?.().then((v) => { if (alive) setEngineAvailable(!!v); }, () => {});
@@ -818,7 +830,7 @@ const Simulator3D: React.FC<Props> = ({
         // 'never' covers BOTH reasons this viewport stops driving itself: hidden (paused), and capped
         // — in which case <FrameRateCap> below is what advances it. Uncapped and visible is r3f's
         // ordinary 'always', i.e. exactly what this has always done.
-        frameloop={paused || maxFps > 0 ? 'never' : 'always'}
+        frameloop={paused || engineCovers || maxFps > 0 ? 'never' : 'always'}
         // NOT `[1, 2]`. That range let a hiDPI panel render this viewport at twice the linear
         // resolution — four times the pixels, and four times every per-fragment cost in it (the
         // ground grid's full-screen shader plane, additive beam overdraw, every textured screen) —
@@ -847,7 +859,7 @@ const Simulator3D: React.FC<Props> = ({
         <color attach="background" args={['#0d0d0d']} />
         {/* Not while paused: a hidden canvas must draw nothing at all, which is the whole point of the
             `paused` prop. Mounting it capped-but-hidden would redraw a zero-width pane at `maxFps`. */}
-        {maxFps > 0 && !paused && <FrameRateCap hz={maxFps} />}
+        {maxFps > 0 && !paused && !engineCovers && <FrameRateCap hz={maxFps} />}
         <AdaptiveClipping off={!!viewFrom} />
         {viewFrom && <ProjectorView calibration={viewFrom.calibration} />}
         {/* Top / Front / …: an orthographic camera becomes the default while one is shown; the controller
@@ -1091,6 +1103,21 @@ const Simulator3D: React.FC<Props> = ({
               style={{ left: `calc(${p.col * 50}% + 6px)`, top: `calc(${p.row * 50}% + 6px)` }}
             >{viewLabel(p.view)}</button>
           ))}
+        </div>
+      )}
+
+      {/* The engine's window has the scene: this view is paused (see engineCovers) and says so, covering the
+          frozen last frame so nobody orbits or clicks a picture that no longer answers. */}
+      {engineCovers && (
+        <div className="absolute inset-0 flex items-center justify-center bg-surface-0/85">
+          <div className="max-w-sm px-4 text-center">
+            <div className="text-xs font-medium text-fg-1">The 3D view is in its own window</div>
+            <div className="mt-1 text-mini text-fg-2">This view is paused while the engine draws the scene there, so the editor stays light.</div>
+            <div className="mt-3 flex items-center justify-center gap-2">
+              <Button size="sm" onClick={() => setDrawHereToo(true)} title="Keep this view drawing too — for content only the editor draws, or calibration picks here">Draw here too</Button>
+              <Button size="sm" variant="ghost" onClick={toggleEngineView} title="Close the engine's 3D window and draw the scene here">Close the window</Button>
+            </div>
+          </div>
         </div>
       )}
 

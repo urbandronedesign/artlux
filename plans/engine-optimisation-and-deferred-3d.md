@@ -728,7 +728,12 @@ E6h hold and the stall watchdog still pass (`test:engine-hold` phases incl. S).
 - **The editor's own WebGL 3D view while the engine's 3D window is open** (D0 bench, 2026-11-27: 52–63 % of a core
   and most of the machine's GPU load with 100 heads, against the engine's 1–10 %) — it keeps drawing the same rig
   behind the engine window. An app-side change (pause it while the engine's window shows the scene). Listed so it is
-  not forgotten.
+  not forgotten. ✅ **Done 2026-11-27** (owner: "go"): Simulator3D pauses its canvas while the engine window is open
+  (a notice over it: *Draw here too* / *Close the window*), guarded in verify-invariants. Same bench, editor LEFT on
+  its 3D context, 100 heads: still — editor 52.2 → **14.0 %** of a core, machine GPU 15.6 → **3.6 %**; orbit — editor
+  63.0 → **30.2 %** (part of it the bench's own 57 camera moves a second), GPU 12.4 → **10.3 %**; the engine as
+  before. `test:engine-beams` (42), `-shadows` (8), `-ao` (6), `-view-place` (10) pass; the buttons checked in the
+  packaged app.
 - **Multi-queue / async compute.** wgpu exposes one queue; with O1–O3 the single queue stops being the bottleneck.
   Revisit only if O0's numbers say otherwise.
 - **macOS / Linux** — the engine is Windows only (owner, 2026-11-26).

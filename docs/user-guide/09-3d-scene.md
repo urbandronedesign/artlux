@@ -160,6 +160,11 @@ machine, not the project. If that screen is no longer connected, it opens at its
   surface through its **Mesh UVs** or **projected** (from view or from a calibrated projector, with the
   same edge fade, back-face option and shadowing), and every **projector frustum** is drawn — the
   calibrated ones and the projectors placed in the model file.
+- **While it is open, the editor's own 3D view rests.** It says *The 3D view is in its own window* and stops
+  drawing, so the editor stays light — drawing the same scene twice cost far more than the engine window
+  itself. Everything you do in the editor still reaches the engine window. **Draw here too** brings the
+  editor's view back alongside it — for content the engine does not draw yet, or to place calibration
+  points in the editor's view — until the engine window closes; **Close the window** closes it.
 - Close it with its own close button or the same header button.
 
 Content the engine

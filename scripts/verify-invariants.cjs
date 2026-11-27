@@ -10389,6 +10389,28 @@ check(
   },
 );
 
+check(
+  'the editor\'s 3D view rests while the engine\'s window shows the scene — and the engine link does not need it to draw',
+  'D0 bench (2026-11-27, plans/engine-optimisation-and-deferred-3d.md): with the engine\'s 3D window open the editor ' +
+  'kept drawing the same rig behind it — 52–63 % of a core and most of the GPU with 100 heads, against the engine\'s ' +
+  '1–10 %. Simulator3D now pauses its canvas (frameloop \'never\', nothing unmounts) while the engine window is open, ' +
+  'unless the operator asks to "Draw here too". That is only safe because EngineViewLink sends the scene on a TIMER ' +
+  'and buildScene refreshes the world matrices ITSELF: a useFrame in the link, or matrices left to the renderer, ' +
+  'would freeze the engine window on stale positions the moment the editor paused — silently.',
+  () => {
+    const problems = [];
+    const sim = read('src/renderer/components/Simulator3D/Simulator3D.tsx');
+    const ev = read('src/renderer/components/Simulator3D/engineView.tsx');
+    if (!/const engineCovers = engineView && !drawHereToo;/.test(sim)) problems.push('Simulator3D no longer derives engineCovers (paused under the engine window unless Draw here too)');
+    if (!/frameloop=\{paused \|\| engineCovers \|\| maxFps > 0 \? 'never' : 'always'\}/.test(sim)) problems.push('the canvas no longer stops drawing while the engine window covers it');
+    if (!/!paused && !engineCovers && <FrameRateCap/.test(sim)) problems.push('the frame-rate cap still drives the canvas under the engine window');
+    if (/useFrame/.test(ev)) problems.push('engineView.tsx uses useFrame — the engine link would stop when the editor view pauses');
+    if (!/function buildScene\([^)]*\): string \{\s*const models: unknown\[\] = \[\];\s*scene\.updateMatrixWorld\(\);/.test(ev)) problems.push('buildScene no longer refreshes the world matrices itself — a paused editor view would send stale ones');
+    if (!/setInterval\(send, PERIOD_MS\)/.test(ev)) problems.push('EngineViewLink no longer sends on its own timer');
+    return problems.length ? problems.join('; ') : null;
+  },
+);
+
 const ok = (m) => console.log(`\x1b[32m✓\x1b[0m ${m}`);
 const bad = (m) => console.error(`\x1b[31m✗\x1b[0m ${m}`);
 
