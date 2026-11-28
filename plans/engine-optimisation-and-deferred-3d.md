@@ -923,6 +923,26 @@ and an embedded `sharedTexture` in the editor are presentation targets of the sa
 > = SMAA (the editor's, ported) + lines drawn as anti-aliased quads** at today's apparent width; D1-3 = default on after
 > the owner looks, the guards / tests re-based. Bench: `E:/zaki/artlux-engine-test/D1/` (capture.cjs, diff.cjs).
 
+> 🔧 **D1-2 built 2026-11-28 — the deferred path's anti-aliasing, still behind `ARTLUX_VIEW3D_DEFERRED=1`.**
+> (1) **SMAA** (`smaa.rs`): three's `SMAANode` ported line for line (edges → weights with the area / search lookups,
+> three's own PNGs in `engine/artlux-engine/assets/` → blend), placed where RenderedMode places it — AFTER AgX and the
+> sRGB encode: the post's final pass draws into an sRGB view of an 8-bit texture, SMAA reads its raw (display-encoded)
+> bytes and writes the swapchain decoded. (2) **Lines as AA strips** (`vs_aaline`): every line list (grid, frustums,
+> model outline, cone diagrams) read one SEGMENT per instance straight from the existing buffers (56 B = two 7-float
+> vertices), near-plane clipped, drawn as a screen-facing strip with 1 px of ink and a 1 px box filter — the 2 px tent
+> 4× MSAA made of a 1 px line. The MSAA pass is untouched. **Measured** against the forward captures (client area,
+> examples multi-projector / lighting / interactive-show): pixels off by > 32 levels **4.3 / 2.4 / 3.0 % (D1-1) →
+> 1.8 / 0.65 / 2.0 %**, mean difference 4.3 / 2.8 / 2.7 → 2.7 / 1.6 / 2.7; zoomed, the horizon no longer dashes and
+> diagonals match MSAA's. What is left (6–9 % > 8 levels, 80–90 % of it on edges) is the AA's SHAPE — SMAA vs MSAA on
+> mesh silhouettes, a tent vs MSAA's sample pattern on lines; at a grid crossing SMAA softens the line a little over
+> ~10 px (the editor runs the same SMAA, so it has the same). test:engine-shadows / --ao / view-place pass deferred;
+> test:engine-beams passed 3 of 4 runs (the failing first run was not captured; the next three were clean).
+> **Cost**, 100-head orbit bench back to back: frame p50 1.30 (forward) vs 1.38 ms, GPU 11.9 vs 12.5 % — even; the
+> deferred win is for when the lights grow and V5 lands, not here. Guarded: SMAA after the tone map, tied to deferred
+> Rendered, `textureSampleLevel` only (a `textureSample(` in the searches panics the 3D window at pipeline creation),
+> the AA-line instance matching the line vertex. **Next, D1-3**: the owner compares both looks; then deferred becomes
+> Rendered's default, MSAA targets are no longer allocated in Rendered, the guards / tests are re-based.
+
 > 📏 **What shadows cost while heads MOVE — measured 2026-11-28** (owner: "the beam lights will move"; the D0 bench
 > grew `--move=N` — two timeline lighting effects sweeping pan and tilt, phase-spread, played — `--venue=panorama|big`,
 > `big` a 694 k-triangle mesh as the heavy-venue stand-in, and `--noshadow` = the new diagnostic

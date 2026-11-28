@@ -49,6 +49,7 @@ pub mod preroll;
 pub mod scenegpu;
 pub mod post;
 pub mod ao;
+pub mod smaa;
 pub mod shader;
 pub mod blobs;
 pub mod comp;

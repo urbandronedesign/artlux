@@ -10461,6 +10461,31 @@ check(
   },
 );
 
+check(
+  'the deferred path (D1-2) anti-aliases like the editor: SMAA after the tone map, lines as AA strips',
+  'D1-2 (2026-11-28): the deferred path has no MSAA. Without a replacement, D1-1 measured 6–9 % of the example ' +
+  'projects\' pixels off the forward look — 1 px hard lines breaking into dashes at the horizon. Two things restore ' +
+  'it: (1) SMAA exactly where the editor runs it — on the TONE-MAPPED, sRGB-ENCODED frame (RenderedMode: ' +
+  'smaa(renderOutput(...))); run before the tone curve it finds edges on HDR values and blends in the wrong space; ' +
+  '(2) every line list drawn as screen-facing strips (vs_aaline) — SMAA cannot rebuild a line the rasteriser broke. ' +
+  'And SMAA\'s searches run in non-uniform control flow, where WGSL forbids implicit-derivative sampling: one ' +
+  'textureSample( compiles in no browser-free check and panics the engine\'s 3D window at pipeline creation.',
+  () => {
+    const problems = [];
+    const v = raw('engine/artlux-engine/src/view3d.rs');
+    const sm = raw('engine/artlux-engine/src/smaa.rs');
+    const shader = (sm.split('const SHADER: &str = r#"')[1] || '').split('"#;')[0];
+    if (!shader) problems.push('smaa.rs has no SHADER');
+    if (/textureSample\(/.test(shader)) problems.push('smaa.rs samples with textureSample( — use textureSampleLevel(…, 0.0): the searches are non-uniform control flow');
+    if (!/Some\(\(sm, ldr\)\) => \{ post\.finish\(&gpu\.queue, &mut enc, ldr, true\); sm\.run\(&mut enc, &view\); \}/.test(v)) problems.push('deferred Rendered no longer tone-maps into SMAA\'s input and then runs SMAA to the window');
+    if (!/filter\(\|_\| look\.rendered && defer\.is_some\(\)\)/.test(v)) problems.push('SMAA is no longer tied to deferred Rendered (it would double the forward path\'s MSAA, or leave deferred aliased)');
+    if (!/&handle_pipe1, true\)\)/.test(v) || !/&handle_pipe, false\)\)/.test(v)) problems.push('the deferred pass no longer draws its lines as AA strips (or the MSAA pass does)');
+    if (!/array_stride: 56, step_mode: wgpu::VertexStepMode::Instance/.test(v) || !/pub const VERT_FLOATS: usize = 7;/.test(raw('engine/artlux-engine/src/grid.rs')))
+      problems.push('the AA-line instance (56 bytes = two 7-float line vertices) no longer matches the line lists\' vertex');
+    return problems.length ? problems.join('; ') : null;
+  },
+);
+
 const ok = (m) => console.log(`\x1b[32m✓\x1b[0m ${m}`);
 const bad = (m) => console.error(`\x1b[31m✗\x1b[0m ${m}`);
 

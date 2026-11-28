@@ -554,7 +554,7 @@ pub(crate) fn load_glb(path: &str) -> Result<CpuGlb, String> {
 // the SAME text the forward pass does, not a copy that drifts.
 fn scene_wgsl() -> String { format!("{CAM_WGSL}{SHADER_HEAD}{LIGHTS_WGSL}{SHADER_TAIL}") }
 const CAM_WGSL: &str = r#"
-struct Cam { vp: mat4x4<f32>, eye: vec4<f32>, px: vec4<f32> };   // px.x = world units per pixel at 1 m; px.y = haze, px.z = 1 for the Rendered look
+struct Cam { vp: mat4x4<f32>, eye: vec4<f32>, px: vec4<f32> };   // px.x = world units per pixel at 1 m; px.y = haze, px.z = 1 for the Rendered look; eye.w × px.w = the viewport in pixels
 @group(0) @binding(0) var<uniform> cam: Cam;
 "#;
 const SHADER_HEAD: &str = r#"
@@ -733,6 +733,43 @@ struct GOut { @builtin(position) pos: vec4<f32>, @location(0) c: vec4<f32>, @loc
 }
 // Overlay lines (projector frustums) keep their colour at any distance — they reach across the venue.
 @fragment fn fs_line_flat(i: GOut) -> @location(0) vec4<f32> { return i.c; }
+// D1-2 — AN ANTI-ALIASED LINE (the deferred path has no MSAA): each segment of a line list, read as ONE instance
+// (its two vertices, 56 bytes), drawn as a strip facing the screen. 1 px of ink with a 1 px box filter — a tent
+// 2 px across, which is what 4× MSAA made of a 1 px line — so the grid, the frustums and the cone diagrams keep
+// their weight and stop breaking into dashes at the horizon. Clipped at the near plane first (a frustum reaching
+// behind the viewer must not flip through infinity).
+struct AOut { @builtin(position) pos: vec4<f32>, @location(0) c: vec4<f32>, @location(1) d: f32 };
+const LINE_INK: f32 = 1.0;   // px
+@vertex fn vs_aaline(@builtin(vertex_index) vi: u32, @location(0) p0: vec3<f32>, @location(1) c0: vec4<f32>,
+                     @location(2) p1: vec3<f32>, @location(3) c1: vec4<f32>) -> AOut {
+  var a = cam.vp * vec4<f32>(p0, 1.0);
+  var b = cam.vp * vec4<f32>(p1, 1.0);
+  var ca = c0; var cb = c1;
+  var o: AOut;
+  if (a.z < 0.0 && b.z < 0.0) { o.pos = vec4<f32>(0.0, 0.0, -1.0, 1.0); o.c = vec4<f32>(0.0); o.d = 9.0; return o; }
+  if (a.z < 0.0) { let t = a.z / (a.z - b.z); a = mix(a, b, t); ca = mix(c0, c1, t); }
+  if (b.z < 0.0) { let t = b.z / (b.z - a.z); b = mix(b, a, t); cb = mix(c1, c0, t); }
+  let half_vp = 0.5 * vec2<f32>(cam.eye.w, cam.px.w);
+  let sa = a.xy / a.w * half_vp;
+  let sb = b.xy / b.w * half_vp;
+  var dir = sb - sa;
+  let l = length(dir);
+  dir = select(vec2<f32>(1.0, 0.0), dir / l, l > 1e-6);
+  let nrm = vec2<f32>(-dir.y, dir.x);
+  var corner = array<vec2<f32>, 6>(vec2(0., -1.), vec2(1., -1.), vec2(1., 1.), vec2(0., -1.), vec2(1., 1.), vec2(0., 1.));
+  let k = corner[vi];
+  let ext = 0.5 * LINE_INK + 0.5;   // half the ink + half the filter
+  let p = select(a, b, k.x > 0.5);
+  let off = nrm * (k.y * ext) + dir * (select(-1.0, 1.0, k.x > 0.5) * 0.5 * LINE_INK);
+  o.pos = p + vec4<f32>(off / half_vp * p.w, 0.0, 0.0);
+  o.c = select(ca, cb, k.x > 0.5);
+  o.d = k.y * ext;
+  return o;
+}
+@fragment fn fs_aaline(i: AOut) -> @location(0) vec4<f32> {
+  let cover = clamp(0.5 * LINE_INK + 0.5 - abs(i.d), 0.0, 1.0);
+  return vec4<f32>(i.c.rgb, i.c.a * cover);
+}
 
 // E4b - A BEAM'S VOLUME (Beams.tsx VERT / FRAG and its node build): an additive cone of haze, apex at the lens.
 // The instance scale is non-uniform (thin in x / y, long in z), so the normal takes the inverse scale first.
@@ -863,6 +900,8 @@ pub fn present(gpu: Arc<Gpu>, window: Arc<Window>, surface: wgpu::Surface<'stati
     let mut post = crate::post::Post::new(d, surf_format);
     let mut ao = crate::ao::Ao::new(d, true);
     let mut ao1 = crate::ao::Ao::new(d, false);   // D1: over the G-buffer's single-sample depth
+    // D1-2: the deferred path's anti-aliasing — the editor's SMAA, after the tone map (smaa.rs).
+    let mut smaa = deferred_on().then(|| crate::smaa::Smaa::new(d, &gpu.queue, surf_format));
     let mut depth_gen = 0usize;
     let module = d.create_shader_module(wgpu::ShaderModuleDescriptor { label: Some("view3d"), source: wgpu::ShaderSource::Wgsl(scene_wgsl().into()) });
 
@@ -938,6 +977,16 @@ pub fn present(gpu: Arc<Gpu>, window: Arc<Window>, surface: wgpu::Surface<'stati
         depth_stencil: ds(false), multisample: ms, multiview_mask: None, cache: None,
     });
     let (flat_line_pipe, flat_line_pipe1) = (mk_flat_line_pipe(ms), mk_flat_line_pipe(ms1));
+    // D1-2: the same line lists as anti-aliased strips — one instance per segment, straight from the same buffers.
+    let aaline_pipe = d.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+        label: Some("aa lines"), layout: Some(&cam_pl),
+        vertex: wgpu::VertexState { module: &module, entry_point: Some("vs_aaline"), compilation_options: Default::default(), buffers: &[Some(wgpu::VertexBufferLayout {
+            array_stride: 56, step_mode: wgpu::VertexStepMode::Instance, attributes: &wgpu::vertex_attr_array![0 => Float32x3, 1 => Float32x4, 2 => Float32x3, 3 => Float32x4] })] },
+        fragment: Some(wgpu::FragmentState { module: &module, entry_point: Some("fs_aaline"), targets: &[Some(wgpu::ColorTargetState {
+            format, blend: Some(wgpu::BlendState::ALPHA_BLENDING), write_mask: wgpu::ColorWrites::ALL })], compilation_options: Default::default() }),
+        primitive: wgpu::PrimitiveState { cull_mode: None, ..Default::default() },
+        depth_stencil: ds(false), multisample: ms1, multiview_mask: None, cache: None,
+    });
     // The gizmo's handles: flat-coloured triangles drawn OVER everything (depth ignored), as TransformControls'.
     let mk_handle_pipe = |ms: wgpu::MultisampleState| d.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
         label: Some("gizmo"), layout: Some(&cam_pl),
@@ -1195,6 +1244,7 @@ pub fn present(gpu: Arc<Gpu>, window: Arc<Window>, surface: wgpu::Surface<'stati
                     wgpu::BindGroupEntry { binding: 4, resource: inv_vp_buf.as_entire_binding() },
                 ] });
                 defer = Some(Defer { gb, depth, bind });
+                if let Some(sm) = smaa.as_mut() { sm.ensure(d, size.width, size.height); }
             }
             configured = Some(size);
         }
@@ -1329,7 +1379,7 @@ pub fn present(gpu: Arc<Gpu>, window: Arc<Window>, surface: wgpu::Surface<'stati
         let px = 2.0 * (cam.fov.to_radians() / 2.0).tan() / size.height as f32;
         let mut cu = Vec::with_capacity(24);
         let look = scene.as_ref().map(|s| s.look.clone()).unwrap_or_default();
-        cu.extend_from_slice(&vp); cu.extend_from_slice(&[eye[0], eye[1], eye[2], 1.0]); cu.extend_from_slice(&[px, look.haze, look.rendered as u32 as f32, 0.0]);
+        cu.extend_from_slice(&vp); cu.extend_from_slice(&[eye[0], eye[1], eye[2], size.width as f32]); cu.extend_from_slice(&[px, look.haze, look.rendered as u32 as f32, size.height as f32]);
 
         // The beams, from this tick's resolved states.
         // The selected model's outline: the twelve edges of its world bounds, in the accent.
@@ -1690,7 +1740,12 @@ pub fn present(gpu: Arc<Gpu>, window: Arc<Window>, surface: wgpu::Surface<'stati
                 pass.draw_indexed(0..cube.2, 0, 0..1);
             }
             };
-            type Pp<'p> = (&'p wgpu::RenderPipeline, &'p wgpu::RenderPipeline, &'p wgpu::RenderPipeline, &'p wgpu::RenderPipeline, &'p wgpu::RenderPipeline);
+            type Pp<'p> = (&'p wgpu::RenderPipeline, &'p wgpu::RenderPipeline, &'p wgpu::RenderPipeline, &'p wgpu::RenderPipeline, &'p wgpu::RenderPipeline, bool);
+            // A line list (`n` vertices, two per segment): as GPU lines under MSAA, or (pp.5, D1-2) as AA strips.
+            let lines = |pass: &mut wgpu::RenderPass<'_>, pp: &Pp<'_>, b: &wgpu::Buffer, n: u32| {
+                pass.set_vertex_buffer(0, b.slice(..));
+                if pp.5 { pass.set_pipeline(&aaline_pipe); pass.draw(0..6, 0..n / 2); } else { pass.set_pipeline(pp.2); pass.draw(0..n, 0..1); }
+            };
             let draw_rest = |pass: &mut wgpu::RenderPass<'_>, pp: Pp<'_>| {
             if let Some((pb, cb, n)) = &led_bufs {
                 pass.set_pipeline(pp.0);
@@ -1705,17 +1760,9 @@ pub fn present(gpu: Arc<Gpu>, window: Arc<Window>, surface: wgpu::Surface<'stati
                 pass.set_index_buffer(cone.1.slice(..), wgpu::IndexFormat::Uint32);
                 pass.draw_indexed(0..cone.2, 0, 0..n_cones);
             }
-            if let (Some(lb), true) = (&beam_lines, n_beam_verts > 0) {
-                pass.set_pipeline(pp.2);
-                pass.set_vertex_buffer(0, lb.slice(..));
-                pass.draw(0..n_beam_verts, 0..1);
-            }
+            if let (Some(lb), true) = (&beam_lines, n_beam_verts > 0) { lines(pass, &pp, lb, n_beam_verts); }
             if scene.as_ref().is_none_or(|s| s.grid.visible) {
-                if let Some((gb, n)) = &grid_lines {
-                    pass.set_pipeline(pp.2);
-                    pass.set_vertex_buffer(0, gb.slice(..));
-                    pass.draw(0..*n, 0..1);
-                }
+                if let Some((gb, n)) = &grid_lines { lines(pass, &pp, gb, *n); }
             }
             if let (Some(lb), Some(bind), true) = (&label_buf, &label_bind, n_label_verts > 0) {
                 pass.set_pipeline(pp.3);
@@ -1723,16 +1770,8 @@ pub fn present(gpu: Arc<Gpu>, window: Arc<Window>, surface: wgpu::Surface<'stati
                 pass.set_vertex_buffer(0, lb.slice(..));
                 pass.draw(0..n_label_verts, 0..1);
             }
-            if let Some((ob, n)) = &overlay {
-                pass.set_pipeline(pp.2);
-                pass.set_vertex_buffer(0, ob.slice(..));
-                pass.draw(0..*n, 0..1);
-            }
-            if let Some((ob, n)) = &model_outline {
-                pass.set_pipeline(pp.2);
-                pass.set_vertex_buffer(0, ob.slice(..));
-                pass.draw(0..*n, 0..1);
-            }
+            if let Some((ob, n)) = &overlay { lines(pass, &pp, ob, *n); }
+            if let Some((ob, n)) = &model_outline { lines(pass, &pp, ob, *n); }
             if let (Some(gb), true) = (&gnomon_buf, n_gnomon > 0) {
                 pass.set_pipeline(pp.4);
                 pass.set_vertex_buffer(0, gb.slice(..));
@@ -1784,7 +1823,7 @@ pub fn present(gpu: Arc<Gpu>, window: Arc<Window>, surface: wgpu::Surface<'stati
                         ..Default::default()
                     });
                     pass.set_bind_group(0, &cam_bind, &[]);
-                    draw_rest(&mut pass, (&led_pipe1, &beam_pipe1, &flat_line_pipe1, &label_pipe1, &handle_pipe1));
+                    draw_rest(&mut pass, (&led_pipe1, &beam_pipe1, &flat_line_pipe1, &label_pipe1, &handle_pipe1, true));
                 }
             } else {
                 let mut pass = enc.begin_render_pass(&wgpu::RenderPassDescriptor {
@@ -1799,7 +1838,7 @@ pub fn present(gpu: Arc<Gpu>, window: Arc<Window>, surface: wgpu::Surface<'stati
                 pass.set_bind_group(2, &no_depth_bind, &[]);
                 pass.set_bind_group(3, &light_bind, &[]);
                 draw_opaque(&mut pass);
-                draw_rest(&mut pass, (&led_pipe, &beam_pipe, &flat_line_pipe, &label_pipe, &handle_pipe));
+                draw_rest(&mut pass, (&led_pipe, &beam_pipe, &flat_line_pipe, &label_pipe, &handle_pipe, false));
             }
             // Rendered: ambient occlusion from the pass's own depth, laid into the frame before the bloom (ao.rs).
             if look.rendered {
@@ -1812,7 +1851,11 @@ pub fn present(gpu: Arc<Gpu>, window: Arc<Window>, surface: wgpu::Surface<'stati
             }
         }
         // The last step: bloom + AgX in Rendered, a straight copy in Shaded (post.rs).
-        post.finish(&gpu.queue, &mut enc, &view, look.rendered);
+        // D1-2: deferred Rendered has no MSAA — the tone-mapped frame goes through SMAA on its way to the window.
+        match smaa.as_ref().filter(|_| look.rendered && defer.is_some()).and_then(|sm| sm.ldr().map(|l| (sm, l))) {
+            Some((sm, ldr)) => { post.finish(&gpu.queue, &mut enc, ldr, true); sm.run(&mut enc, &view); }
+            None => post.finish(&gpu.queue, &mut enc, &view, look.rendered),
+        }
         gpu.queue.submit([enc.finish()]);
         crate::prof::add("v.encode", encode_at.elapsed());
         window.pre_present_notify();
