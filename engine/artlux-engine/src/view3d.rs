@@ -672,21 +672,45 @@ fn material(i: VOut, front: bool) -> Mat {
     base = base * t;
   }
   base = vec4<f32>(base.rgb * vis, base.a);
-  var n = normalize(i.n);
+  return Mat(base.rgb, facing(i.n, front), obj.flags.y > 0.5);
+}
+// The normal towards the viewer's side (a double-sided surface seen from behind is lit on that side).
+fn facing(n0: vec3<f32>, front: bool) -> vec3<f32> {
+  var n = normalize(n0);
   if (!front) { n = -n; }
-  return Mat(base.rgb, n, obj.flags.y > 0.5);
+  return n;
+}
+// A material shaded in place (forward) — every opaque fragment, a mesh's or a housing's, goes through here.
+fn shade(m: Mat, w: vec3<f32>) -> vec4<f32> {
+  if (m.unlit) { return vec4<f32>(m.base, 1.0); }
+  return vec4<f32>(lit_surface(m.base, m.n, w), 1.0);
 }
 @fragment fn fs_mesh(i: VOut, @builtin(front_facing) front: bool) -> @location(0) vec4<f32> {
-  let m = material(i, front);
-  if (m.unlit) { return vec4<f32>(m.base, 1.0); }
-  return vec4<f32>(lit_surface(m.base, m.n, i.w), 1.0);
+  return shade(material(i, front), i.w);
+}
+// V5 — THE HOUSINGS, INSTANCED: every head's 0.3 m box in ONE draw per pass (and per shadow map) instead of one
+// draw — and one uniform buffer + bind group — per head. An instance is (centre, size) + its colour (grey, or the
+// selection accent): a housing is unrotated, plain colour, lit — exactly what its per-head Obj said before.
+struct HOut { @builtin(position) pos: vec4<f32>, @location(0) n: vec3<f32>, @location(1) w: vec3<f32>, @location(2) c: vec3<f32> };
+@vertex fn vs_house(@location(0) p: vec3<f32>, @location(1) n: vec3<f32>, @location(3) at: vec4<f32>, @location(4) c: vec4<f32>) -> HOut {
+  var o: HOut;
+  o.w = p * at.w + at.xyz;
+  o.pos = cam.vp * vec4<f32>(o.w, 1.0);
+  o.n = n;
+  o.c = c.rgb;
+  return o;
+}
+fn house_mat(i: HOut, front: bool) -> Mat { return Mat(i.c, facing(i.n, front), false); }
+@fragment fn fs_house(i: HOut, @builtin(front_facing) front: bool) -> @location(0) vec4<f32> {
+  return shade(house_mat(i, front), i.w);
 }
 // D1 — THE G-BUFFER (Rendered, deferred): what fs_light needs to shade the pixel later, once. GB0 albedo, GB1 the
 // normal, GB2 emitted light + the UNLIT flag (a picture passes straight through — never through an 8-bit albedo:
 // all three are 16-bit float, so the re-plumb changes no shade). The world position is rebuilt from the depth.
 struct GBOut { @location(0) albedo: vec4<f32>, @location(1) normal: vec4<f32>, @location(2) emis: vec4<f32> };
-@fragment fn fs_gbuf(i: VOut, @builtin(front_facing) front: bool) -> GBOut {
-  let m = material(i, front);
+@fragment fn fs_gbuf(i: VOut, @builtin(front_facing) front: bool) -> GBOut { return gbuf(material(i, front)); }
+@fragment fn fs_house_gbuf(i: HOut, @builtin(front_facing) front: bool) -> GBOut { return gbuf(house_mat(i, front)); }
+fn gbuf(m: Mat) -> GBOut {
   var o: GBOut;
   if (m.unlit) {
     o.albedo = vec4<f32>(0.0); o.normal = vec4<f32>(0.0); o.emis = vec4<f32>(m.base, 1.0);
@@ -825,6 +849,7 @@ struct DOut { @builtin(position) pos: vec4<f32>, @location(0) d: f32 };
 @fragment fn fs_depth(i: DOut) -> @location(0) vec4<f32> { return vec4<f32>(i.d, 0.0, 0.0, 1.0); }
 // A spot's shadow map: depth only.
 @vertex fn vs_shadow(@location(0) p: vec3<f32>) -> @builtin(position) vec4<f32> { return cam.vp * (obj.model * vec4<f32>(p, 1.0)); }
+@vertex fn vs_house_shadow(@location(0) p: vec3<f32>, @location(3) at: vec4<f32>) -> @builtin(position) vec4<f32> { return cam.vp * vec4<f32>(p * at.w + at.xyz, 1.0); }
 "#;
 
 // D1 — THE LIGHTING PASS: every G-buffer pixel shaded once, with the forward pass's own LIGHTS_WGSL. Groups: 0 the
@@ -1064,6 +1089,33 @@ pub fn present(gpu: Arc<Gpu>, window: Arc<Window>, surface: wgpu::Surface<'stati
         depth_stencil: Some(wgpu::DepthStencilState { format: DEPTH, depth_write_enabled: Some(true), depth_compare: Some(wgpu::CompareFunction::LessEqual), stencil: Default::default(), bias: Default::default() }),
         multisample: Default::default(), multiview_mask: None, cache: None,
     });
+    // V5: the housings' pipelines — the cube's vertices (32 B: position, normal, uv) + one instance per head (32 B:
+    // centre + size, colour). Groups: the camera and the lights; no per-object group at all.
+    const HOUSE_V: [wgpu::VertexAttribute; 2] = wgpu::vertex_attr_array![0 => Float32x3, 1 => Float32x3];
+    const HOUSE_V_SHADOW: [wgpu::VertexAttribute; 1] = wgpu::vertex_attr_array![0 => Float32x3];
+    const HOUSE_I: [wgpu::VertexAttribute; 2] = wgpu::vertex_attr_array![3 => Float32x4, 4 => Float32x4];
+    let house_vb = |inst: bool| [
+        Some(wgpu::VertexBufferLayout { array_stride: 32, step_mode: wgpu::VertexStepMode::Vertex, attributes: if inst { &HOUSE_V } else { &HOUSE_V_SHADOW } }),
+        Some(wgpu::VertexBufferLayout { array_stride: HOUSE_BYTES, step_mode: wgpu::VertexStepMode::Instance, attributes: &HOUSE_I }),
+    ];
+    let house_pl = d.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor { label: None, bind_group_layouts: &[Some(&cam_layout), None, None, Some(&light_layout)], immediate_size: 0 });
+    let mk_house = |fs: &str, targets: &[Option<wgpu::ColorTargetState>], ms: wgpu::MultisampleState| d.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+        label: Some("housings"), layout: Some(&house_pl),
+        vertex: wgpu::VertexState { module: &module, entry_point: Some("vs_house"), compilation_options: Default::default(), buffers: &house_vb(true) },
+        fragment: Some(wgpu::FragmentState { module: &module, entry_point: Some(fs), targets, compilation_options: Default::default() }),
+        primitive: wgpu::PrimitiveState { cull_mode: None, ..Default::default() },
+        depth_stencil: ds(true), multisample: ms, multiview_mask: None, cache: None,
+    });
+    let house_pipe = mk_house("fs_house", &[Some(format.into())], ms);
+    let house_gbuf_pipe = mk_house("fs_house_gbuf", &[Some(GBUF.into()), Some(GBUF.into()), Some(GBUF.into())], ms1);
+    let house_shadow_pipe = d.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+        label: Some("housing shadows"), layout: Some(&cam_pl),
+        vertex: wgpu::VertexState { module: &module, entry_point: Some("vs_house_shadow"), compilation_options: Default::default(), buffers: &house_vb(false) },
+        fragment: None,
+        primitive: wgpu::PrimitiveState { cull_mode: None, ..Default::default() },
+        depth_stencil: Some(wgpu::DepthStencilState { format: DEPTH, depth_write_enabled: Some(true), depth_compare: Some(wgpu::CompareFunction::LessEqual), stencil: Default::default(), bias: Default::default() }),
+        multisample: Default::default(), multiview_mask: None, cache: None,
+    });
     let depth_pipe = d.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
         label: Some("projector depth"), layout: Some(&depth_pl),
         vertex: wgpu::VertexState { module: &module, entry_point: Some("vs_depth"), compilation_options: Default::default(), buffers: &[Some(wgpu::VertexBufferLayout {
@@ -1187,7 +1239,7 @@ pub fn present(gpu: Arc<Gpu>, window: Arc<Window>, surface: wgpu::Surface<'stati
     let mut plane_tex: HashMap<String, (u64, wgpu::Texture)> = HashMap::new();
     let mut depths: HashMap<String, DepthMap> = HashMap::new();         // model id → its projector's depth map
     let mut depth_dirty = true;
-    let mut lights: Vec<(wgpu::Buffer, wgpu::BindGroup)> = Vec::new();
+    let mut houses: Option<(wgpu::Buffer, u32)> = None;   // V5: the housings' instances (house_insts)
     let mut led_bufs: Option<(wgpu::Buffer, wgpu::Buffer, u32)> = None;
     let mut overlay: Option<(wgpu::Buffer, u32)> = None;
     let mut scene_ver = 0u64;
@@ -1267,13 +1319,8 @@ pub fn present(gpu: Arc<Gpu>, window: Arc<Window>, surface: wgpu::Surface<'stati
                 // Light housings: 0.3 m boxes at each light.
                 // Light housings: 0.3 m boxes at each light — in the ACCENT when the editor has it selected
                 // (E4b; FixtureBodies' #27b6c4, linear), so a click here shows what it picked.
-                lights = sc.lights.iter().map(|l| (l.pos, sc.look.selected.contains(&l.id))).map(|(p, sel)| {
-                    let ub = obj_ub();
-                    let m = [0.3, 0., 0., 0., 0., 0.3, 0., 0., 0., 0., 0.3, 0., p[0], p[1], p[2], 1.];
-                    write_obj(&ub, &m, if sel { [ACCENT[0], ACCENT[1], ACCENT[2], 1.0] } else { [0.16, 0.16, 0.17, 1.0] }, [0.0; 4]);
-                    let b = obj_bind(&ub, &white_view);
-                    (ub, b)
-                }).collect();
+                let hv = house_insts(sc, |_, p| p);
+                houses = (!hv.is_empty()).then(|| (buf_init(&gpu, "housings", &bytes(&hv), wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST), sc.lights.len() as u32));
                 // LED positions: one instance buffer for the whole rig (colours follow below).
                 let pos: Vec<f32> = sc.leds.iter().flat_map(|f| f.pos.iter().copied()).collect();
                 let n = (pos.len() / 3) as u32;
@@ -1418,12 +1465,7 @@ pub fn present(gpu: Arc<Gpu>, window: Arc<Window>, surface: wgpu::Surface<'stati
         if want_drawn != drag_drawn {
             if let Some(s) = &scene {
                 let mv = |id: &str, p: [f32; 3]| -> [f32; 3] { match drag.as_ref().filter(|d| d.ids.contains(id)) { Some(d) => d.apply(p), None => p } };
-                for (l, (ub, _)) in s.lights.iter().zip(&lights) {
-                    let p = mv(&l.id, l.pos);
-                    let sel = s.look.selected.contains(&l.id);
-                    let m = [0.3, 0., 0., 0., 0., 0.3, 0., 0., 0., 0., 0.3, 0., p[0], p[1], p[2], 1.];
-                    write_obj(ub, &m, if sel { [ACCENT[0], ACCENT[1], ACCENT[2], 1.0] } else { [0.16, 0.16, 0.17, 1.0] }, [0.0; 4]);
-                }
+                if let Some((hb, _)) = &houses { gpu.queue.write_buffer(hb, 0, &bytes(&house_insts(s, mv))); }
                 if let Some((pb, _, _)) = &led_bufs {
                     let pos: Vec<f32> = s.leds.iter().flat_map(|f| f.pos.chunks_exact(3).flat_map(|p| mv(&f.id, [p[0], p[1], p[2]])).collect::<Vec<_>>()).collect();
                     gpu.queue.write_buffer(pb, 0, &bytes(&pos));
@@ -1659,11 +1701,12 @@ pub fn present(gpu: Arc<Gpu>, window: Arc<Window>, surface: wgpu::Surface<'stati
                             }
                         }
                     }
-                    for (_, b) in &lights {
-                        pass.set_bind_group(1, b, &[]);
+                    if let Some((hb, n)) = &houses {
+                        pass.set_pipeline(&house_shadow_pipe);
                         pass.set_vertex_buffer(0, cube.0.slice(..));
+                        pass.set_vertex_buffer(1, hb.slice(..));
                         pass.set_index_buffer(cube.1.slice(..), wgpu::IndexFormat::Uint32);
-                        pass.draw_indexed(0..cube.2, 0, 0..1);
+                        pass.draw_indexed(0..cube.2, 0, 0..*n);
                     }
                 }
             }
@@ -1713,7 +1756,7 @@ pub fn present(gpu: Arc<Gpu>, window: Arc<Window>, surface: wgpu::Surface<'stati
             // The OPAQUE geometry — Rendered's floor, the venue models and screens, the housings — under the mesh layout
             // (whichever of fs_mesh / fs_gbuf the pass set), and everything ELSE drawn over it: the LEDs, the beams, the
             // lines, the labels, the gizmo — with the pipelines of the pass's sample count (`pp`).
-            let draw_opaque = |pass: &mut wgpu::RenderPass<'_>| {
+            let draw_opaque = |pass: &mut wgpu::RenderPass<'_>, house: &wgpu::RenderPipeline| {
             // Rendered's floor, under everything.
             if look.rendered {
                 pass.set_bind_group(1, &floor_bind, &[]);
@@ -1743,11 +1786,13 @@ pub fn present(gpu: Arc<Gpu>, window: Arc<Window>, surface: wgpu::Surface<'stati
                     }
                 }
             }
-            for (_, b) in &lights {
-                pass.set_bind_group(1, b, &[]);
+            // The housings last: one instanced draw, under their own pipeline (the caller's is not restored).
+            if let Some((hb, n)) = &houses {
+                pass.set_pipeline(house);
                 pass.set_vertex_buffer(0, cube.0.slice(..));
+                pass.set_vertex_buffer(1, hb.slice(..));
                 pass.set_index_buffer(cube.1.slice(..), wgpu::IndexFormat::Uint32);
-                pass.draw_indexed(0..cube.2, 0, 0..1);
+                pass.draw_indexed(0..cube.2, 0, 0..*n);
             }
             };
             type Pp<'p> = (&'p wgpu::RenderPipeline, &'p wgpu::RenderPipeline, &'p wgpu::RenderPipeline, &'p wgpu::RenderPipeline, &'p wgpu::RenderPipeline, bool);
@@ -1810,7 +1855,7 @@ pub fn present(gpu: Arc<Gpu>, window: Arc<Window>, surface: wgpu::Surface<'stati
                     pass.set_pipeline(&gbuf_pipe);
                     pass.set_bind_group(2, &no_depth_bind, &[]);
                     pass.set_bind_group(3, &light_bind, &[]);
-                    draw_opaque(&mut pass);
+                    draw_opaque(&mut pass, &house_gbuf_pipe);
                 }
                 {
                     let mut pass = enc.begin_render_pass(&wgpu::RenderPassDescriptor {
@@ -1847,7 +1892,7 @@ pub fn present(gpu: Arc<Gpu>, window: Arc<Window>, surface: wgpu::Surface<'stati
                 pass.set_pipeline(&mesh_pipe);
                 pass.set_bind_group(2, &no_depth_bind, &[]);
                 pass.set_bind_group(3, &light_bind, &[]);
-                draw_opaque(&mut pass);
+                draw_opaque(&mut pass, &house_pipe);
                 draw_rest(&mut pass, (&led_pipe, &beam_pipe, &flat_line_pipe, &label_pipe, &handle_pipe, false));
             }
             // Rendered: ambient occlusion from the pass's own depth, laid into the frame before the bloom (ao.rs).
@@ -1874,6 +1919,18 @@ pub fn present(gpu: Arc<Gpu>, window: Arc<Window>, surface: wgpu::Surface<'stati
         crate::prof::add("frame", frame_at.elapsed());
         crate::prof::report("view3d");
     }
+}
+
+/// V5: one housing instance per head — its centre (moved by `mv`, a drag in progress) and size, and its colour: the
+/// selection ACCENT when the editor has it selected (E4b; FixtureBodies' #27b6c4, linear), else the housing grey.
+const HOUSE_BYTES: u64 = 32;
+const HOUSE_SIZE: f32 = 0.3;
+fn house_insts(sc: &Scene, mv: impl Fn(&str, [f32; 3]) -> [f32; 3]) -> Vec<f32> {
+    sc.lights.iter().flat_map(|l| {
+        let p = mv(&l.id, l.pos);
+        let c = if sc.look.selected.contains(&l.id) { [ACCENT[0], ACCENT[1], ACCENT[2], 1.0] } else { [0.16, 0.16, 0.17, 1.0] };
+        [p[0], p[1], p[2], HOUSE_SIZE, c[0], c[1], c[2], c[3]]
+    }).collect()
 }
 
 /// The inverse of a column-major 4 × 4 (cofactors), or the identity for a singular one.

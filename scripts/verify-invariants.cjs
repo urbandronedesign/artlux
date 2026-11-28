@@ -10452,10 +10452,15 @@ check(
       if (!/lit_surface\(/.test(pass)) problems.push('fs_light no longer shades with lit_surface()');
       if (/spot_light|spot_shadow|mix\(0\.18, 0\.42/.test(pass.replace(/lit_surface\(/g, ''))) problems.push('the lighting pass carries its own copy of the spots / shadows / fill');
     }
-    const fwd = (v.split('@fragment fn fs_mesh(')[1] || '').split('\n}')[0];
-    if (!/material\(i, front\)/.test(fwd) || !/lit_surface\(m\.base, m\.n, i\.w\)/.test(fwd)) problems.push('fs_mesh no longer shades material() with lit_surface()');
-    const gb = (v.split('@fragment fn fs_gbuf(')[1] || '').split('\n}')[0];
-    if (!/material\(i, front\)/.test(gb)) problems.push('fs_gbuf no longer writes material()');
+    // V5 split the tail into shade(Mat) / gbuf(Mat) so the instanced housings share them: every opaque fragment —
+    // a mesh's (material) or a housing's (house_mat) — is shaded by ONE shade() and packed by ONE gbuf().
+    const fn_ = (name) => (v.split(`fn ${name}(`)[1] || '').split('\n}')[0];
+    if (!/lit_surface\(m\.base, m\.n, w\)/.test(fn_('shade'))) problems.push('shade() no longer lights a Mat with lit_surface()');
+    if (!/return shade\(material\(i, front\), i\.w\);/.test(fn_('fs_mesh'))) problems.push('fs_mesh no longer shades material() through shade()');
+    if (!/return shade\(house_mat\(i, front\), i\.w\);/.test(fn_('fs_house'))) problems.push('fs_house no longer shades through shade()');
+    if (!/@fragment fn fs_gbuf\(i: VOut, @builtin\(front_facing\) front: bool\) -> GBOut \{ return gbuf\(material\(i, front\)\); \}/.test(v)) problems.push('fs_gbuf no longer writes material() through gbuf()');
+    if (!/@fragment fn fs_house_gbuf\(i: HOut, @builtin\(front_facing\) front: bool\) -> GBOut \{ return gbuf\(house_mat\(i, front\)\); \}/.test(v)) problems.push('fs_house_gbuf no longer writes through gbuf()');
+    if ((v.match(/lit_surface\(/g) || []).length !== 3) problems.push('lit_surface() is called from somewhere new (expected: its definition, shade(), fs_light) — a second shading path');
     if (!/const GBUF: wgpu::TextureFormat = wgpu::TextureFormat::Rgba16Float;/.test(v)) problems.push('the G-buffer is no longer 16-bit float — the re-plumb would round shades the forward path does not');
     return problems.length ? problems.join('; ') : null;
   },
@@ -10486,6 +10491,27 @@ check(
     // on first need — allocating the 4× MSAA pair AND the G-buffer for every size cost ~400 MB at 4K for nothing.
     if (!/std::env::var\("ARTLUX_VIEW3D_DEFERRED"\)\.map_or\(true, \|v\| v != "0"\)/.test(v)) problems.push('deferred is no longer Rendered\'s default with ARTLUX_VIEW3D_DEFERRED=0 as the fallback');
     if (!/targets = None;\s*defer = None;/.test(v) || !/\} else if targets\.is_none\(\) \{/.test(v)) problems.push('the MSAA / G-buffer targets are no longer made on first need (both sets would be allocated for every size)');
+    return problems.length ? problems.join('; ') : null;
+  },
+);
+
+check(
+  'the 3D view draws the heads\' housings INSTANCED — one draw per pass and per shadow map, never one per head',
+  'V5 (plans/engine-optimisation-and-deferred-3d.md §4.5, 2026-11-28). Measured before it: with every head moving, ' +
+  'the 8 spot shadow maps are redrawn each 3D frame and each drew every housing one by one — 8 × 300 = 2 400 draws ' +
+  '(+300 in the view), ~1 ms of the 3D thread\'s CPU at 300 heads, growing with the rig. Instanced (one buffer of ' +
+  'centre + size + colour, house_insts): 300 heads moving on the big venue, v.encode p50 1.83 → 0.71 ms, v.shadow ' +
+  '0.22 → 0.02 ms, the engine 12.9 → 9.0 % of a core, GPU unchanged; the look identical. A per-head draw loop coming ' +
+  'back costs that again, silently.',
+  () => {
+    const problems = [];
+    const v = raw('engine/artlux-engine/src/view3d.rs');
+    if (/for \(_, b\) in &lights/.test(v)) problems.push('a per-head housing draw loop is back');
+    const draws = v.match(/pass\.draw_indexed\(0\.\.cube\.2, 0, 0\.\.\*n\);/g) || [];
+    if (draws.length !== 2) problems.push(`expected the cube drawn instanced twice (the shadow maps, the view) — found ${draws.length}`);
+    if (!/pass\.set_pipeline\(&house_shadow_pipe\);/.test(v)) problems.push('the shadow maps no longer draw the housings with house_shadow_pipe');
+    if (!/draw_opaque\(&mut pass, &house_gbuf_pipe\);/.test(v) || !/draw_opaque\(&mut pass, &house_pipe\);/.test(v)) problems.push('the deferred / forward passes no longer draw the housings with their instanced pipelines');
+    if (!/gpu\.queue\.write_buffer\(hb, 0, &bytes\(&house_insts\(s, mv\)\)\)/.test(v)) problems.push('a drag no longer moves the housings (their instances are not rewritten)');
     return problems.length ? problems.join('; ') : null;
   },
 );

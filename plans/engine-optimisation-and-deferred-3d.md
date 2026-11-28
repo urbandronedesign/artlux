@@ -953,6 +953,29 @@ and an embedded `sharedTexture` in the editor are presentation targets of the sa
 > targets. **D1 is closed**; what is left of §4.5 is V5 (instanced housings — the shadow-draw cost measured above) and
 > D2+ (many lights), each its own step.
 
+> ✅ **V5 done 2026-11-28 (owner: "go") — the housings are INSTANCED.** One instance buffer (`house_insts`: centre +
+> size, colour — the grey or the selection accent; rewritten on a selection / drag as the per-head uniforms were)
+> and one indexed draw of the cube per pass: the view (`house_pipe` forward, `house_gbuf_pipe` deferred) and each
+> spot's shadow map (`house_shadow_pipe`). No per-head uniform buffer or bind group any more. The shader tail was
+> split so a housing goes through the SAME `shade()` / `gbuf()` as a mesh (`house_mat` instead of `material`) — the
+> D1 guard now holds both, and that `lit_surface` has exactly its two callers. **Measured**, back to back on the
+> packaged build, 300 heads all moving on the big venue (D0 bench `--heads=300 --move=300 --venue=big`):
+>
+> | | before (D1-3) | V5 |
+> |---|---|---|
+> | heads moving, camera still: 3D `v.encode` p50 | 1.83 ms | **0.71 ms** |
+> | — `v.shadow` p50 | 0.22 ms | **0.02 ms** |
+> | — engine CPU | 12.9 % of a core | **9.0 %** |
+> | + camera orbiting: `v.encode` p50 / engine CPU | 1.55 ms / 20.5 % | **0.86 ms / 15.6 %** |
+> | GPU load | 14.8 / 14.1 % | 14.7 / 13.7 % |
+>
+> The CPU cost of moving heads no longer grows with the rig (GPU was never the issue on the 5090). The look is
+> unchanged: lighting example deferred and forward equal their pre-V5 captures (a few pixels, on edges);
+> interactive-show differs less from pre-V5 than from ITSELF across two runs (its content moves). test:engine-shadows
+> / --ao / beams (selection, pick, gizmo drag — the accent housings follow, by eye) / view-place pass deferred, shadows
+> + beams with `ARTLUX_VIEW3D_DEFERRED=0`. Guarded: no per-head draw loop, the two instanced cube draws, the drag
+> rewrite. **Left of §4.5: D2+ (many lights)** — the deferred path's actual payoff, its own step.
+
 > 📏 **What shadows cost while heads MOVE — measured 2026-11-28** (owner: "the beam lights will move"; the D0 bench
 > grew `--move=N` — two timeline lighting effects sweeping pan and tilt, phase-spread, played — `--venue=panorama|big`,
 > `big` a 694 k-triangle mesh as the heavy-venue stand-in, and `--noshadow` = the new diagnostic
