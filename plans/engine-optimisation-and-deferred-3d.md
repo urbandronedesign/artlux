@@ -943,6 +943,16 @@ and an embedded `sharedTexture` in the editor are presentation targets of the sa
 > the AA-line instance matching the line vertex. **Next, D1-3**: the owner compares both looks; then deferred becomes
 > Rendered's default, MSAA targets are no longer allocated in Rendered, the guards / tests are re-based.
 
+> ✅ **D1-3 done 2026-11-28 (owner: "go") — deferred is Rendered's DEFAULT.** `ARTLUX_VIEW3D_DEFERRED=0` is the way
+> back to forward 4× MSAA (documented in DEVELOPMENT.md beside the engine's other switches); Shaded is always forward.
+> Each look's targets are now made on FIRST NEED at a size and dropped on a resize — the MSAA colour + depth only for a
+> forward frame, the G-buffer + SMAA only for a deferred one (both were allocated for every size before: the MSAA pair
+> alone is ~400 MB at 4K). Re-based: test:engine-shadows / --ao / beams / view-place pass on the default (deferred)
+> AND with =0 (forward: shadows + beams); a default Rendered capture equals the D1-2 one (max 5 levels) and a default
+> Shaded capture equals the pre-D1 one (max 3). Guarded (the D1-2 check): the default + the =0 fallback, the lazy
+> targets. **D1 is closed**; what is left of §4.5 is V5 (instanced housings — the shadow-draw cost measured above) and
+> D2+ (many lights), each its own step.
+
 > 📏 **What shadows cost while heads MOVE — measured 2026-11-28** (owner: "the beam lights will move"; the D0 bench
 > grew `--move=N` — two timeline lighting effects sweeping pan and tilt, phase-spread, played — `--venue=panorama|big`,
 > `big` a 694 k-triangle mesh as the heavy-venue stand-in, and `--noshadow` = the new diagnostic

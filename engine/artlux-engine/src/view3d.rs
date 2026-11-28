@@ -880,10 +880,12 @@ const GBUF: wgpu::TextureFormat = wgpu::TextureFormat::Rgba16Float;
 fn gb_tex(binding: u32) -> wgpu::BindGroupLayoutEntry {
     wgpu::BindGroupLayoutEntry { binding, visibility: wgpu::ShaderStages::FRAGMENT, ty: wgpu::BindingType::Texture { sample_type: wgpu::TextureSampleType::Float { filterable: false }, view_dimension: wgpu::TextureViewDimension::D2, multisampled: false }, count: None }
 }
-/// D1: the deferred path is opt-in while it is judged against the forward one (read once per process).
+/// D1-3: Rendered draws DEFERRED (G-buffer + one lighting pass + SMAA) by default; `ARTLUX_VIEW3D_DEFERRED=0` keeps
+/// the forward 4× MSAA path for a machine where the new one misbehaves (read once per process). Shaded is always
+/// forward + MSAA — it has no lights to defer.
 fn deferred_on() -> bool {
     static ON: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
-    *ON.get_or_init(|| std::env::var("ARTLUX_VIEW3D_DEFERRED").is_ok_and(|v| v == "1"))
+    *ON.get_or_init(|| std::env::var("ARTLUX_VIEW3D_DEFERRED").map_or(true, |v| v != "0"))
 }
 /// D1's per-size targets: GB0 albedo, GB1 normal, GB2 emitted + UNLIT; their depth; the lighting pass's bind group.
 struct Defer { gb: [wgpu::TextureView; 3], depth: wgpu::TextureView, bind: wgpu::BindGroup }
@@ -1213,8 +1215,11 @@ pub fn present(gpu: Arc<Gpu>, window: Arc<Window>, surface: wgpu::Surface<'stati
     }
 
     let mut configured: Option<PhysicalSize<u32>> = None;
+    // Each look's targets are made the first time a frame at this size NEEDS them, and dropped on a resize: the 4×
+    // MSAA colour + depth only for a forward frame (Shaded, or Rendered with deferred off), the G-buffer + SMAA only
+    // for a deferred one — at 4K the MSAA pair alone is ~400 MB, and a view that stays in one look pays for one set.
     let mut targets: Option<(wgpu::TextureView, wgpu::TextureView)> = None;   // (msaa colour, depth)
-    let mut defer: Option<Defer> = None;   // D1: only when deferred_on()
+    let mut defer: Option<Defer> = None;
 
     while !stop.load(Ordering::SeqCst) {
         let size = window.inner_size();
@@ -1225,27 +1230,10 @@ pub fn present(gpu: Arc<Gpu>, window: Arc<Window>, surface: wgpu::Surface<'stati
                 present_mode: wgpu::PresentMode::Fifo, desired_maximum_frame_latency: 2, alpha_mode: caps.alpha_modes[0],
                 view_formats: vec![], color_space: wgpu::SurfaceColorSpace::Auto,
             });
-            // The depth is also READ (ao.rs, Rendered's ambient occlusion), so it is a binding too.
-            let mk = |f: wgpu::TextureFormat| d.create_texture(&wgpu::TextureDescriptor { label: None, size: wgpu::Extent3d { width: size.width, height: size.height, depth_or_array_layers: 1 },
-                mip_level_count: 1, sample_count: SAMPLES, dimension: wgpu::TextureDimension::D2, format: f, usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::TEXTURE_BINDING, view_formats: &[] }).create_view(&Default::default());
             depth_gen += 1;
-            targets = Some((mk(format), mk(DEPTH)));
+            targets = None;
+            defer = None;
             post.ensure(d, size.width, size.height);
-            if deferred_on() {
-                let mk1 = |f: wgpu::TextureFormat, label: &str| d.create_texture(&wgpu::TextureDescriptor { label: Some(label), size: wgpu::Extent3d { width: size.width, height: size.height, depth_or_array_layers: 1 },
-                    mip_level_count: 1, sample_count: 1, dimension: wgpu::TextureDimension::D2, format: f, usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::TEXTURE_BINDING, view_formats: &[] }).create_view(&Default::default());
-                let gb = [mk1(GBUF, "gb0 albedo"), mk1(GBUF, "gb1 normal"), mk1(GBUF, "gb2 emitted")];
-                let depth = mk1(DEPTH, "gbuffer depth");
-                let bind = d.create_bind_group(&wgpu::BindGroupDescriptor { label: Some("gbuffer"), layout: &gb_layout, entries: &[
-                    wgpu::BindGroupEntry { binding: 0, resource: wgpu::BindingResource::TextureView(&gb[0]) },
-                    wgpu::BindGroupEntry { binding: 1, resource: wgpu::BindingResource::TextureView(&gb[1]) },
-                    wgpu::BindGroupEntry { binding: 2, resource: wgpu::BindingResource::TextureView(&gb[2]) },
-                    wgpu::BindGroupEntry { binding: 3, resource: wgpu::BindingResource::TextureView(&depth) },
-                    wgpu::BindGroupEntry { binding: 4, resource: inv_vp_buf.as_entire_binding() },
-                ] });
-                defer = Some(Defer { gb, depth, bind });
-                if let Some(sm) = smaa.as_mut() { sm.ensure(d, size.width, size.height); }
-            }
             configured = Some(size);
         }
 
@@ -1620,7 +1608,29 @@ pub fn present(gpu: Arc<Gpu>, window: Arc<Window>, surface: wgpu::Surface<'stati
         crate::prof::add("v.acquire", acquire_at.elapsed());
         let encode_at = std::time::Instant::now();
         let view = frame.texture.create_view(&Default::default());
-        let (msaa, depth) = targets.as_ref().unwrap();
+        // The targets this frame's look draws into (made on first need at this size — see `targets`).
+        if look.rendered && deferred_on() {
+            if defer.is_none() {
+                let mk1 = |f: wgpu::TextureFormat, label: &str| d.create_texture(&wgpu::TextureDescriptor { label: Some(label), size: wgpu::Extent3d { width: size.width, height: size.height, depth_or_array_layers: 1 },
+                    mip_level_count: 1, sample_count: 1, dimension: wgpu::TextureDimension::D2, format: f, usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::TEXTURE_BINDING, view_formats: &[] }).create_view(&Default::default());
+                let gb = [mk1(GBUF, "gb0 albedo"), mk1(GBUF, "gb1 normal"), mk1(GBUF, "gb2 emitted")];
+                let depth = mk1(DEPTH, "gbuffer depth");
+                let bind = d.create_bind_group(&wgpu::BindGroupDescriptor { label: Some("gbuffer"), layout: &gb_layout, entries: &[
+                    wgpu::BindGroupEntry { binding: 0, resource: wgpu::BindingResource::TextureView(&gb[0]) },
+                    wgpu::BindGroupEntry { binding: 1, resource: wgpu::BindingResource::TextureView(&gb[1]) },
+                    wgpu::BindGroupEntry { binding: 2, resource: wgpu::BindingResource::TextureView(&gb[2]) },
+                    wgpu::BindGroupEntry { binding: 3, resource: wgpu::BindingResource::TextureView(&depth) },
+                    wgpu::BindGroupEntry { binding: 4, resource: inv_vp_buf.as_entire_binding() },
+                ] });
+                defer = Some(Defer { gb, depth, bind });
+                if let Some(sm) = smaa.as_mut() { sm.ensure(d, size.width, size.height); }
+            }
+        } else if targets.is_none() {
+            // The depth is also READ (ao.rs, Rendered's ambient occlusion), so it is a binding too.
+            let mk = |f: wgpu::TextureFormat| d.create_texture(&wgpu::TextureDescriptor { label: None, size: wgpu::Extent3d { width: size.width, height: size.height, depth_or_array_layers: 1 },
+                mip_level_count: 1, sample_count: SAMPLES, dimension: wgpu::TextureDimension::D2, format: f, usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::TEXTURE_BINDING, view_formats: &[] }).create_view(&Default::default());
+            targets = Some((mk(format), mk(DEPTH)));
+        }
         let mut enc = d.create_command_encoder(&Default::default());
 
         // E4b: the spots' shadow maps (Rendered): every caster seen from each spot — the venue meshes that wear their
@@ -1825,7 +1835,7 @@ pub fn present(gpu: Arc<Gpu>, window: Arc<Window>, surface: wgpu::Surface<'stati
                     pass.set_bind_group(0, &cam_bind, &[]);
                     draw_rest(&mut pass, (&led_pipe1, &beam_pipe1, &flat_line_pipe1, &label_pipe1, &handle_pipe1, true));
                 }
-            } else {
+            } else if let Some((msaa, depth)) = targets.as_ref() {
                 let mut pass = enc.begin_render_pass(&wgpu::RenderPassDescriptor {
                     label: Some("view3d"),
                     color_attachments: &[Some(wgpu::RenderPassColorAttachment { view: msaa, depth_slice: None, resolve_target: post.hdr(),
@@ -1845,7 +1855,7 @@ pub fn present(gpu: Arc<Gpu>, window: Arc<Window>, surface: wgpu::Surface<'stati
                 if let (Some(hdr), Some(lit)) = (post.hdr(), post.lit()) {
                     match (deferred, defer.as_ref()) {
                         (true, Some(df)) => ao1.run(d, &gpu.queue, &mut enc, &df.depth, depth_gen, hdr, lit, size.width, size.height, cam.fov, 0.03, 4000.0),
-                        _ => ao.run(d, &gpu.queue, &mut enc, depth, depth_gen, hdr, lit, size.width, size.height, cam.fov, 0.03, 4000.0),
+                        _ => if let Some((_, depth)) = targets.as_ref() { ao.run(d, &gpu.queue, &mut enc, depth, depth_gen, hdr, lit, size.width, size.height, cam.fov, 0.03, 4000.0) },
                     }
                 }
             }

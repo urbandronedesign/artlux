@@ -167,6 +167,10 @@ Two A/B switches from its O3: `ARTLUX_ENGINE_LED_SYNC=1` collects the LED read-b
 default it is collected one tick later — the owner's accepted latency), and `ARTLUX_ENGINE_FRAME_LATENCY=1|2|3` sets
 how many frames a projector swapchain may queue (default 1 — the owner's decision D5; 2 is wgpu's default, the
 fallback if a machine ever misses vblanks under load).
+The engine's 3D window draws **Rendered deferred** (plans/engine-optimisation-and-deferred-3d.md D1: a G-buffer, one
+lighting pass, SMAA after the tone map, lines as anti-aliased strips); `ARTLUX_VIEW3D_DEFERRED=0` puts it back on the
+forward 4× MSAA path — the fallback if a machine draws Rendered wrong. Shaded is always forward. A diagnostic:
+`ARTLUX_VIEW3D_SHADOWS=0` lights the spots without shadow maps (what shadows cost — the plan's 📏 note).
 Proof: `node scripts/test-engine-runtime.cjs` (the engine alone, over stdio) and
 `node scripts/test-native-takeover.cjs [--packaged <ArtLux.exe>]` (the real app: who sends each packet, and
 the bytes) and `node scripts/test-native-projectors.cjs [--windowed] [--ndi [--editor]] [--hwwarp [--no-nvapi]] [--calibrated [--glb] [--distort] [--calib-blend] [--calib-warp [--ndi]] [--calib-occlude] [--calib-own] [--calib-layer] [--calib-refused]] [--hold]` (the real app in

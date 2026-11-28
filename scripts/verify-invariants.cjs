@@ -10482,6 +10482,10 @@ check(
     if (!/&handle_pipe1, true\)\)/.test(v) || !/&handle_pipe, false\)\)/.test(v)) problems.push('the deferred pass no longer draws its lines as AA strips (or the MSAA pass does)');
     if (!/array_stride: 56, step_mode: wgpu::VertexStepMode::Instance/.test(v) || !/pub const VERT_FLOATS: usize = 7;/.test(raw('engine/artlux-engine/src/grid.rs')))
       problems.push('the AA-line instance (56 bytes = two 7-float line vertices) no longer matches the line lists\' vertex');
+    // D1-3 (2026-11-28, owner "go"): deferred is Rendered's DEFAULT, =0 the way back; each look's targets are made
+    // on first need — allocating the 4× MSAA pair AND the G-buffer for every size cost ~400 MB at 4K for nothing.
+    if (!/std::env::var\("ARTLUX_VIEW3D_DEFERRED"\)\.map_or\(true, \|v\| v != "0"\)/.test(v)) problems.push('deferred is no longer Rendered\'s default with ARTLUX_VIEW3D_DEFERRED=0 as the fallback');
+    if (!/targets = None;\s*defer = None;/.test(v) || !/\} else if targets\.is_none\(\) \{/.test(v)) problems.push('the MSAA / G-buffer targets are no longer made on first need (both sets would be allocated for every size)');
     return problems.length ? problems.join('; ') : null;
   },
 );
