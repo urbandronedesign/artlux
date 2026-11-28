@@ -909,6 +909,24 @@ and an embedded `sharedTexture` in the editor are presentation targets of the sa
 > of a core while its 3D context is up) — outside this plan ("What is NOT in this plan").
 | **D6** | Optional: LED bars as line lights; TAA if SMAA is judged insufficient; GPU-driven draws (indirect) if O0/D2 show the CPU submits matter | — | as decided then |
 
+> 📏 **What shadows cost while heads MOVE — measured 2026-11-28** (owner: "the beam lights will move"; the D0 bench
+> grew `--move=N` — two timeline lighting effects sweeping pan and tilt, phase-spread, played — `--venue=panorama|big`,
+> `big` a 694 k-triangle mesh as the heavy-venue stand-in, and `--noshadow` = the new diagnostic
+> `ARTLUX_VIEW3D_SHADOWS=0`; `v.shadow` times the shadow passes' encode). Every head moving, so the 8 shadow maps are
+> redrawn every 3D frame (30/s, the show's tick):
+>
+> | big venue, all heads moving | shadows on | off | shadow cost |
+> |---|---|---|---|
+> | 100 heads, 3D frame `v.encode` p50 (CPU) | 1.04–1.10 ms | 0.64–0.67 ms | ~0.4 ms |
+> | 300 heads | 1.85 ms | 0.81 ms | ~1.0 ms (engine 14.5 → 9.6 % of a core) |
+> | machine GPU load | 12–12.5 % | 11.4–14.4 % | below nvidia-smi's noise |
+>
+> **What it says.** The VENUE is not the cost — 694 k triangles × 8 maps × 30/s made no measurable GPU difference on
+> the 5090, and the small venue costs the same CPU. The cost is DRAWS: every shadow map draws every head's housing
+> one by one (8 × 300 = 2 400 draws), so it grows with the rig. Instanced housings (V5, folded into D1) or housings
+> that do not cast remove most of it. For D3: shadows on moving heads are cheap on the GPU here; budget them by draw
+> count, not triangles. Not measured: GPU time per pass (no timestamp queries yet), a real venue, 60 Hz.
+
 **Total ≈ 3–4 months of one developer after O1–O3**, consistent with the native-engine plan's original E4 estimate.
 
 ### 4.6 Guards and tests that must change in the same commits

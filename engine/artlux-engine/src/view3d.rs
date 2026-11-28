@@ -1287,7 +1287,11 @@ pub fn present(gpu: Arc<Gpu>, window: Arc<Window>, surface: wgpu::Surface<'stati
                 cv.extend_from_slice(&[p[0], p[1], p[2], 1.0, 0.0, 0.0, 0.0, 0.0]);
                 gpu.queue.write_buffer(&shadow_cams[k].0, 0, &bytes(&cv));
             }
-            shadow_n = if look.rendered { n } else { 0 };
+            // ARTLUX_VIEW3D_SHADOWS=0: the spots light the room WITHOUT shadow maps — a diagnostic, to measure what the
+            // shadows cost while heads move (2026-11-28 chase bench); the look is wrong with it (light through trusses).
+            static SHADOWS: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
+            let shadows_on = *SHADOWS.get_or_init(|| std::env::var("ARTLUX_VIEW3D_SHADOWS").map_or(true, |v| v != "0"));
+            shadow_n = if look.rendered && shadows_on { n } else { 0 };
             // O2-5: the shadow maps are a function of the spots' cameras and the casters (the scene, the files loaded, a
             // drag) — drawn again only when one of those moves, not on every frame (an LED colour does not move them).
             let sk = {
@@ -1450,6 +1454,7 @@ pub fn present(gpu: Arc<Gpu>, window: Arc<Window>, surface: wgpu::Surface<'stati
         // E4b: the spots' shadow maps (Rendered): every caster seen from each spot — the venue meshes that wear their
         // own material (a picture is a MeshBasic screen in the editor: no shadow), and the heads' housings.
         if shadow_n > 0 && shadow_draw {
+            let shadow_at = std::time::Instant::now();
             if let Some(sc) = &scene {
                 for k in 0..shadow_n {
                     let mut pass = enc.begin_render_pass(&wgpu::RenderPassDescriptor {
@@ -1480,6 +1485,9 @@ pub fn present(gpu: Arc<Gpu>, window: Arc<Window>, surface: wgpu::Surface<'stati
                     }
                 }
             }
+            // The shadow maps' share of the CPU encode, and how often they are redrawn (the count) — their GPU cost is
+            // judged on the machine's load with ARTLUX_VIEW3D_SHADOWS=0 against it.
+            crate::prof::add("v.shadow", shadow_at.elapsed());
         }
 
         // The projectors' depth maps, before the view: every caster (venue files and screens, as the
