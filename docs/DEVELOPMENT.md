@@ -161,7 +161,10 @@ M new pictures/s` every 5 s (the engine's side of ProjectorApp's `__artluxProjSt
 `STUCK output '<id>' … in step <k>` for a presenter whose loop has not come round for 2 s. The same switch times each
 thread's STAGES (`engine/artlux-engine/src/prof.rs`): every 5 s, `stats render: tick … · sources … · leds … · leds.wait …
 · pack … · send …`, `stats output '<id>': draw … · present …` and `stats view3d: frame …`, each as calls, p50, p99 and
-max in ms (`…wait` stages are time spent waiting for the GPU). `node scripts/engine-stats.cjs <log>`
+max in ms (`…wait` stages are time spent waiting for the GPU). On an adapter with timestamp queries (the RTX
+box; not WARP) the 3D view's line also carries the GPU's OWN time per pass — `gpu.shadow`, `gpu.gbuffer`,
+`gpu.light`, `gpu.forward` (or `gpu.scene` on the forward path), `gpu.ao`, `gpu.post`, `gpu.smaa`, `gpu.frame`
+(`engine/artlux-engine/src/gputime.rs`); without the switch nothing is requested from the device. `node scripts/engine-stats.cjs <log>`
 folds a run's reports into one table — the before / after of plans/engine-optimisation-and-deferred-3d.md.
 Two A/B switches from its O3: `ARTLUX_ENGINE_LED_SYNC=1` collects the LED read-back in the tick that drew it (by
 default it is collected one tick later — the owner's accepted latency), and `ARTLUX_ENGINE_FRAME_LATENCY=1|2|3` sets

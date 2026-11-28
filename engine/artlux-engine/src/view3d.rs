@@ -929,6 +929,8 @@ pub fn present(gpu: Arc<Gpu>, window: Arc<Window>, surface: wgpu::Surface<'stati
     let mut ao1 = crate::ao::Ao::new(d, false);   // D1: over the G-buffer's single-sample depth
     // D1-2: the deferred path's anti-aliasing — the editor's SMAA, after the tone map (smaa.rs).
     let mut smaa = deferred_on().then(|| crate::smaa::Smaa::new(d, &gpu.queue, surf_format));
+    // D2a-0: the GPU's own time per pass (gputime.rs) — only with ARTLUX_ENGINE_STATS=1 on an adapter that has it.
+    let mut gt = crate::gputime::GpuTimer::new(&gpu);
     let mut depth_gen = 0usize;
     let module = d.create_shader_module(wgpu::ShaderModuleDescriptor { label: Some("view3d"), source: wgpu::ShaderSource::Wgsl(scene_wgsl().into()) });
 
@@ -1674,6 +1676,7 @@ pub fn present(gpu: Arc<Gpu>, window: Arc<Window>, surface: wgpu::Surface<'stati
             targets = Some((mk(format), mk(DEPTH)));
         }
         let mut enc = d.create_command_encoder(&Default::default());
+        if let Some(t) = gt.as_mut() { t.begin(&mut enc); }
 
         // E4b: the spots' shadow maps (Rendered): every caster seen from each spot — the venue meshes that wear their
         // own material (a picture is a MeshBasic screen in the editor: no shadow), and the heads' housings.
@@ -1713,6 +1716,7 @@ pub fn present(gpu: Arc<Gpu>, window: Arc<Window>, surface: wgpu::Surface<'stati
             // The shadow maps' share of the CPU encode, and how often they are redrawn (the count) — their GPU cost is
             // judged on the machine's load with ARTLUX_VIEW3D_SHADOWS=0 against it.
             crate::prof::add("v.shadow", shadow_at.elapsed());
+            if let Some(t) = gt.as_mut() { t.mark(&mut enc, "gpu.shadow"); }
         }
 
         // The projectors' depth maps, before the view: every caster (venue files and screens, as the
@@ -1750,6 +1754,7 @@ pub fn present(gpu: Arc<Gpu>, window: Arc<Window>, surface: wgpu::Surface<'stati
                 }
             }
             depth_dirty = false;
+            if let Some(t) = gt.as_mut() { t.mark(&mut enc, "gpu.pdepth"); }
         }
         {
             let bg = 0.008;   // #0d0d0d-ish in linear, the editor's background
@@ -1857,6 +1862,7 @@ pub fn present(gpu: Arc<Gpu>, window: Arc<Window>, surface: wgpu::Surface<'stati
                     pass.set_bind_group(3, &light_bind, &[]);
                     draw_opaque(&mut pass, &house_gbuf_pipe);
                 }
+                if let Some(t) = gt.as_mut() { t.mark(&mut enc, "gpu.gbuffer"); }
                 {
                     let mut pass = enc.begin_render_pass(&wgpu::RenderPassDescriptor {
                         label: Some("view3d lighting"),
@@ -1870,6 +1876,7 @@ pub fn present(gpu: Arc<Gpu>, window: Arc<Window>, surface: wgpu::Surface<'stati
                     pass.set_bind_group(3, &light_bind, &[]);
                     pass.draw(0..3, 0..1);
                 }
+                if let Some(t) = gt.as_mut() { t.mark(&mut enc, "gpu.light"); }
                 {
                     let mut pass = enc.begin_render_pass(&wgpu::RenderPassDescriptor {
                         label: Some("view3d forward"),
@@ -1880,6 +1887,7 @@ pub fn present(gpu: Arc<Gpu>, window: Arc<Window>, surface: wgpu::Surface<'stati
                     pass.set_bind_group(0, &cam_bind, &[]);
                     draw_rest(&mut pass, (&led_pipe1, &beam_pipe1, &flat_line_pipe1, &label_pipe1, &handle_pipe1, true));
                 }
+                if let Some(t) = gt.as_mut() { t.mark(&mut enc, "gpu.forward"); }
             } else if let Some((msaa, depth)) = targets.as_ref() {
                 let mut pass = enc.begin_render_pass(&wgpu::RenderPassDescriptor {
                     label: Some("view3d"),
@@ -1894,6 +1902,8 @@ pub fn present(gpu: Arc<Gpu>, window: Arc<Window>, surface: wgpu::Surface<'stati
                 pass.set_bind_group(3, &light_bind, &[]);
                 draw_opaque(&mut pass, &house_pipe);
                 draw_rest(&mut pass, (&led_pipe, &beam_pipe, &flat_line_pipe, &label_pipe, &handle_pipe, false));
+                drop(pass);
+                if let Some(t) = gt.as_mut() { t.mark(&mut enc, "gpu.scene"); }
             }
             // Rendered: ambient occlusion from the pass's own depth, laid into the frame before the bloom (ao.rs).
             if look.rendered {
@@ -1902,16 +1912,27 @@ pub fn present(gpu: Arc<Gpu>, window: Arc<Window>, surface: wgpu::Surface<'stati
                         (true, Some(df)) => ao1.run(d, &gpu.queue, &mut enc, &df.depth, depth_gen, hdr, lit, size.width, size.height, cam.fov, 0.03, 4000.0),
                         _ => if let Some((_, depth)) = targets.as_ref() { ao.run(d, &gpu.queue, &mut enc, depth, depth_gen, hdr, lit, size.width, size.height, cam.fov, 0.03, 4000.0) },
                     }
+                    if let Some(t) = gt.as_mut() { t.mark(&mut enc, "gpu.ao"); }
                 }
             }
         }
         // The last step: bloom + AgX in Rendered, a straight copy in Shaded (post.rs).
         // D1-2: deferred Rendered has no MSAA — the tone-mapped frame goes through SMAA on its way to the window.
         match smaa.as_ref().filter(|_| look.rendered && defer.is_some()).and_then(|sm| sm.ldr().map(|l| (sm, l))) {
-            Some((sm, ldr)) => { post.finish(&gpu.queue, &mut enc, ldr, true); sm.run(&mut enc, &view); }
-            None => post.finish(&gpu.queue, &mut enc, &view, look.rendered),
+            Some((sm, ldr)) => {
+                post.finish(&gpu.queue, &mut enc, ldr, true);
+                if let Some(t) = gt.as_mut() { t.mark(&mut enc, "gpu.post"); }
+                sm.run(&mut enc, &view);
+                if let Some(t) = gt.as_mut() { t.mark(&mut enc, "gpu.smaa"); }
+            }
+            None => {
+                post.finish(&gpu.queue, &mut enc, &view, look.rendered);
+                if let Some(t) = gt.as_mut() { t.mark(&mut enc, "gpu.post"); }
+            }
         }
+        if let Some(t) = gt.as_mut() { t.end(&mut enc); }
         gpu.queue.submit([enc.finish()]);
+        if let Some(t) = gt.as_mut() { t.after_submit(d); }
         crate::prof::add("v.encode", encode_at.elapsed());
         window.pre_present_notify();
         gpu.queue.present(frame);   // wgpu 30: presenting is the queue's, after the submit

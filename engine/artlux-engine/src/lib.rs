@@ -50,6 +50,7 @@ pub mod scenegpu;
 pub mod post;
 pub mod ao;
 pub mod smaa;
+pub mod gputime;
 pub mod shader;
 pub mod blobs;
 pub mod comp;
@@ -284,7 +285,9 @@ impl Gpu {
         // NV12 (item 2c-3b): a hardware decoder's frames are NV12 textures, read as their two planes.
         // Adapter-specific format features: 8× MSAA on a half-float target — three.js's EffectComposer default, which the
         // calibrated venue's post pass is held to (calib3d.rs).
-        let wanted = (wgpu::Features::TEXTURE_COMPRESSION_BC | wgpu::Features::TEXTURE_FORMAT_NV12 | wgpu::Features::TEXTURE_ADAPTER_SPECIFIC_FORMAT_FEATURES) & pick.features();
+        // D2a-0: GPU timestamps, only when measuring (ARTLUX_ENGINE_STATS=1) — gputime.rs; off, nothing more is asked of the device.
+        let timing = if crate::prof::on() { crate::gputime::FEATURES } else { wgpu::Features::empty() };
+        let wanted = (wgpu::Features::TEXTURE_COMPRESSION_BC | wgpu::Features::TEXTURE_FORMAT_NV12 | wgpu::Features::TEXTURE_ADAPTER_SPECIFIC_FORMAT_FEATURES | timing) & pick.features();
         let (device, queue) = pollster::block_on(pick.request_device(&wgpu::DeviceDescriptor {
             label: Some("artlux-engine"),
             required_features: wanted,

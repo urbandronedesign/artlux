@@ -976,6 +976,11 @@ and an embedded `sharedTexture` in the editor are presentation targets of the sa
 > + beams with `ARTLUX_VIEW3D_DEFERRED=0`. Guarded: no per-head draw loop, the two instanced cube draws, the drag
 > rewrite. **Left of §4.5: D2+ (many lights)** — the deferred path's actual payoff, its own step.
 
+> 📐 **D2 design written 2026-11-28 — [engine-d2-many-lights.md](engine-d2-many-lights.md)**, for the owner's review
+> before anything is built. It splits the D2 row in two: **D2a** every head a light (storage buffer, clustered
+> culling, the 8-light cap lifted, lights 9+ unshadowed until D3, GPU timestamps first) and **D2b** the editor's
+> materials (GGX + glTF roughness / metalness + the prefiltered RoomEnvironment), each with its own sign-off.
+
 > 📏 **What shadows cost while heads MOVE — measured 2026-11-28** (owner: "the beam lights will move"; the D0 bench
 > grew `--move=N` — two timeline lighting effects sweeping pan and tilt, phase-spread, played — `--venue=panorama|big`,
 > `big` a 694 k-triangle mesh as the heavy-venue stand-in, and `--noshadow` = the new diagnostic

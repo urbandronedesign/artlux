@@ -10482,7 +10482,7 @@ check(
     const shader = (sm.split('const SHADER: &str = r#"')[1] || '').split('"#;')[0];
     if (!shader) problems.push('smaa.rs has no SHADER');
     if (/textureSample\(/.test(shader)) problems.push('smaa.rs samples with textureSample( — use textureSampleLevel(…, 0.0): the searches are non-uniform control flow');
-    if (!/Some\(\(sm, ldr\)\) => \{ post\.finish\(&gpu\.queue, &mut enc, ldr, true\); sm\.run\(&mut enc, &view\); \}/.test(v)) problems.push('deferred Rendered no longer tone-maps into SMAA\'s input and then runs SMAA to the window');
+    if (!/Some\(\(sm, ldr\)\) => \{\s*post\.finish\(&gpu\.queue, &mut enc, ldr, true\);[^}]*\}\s*sm\.run\(&mut enc, &view\);/.test(v)) problems.push('deferred Rendered no longer tone-maps into SMAA\'s input and then runs SMAA to the window');
     if (!/filter\(\|_\| look\.rendered && defer\.is_some\(\)\)/.test(v)) problems.push('SMAA is no longer tied to deferred Rendered (it would double the forward path\'s MSAA, or leave deferred aliased)');
     if (!/&handle_pipe1, true\)\)/.test(v) || !/&handle_pipe, false\)\)/.test(v)) problems.push('the deferred pass no longer draws its lines as AA strips (or the MSAA pass does)');
     if (!/array_stride: 56, step_mode: wgpu::VertexStepMode::Instance/.test(v) || !/pub const VERT_FLOATS: usize = 7;/.test(raw('engine/artlux-engine/src/grid.rs')))
@@ -10491,6 +10491,25 @@ check(
     // on first need — allocating the 4× MSAA pair AND the G-buffer for every size cost ~400 MB at 4K for nothing.
     if (!/std::env::var\("ARTLUX_VIEW3D_DEFERRED"\)\.map_or\(true, \|v\| v != "0"\)/.test(v)) problems.push('deferred is no longer Rendered\'s default with ARTLUX_VIEW3D_DEFERRED=0 as the fallback');
     if (!/targets = None;\s*defer = None;/.test(v) || !/\} else if targets\.is_none\(\) \{/.test(v)) problems.push('the MSAA / G-buffer targets are no longer made on first need (both sets would be allocated for every size)');
+    return problems.length ? problems.join('; ') : null;
+  },
+);
+
+check(
+  'GPU timestamps (D2a-0) are asked of the device ONLY while measuring, and never make a thread wait',
+  'D2a-0 (plans/engine-d2-many-lights.md, 2026-11-28): the engine had no GPU time per pass — nvidia-smi\'s machine load ' +
+  'cannot tell the lighting pass from the shadow maps (the first measurement found the shadow maps, not lighting, ' +
+  'are the 3D view\'s GPU cost with moving heads). The timer must cost nothing in a show: the timestamp features ' +
+  'are requested only with ARTLUX_ENGINE_STATS=1 (an extra device feature is an extra way for an adapter to refuse ' +
+  'or a driver to misbehave), GpuTimer::new is None otherwise, and the read-back is a mapped ring polled without ' +
+  'waiting — a Wait poll here would couple the 3D thread to every other thread\'s GPU work (the O3 lesson).',
+  () => {
+    const problems = [];
+    const lib = raw('engine/artlux-engine/src/lib.rs');
+    const gt = raw('engine/artlux-engine/src/gputime.rs');
+    if (!/let timing = if crate::prof::on\(\) \{ crate::gputime::FEATURES \} else \{ wgpu::Features::empty\(\) \};/.test(lib)) problems.push('lib.rs no longer gates the timestamp features on ARTLUX_ENGINE_STATS');
+    if (!/if !crate::prof::on\(\) \|\| !gpu\.device\.features\(\)\.contains\(FEATURES\) \{ return None; \}/.test(gt)) problems.push('GpuTimer::new no longer returns None when not measuring or unsupported');
+    if (/PollType::Wait/.test(gt)) problems.push('gputime.rs waits on the device — measuring would stall the 3D thread');
     return problems.length ? problems.join('; ') : null;
   },
 );
