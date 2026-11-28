@@ -549,10 +549,15 @@ pub(crate) fn load_glb(path: &str) -> Result<CpuGlb, String> {
 
 // ── The presenter ───────────────────────────────────────────────────────────────────────────────────
 
-const SHADER: &str = r#"
+// D1 (plans/engine-optimisation-and-deferred-3d.md §4.5): the scene shader is three texts — the head, the LIGHTS
+// (spots, shadows, the surface's shading) and the tail — so the deferred lighting pass (`deferred_wgsl`) shades with
+// the SAME text the forward pass does, not a copy that drifts.
+fn scene_wgsl() -> String { format!("{CAM_WGSL}{SHADER_HEAD}{LIGHTS_WGSL}{SHADER_TAIL}") }
+const CAM_WGSL: &str = r#"
 struct Cam { vp: mat4x4<f32>, eye: vec4<f32>, px: vec4<f32> };   // px.x = world units per pixel at 1 m; px.y = haze, px.z = 1 for the Rendered look
 @group(0) @binding(0) var<uniform> cam: Cam;
-
+"#;
+const SHADER_HEAD: &str = r#"
 // flags: textured, unlit, srgb-texture. PROJECTED content (projectedMapping.ts, the same maths):
 // proj = the projector's view-projection (GL clip), pe = its eye + edge softness, pf = projected, cull,
 // occlusion (a depth map in group 2), self-shadow bias in metres.
@@ -575,6 +580,8 @@ struct VOut { @builtin(position) pos: vec4<f32>, @location(0) n: vec3<f32>, @loc
   return o;
 }
 fn to_linear(c: vec3<f32>) -> vec3<f32> { return pow(max(c, vec3<f32>(0.0)), vec3<f32>(2.2)); }
+"#;
+const LIGHTS_WGSL: &str = r#"
 // E4b: the heads as real lights (beams.rs `spots`, the editor's MoverLights) — three.js's physically based
 // SpotLight: distance falloff 1 / max(d^decay, 0.01) × (1 − (d / range)^4)^2, the cone smoothstep(cos outer,
 // cos inner), Lambert (albedo / π × N·L × colour × intensity).
@@ -619,7 +626,21 @@ fn spot_light(w: vec3<f32>, n: vec3<f32>) -> vec3<f32> {
   }
   return sum;
 }
-@fragment fn fs_mesh(i: VOut, @builtin(front_facing) front: bool) -> @location(0) vec4<f32> {
+// A lit surface's colour: albedo `base`, normal `n` (towards the viewer's side), at `w`. A soft studio light: sky /
+// ground fill plus one key from over the viewer's shoulder — or, in Rendered, a dark room with a trace of fill (the
+// editor's RoomEnvironment at 0.08) where the rig is the light. Forward (fs_mesh) and deferred (fs_light) both call it.
+fn lit_surface(base: vec3<f32>, n: vec3<f32>, w: vec3<f32>) -> vec3<f32> {
+  let sky = mix(0.18, 0.42, n.y * 0.5 + 0.5);
+  let key = max(dot(n, normalize(vec3<f32>(-0.35, 0.85, 0.45))), 0.0) * 0.55;
+  let fill = select(sky + key, 0.05, lights.n.y > 0.5);
+  return base * fill + base * spot_light(w, n) * 0.31830988;
+}
+"#;
+const SHADER_TAIL: &str = r#"
+// A mesh fragment's MATERIAL — its colour after texture and projected content, its normal, whether it is unlit (a
+// picture: shown as sent). fs_mesh shades it in place; fs_gbuf (D1) writes it to the G-buffer for fs_light.
+struct Mat { base: vec3<f32>, n: vec3<f32>, unlit: bool };
+fn material(i: VOut, front: bool) -> Mat {
   var base = obj.color;
   var uv = i.uv;
   var vis = 1.0;
@@ -651,15 +672,28 @@ fn spot_light(w: vec3<f32>, n: vec3<f32>) -> vec3<f32> {
     base = base * t;
   }
   base = vec4<f32>(base.rgb * vis, base.a);
-  if (obj.flags.y > 0.5) { return vec4<f32>(base.rgb, 1.0); }
   var n = normalize(i.n);
   if (!front) { n = -n; }
-  // A soft studio light: sky / ground fill plus one key from over the viewer's shoulder — or, in Rendered, a dark
-  // room with a trace of fill (the editor's RoomEnvironment at 0.08) where the rig is the light.
-  let sky = mix(0.18, 0.42, n.y * 0.5 + 0.5);
-  let key = max(dot(n, normalize(vec3<f32>(-0.35, 0.85, 0.45))), 0.0) * 0.55;
-  let fill = select(sky + key, 0.05, lights.n.y > 0.5);
-  return vec4<f32>(base.rgb * fill + base.rgb * spot_light(i.w, n) * 0.31830988, 1.0);
+  return Mat(base.rgb, n, obj.flags.y > 0.5);
+}
+@fragment fn fs_mesh(i: VOut, @builtin(front_facing) front: bool) -> @location(0) vec4<f32> {
+  let m = material(i, front);
+  if (m.unlit) { return vec4<f32>(m.base, 1.0); }
+  return vec4<f32>(lit_surface(m.base, m.n, i.w), 1.0);
+}
+// D1 — THE G-BUFFER (Rendered, deferred): what fs_light needs to shade the pixel later, once. GB0 albedo, GB1 the
+// normal, GB2 emitted light + the UNLIT flag (a picture passes straight through — never through an 8-bit albedo:
+// all three are 16-bit float, so the re-plumb changes no shade). The world position is rebuilt from the depth.
+struct GBOut { @location(0) albedo: vec4<f32>, @location(1) normal: vec4<f32>, @location(2) emis: vec4<f32> };
+@fragment fn fs_gbuf(i: VOut, @builtin(front_facing) front: bool) -> GBOut {
+  let m = material(i, front);
+  var o: GBOut;
+  if (m.unlit) {
+    o.albedo = vec4<f32>(0.0); o.normal = vec4<f32>(0.0); o.emis = vec4<f32>(m.base, 1.0);
+  } else {
+    o.albedo = vec4<f32>(m.base, 1.0); o.normal = vec4<f32>(m.n, 0.0); o.emis = vec4<f32>(0.0);
+  }
+  return o;
 }
 
 // LEDs: a camera-facing disc per LED, at least 3 px across so a far rig never vanishes.
@@ -756,6 +790,32 @@ struct DOut { @builtin(position) pos: vec4<f32>, @location(0) d: f32 };
 @vertex fn vs_shadow(@location(0) p: vec3<f32>) -> @builtin(position) vec4<f32> { return cam.vp * (obj.model * vec4<f32>(p, 1.0)); }
 "#;
 
+// D1 — THE LIGHTING PASS: every G-buffer pixel shaded once, with the forward pass's own LIGHTS_WGSL. Groups: 0 the
+// camera, 1 the G-buffer + depth + the inverse view-projection, 2 unused (the mesh layout's depth-map slot), 3 the lights.
+fn deferred_wgsl() -> String { format!("{CAM_WGSL}{LIGHTS_WGSL}{LIGHT_PASS_WGSL}") }
+const LIGHT_PASS_WGSL: &str = r#"
+@group(1) @binding(0) var gb0: texture_2d<f32>;
+@group(1) @binding(1) var gb1: texture_2d<f32>;
+@group(1) @binding(2) var gb2: texture_2d<f32>;
+@group(1) @binding(3) var gdepth: texture_depth_2d;
+@group(1) @binding(4) var<uniform> inv_vp: mat4x4<f32>;
+@vertex fn vs_full(@builtin(vertex_index) i: u32) -> @builtin(position) vec4<f32> {
+  let xy = vec2<f32>(f32((i << 1u) & 2u), f32(i & 2u));
+  return vec4<f32>(xy * 2.0 - 1.0, 0.0, 1.0);
+}
+@fragment fn fs_light(@builtin(position) pos: vec4<f32>) -> @location(0) vec4<f32> {
+  let px = vec2<i32>(pos.xy);
+  let e = textureLoad(gb2, px, 0);
+  // Unlit (a picture) or nothing drawn (the background, the clear colour): emitted as is.
+  if (e.a > 0.5) { return vec4<f32>(e.rgb, 1.0); }
+  let d = textureLoad(gdepth, px, 0);
+  let uv = pos.xy / vec2<f32>(textureDimensions(gdepth));
+  let h = inv_vp * vec4<f32>(uv.x * 2.0 - 1.0, 1.0 - uv.y * 2.0, d, 1.0);
+  let w = h.xyz / h.w;
+  return vec4<f32>(lit_surface(textureLoad(gb0, px, 0).rgb, textureLoad(gb1, px, 0).xyz, w), 1.0);
+}
+"#;
+
 /// A file's geometry, shared by every placement of it.
 struct GpuPrim { vb: wgpu::Buffer, ib: wgpu::Buffer, n: u32, local: [f32; 16], color: [f32; 4], image: Option<usize>, unlit: bool, slot: usize }
 /// `_held` (O5-2a): the shared buffers and textures (scenegpu.rs) the prims and views are of — held while drawn.
@@ -777,6 +837,19 @@ const SHADOW_SIZE: u32 = 1024;
 /// The selection accent (FixtureBodies' SELECTED, #27b6c4), in linear.
 const ACCENT: [f32; 3] = [0.0203, 0.4678, 0.5520];
 const DEPTH: wgpu::TextureFormat = wgpu::TextureFormat::Depth32Float;
+/// D1: the G-buffer's three targets — 16-bit float each (24 B a pixel with no depth; WebGPU's budget is 32), so the
+/// re-plumb rounds no shade the forward pass did not (the plan's 8-bit albedo waits until bandwidth says so).
+const GBUF: wgpu::TextureFormat = wgpu::TextureFormat::Rgba16Float;
+fn gb_tex(binding: u32) -> wgpu::BindGroupLayoutEntry {
+    wgpu::BindGroupLayoutEntry { binding, visibility: wgpu::ShaderStages::FRAGMENT, ty: wgpu::BindingType::Texture { sample_type: wgpu::TextureSampleType::Float { filterable: false }, view_dimension: wgpu::TextureViewDimension::D2, multisampled: false }, count: None }
+}
+/// D1: the deferred path is opt-in while it is judged against the forward one (read once per process).
+fn deferred_on() -> bool {
+    static ON: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
+    *ON.get_or_init(|| std::env::var("ARTLUX_VIEW3D_DEFERRED").is_ok_and(|v| v == "1"))
+}
+/// D1's per-size targets: GB0 albedo, GB1 normal, GB2 emitted + UNLIT; their depth; the lighting pass's bind group.
+struct Defer { gb: [wgpu::TextureView; 3], depth: wgpu::TextureView, bind: wgpu::BindGroup }
 
 /// One open 3D view: draw `shared` into `window` until `stop`. Never returns early on a missing file or
 /// a refused texture — the view just shows less (logged once).
@@ -788,9 +861,10 @@ pub fn present(gpu: Arc<Gpu>, window: Arc<Window>, surface: wgpu::Surface<'stati
     // Rendered) — so every scene pipeline below targets the HDR format, and only the last pass the surface's.
     let format = crate::post::HDR;
     let mut post = crate::post::Post::new(d, surf_format);
-    let mut ao = crate::ao::Ao::new(d);
+    let mut ao = crate::ao::Ao::new(d, true);
+    let mut ao1 = crate::ao::Ao::new(d, false);   // D1: over the G-buffer's single-sample depth
     let mut depth_gen = 0usize;
-    let module = d.create_shader_module(wgpu::ShaderModuleDescriptor { label: Some("view3d"), source: wgpu::ShaderSource::Wgsl(SHADER.into()) });
+    let module = d.create_shader_module(wgpu::ShaderModuleDescriptor { label: Some("view3d"), source: wgpu::ShaderSource::Wgsl(scene_wgsl().into()) });
 
     let cam_layout = d.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor { label: Some("cam"), entries: &[wgpu::BindGroupLayoutEntry {
         binding: 0, visibility: wgpu::ShaderStages::VERTEX_FRAGMENT, ty: wgpu::BindingType::Buffer { ty: wgpu::BufferBindingType::Uniform, has_dynamic_offset: false, min_binding_size: None }, count: None }] });
@@ -834,6 +908,7 @@ pub fn present(gpu: Arc<Gpu>, window: Arc<Window>, surface: wgpu::Surface<'stati
     let cam_pl = d.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor { label: None, bind_group_layouts: &[Some(&cam_layout)], immediate_size: 0 });
     let ds = |write: bool| Some(wgpu::DepthStencilState { format: DEPTH, depth_write_enabled: Some(write), depth_compare: Some(wgpu::CompareFunction::LessEqual), stencil: Default::default(), bias: Default::default() });
     let ms = wgpu::MultisampleState { count: SAMPLES, mask: !0, alpha_to_coverage_enabled: false };
+    let ms1 = wgpu::MultisampleState::default();   // D1: the deferred path draws single-sample (SMAA, not MSAA)
     let mesh_pipe = d.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
         label: Some("mesh"), layout: Some(&mesh_pl),
         vertex: wgpu::VertexState { module: &module, entry_point: Some("vs_mesh"), compilation_options: Default::default(), buffers: &[Some(wgpu::VertexBufferLayout {
@@ -843,7 +918,7 @@ pub fn present(gpu: Arc<Gpu>, window: Arc<Window>, surface: wgpu::Surface<'stati
         primitive: wgpu::PrimitiveState { cull_mode: None, ..Default::default() },
         depth_stencil: ds(true), multisample: ms, multiview_mask: None, cache: None,
     });
-    let led_pipe = d.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+    let mk_led_pipe = |ms: wgpu::MultisampleState| d.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
         label: Some("leds"), layout: Some(&cam_pl),
         vertex: wgpu::VertexState { module: &module, entry_point: Some("vs_led"), compilation_options: Default::default(), buffers: &[
             Some(wgpu::VertexBufferLayout { array_stride: 12, step_mode: wgpu::VertexStepMode::Instance, attributes: &wgpu::vertex_attr_array![0 => Float32x3] }),
@@ -852,7 +927,8 @@ pub fn present(gpu: Arc<Gpu>, window: Arc<Window>, surface: wgpu::Surface<'stati
         fragment: Some(wgpu::FragmentState { module: &module, entry_point: Some("fs_led"), targets: &[Some(format.into())], compilation_options: Default::default() }),
         primitive: Default::default(), depth_stencil: ds(true), multisample: ms, multiview_mask: None, cache: None,
     });
-    let flat_line_pipe = d.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+    let (led_pipe, led_pipe1) = (mk_led_pipe(ms), mk_led_pipe(ms1));
+    let mk_flat_line_pipe = |ms: wgpu::MultisampleState| d.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
         label: Some("overlay lines"), layout: Some(&cam_pl),
         vertex: wgpu::VertexState { module: &module, entry_point: Some("vs_line"), compilation_options: Default::default(), buffers: &[Some(wgpu::VertexBufferLayout {
             array_stride: 28, step_mode: wgpu::VertexStepMode::Vertex, attributes: &wgpu::vertex_attr_array![0 => Float32x3, 1 => Float32x4] })] },
@@ -861,8 +937,9 @@ pub fn present(gpu: Arc<Gpu>, window: Arc<Window>, surface: wgpu::Surface<'stati
         primitive: wgpu::PrimitiveState { topology: wgpu::PrimitiveTopology::LineList, ..Default::default() },
         depth_stencil: ds(false), multisample: ms, multiview_mask: None, cache: None,
     });
+    let (flat_line_pipe, flat_line_pipe1) = (mk_flat_line_pipe(ms), mk_flat_line_pipe(ms1));
     // The gizmo's handles: flat-coloured triangles drawn OVER everything (depth ignored), as TransformControls'.
-    let handle_pipe = d.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+    let mk_handle_pipe = |ms: wgpu::MultisampleState| d.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
         label: Some("gizmo"), layout: Some(&cam_pl),
         vertex: wgpu::VertexState { module: &module, entry_point: Some("vs_line"), compilation_options: Default::default(), buffers: &[Some(wgpu::VertexBufferLayout {
             array_stride: 28, step_mode: wgpu::VertexStepMode::Vertex, attributes: &wgpu::vertex_attr_array![0 => Float32x3, 1 => Float32x4] })] },
@@ -872,7 +949,8 @@ pub fn present(gpu: Arc<Gpu>, window: Arc<Window>, surface: wgpu::Surface<'stati
         depth_stencil: Some(wgpu::DepthStencilState { format: DEPTH, depth_write_enabled: Some(false), depth_compare: Some(wgpu::CompareFunction::Always), stencil: Default::default(), bias: Default::default() }),
         multisample: ms, multiview_mask: None, cache: None,
     });
-    let label_pipe = d.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+    let (handle_pipe, handle_pipe1) = (mk_handle_pipe(ms), mk_handle_pipe(ms1));
+    let mk_label_pipe = |ms: wgpu::MultisampleState| d.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
         label: Some("floor numbers"), layout: Some(&depth_pl),
         vertex: wgpu::VertexState { module: &module, entry_point: Some("vs_label"), compilation_options: Default::default(), buffers: &[Some(wgpu::VertexBufferLayout {
             array_stride: (crate::labels::VERT_FLOATS * 4) as u64, step_mode: wgpu::VertexStepMode::Vertex, attributes: &wgpu::vertex_attr_array![0 => Float32x3, 1 => Float32x2, 2 => Float32x3] })] },
@@ -881,12 +959,13 @@ pub fn present(gpu: Arc<Gpu>, window: Arc<Window>, surface: wgpu::Surface<'stati
         primitive: wgpu::PrimitiveState { cull_mode: None, ..Default::default() },
         depth_stencil: ds(false), multisample: ms, multiview_mask: None, cache: None,
     });
+    let (label_pipe, label_pipe1) = (mk_label_pipe(ms), mk_label_pipe(ms1));
     // The beams' volume: additive (three's AdditiveBlending: src x alpha + dst), depth-tested, never written.
     let additive = wgpu::BlendState {
         color: wgpu::BlendComponent { src_factor: wgpu::BlendFactor::SrcAlpha, dst_factor: wgpu::BlendFactor::One, operation: wgpu::BlendOperation::Add },
         alpha: wgpu::BlendComponent { src_factor: wgpu::BlendFactor::SrcAlpha, dst_factor: wgpu::BlendFactor::One, operation: wgpu::BlendOperation::Add },
     };
-    let beam_pipe = d.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+    let mk_beam_pipe = |ms: wgpu::MultisampleState| d.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
         label: Some("beams"), layout: Some(&cam_pl),
         vertex: wgpu::VertexState { module: &module, entry_point: Some("vs_beam"), compilation_options: Default::default(), buffers: &[
             Some(wgpu::VertexBufferLayout { array_stride: 24, step_mode: wgpu::VertexStepMode::Vertex, attributes: &wgpu::vertex_attr_array![0 => Float32x3, 1 => Float32x3] }),
@@ -898,6 +977,33 @@ pub fn present(gpu: Arc<Gpu>, window: Arc<Window>, surface: wgpu::Surface<'stati
         primitive: wgpu::PrimitiveState { cull_mode: None, ..Default::default() },
         depth_stencil: ds(false), multisample: ms, multiview_mask: None, cache: None,
     });
+    let (beam_pipe, beam_pipe1) = (mk_beam_pipe(ms), mk_beam_pipe(ms1));
+    // D1 — THE DEFERRED PATH (Rendered; ARTLUX_VIEW3D_DEFERRED=1 while it is judged against the forward one): the
+    // opaque geometry into a G-buffer (fs_gbuf: the same material as fs_mesh), then one full-screen pass shading each
+    // pixel once (fs_light: the same LIGHTS_WGSL), then everything else forward over it, single-sample.
+    let gb_layout = d.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor { label: Some("gbuffer"), entries: &[
+        gb_tex(0), gb_tex(1), gb_tex(2),
+        wgpu::BindGroupLayoutEntry { binding: 3, visibility: wgpu::ShaderStages::FRAGMENT, ty: wgpu::BindingType::Texture { sample_type: wgpu::TextureSampleType::Depth, view_dimension: wgpu::TextureViewDimension::D2, multisampled: false }, count: None },
+        wgpu::BindGroupLayoutEntry { binding: 4, visibility: wgpu::ShaderStages::FRAGMENT, ty: wgpu::BindingType::Buffer { ty: wgpu::BufferBindingType::Uniform, has_dynamic_offset: false, min_binding_size: None }, count: None },
+    ] });
+    let gbuf_pipe = d.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+        label: Some("gbuffer"), layout: Some(&mesh_pl),
+        vertex: wgpu::VertexState { module: &module, entry_point: Some("vs_mesh"), compilation_options: Default::default(), buffers: &[Some(wgpu::VertexBufferLayout {
+            array_stride: 32, step_mode: wgpu::VertexStepMode::Vertex,
+            attributes: &wgpu::vertex_attr_array![0 => Float32x3, 1 => Float32x3, 2 => Float32x2] })] },
+        fragment: Some(wgpu::FragmentState { module: &module, entry_point: Some("fs_gbuf"), targets: &[Some(GBUF.into()), Some(GBUF.into()), Some(GBUF.into())], compilation_options: Default::default() }),
+        primitive: wgpu::PrimitiveState { cull_mode: None, ..Default::default() },
+        depth_stencil: ds(true), multisample: ms1, multiview_mask: None, cache: None,
+    });
+    let light_module = d.create_shader_module(wgpu::ShaderModuleDescriptor { label: Some("view3d lighting"), source: wgpu::ShaderSource::Wgsl(deferred_wgsl().into()) });
+    let light_pl = d.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor { label: None, bind_group_layouts: &[Some(&cam_layout), Some(&gb_layout), Some(&depth_layout), Some(&light_layout)], immediate_size: 0 });
+    let light_pipe = d.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+        label: Some("lighting"), layout: Some(&light_pl),
+        vertex: wgpu::VertexState { module: &light_module, entry_point: Some("vs_full"), compilation_options: Default::default(), buffers: &[] },
+        fragment: Some(wgpu::FragmentState { module: &light_module, entry_point: Some("fs_light"), targets: &[Some(format.into())], compilation_options: Default::default() }),
+        primitive: Default::default(), depth_stencil: None, multisample: ms1, multiview_mask: None, cache: None,
+    });
+    let inv_vp_buf = d.create_buffer(&wgpu::BufferDescriptor { label: Some("inverse view-projection"), size: 64, usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST, mapped_at_creation: false });
     let shadow_pipe = d.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
         label: Some("spot shadow"), layout: Some(&depth_pl),
         vertex: wgpu::VertexState { module: &module, entry_point: Some("vs_shadow"), compilation_options: Default::default(), buffers: &[Some(wgpu::VertexBufferLayout {
@@ -1059,6 +1165,7 @@ pub fn present(gpu: Arc<Gpu>, window: Arc<Window>, surface: wgpu::Surface<'stati
 
     let mut configured: Option<PhysicalSize<u32>> = None;
     let mut targets: Option<(wgpu::TextureView, wgpu::TextureView)> = None;   // (msaa colour, depth)
+    let mut defer: Option<Defer> = None;   // D1: only when deferred_on()
 
     while !stop.load(Ordering::SeqCst) {
         let size = window.inner_size();
@@ -1075,6 +1182,20 @@ pub fn present(gpu: Arc<Gpu>, window: Arc<Window>, surface: wgpu::Surface<'stati
             depth_gen += 1;
             targets = Some((mk(format), mk(DEPTH)));
             post.ensure(d, size.width, size.height);
+            if deferred_on() {
+                let mk1 = |f: wgpu::TextureFormat, label: &str| d.create_texture(&wgpu::TextureDescriptor { label: Some(label), size: wgpu::Extent3d { width: size.width, height: size.height, depth_or_array_layers: 1 },
+                    mip_level_count: 1, sample_count: 1, dimension: wgpu::TextureDimension::D2, format: f, usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::TEXTURE_BINDING, view_formats: &[] }).create_view(&Default::default());
+                let gb = [mk1(GBUF, "gb0 albedo"), mk1(GBUF, "gb1 normal"), mk1(GBUF, "gb2 emitted")];
+                let depth = mk1(DEPTH, "gbuffer depth");
+                let bind = d.create_bind_group(&wgpu::BindGroupDescriptor { label: Some("gbuffer"), layout: &gb_layout, entries: &[
+                    wgpu::BindGroupEntry { binding: 0, resource: wgpu::BindingResource::TextureView(&gb[0]) },
+                    wgpu::BindGroupEntry { binding: 1, resource: wgpu::BindingResource::TextureView(&gb[1]) },
+                    wgpu::BindGroupEntry { binding: 2, resource: wgpu::BindingResource::TextureView(&gb[2]) },
+                    wgpu::BindGroupEntry { binding: 3, resource: wgpu::BindingResource::TextureView(&depth) },
+                    wgpu::BindGroupEntry { binding: 4, resource: inv_vp_buf.as_entire_binding() },
+                ] });
+                defer = Some(Defer { gb, depth, bind });
+            }
             configured = Some(size);
         }
 
@@ -1344,6 +1465,7 @@ pub fn present(gpu: Arc<Gpu>, window: Arc<Window>, surface: wgpu::Surface<'stati
             eprintln!("artlux-engine: 3D view beams: {} volume(s), {} diagram segment(s) (haze {}, {})", n_cones, n_beam_verts / 2, look.haze, if look.rendered { "Rendered" } else { "Shaded" });
         }
         gpu.queue.write_buffer(&cam_buf, 0, &bytes(&cu));
+        if defer.is_some() { gpu.queue.write_buffer(&inv_vp_buf, 0, &bytes(&invert(&vp))); }
 
         // Depth maps: one per model projecting with occlusion on, keyed by its projector matrix (a
         // re-solve or a different projector makes a new one; a moved mesh re-renders via depth_dirty).
@@ -1528,17 +1650,10 @@ pub fn present(gpu: Arc<Gpu>, window: Arc<Window>, surface: wgpu::Surface<'stati
         }
         {
             let bg = 0.008;   // #0d0d0d-ish in linear, the editor's background
-            let mut pass = enc.begin_render_pass(&wgpu::RenderPassDescriptor {
-                label: Some("view3d"),
-                color_attachments: &[Some(wgpu::RenderPassColorAttachment { view: msaa, depth_slice: None, resolve_target: post.hdr(),
-                    ops: wgpu::Operations { load: wgpu::LoadOp::Clear(wgpu::Color { r: bg, g: bg, b: bg, a: 1.0 }), store: wgpu::StoreOp::Discard } })],
-                depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment { view: depth, depth_ops: Some(wgpu::Operations { load: wgpu::LoadOp::Clear(1.0), store: wgpu::StoreOp::Store }), stencil_ops: None }),
-                ..Default::default()
-            });
-            pass.set_bind_group(0, &cam_bind, &[]);
-            pass.set_pipeline(&mesh_pipe);
-            pass.set_bind_group(2, &no_depth_bind, &[]);
-            pass.set_bind_group(3, &light_bind, &[]);
+            // The OPAQUE geometry — Rendered's floor, the venue models and screens, the housings — under the mesh layout
+            // (whichever of fs_mesh / fs_gbuf the pass set), and everything ELSE drawn over it: the LEDs, the beams, the
+            // lines, the labels, the gizmo — with the pipelines of the pass's sample count (`pp`).
+            let draw_opaque = |pass: &mut wgpu::RenderPass<'_>| {
             // Rendered's floor, under everything.
             if look.rendered {
                 pass.set_bind_group(1, &floor_bind, &[]);
@@ -1574,62 +1689,126 @@ pub fn present(gpu: Arc<Gpu>, window: Arc<Window>, surface: wgpu::Surface<'stati
                 pass.set_index_buffer(cube.1.slice(..), wgpu::IndexFormat::Uint32);
                 pass.draw_indexed(0..cube.2, 0, 0..1);
             }
+            };
+            type Pp<'p> = (&'p wgpu::RenderPipeline, &'p wgpu::RenderPipeline, &'p wgpu::RenderPipeline, &'p wgpu::RenderPipeline, &'p wgpu::RenderPipeline);
+            let draw_rest = |pass: &mut wgpu::RenderPass<'_>, pp: Pp<'_>| {
             if let Some((pb, cb, n)) = &led_bufs {
-                pass.set_pipeline(&led_pipe);
+                pass.set_pipeline(pp.0);
                 pass.set_vertex_buffer(0, pb.slice(..));
                 pass.set_vertex_buffer(1, cb.slice(..));
                 pass.draw(0..6, 0..*n);
             }
             if let (Some(ib), true) = (&cone_inst, n_cones > 0) {
-                pass.set_pipeline(&beam_pipe);
+                pass.set_pipeline(pp.1);
                 pass.set_vertex_buffer(0, cone.0.slice(..));
                 pass.set_vertex_buffer(1, ib.slice(..));
                 pass.set_index_buffer(cone.1.slice(..), wgpu::IndexFormat::Uint32);
                 pass.draw_indexed(0..cone.2, 0, 0..n_cones);
             }
             if let (Some(lb), true) = (&beam_lines, n_beam_verts > 0) {
-                pass.set_pipeline(&flat_line_pipe);
+                pass.set_pipeline(pp.2);
                 pass.set_vertex_buffer(0, lb.slice(..));
                 pass.draw(0..n_beam_verts, 0..1);
             }
             if scene.as_ref().is_none_or(|s| s.grid.visible) {
                 if let Some((gb, n)) = &grid_lines {
-                    pass.set_pipeline(&flat_line_pipe);
+                    pass.set_pipeline(pp.2);
                     pass.set_vertex_buffer(0, gb.slice(..));
                     pass.draw(0..*n, 0..1);
                 }
             }
             if let (Some(lb), Some(bind), true) = (&label_buf, &label_bind, n_label_verts > 0) {
-                pass.set_pipeline(&label_pipe);
+                pass.set_pipeline(pp.3);
                 pass.set_bind_group(1, bind, &[]);
                 pass.set_vertex_buffer(0, lb.slice(..));
                 pass.draw(0..n_label_verts, 0..1);
             }
             if let Some((ob, n)) = &overlay {
-                pass.set_pipeline(&flat_line_pipe);
+                pass.set_pipeline(pp.2);
                 pass.set_vertex_buffer(0, ob.slice(..));
                 pass.draw(0..*n, 0..1);
             }
             if let Some((ob, n)) = &model_outline {
-                pass.set_pipeline(&flat_line_pipe);
+                pass.set_pipeline(pp.2);
                 pass.set_vertex_buffer(0, ob.slice(..));
                 pass.draw(0..*n, 0..1);
             }
             if let (Some(gb), true) = (&gnomon_buf, n_gnomon > 0) {
-                pass.set_pipeline(&handle_pipe);
+                pass.set_pipeline(pp.4);
                 pass.set_vertex_buffer(0, gb.slice(..));
                 pass.draw(0..n_gnomon, 0..1);
             }
             if let (Some(hb), true) = (&handle_buf, n_handle_verts > 0) {
-                pass.set_pipeline(&handle_pipe);
+                pass.set_pipeline(pp.4);
                 pass.set_vertex_buffer(0, hb.slice(..));
                 pass.draw(0..n_handle_verts, 0..1);
             }
-        }
-        // Rendered: ambient occlusion from the pass's own depth, laid into the frame before the bloom (ao.rs).
-        if look.rendered {
-            if let (Some(hdr), Some(lit)) = (post.hdr(), post.lit()) {
-                ao.run(d, &gpu.queue, &mut enc, depth, depth_gen, hdr, lit, size.width, size.height, cam.fov, 0.03, 4000.0);
+            };
+            let deferred = look.rendered && defer.is_some();
+            if let (true, Some(df), Some(hdr)) = (deferred, defer.as_ref(), post.hdr()) {
+                // D1: G-buffer → lighting → the rest forward, single-sample, over the G-buffer's depth.
+                {
+                    fn att(v: &wgpu::TextureView, c: wgpu::Color) -> Option<wgpu::RenderPassColorAttachment<'_>> { Some(wgpu::RenderPassColorAttachment { view: v, depth_slice: None, resolve_target: None, ops: wgpu::Operations { load: wgpu::LoadOp::Clear(c), store: wgpu::StoreOp::Store } }) }
+                    let none = wgpu::Color { r: 0.0, g: 0.0, b: 0.0, a: 0.0 };
+                    let mut pass = enc.begin_render_pass(&wgpu::RenderPassDescriptor {
+                        label: Some("view3d gbuffer"),
+                        // Nothing drawn = the background, emitted as is (GB2 alpha 1 = unlit).
+                        color_attachments: &[att(&df.gb[0], none), att(&df.gb[1], none), att(&df.gb[2], wgpu::Color { r: bg, g: bg, b: bg, a: 1.0 })],
+                        depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment { view: &df.depth, depth_ops: Some(wgpu::Operations { load: wgpu::LoadOp::Clear(1.0), store: wgpu::StoreOp::Store }), stencil_ops: None }),
+                        ..Default::default()
+                    });
+                    pass.set_bind_group(0, &cam_bind, &[]);
+                    pass.set_pipeline(&gbuf_pipe);
+                    pass.set_bind_group(2, &no_depth_bind, &[]);
+                    pass.set_bind_group(3, &light_bind, &[]);
+                    draw_opaque(&mut pass);
+                }
+                {
+                    let mut pass = enc.begin_render_pass(&wgpu::RenderPassDescriptor {
+                        label: Some("view3d lighting"),
+                        color_attachments: &[Some(wgpu::RenderPassColorAttachment { view: hdr, depth_slice: None, resolve_target: None, ops: wgpu::Operations { load: wgpu::LoadOp::Clear(wgpu::Color::BLACK), store: wgpu::StoreOp::Store } })],
+                        ..Default::default()
+                    });
+                    pass.set_pipeline(&light_pipe);
+                    pass.set_bind_group(0, &cam_bind, &[]);
+                    pass.set_bind_group(1, &df.bind, &[]);
+                    pass.set_bind_group(2, &no_depth_bind, &[]);
+                    pass.set_bind_group(3, &light_bind, &[]);
+                    pass.draw(0..3, 0..1);
+                }
+                {
+                    let mut pass = enc.begin_render_pass(&wgpu::RenderPassDescriptor {
+                        label: Some("view3d forward"),
+                        color_attachments: &[Some(wgpu::RenderPassColorAttachment { view: hdr, depth_slice: None, resolve_target: None, ops: wgpu::Operations { load: wgpu::LoadOp::Load, store: wgpu::StoreOp::Store } })],
+                        depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment { view: &df.depth, depth_ops: Some(wgpu::Operations { load: wgpu::LoadOp::Load, store: wgpu::StoreOp::Store }), stencil_ops: None }),
+                        ..Default::default()
+                    });
+                    pass.set_bind_group(0, &cam_bind, &[]);
+                    draw_rest(&mut pass, (&led_pipe1, &beam_pipe1, &flat_line_pipe1, &label_pipe1, &handle_pipe1));
+                }
+            } else {
+                let mut pass = enc.begin_render_pass(&wgpu::RenderPassDescriptor {
+                    label: Some("view3d"),
+                    color_attachments: &[Some(wgpu::RenderPassColorAttachment { view: msaa, depth_slice: None, resolve_target: post.hdr(),
+                        ops: wgpu::Operations { load: wgpu::LoadOp::Clear(wgpu::Color { r: bg, g: bg, b: bg, a: 1.0 }), store: wgpu::StoreOp::Discard } })],
+                    depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment { view: depth, depth_ops: Some(wgpu::Operations { load: wgpu::LoadOp::Clear(1.0), store: wgpu::StoreOp::Store }), stencil_ops: None }),
+                    ..Default::default()
+                });
+                pass.set_bind_group(0, &cam_bind, &[]);
+                pass.set_pipeline(&mesh_pipe);
+                pass.set_bind_group(2, &no_depth_bind, &[]);
+                pass.set_bind_group(3, &light_bind, &[]);
+                draw_opaque(&mut pass);
+                draw_rest(&mut pass, (&led_pipe, &beam_pipe, &flat_line_pipe, &label_pipe, &handle_pipe));
+            }
+            // Rendered: ambient occlusion from the pass's own depth, laid into the frame before the bloom (ao.rs).
+            if look.rendered {
+                if let (Some(hdr), Some(lit)) = (post.hdr(), post.lit()) {
+                    match (deferred, defer.as_ref()) {
+                        (true, Some(df)) => ao1.run(d, &gpu.queue, &mut enc, &df.depth, depth_gen, hdr, lit, size.width, size.height, cam.fov, 0.03, 4000.0),
+                        _ => ao.run(d, &gpu.queue, &mut enc, depth, depth_gen, hdr, lit, size.width, size.height, cam.fov, 0.03, 4000.0),
+                    }
+                }
             }
         }
         // The last step: bloom + AgX in Rendered, a straight copy in Shaded (post.rs).
@@ -1642,6 +1821,33 @@ pub fn present(gpu: Arc<Gpu>, window: Arc<Window>, surface: wgpu::Surface<'stati
         crate::prof::add("frame", frame_at.elapsed());
         crate::prof::report("view3d");
     }
+}
+
+/// The inverse of a column-major 4 × 4 (cofactors), or the identity for a singular one.
+fn invert(m: &[f32; 16]) -> [f32; 16] {
+    let a: Vec<f64> = m.iter().map(|&x| x as f64).collect();
+    let mut inv = [0f64; 16];
+    inv[0] = a[5]*a[10]*a[15] - a[5]*a[11]*a[14] - a[9]*a[6]*a[15] + a[9]*a[7]*a[14] + a[13]*a[6]*a[11] - a[13]*a[7]*a[10];
+    inv[4] = -a[4]*a[10]*a[15] + a[4]*a[11]*a[14] + a[8]*a[6]*a[15] - a[8]*a[7]*a[14] - a[12]*a[6]*a[11] + a[12]*a[7]*a[10];
+    inv[8] = a[4]*a[9]*a[15] - a[4]*a[11]*a[13] - a[8]*a[5]*a[15] + a[8]*a[7]*a[13] + a[12]*a[5]*a[11] - a[12]*a[7]*a[9];
+    inv[12] = -a[4]*a[9]*a[14] + a[4]*a[10]*a[13] + a[8]*a[5]*a[14] - a[8]*a[6]*a[13] - a[12]*a[5]*a[10] + a[12]*a[6]*a[9];
+    inv[1] = -a[1]*a[10]*a[15] + a[1]*a[11]*a[14] + a[9]*a[2]*a[15] - a[9]*a[3]*a[14] - a[13]*a[2]*a[11] + a[13]*a[3]*a[10];
+    inv[5] = a[0]*a[10]*a[15] - a[0]*a[11]*a[14] - a[8]*a[2]*a[15] + a[8]*a[3]*a[14] + a[12]*a[2]*a[11] - a[12]*a[3]*a[10];
+    inv[9] = -a[0]*a[9]*a[15] + a[0]*a[11]*a[13] + a[8]*a[1]*a[15] - a[8]*a[3]*a[13] - a[12]*a[1]*a[11] + a[12]*a[3]*a[9];
+    inv[13] = a[0]*a[9]*a[14] - a[0]*a[10]*a[13] - a[8]*a[1]*a[14] + a[8]*a[2]*a[13] + a[12]*a[1]*a[10] - a[12]*a[2]*a[9];
+    inv[2] = a[1]*a[6]*a[15] - a[1]*a[7]*a[14] - a[5]*a[2]*a[15] + a[5]*a[3]*a[14] + a[13]*a[2]*a[7] - a[13]*a[3]*a[6];
+    inv[6] = -a[0]*a[6]*a[15] + a[0]*a[7]*a[14] + a[4]*a[2]*a[15] - a[4]*a[3]*a[14] - a[12]*a[2]*a[7] + a[12]*a[3]*a[6];
+    inv[10] = a[0]*a[5]*a[15] - a[0]*a[7]*a[13] - a[4]*a[1]*a[15] + a[4]*a[3]*a[13] + a[12]*a[1]*a[7] - a[12]*a[3]*a[5];
+    inv[14] = -a[0]*a[5]*a[14] + a[0]*a[6]*a[13] + a[4]*a[1]*a[14] - a[4]*a[2]*a[13] - a[12]*a[1]*a[6] + a[12]*a[2]*a[5];
+    inv[3] = -a[1]*a[6]*a[11] + a[1]*a[7]*a[10] + a[5]*a[2]*a[11] - a[5]*a[3]*a[10] - a[9]*a[2]*a[7] + a[9]*a[3]*a[6];
+    inv[7] = a[0]*a[6]*a[11] - a[0]*a[7]*a[10] - a[4]*a[2]*a[11] + a[4]*a[3]*a[10] + a[8]*a[2]*a[7] - a[8]*a[3]*a[6];
+    inv[11] = -a[0]*a[5]*a[11] + a[0]*a[7]*a[9] + a[4]*a[1]*a[11] - a[4]*a[3]*a[9] - a[8]*a[1]*a[7] + a[8]*a[3]*a[5];
+    inv[15] = a[0]*a[5]*a[10] - a[0]*a[6]*a[9] - a[4]*a[1]*a[10] + a[4]*a[2]*a[9] + a[8]*a[1]*a[6] - a[8]*a[2]*a[5];
+    let det = a[0] * inv[0] + a[1] * inv[4] + a[2] * inv[8] + a[3] * inv[12];
+    if det.abs() < 1e-30 { return IDENT; }
+    let mut out = [0f32; 16];
+    for i in 0..16 { out[i] = (inv[i] / det) as f32; }
+    out
 }
 
 fn buf_init(gpu: &Gpu, label: &str, data: &[u8], usage: wgpu::BufferUsages) -> wgpu::Buffer {

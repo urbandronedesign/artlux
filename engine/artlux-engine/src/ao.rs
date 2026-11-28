@@ -110,11 +110,14 @@ pub struct Ao {
 struct Sized { key: (u32, u32, usize), occl: wgpu::TextureView, blurred: wgpu::TextureView, b_depth: wgpu::BindGroup, b_occl: wgpu::BindGroup, b_blurred: wgpu::BindGroup, b_hdr: wgpu::BindGroup }
 
 impl Ao {
-    pub fn new(d: &wgpu::Device) -> Ao {
-        let module = d.create_shader_module(wgpu::ShaderModuleDescriptor { label: Some("view3d ao"), source: wgpu::ShaderSource::Wgsl(SHADER.into()) });
+    /// `multisampled`: the depth it reads — the forward pass's MSAA depth (sample 0), or D1's single-sample G-buffer
+    /// depth (`textureLoad(depth, px, 0)` reads sample 0 of the one and mip 0 of the other: the shader is the same text).
+    pub fn new(d: &wgpu::Device, multisampled: bool) -> Ao {
+        let src = if multisampled { SHADER.to_string() } else { SHADER.replace("texture_depth_multisampled_2d", "texture_depth_2d") };
+        let module = d.create_shader_module(wgpu::ShaderModuleDescriptor { label: Some("view3d ao"), source: wgpu::ShaderSource::Wgsl(src.into()) });
         let tex = |b: u32| wgpu::BindGroupLayoutEntry { binding: b, visibility: wgpu::ShaderStages::FRAGMENT, ty: wgpu::BindingType::Texture { sample_type: wgpu::TextureSampleType::Float { filterable: true }, view_dimension: wgpu::TextureViewDimension::D2, multisampled: false }, count: None };
         let l_depth = d.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor { label: Some("ao depth"), entries: &[
-            wgpu::BindGroupLayoutEntry { binding: 0, visibility: wgpu::ShaderStages::FRAGMENT, ty: wgpu::BindingType::Texture { sample_type: wgpu::TextureSampleType::Depth, view_dimension: wgpu::TextureViewDimension::D2, multisampled: true }, count: None },
+            wgpu::BindGroupLayoutEntry { binding: 0, visibility: wgpu::ShaderStages::FRAGMENT, ty: wgpu::BindingType::Texture { sample_type: wgpu::TextureSampleType::Depth, view_dimension: wgpu::TextureViewDimension::D2, multisampled }, count: None },
             wgpu::BindGroupLayoutEntry { binding: 1, visibility: wgpu::ShaderStages::FRAGMENT, ty: wgpu::BindingType::Buffer { ty: wgpu::BufferBindingType::Uniform, has_dynamic_offset: false, min_binding_size: None }, count: None },
         ] });
         let l_tex = d.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor { label: Some("ao tex"), entries: &[tex(0),

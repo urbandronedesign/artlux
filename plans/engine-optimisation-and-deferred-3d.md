@@ -909,6 +909,20 @@ and an embedded `sharedTexture` in the editor are presentation targets of the sa
 > of a core while its 3D context is up) — outside this plan ("What is NOT in this plan").
 | **D6** | Optional: LED bars as line lights; TAA if SMAA is judged insufficient; GPU-driven draws (indirect) if O0/D2 show the CPU submits matter | — | as decided then |
 
+> 🔧 **D1-1 built 2026-11-28 (owner: "go" on D1) — behind `ARTLUX_VIEW3D_DEFERRED=1`, the forward path still the
+> default.** Rendered can draw its opaque geometry (floor, venue meshes, screens, housings) into a G-buffer —
+> `fs_gbuf`, the same `material()` as `fs_mesh` — and light every pixel ONCE in a full-screen pass (`fs_light`), the
+> same `lit_surface()` from the one `LIGHTS_WGSL` both shaders are built from; then the LEDs, beams, lines, labels and
+> gizmo forward over it and AO / bloom / AgX as before (AO over the G-buffer's single-sample depth). The G-buffer is
+> three **Rgba16Float** targets, not the 8-bit albedo of §4.3: a pure re-plumb must not round a shade the forward pass
+> did not. Shaded is untouched. Measured, both paths on the same build: test:engine-shadows 131.4 vs 131.5 (ring),
+> --ao 223.1 vs 222.9, test:engine-beams 42/42 and test:engine-view-place pass on both; captures differ only at EDGES
+> (0.05 % of pixels > 8 levels on the shadow scene). **Found: the lines.** With no MSAA a 1-px line list is drawn
+> aliased — the grid, the projector frustums and the cone diagrams come out visibly thinner and break into dashes at
+> the horizon (6–9 % of pixels on the examples, nearly all on lines). SMAA will not give their weight back, so **D1-2
+> = SMAA (the editor's, ported) + lines drawn as anti-aliased quads** at today's apparent width; D1-3 = default on after
+> the owner looks, the guards / tests re-based. Bench: `E:/zaki/artlux-engine-test/D1/` (capture.cjs, diff.cjs).
+
 > 📏 **What shadows cost while heads MOVE — measured 2026-11-28** (owner: "the beam lights will move"; the D0 bench
 > grew `--move=N` — two timeline lighting effects sweeping pan and tilt, phase-spread, played — `--venue=panorama|big`,
 > `big` a 694 k-triangle mesh as the heavy-venue stand-in, and `--noshadow` = the new diagnostic

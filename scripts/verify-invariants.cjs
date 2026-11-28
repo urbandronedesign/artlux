@@ -10434,6 +10434,33 @@ check(
   },
 );
 
+check(
+  'the 3D view\'s deferred path (D1) shades with the forward path\'s OWN lighting text — never a copy',
+  'D1 (plans/engine-optimisation-and-deferred-3d.md §4.5, 2026-11-28): Rendered can draw opaque geometry into a G-buffer ' +
+  'and light each pixel once (fs_light) instead of per fragment (fs_mesh). It was measured equal to the forward path ' +
+  '(shadow ring 131.4 vs 131.5, AO 223.1 vs 222.9, flat areas identical) BECAUSE both call one lit_surface() from one ' +
+  'LIGHTS_WGSL, and both read one material(). A second copy of the spots, the fill or the shadow lookup in the lighting ' +
+  'pass would drift the first time either is tuned — and the D1 promise is "same look, re-plumbed".',
+  () => {
+    const problems = [];
+    const v = raw('engine/artlux-engine/src/view3d.rs');
+    if (!/fn scene_wgsl\(\) -> String \{ format!\("\{CAM_WGSL\}\{SHADER_HEAD\}\{LIGHTS_WGSL\}\{SHADER_TAIL\}"\) \}/.test(v)) problems.push('the forward shader is no longer CAM + HEAD + LIGHTS_WGSL + TAIL');
+    if (!/fn deferred_wgsl\(\) -> String \{ format!\("\{CAM_WGSL\}\{LIGHTS_WGSL\}\{LIGHT_PASS_WGSL\}"\) \}/.test(v)) problems.push('the lighting pass no longer takes LIGHTS_WGSL');
+    const pass = (v.split('const LIGHT_PASS_WGSL: &str = r#"')[1] || '').split('"#;')[0];
+    if (!pass) problems.push('LIGHT_PASS_WGSL is gone');
+    else {
+      if (!/lit_surface\(/.test(pass)) problems.push('fs_light no longer shades with lit_surface()');
+      if (/spot_light|spot_shadow|mix\(0\.18, 0\.42/.test(pass.replace(/lit_surface\(/g, ''))) problems.push('the lighting pass carries its own copy of the spots / shadows / fill');
+    }
+    const fwd = (v.split('@fragment fn fs_mesh(')[1] || '').split('\n}')[0];
+    if (!/material\(i, front\)/.test(fwd) || !/lit_surface\(m\.base, m\.n, i\.w\)/.test(fwd)) problems.push('fs_mesh no longer shades material() with lit_surface()');
+    const gb = (v.split('@fragment fn fs_gbuf(')[1] || '').split('\n}')[0];
+    if (!/material\(i, front\)/.test(gb)) problems.push('fs_gbuf no longer writes material()');
+    if (!/const GBUF: wgpu::TextureFormat = wgpu::TextureFormat::Rgba16Float;/.test(v)) problems.push('the G-buffer is no longer 16-bit float — the re-plumb would round shades the forward path does not');
+    return problems.length ? problems.join('; ') : null;
+  },
+);
+
 const ok = (m) => console.log(`\x1b[32m✓\x1b[0m ${m}`);
 const bad = (m) => console.error(`\x1b[31m✗\x1b[0m ${m}`);
 
