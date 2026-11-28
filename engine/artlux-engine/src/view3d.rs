@@ -613,31 +613,38 @@ fn spot_shadow(k: u32, w: vec3<f32>, n: vec3<f32>) -> f32 {
   }
   return lit / 9.0;
 }
+// Spot k's light at `w` (normal `n`): zero outside its cone, past its range, or facing away. ONE text for both
+// loops — the forward pass's over every spot (spot_light) and the deferred pass's over its cluster's (D2a-2).
+fn one_spot(k: u32, w: vec3<f32>, n: vec3<f32>) -> vec3<f32> {
+  let s = spots[k];
+  let l = s.pos.xyz - w;
+  let d = length(l);
+  let ld = l / max(d, 1e-5);
+  let ndl = max(dot(n, ld), 0.0);
+  if (ndl <= 0.0) { return vec3<f32>(0.0); }
+  var fall = 1.0 / max(pow(d, s.dir.w), 0.01);
+  if (s.pos.w > 0.0) { let r = clamp(1.0 - pow(d / s.pos.w, 4.0), 0.0, 1.0); fall = fall * r * r; }
+  let cone = smoothstep(s.cone.x, s.cone.y, dot(ld, -s.dir.xyz));
+  if (cone <= 0.0) { return vec3<f32>(0.0); }
+  return s.color.rgb * (ndl * fall * cone * spot_shadow(k, w, n));
+}
 fn spot_light(w: vec3<f32>, n: vec3<f32>) -> vec3<f32> {
   var sum = vec3<f32>(0.0);
-  for (var k = 0u; k < u32(lights.n.x); k = k + 1u) {
-    let s = spots[k];
-    let l = s.pos.xyz - w;
-    let d = length(l);
-    let ld = l / max(d, 1e-5);
-    let ndl = max(dot(n, ld), 0.0);
-    if (ndl <= 0.0) { continue; }
-    var fall = 1.0 / max(pow(d, s.dir.w), 0.01);
-    if (s.pos.w > 0.0) { let r = clamp(1.0 - pow(d / s.pos.w, 4.0), 0.0, 1.0); fall = fall * r * r; }
-    let cone = smoothstep(s.cone.x, s.cone.y, dot(ld, -s.dir.xyz));
-    if (cone <= 0.0) { continue; }
-    sum = sum + s.color.rgb * (ndl * fall * cone * spot_shadow(k, w, n));
-  }
+  for (var k = 0u; k < u32(lights.n.x); k = k + 1u) { sum = sum + one_spot(k, w, n); }
   return sum;
 }
 // A lit surface's colour: albedo `base`, normal `n` (towards the viewer's side), at `w`. A soft studio light: sky /
 // ground fill plus one key from over the viewer's shoulder — or, in Rendered, a dark room with a trace of fill (the
 // editor's RoomEnvironment at 0.08) where the rig is the light. Forward (fs_mesh) and deferred (fs_light) both call it.
 fn lit_surface(base: vec3<f32>, n: vec3<f32>, w: vec3<f32>) -> vec3<f32> {
+  return lit_from(base, n, spot_light(w, n));
+}
+// The same, given the spots' summed light (`spots_in`) — the deferred pass sums only its cluster's spots (D2a-2).
+fn lit_from(base: vec3<f32>, n: vec3<f32>, spots_in: vec3<f32>) -> vec3<f32> {
   let sky = mix(0.18, 0.42, n.y * 0.5 + 0.5);
   let key = max(dot(n, normalize(vec3<f32>(-0.35, 0.85, 0.45))), 0.0) * 0.55;
   let fill = select(sky + key, 0.05, lights.n.y > 0.5);
-  return base * fill + base * spot_light(w, n) * 0.31830988;
+  return base * fill + base * spots_in * 0.31830988;
 }
 "#;
 const SHADER_TAIL: &str = r#"
@@ -858,13 +865,94 @@ struct DOut { @builtin(position) pos: vec4<f32>, @location(0) d: f32 };
 
 // D1 — THE LIGHTING PASS: every G-buffer pixel shaded once, with the forward pass's own LIGHTS_WGSL. Groups: 0 the
 // camera, 1 the G-buffer + depth + the inverse view-projection, 2 unused (the mesh layout's depth-map slot), 3 the lights.
-fn deferred_wgsl() -> String { format!("{CAM_WGSL}{LIGHTS_WGSL}{LIGHT_PASS_WGSL}") }
+fn deferred_wgsl() -> String { format!("{CAM_WGSL}{LIGHTS_WGSL}{CLUSTER_WGSL}{LIGHT_PASS_WGSL}") }
+fn cluster_cs_wgsl() -> String { format!("{CLUSTER_WGSL}{CLUSTER_CS_WGSL}") }
+// D2a-2 — CLUSTERED LIGHTING (plans/engine-d2-many-lights.md): the view cut into CX × CY screen tiles × CZ depth
+// slices (exponential from the near plane to the far), and per cluster the list of spots whose CONE can reach it —
+// so a pixel adds up its cluster's spots, not every spot. Shared by the compute pass that fills the lists and the
+// lighting pass that reads them; the Rust side's CL_* constants are the same numbers (guarded).
+const CLUSTER_WGSL: &str = r#"
+const CX: u32 = 16u;
+const CY: u32 = 9u;
+const CZ: u32 = 24u;
+const CMAX: u32 = 128u;   // spots per cluster; past it the brightest CMAX are kept (spots are sorted brightest-first)
+// view: world → view; inv_proj: clip → view; zi: near, far, ln(far / near), debug (1 = the cluster heat map);
+// dim: the target's width, height in pixels, the spots in use.
+struct Clu { view: mat4x4<f32>, inv_proj: mat4x4<f32>, zi: vec4<f32>, dim: vec4<f32> };
+"#;
+const CLUSTER_CS_WGSL: &str = r#"
+// The same layout as LIGHTS_WGSL's Spot (pos + range, dir + decay, colour, cone cosines).
+struct CSpot { pos: vec4<f32>, dir: vec4<f32>, color: vec4<f32>, cone: vec4<f32> };
+@group(0) @binding(0) var<uniform> clu: Clu;
+@group(0) @binding(1) var<storage, read> spots: array<CSpot>;
+@group(0) @binding(2) var<storage, read_write> ccount: array<u32>;
+@group(0) @binding(3) var<storage, read_write> cidx: array<u32>;
+// The view-space point on the ray through `ndc` at view distance `z` (positive, in front of the eye).
+fn at_depth(ndc: vec2<f32>, z: f32) -> vec3<f32> {
+  let p = clu.inv_proj * vec4<f32>(ndc, 1.0, 1.0);
+  let r = p.xyz / p.w;
+  return r * (z / -r.z);
+}
+@compute @workgroup_size(64) fn cs_cluster(@builtin(global_invocation_id) g: vec3<u32>) {
+  let c = g.x;
+  if (c >= CX * CY * CZ) { return; }
+  let x = c % CX;
+  let y = (c / CX) % CY;
+  let z = c / (CX * CY);
+  let z0 = clu.zi.x * exp(clu.zi.z * f32(z) / f32(CZ));
+  let z1 = clu.zi.x * exp(clu.zi.z * f32(z + 1u) / f32(CZ));
+  // Tiles count from the TOP of the screen (pixel rows go down; NDC y goes up).
+  let x0 = -1.0 + 2.0 * f32(x) / f32(CX);
+  let x1 = -1.0 + 2.0 * f32(x + 1u) / f32(CX);
+  let y0 = 1.0 - 2.0 * f32(y + 1u) / f32(CY);
+  let y1 = 1.0 - 2.0 * f32(y) / f32(CY);
+  var mn = vec3<f32>(1e30);
+  var mx = vec3<f32>(-1e30);
+  for (var i = 0u; i < 8u; i = i + 1u) {
+    let q = at_depth(vec2<f32>(select(x0, x1, (i & 1u) != 0u), select(y0, y1, (i & 2u) != 0u)), select(z0, z1, (i & 4u) != 0u));
+    mn = min(mn, q);
+    mx = max(mx, q);
+  }
+  let centre = 0.5 * (mn + mx);
+  let rad = 0.5 * length(mx - mn);
+  var cnt = 0u;
+  for (var k = 0u; k < u32(clu.dim.z); k = k + 1u) {
+    let s = spots[k];
+    let apex = (clu.view * vec4<f32>(s.pos.xyz, 1.0)).xyz;
+    let axis = normalize((clu.view * vec4<f32>(s.dir.xyz, 0.0)).xyz);
+    let range = select(1e9, s.pos.w, s.pos.w > 0.0);
+    let cos_o = clamp(s.cone.x, -1.0, 1.0);
+    let sin_o = sqrt(max(1.0 - cos_o * cos_o, 0.0));
+    // A sphere round the cluster against the spot's cone (Wronski's cone test) — conservative: a spot listed
+    // here may still give a pixel nothing (one_spot returns zero there), a spot left out gives nothing anywhere
+    // in the cluster.
+    let v = centre - apex;
+    let v1 = dot(v, axis);
+    let dc = cos_o * sqrt(max(dot(v, v) - v1 * v1, 0.0)) - v1 * sin_o;
+    if (dc > rad || v1 > rad + range || v1 < -rad) { continue; }
+    if (cnt < CMAX) { cidx[c * CMAX + cnt] = k; }
+    cnt = cnt + 1u;
+  }
+  ccount[c] = min(cnt, CMAX);
+}
+"#;
 const LIGHT_PASS_WGSL: &str = r#"
 @group(1) @binding(0) var gb0: texture_2d<f32>;
 @group(1) @binding(1) var gb1: texture_2d<f32>;
 @group(1) @binding(2) var gb2: texture_2d<f32>;
 @group(1) @binding(3) var gdepth: texture_depth_2d;
 @group(1) @binding(4) var<uniform> inv_vp: mat4x4<f32>;
+@group(1) @binding(5) var<uniform> clu: Clu;
+@group(1) @binding(6) var<storage, read> ccount: array<u32>;
+@group(1) @binding(7) var<storage, read> cidx: array<u32>;
+// The cluster of a pixel at `px` (pixels, top-left origin) whose surface is at world `w`.
+fn cluster_of(px: vec2<f32>, w: vec3<f32>) -> u32 {
+  let vz = max(-(clu.view * vec4<f32>(w, 1.0)).z, clu.zi.x);
+  let z = min(u32(max(log(vz / clu.zi.x) / clu.zi.z * f32(CZ), 0.0)), CZ - 1u);
+  let x = min(u32(px.x / clu.dim.x * f32(CX)), CX - 1u);
+  let y = min(u32(px.y / clu.dim.y * f32(CY)), CY - 1u);
+  return (z * CY + y) * CX + x;
+}
 @vertex fn vs_full(@builtin(vertex_index) i: u32) -> @builtin(position) vec4<f32> {
   let xy = vec2<f32>(f32((i << 1u) & 2u), f32(i & 2u));
   return vec4<f32>(xy * 2.0 - 1.0, 0.0, 1.0);
@@ -878,7 +966,17 @@ const LIGHT_PASS_WGSL: &str = r#"
   let uv = pos.xy / vec2<f32>(textureDimensions(gdepth));
   let h = inv_vp * vec4<f32>(uv.x * 2.0 - 1.0, 1.0 - uv.y * 2.0, d, 1.0);
   let w = h.xyz / h.w;
-  return vec4<f32>(lit_surface(textureLoad(gb0, px, 0).rgb, textureLoad(gb1, px, 0).xyz, w), 1.0);
+  let nrm = textureLoad(gb1, px, 0).xyz;
+  let c = cluster_of(pos.xy, w);
+  let cnt = ccount[c];
+  // ARTLUX_VIEW3D_GB=clusters: how many spots each cluster lists — dark blue none, through green, to red at 8+.
+  if (clu.zi.w > 0.5) {
+    let t = clamp(f32(cnt) / 8.0, 0.0, 1.0);
+    return vec4<f32>(select(vec3<f32>(0.0, 0.0, 0.05), mix(vec3<f32>(0.0, 0.6, 0.1), vec3<f32>(1.0, 0.05, 0.0), t), cnt > 0u), 1.0);
+  }
+  var sum = vec3<f32>(0.0);
+  for (var i = 0u; i < cnt; i = i + 1u) { sum = sum + one_spot(cidx[c * CMAX + i], w, nrm); }
+  return vec4<f32>(lit_from(textureLoad(gb0, px, 0).rgb, nrm, sum), 1.0);
 }
 "#;
 
@@ -915,6 +1013,17 @@ fn gb_tex(binding: u32) -> wgpu::BindGroupLayoutEntry {
 fn deferred_on() -> bool {
     static ON: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
     *ON.get_or_init(|| std::env::var("ARTLUX_VIEW3D_DEFERRED").map_or(true, |v| v != "0"))
+}
+/// D2a-2: the cluster grid — the same numbers as CLUSTER_WGSL's CX / CY / CZ / CMAX (guarded).
+const CL_X: u32 = 16;
+const CL_Y: u32 = 9;
+const CL_Z: u32 = 24;
+const CL_MAX: u32 = 128;
+const CL_N: u32 = CL_X * CL_Y * CL_Z;
+/// ARTLUX_VIEW3D_GB=clusters: the deferred lighting pass draws the cluster heat map (spots per cluster) instead.
+fn gb_debug_clusters() -> bool {
+    static ON: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
+    *ON.get_or_init(|| std::env::var("ARTLUX_VIEW3D_GB").is_ok_and(|v| v == "clusters"))
 }
 /// D1's per-size targets: GB0 albedo, GB1 normal, GB2 emitted + UNLIT; their depth; the lighting pass's bind group.
 struct Defer { gb: [wgpu::TextureView; 3], depth: wgpu::TextureView, bind: wgpu::BindGroup }
@@ -1070,6 +1179,9 @@ pub fn present(gpu: Arc<Gpu>, window: Arc<Window>, surface: wgpu::Surface<'stati
         gb_tex(0), gb_tex(1), gb_tex(2),
         wgpu::BindGroupLayoutEntry { binding: 3, visibility: wgpu::ShaderStages::FRAGMENT, ty: wgpu::BindingType::Texture { sample_type: wgpu::TextureSampleType::Depth, view_dimension: wgpu::TextureViewDimension::D2, multisampled: false }, count: None },
         wgpu::BindGroupLayoutEntry { binding: 4, visibility: wgpu::ShaderStages::FRAGMENT, ty: wgpu::BindingType::Buffer { ty: wgpu::BufferBindingType::Uniform, has_dynamic_offset: false, min_binding_size: None }, count: None },
+        wgpu::BindGroupLayoutEntry { binding: 5, visibility: wgpu::ShaderStages::FRAGMENT, ty: wgpu::BindingType::Buffer { ty: wgpu::BufferBindingType::Uniform, has_dynamic_offset: false, min_binding_size: None }, count: None },
+        wgpu::BindGroupLayoutEntry { binding: 6, visibility: wgpu::ShaderStages::FRAGMENT, ty: wgpu::BindingType::Buffer { ty: wgpu::BufferBindingType::Storage { read_only: true }, has_dynamic_offset: false, min_binding_size: None }, count: None },
+        wgpu::BindGroupLayoutEntry { binding: 7, visibility: wgpu::ShaderStages::FRAGMENT, ty: wgpu::BindingType::Buffer { ty: wgpu::BufferBindingType::Storage { read_only: true }, has_dynamic_offset: false, min_binding_size: None }, count: None },
     ] });
     let gbuf_pipe = d.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
         label: Some("gbuffer"), layout: Some(&mesh_pl),
@@ -1089,6 +1201,25 @@ pub fn present(gpu: Arc<Gpu>, window: Arc<Window>, surface: wgpu::Surface<'stati
         primitive: Default::default(), depth_stencil: None, multisample: ms1, multiview_mask: None, cache: None,
     });
     let inv_vp_buf = d.create_buffer(&wgpu::BufferDescriptor { label: Some("inverse view-projection"), size: 64, usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST, mapped_at_creation: false });
+    // D2a-2: the clusters — their uniform (Clu: view, inverse projection, depth slicing, the target, the spot count),
+    // the spots-per-cluster counts and the per-cluster index lists (CL_MAX slots each), and the compute pass filling them.
+    let clu_buf = d.create_buffer(&wgpu::BufferDescriptor { label: Some("clusters"), size: 160, usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST, mapped_at_creation: false });
+    let ccount_buf = d.create_buffer(&wgpu::BufferDescriptor { label: Some("cluster counts"), size: CL_N as u64 * 4, usage: wgpu::BufferUsages::STORAGE, mapped_at_creation: false });
+    let cidx_buf = d.create_buffer(&wgpu::BufferDescriptor { label: Some("cluster lights"), size: (CL_N * CL_MAX) as u64 * 4, usage: wgpu::BufferUsages::STORAGE, mapped_at_creation: false });
+    let cs_entry = |b: u32, ty: wgpu::BufferBindingType| wgpu::BindGroupLayoutEntry { binding: b, visibility: wgpu::ShaderStages::COMPUTE, ty: wgpu::BindingType::Buffer { ty, has_dynamic_offset: false, min_binding_size: None }, count: None };
+    let cs_layout = d.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor { label: Some("cluster build"), entries: &[
+        cs_entry(0, wgpu::BufferBindingType::Uniform), cs_entry(1, wgpu::BufferBindingType::Storage { read_only: true }),
+        cs_entry(2, wgpu::BufferBindingType::Storage { read_only: false }), cs_entry(3, wgpu::BufferBindingType::Storage { read_only: false }),
+    ] });
+    let cs_bind = d.create_bind_group(&wgpu::BindGroupDescriptor { label: Some("cluster build"), layout: &cs_layout, entries: &[
+        wgpu::BindGroupEntry { binding: 0, resource: clu_buf.as_entire_binding() },
+        wgpu::BindGroupEntry { binding: 1, resource: spot_buf.as_entire_binding() },
+        wgpu::BindGroupEntry { binding: 2, resource: ccount_buf.as_entire_binding() },
+        wgpu::BindGroupEntry { binding: 3, resource: cidx_buf.as_entire_binding() },
+    ] });
+    let cs_module = d.create_shader_module(wgpu::ShaderModuleDescriptor { label: Some("view3d clusters"), source: wgpu::ShaderSource::Wgsl(cluster_cs_wgsl().into()) });
+    let cs_pl = d.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor { label: None, bind_group_layouts: &[Some(&cs_layout)], immediate_size: 0 });
+    let cluster_pipe = d.create_compute_pipeline(&wgpu::ComputePipelineDescriptor { label: Some("cluster build"), layout: Some(&cs_pl), module: &cs_module, entry_point: Some("cs_cluster"), compilation_options: Default::default(), cache: None });
     let shadow_pipe = d.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
         label: Some("spot shadow"), layout: Some(&depth_pl),
         vertex: wgpu::VertexState { module: &module, entry_point: Some("vs_shadow"), compilation_options: Default::default(), buffers: &[Some(wgpu::VertexBufferLayout {
@@ -1419,7 +1550,8 @@ pub fn present(gpu: Arc<Gpu>, window: Arc<Window>, surface: wgpu::Surface<'stati
         // The camera.
         let aspect = size.width as f32 / size.height as f32;
         let eye = cam.eye();
-        let vp = mul(&perspective(cam.fov, aspect, 0.03, 4000.0), &look_at(eye, cam.target));
+        let (proj_m, view_m) = (perspective(cam.fov, aspect, 0.03, 4000.0), look_at(eye, cam.target));
+        let vp = mul(&proj_m, &view_m);
         let px = 2.0 * (cam.fov.to_radians() / 2.0).tan() / size.height as f32;
         let mut cu = Vec::with_capacity(24);
         let look = scene.as_ref().map(|s| s.look.clone()).unwrap_or_default();
@@ -1482,8 +1614,8 @@ pub fn present(gpu: Arc<Gpu>, window: Arc<Window>, surface: wgpu::Surface<'stati
             }
             drag_drawn = want_drawn;
         }
-        // The heads as lights, this frame (moved with a drag, as the beams are).
-        {
+        // The heads as lights, this frame (moved with a drag, as the beams are) — and how many (D2a-2: the clusters test each).
+        let n_lights = {
             let (v, n) = scene.as_ref().map(|s| crate::beams::spots(moved_lights.as_deref().unwrap_or(&s.lights), &beam_states, s.look.light_gain)).unwrap_or((vec![0.0; crate::beams::MAX_LIGHTS * crate::beams::SPOT_FLOATS], 0));
             // The first MAX_SPOTS (the brightest) get shadow cameras; the rest light unshadowed (D2a, until D3).
             let n_shadowed = n.min(crate::beams::MAX_SPOTS);
@@ -1519,7 +1651,8 @@ pub fn present(gpu: Arc<Gpu>, window: Arc<Window>, surface: wgpu::Surface<'stati
             u.extend_from_slice(&mats);
             gpu.queue.write_buffer(&light_buf, 0, &bytes(&u));
             gpu.queue.write_buffer(&spot_buf, 0, &bytes(&v[..n.max(1) * crate::beams::SPOT_FLOATS]));
-        }
+            n
+        };
         let n_cones = (bf.cones.len() / crate::beams::CONE_FLOATS) as u32;
         let n_beam_verts = (bf.lines.len() / crate::beams::LINE_FLOATS) as u32;
         // The floor numbers, laid out against this frame's camera, in css pixels.
@@ -1557,7 +1690,15 @@ pub fn present(gpu: Arc<Gpu>, window: Arc<Window>, surface: wgpu::Surface<'stati
             eprintln!("artlux-engine: 3D view beams: {} volume(s), {} diagram segment(s) (haze {}, {})", n_cones, n_beam_verts / 2, look.haze, if look.rendered { "Rendered" } else { "Shaded" });
         }
         gpu.queue.write_buffer(&cam_buf, 0, &bytes(&cu));
-        if defer.is_some() { gpu.queue.write_buffer(&inv_vp_buf, 0, &bytes(&invert(&vp))); }
+        if defer.is_some() {
+            gpu.queue.write_buffer(&inv_vp_buf, 0, &bytes(&invert(&vp)));
+            // D2a-2: the clusters' frame — the camera the grid is cut from, its depth range, the target, the spots.
+            let (near, far) = (0.03f32, 4000.0f32);
+            let mut cl = view_m.to_vec();
+            cl.extend_from_slice(&invert(&proj_m));
+            cl.extend_from_slice(&[near, far, (far / near).ln(), gb_debug_clusters() as u32 as f32, size.width as f32, size.height as f32, n_lights as f32, 0.0]);
+            gpu.queue.write_buffer(&clu_buf, 0, &bytes(&cl));
+        }
 
         // Depth maps: one per model projecting with occlusion on, keyed by its projector matrix (a
         // re-solve or a different projector makes a new one; a moved mesh re-renders via depth_dirty).
@@ -1675,6 +1816,9 @@ pub fn present(gpu: Arc<Gpu>, window: Arc<Window>, surface: wgpu::Surface<'stati
                     wgpu::BindGroupEntry { binding: 2, resource: wgpu::BindingResource::TextureView(&gb[2]) },
                     wgpu::BindGroupEntry { binding: 3, resource: wgpu::BindingResource::TextureView(&depth) },
                     wgpu::BindGroupEntry { binding: 4, resource: inv_vp_buf.as_entire_binding() },
+                    wgpu::BindGroupEntry { binding: 5, resource: clu_buf.as_entire_binding() },
+                    wgpu::BindGroupEntry { binding: 6, resource: ccount_buf.as_entire_binding() },
+                    wgpu::BindGroupEntry { binding: 7, resource: cidx_buf.as_entire_binding() },
                 ] });
                 defer = Some(Defer { gb, depth, bind });
                 if let Some(sm) = smaa.as_mut() { sm.ensure(d, size.width, size.height); }
@@ -1873,6 +2017,14 @@ pub fn present(gpu: Arc<Gpu>, window: Arc<Window>, surface: wgpu::Surface<'stati
                     draw_opaque(&mut pass, &house_gbuf_pipe);
                 }
                 if let Some(t) = gt.as_mut() { t.mark(&mut enc, "gpu.gbuffer"); }
+                // D2a-2: each cluster's spot list, for the lighting pass below (one thread per cluster).
+                {
+                    let mut cp = enc.begin_compute_pass(&wgpu::ComputePassDescriptor { label: Some("view3d clusters"), timestamp_writes: None });
+                    cp.set_pipeline(&cluster_pipe);
+                    cp.set_bind_group(0, &cs_bind, &[]);
+                    cp.dispatch_workgroups(CL_N.div_ceil(64), 1, 1);
+                }
+                if let Some(t) = gt.as_mut() { t.mark(&mut enc, "gpu.cluster"); }
                 {
                     let mut pass = enc.begin_render_pass(&wgpu::RenderPassDescriptor {
                         label: Some("view3d lighting"),

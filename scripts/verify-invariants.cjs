@@ -10445,12 +10445,14 @@ check(
     const problems = [];
     const v = raw('engine/artlux-engine/src/view3d.rs');
     if (!/fn scene_wgsl\(\) -> String \{ format!\("\{CAM_WGSL\}\{SHADER_HEAD\}\{LIGHTS_WGSL\}\{SHADER_TAIL\}"\) \}/.test(v)) problems.push('the forward shader is no longer CAM + HEAD + LIGHTS_WGSL + TAIL');
-    if (!/fn deferred_wgsl\(\) -> String \{ format!\("\{CAM_WGSL\}\{LIGHTS_WGSL\}\{LIGHT_PASS_WGSL\}"\) \}/.test(v)) problems.push('the lighting pass no longer takes LIGHTS_WGSL');
+    if (!/fn deferred_wgsl\(\) -> String \{ format!\("\{CAM_WGSL\}\{LIGHTS_WGSL\}\{CLUSTER_WGSL\}\{LIGHT_PASS_WGSL\}"\) \}/.test(v)) problems.push('the lighting pass no longer takes LIGHTS_WGSL');
     const pass = (v.split('const LIGHT_PASS_WGSL: &str = r#"')[1] || '').split('"#;')[0];
     if (!pass) problems.push('LIGHT_PASS_WGSL is gone');
     else {
-      if (!/lit_surface\(/.test(pass)) problems.push('fs_light no longer shades with lit_surface()');
-      if (/spot_light|spot_shadow|mix\(0\.18, 0\.42/.test(pass.replace(/lit_surface\(/g, ''))) problems.push('the lighting pass carries its own copy of the spots / shadows / fill');
+      // D2a-2: fs_light sums its CLUSTER's spots with LIGHTS_WGSL's one_spot() and shades with its lit_from() — the
+      // same two functions the forward pass's lit_surface() is made of.
+      if (!/sum = sum \+ one_spot\(cidx\[c \* CMAX \+ i\], w, nrm\);/.test(pass) || !/lit_from\(/.test(pass)) problems.push('fs_light no longer shades its cluster\'s spots with one_spot() + lit_from()');
+      if (/spot_light|spot_shadow|mix\(0\.18, 0\.42|smoothstep\(s\.cone/.test(pass)) problems.push('the lighting pass carries its own copy of the spots / shadows / fill');
     }
     // V5 split the tail into shade(Mat) / gbuf(Mat) so the instanced housings share them: every opaque fragment —
     // a mesh's (material) or a housing's (house_mat) — is shaded by ONE shade() and packed by ONE gbuf().
@@ -10460,7 +10462,10 @@ check(
     if (!/return shade\(house_mat\(i, front\), i\.w\);/.test(fn_('fs_house'))) problems.push('fs_house no longer shades through shade()');
     if (!/@fragment fn fs_gbuf\(i: VOut, @builtin\(front_facing\) front: bool\) -> GBOut \{ return gbuf\(material\(i, front\)\); \}/.test(v)) problems.push('fs_gbuf no longer writes material() through gbuf()');
     if (!/@fragment fn fs_house_gbuf\(i: HOut, @builtin\(front_facing\) front: bool\) -> GBOut \{ return gbuf\(house_mat\(i, front\)\); \}/.test(v)) problems.push('fs_house_gbuf no longer writes through gbuf()');
-    if ((v.match(/lit_surface\(/g) || []).length !== 3) problems.push('lit_surface() is called from somewhere new (expected: its definition, shade(), fs_light) — a second shading path');
+    if ((v.match(/lit_surface\(/g) || []).length !== 2) problems.push('lit_surface() is called from somewhere new (expected: its definition and shade()) — a second shading path');
+    const lights = (v.split('const LIGHTS_WGSL: &str = r#"')[1] || '').split('"#;')[0];
+    if (!/fn lit_surface\(base: vec3<f32>, n: vec3<f32>, w: vec3<f32>\) -> vec3<f32> \{\s*return lit_from\(base, n, spot_light\(w, n\)\);\s*\}/.test(lights)) problems.push('lit_surface() is no longer lit_from() over spot_light()');
+    if (!/for \(var k = 0u; k < u32\(lights\.n\.x\); k = k \+ 1u\) \{ sum = sum \+ one_spot\(k, w, n\); \}/.test(lights)) problems.push('spot_light() no longer sums one_spot() over every spot');
     if (!/const GBUF: wgpu::TextureFormat = wgpu::TextureFormat::Rgba16Float;/.test(v)) problems.push('the G-buffer is no longer 16-bit float — the re-plumb would round shades the forward path does not');
     return problems.length ? problems.join('; ') : null;
   },
@@ -10491,6 +10496,29 @@ check(
     // on first need — allocating the 4× MSAA pair AND the G-buffer for every size cost ~400 MB at 4K for nothing.
     if (!/std::env::var\("ARTLUX_VIEW3D_DEFERRED"\)\.map_or\(true, \|v\| v != "0"\)/.test(v)) problems.push('deferred is no longer Rendered\'s default with ARTLUX_VIEW3D_DEFERRED=0 as the fallback');
     if (!/targets = None;\s*defer = None;/.test(v) || !/\} else if targets\.is_none\(\) \{/.test(v)) problems.push('the MSAA / G-buffer targets are no longer made on first need (both sets would be allocated for every size)');
+    return problems.length ? problems.join('; ') : null;
+  },
+);
+
+check(
+  'the 3D view\'s clusters (D2a-2): one grid on both sides, built before the lighting pass reads it',
+  'D2a-2 (plans/engine-d2-many-lights.md, 2026-11-28): a compute pass lists, per cluster of the view (16 × 9 tiles × ' +
+  '24 depth slices), the spots whose cone can reach it; the lighting pass sums only those. Measured identical to the ' +
+  'plain loop (captures within 6 levels, shadows 131.4, AO 223.1) and ~0.01 ms of GPU. Its failure modes are all ' +
+  'silent: the Rust CL_* sizes and the WGSL CX / CY / CZ / CMAX disagree (lists overrun or a slice is never read), ' +
+  'the compute shader\'s CSpot drifts from LIGHTS_WGSL\'s Spot (it tests the wrong cone), or the dispatch moves after ' +
+  'the lighting pass (it reads last frame\'s lists — lights lag a moving camera by a frame).',
+  () => {
+    const problems = [];
+    const v = raw('engine/artlux-engine/src/view3d.rs');
+    for (const [r, w] of [['CL_X', 'CX'], ['CL_Y', 'CY'], ['CL_Z', 'CZ'], ['CL_MAX', 'CMAX']]) {
+      const a = new RegExp(`const ${r}: u32 = (\\d+);`).exec(v), b = new RegExp(`const ${w}: u32 = (\\d+)u;`).exec(v);
+      if (!a || !b || a[1] !== b[1]) problems.push(`${r} (Rust) and ${w} (WGSL) differ or are gone`);
+    }
+    const spot = /struct Spot \{ ([^}]*) \};/.exec(v), cs = /struct CSpot \{ ([^}]*) \};/.exec(v);
+    if (!spot || !cs || spot[1] !== cs[1]) problems.push('the compute pass\'s CSpot no longer matches LIGHTS_WGSL\'s Spot');
+    const iC = v.indexOf('cp.dispatch_workgroups(CL_N.div_ceil(64), 1, 1);'), iL = v.indexOf('pass.set_pipeline(&light_pipe);');
+    if (iC < 0 || iL < 0 || iC > iL) problems.push('the cluster pass is no longer dispatched before the lighting pass');
     return problems.length ? problems.join('; ') : null;
   },
 );

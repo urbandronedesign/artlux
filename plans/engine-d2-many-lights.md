@@ -171,6 +171,25 @@ Each step is one commit, its own test numbers, its guard.
 > (0.00 % of pixels > 8 levels). Guarded: MAX_LIGHTS apart from MAX_SPOTS, the storage buffer sized by it, shadow
 > cameras only for the first MAX_SPOTS, the shadowed-count test in `spot_shadow`.
 
+> 🧪 **Bench rig from here on: THIN beams** (owner, 2026-11-28: "for the next tests make the beams of the lights very
+> thin"). `E:/zaki/artlux-engine-test/D0-heads/bench.cjs` now builds its grid of **Showtec XS-1 RGBW** heads — a fixed
+> 3° lens (half-angle 1.5°; the MAC 250 Beam has no lens data and fell back to 14°) — pencil beams whose pools touch
+> few clusters; `--wide` brings back the MAC 250 rig of every earlier run. It also saves a screenshot of the engine
+> window per scenario (`runs/<tag>/<scenario>.png`).
+
+> ✅ **D2a-2 built 2026-11-28 — clustered lighting, cap still 8.** A compute pass (`cs_cluster`, one thread per
+> cluster) cuts the view into **16 × 9 tiles × 24 exponential depth slices** (0.03 → 4 000 m), bounds each cluster
+> with a sphere and tests every spot's CONE against it (Wronski's cone test: angle, range, behind-the-apex), writing up
+> to 128 spot indices per cluster. `fs_light` finds its pixel's cluster from the screen position and view depth and
+> sums `one_spot()` over that list only, then shades with `lit_from()` — `one_spot` / `lit_from` are LIGHTS_WGSL's,
+> split out of `spot_light` / `lit_surface` so the forward pass (still the plain loop over every spot) and the
+> deferred pass share one text. `ARTLUX_VIEW3D_GB=clusters` draws the heat map (dark blue none → green → red at 8+).
+> **Identical** to D2a-1: lighting example within 6 levels, multi-projector within 5 (0.00 % > 8); shadows 131.4,
+> AO 223.1, beams and view-place pass. **Cost** (`gpu.cluster`, thin rig): 0.00 ms at 100 heads, 0.01 ms at 300
+> moving heads on the big venue; `gpu.light` unchanged (0.01 ms). Guarded: the CL_* / CX… sizes agree, the compute
+> pass's CSpot matches Spot, the dispatch precedes the lighting pass, fs_light uses one_spot + lit_from and no copy.
+> Not built yet: the overflow count (> 128 spots in a cluster cannot happen with 8; it is logged in D2a-3, where it can).
+
 ## Owner questions
 
 1. **Lights 9+ unshadowed until D3** — acceptable for the gap? (Recommendation: yes; the other option keeps the
