@@ -10496,6 +10496,28 @@ check(
 );
 
 check(
+  'the engine\'s light budget (MAX_LIGHTS) is its own constant, apart from the editor\'s 8 shadowed spots',
+  'D2a (plans/engine-d2-many-lights.md; owner 2026-11-28: every head a light, lights past the 8th unshadowed until ' +
+  'D3). Two counts that were one: MAX_SPOTS = 8 is the EDITOR\'s (MoverLights) and stays the number of lights with a ' +
+  'shadow map; MAX_LIGHTS is how many light the room, in a storage buffer sized by it. If they are merged again, ' +
+  'lifting the light count silently allocates 1 000+ shadow maps (or indexes shadow matrix 9 of 8); if spot_shadow ' +
+  'stops checking its index against the shadowed count, light 9 reads a matrix that is not its own.',
+  () => {
+    const problems = [];
+    const b = raw('engine/artlux-engine/src/beams.rs');
+    const v = raw('engine/artlux-engine/src/view3d.rs');
+    if (!/pub const MAX_LIGHTS: usize = /.test(b)) problems.push('beams.rs has no MAX_LIGHTS');
+    if (!/lit\.truncate\(MAX_LIGHTS\);/.test(b)) problems.push('beams::spots no longer keeps MAX_LIGHTS lights');
+    if (!/@group\(3\) @binding\(3\) var<storage, read> spots: array<Spot>;/.test(v)) problems.push('the spots are no longer a storage buffer');
+    if (!/size: \(crate::beams::MAX_LIGHTS \* crate::beams::SPOT_FLOATS \* 4\) as u64, usage: wgpu::BufferUsages::STORAGE/.test(v)) problems.push('the spot buffer is no longer sized by MAX_LIGHTS');
+    if (!/let n_shadowed = n\.min\(crate::beams::MAX_SPOTS\);/.test(v) || !/for k in 0\.\.n_shadowed \{/.test(v)) problems.push('shadow cameras are no longer limited to the first MAX_SPOTS lights');
+    if (!/if \(lights\.n\.z < 0\.5 \|\| f32\(k\) >= lights\.n\.w\) \{ return 1\.0; \}/.test(v)) problems.push('spot_shadow no longer leaves a light past the shadowed count unshadowed');
+    if (!/struct Lights \{ n: vec4<f32>, shadow: array<mat4x4<f32>, 8> \};/.test(v)) problems.push('the shadow matrices are no longer the editor\'s 8');
+    return problems.length ? problems.join('; ') : null;
+  },
+);
+
+check(
   'GPU timestamps (D2a-0) are asked of the device ONLY while measuring, and never make a thread wait',
   'D2a-0 (plans/engine-d2-many-lights.md, 2026-11-28): the engine had no GPU time per pass — nvidia-smi\'s machine load ' +
   'cannot tell the lighting pass from the shadow maps (the first measurement found the shadow maps, not lighting, ' +

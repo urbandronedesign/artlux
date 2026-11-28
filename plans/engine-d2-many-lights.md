@@ -162,6 +162,15 @@ Each step is one commit, its own test numbers, its guard.
 > between-pass timestamp counts time the queue spent on someone else's work — read p50, not max. Not measured yet:
 > 4K (the bench's window is 1280 × 760; D2a-3's exit run sizes it to 4K).
 
+> ✅ **D2a-1 built 2026-11-28 — the spots in a storage buffer, still 8.** `beams::MAX_LIGHTS` (= `MAX_SPOTS` until
+> D2a-3) sizes a read-only storage buffer of `Spot`s at group 3 binding 3; the uniform keeps the count, the flags and
+> the 8 shadow matrices, plus `n.w` = how many lights have a shadow map — the first `min(n, MAX_SPOTS)`, the
+> brightest; `spot_shadow` leaves any light past it unshadowed (no light is, yet). Same `LIGHTS_WGSL` for the
+> forward and deferred passes. **Identical**: test:engine-shadows ring 131.4 (as before), --ao 223.1, beams and
+> view-place pass, forward (=0) shadows pass; the lighting example's capture equals V5's, deferred and forward
+> (0.00 % of pixels > 8 levels). Guarded: MAX_LIGHTS apart from MAX_SPOTS, the storage buffer sized by it, shadow
+> cameras only for the first MAX_SPOTS, the shadowed-count test in `spot_shadow`.
+
 ## Owner questions
 
 1. **Lights 9+ unshadowed until D3** — acceptable for the gap? (Recommendation: yes; the other option keeps the

@@ -139,6 +139,10 @@ pub fn build(lights: &[LightFix], states: &HashMap<String, Beam>, look: &BeamLoo
 /// least 1 in Rendered — Simulator3D's lightGain). Packed for the mesh shader: per spot position + range, direction
 /// + decay, colour × intensity, cos(outer) + cos(inner); then the count.
 pub const MAX_SPOTS: usize = 8;
+/// D2a (plans/engine-d2-many-lights.md): the ENGINE's light budget — how many lit heads light the room, a constant of
+/// its own, separate from the editor's MAX_SPOTS (which stays the count with SHADOW MAPS until D3's atlas). Equal to
+/// it until D2a-3 lifts it; the lights live in a storage buffer of this many spots.
+pub const MAX_LIGHTS: usize = MAX_SPOTS;
 pub const SPOT_FLOATS: usize = 16;
 pub fn spots(lights: &[LightFix], states: &HashMap<String, Beam>, gain: f32) -> (Vec<f32>, usize) {
     let deg = std::f32::consts::PI / 180.0;
@@ -148,8 +152,8 @@ pub fn spots(lights: &[LightFix], states: &HashMap<String, Beam>, gain: f32) -> 
         (!st.blackout && st.intensity > 0.01).then_some((b, st))
     }).collect();
     lit.sort_by(|a, b| b.1.intensity.partial_cmp(&a.1.intensity).unwrap_or(std::cmp::Ordering::Equal));
-    lit.truncate(MAX_SPOTS);
-    let mut out = vec![0f32; MAX_SPOTS * SPOT_FLOATS];
+    lit.truncate(MAX_LIGHTS);
+    let mut out = vec![0f32; MAX_LIGHTS * SPOT_FLOATS];
     if gain <= 0.0 { return (out, 0); }
     for (k, (b, st)) in lit.iter().enumerate() {
         let aim = qmul(qmul(b.q, qaxis([0.0, 1.0, 0.0], (st.pan as f32 - b.pan_mid) * deg)), qaxis([1.0, 0.0, 0.0], (st.tilt as f32 - b.tilt_mid) * deg));

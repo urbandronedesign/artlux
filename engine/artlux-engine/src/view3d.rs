@@ -586,15 +586,19 @@ const LIGHTS_WGSL: &str = r#"
 // SpotLight: distance falloff 1 / max(d^decay, 0.01) × (1 − (d / range)^4)^2, the cone smoothstep(cos outer,
 // cos inner), Lambert (albedo / π × N·L × colour × intensity).
 struct Spot { pos: vec4<f32>, dir: vec4<f32>, color: vec4<f32>, cone: vec4<f32> };
-// n.x: spots in use; n.y: 1 = Rendered (a dark room); n.z: 1 = the spots cast SHADOWS (Rendered).
-struct Lights { spots: array<Spot, 8>, n: vec4<f32>, shadow: array<mat4x4<f32>, 8> };
+// n.x: spots in use; n.y: 1 = Rendered (a dark room); n.z: 1 = the spots cast SHADOWS (Rendered); n.w: how many of
+// them (the first, brightest) have a shadow map — the rest light unshadowed (D2a; D3's atlas ends that).
+struct Lights { n: vec4<f32>, shadow: array<mat4x4<f32>, 8> };
 @group(3) @binding(0) var<uniform> lights: Lights;
+// D2a-1: the spots themselves, in a STORAGE buffer — sized by the engine's light budget (beams::MAX_LIGHTS), not a
+// uniform block's fixed 8.
+@group(3) @binding(3) var<storage, read> spots: array<Spot>;
 @group(3) @binding(1) var shadow_maps: texture_depth_2d_array;
 @group(3) @binding(2) var shadow_cmp: sampler_comparison;
 // E4b: how much of spot k reaches w — the editor's Rendered shadows (PCFSoftShadowMap, bias −0.0005, normalBias
 // 0.02 m): the point pushed along its normal, projected into the spot's map, a 3 × 3 comparison average.
 fn spot_shadow(k: u32, w: vec3<f32>, n: vec3<f32>) -> f32 {
-  if (lights.n.z < 0.5) { return 1.0; }
+  if (lights.n.z < 0.5 || f32(k) >= lights.n.w) { return 1.0; }
   let c = lights.shadow[k] * vec4<f32>(w + n * 0.02, 1.0);
   if (c.w <= 0.0) { return 1.0; }
   let p = c.xyz / c.w;
@@ -612,7 +616,7 @@ fn spot_shadow(k: u32, w: vec3<f32>, n: vec3<f32>) -> f32 {
 fn spot_light(w: vec3<f32>, n: vec3<f32>) -> vec3<f32> {
   var sum = vec3<f32>(0.0);
   for (var k = 0u; k < u32(lights.n.x); k = k + 1u) {
-    let s = lights.spots[k];
+    let s = spots[k];
     let l = s.pos.xyz - w;
     let d = length(l);
     let ld = l / max(d, 1e-5);
@@ -950,9 +954,11 @@ pub fn present(gpu: Arc<Gpu>, window: Arc<Window>, surface: wgpu::Surface<'stati
         wgpu::BindGroupLayoutEntry { binding: 0, visibility: wgpu::ShaderStages::FRAGMENT, ty: wgpu::BindingType::Buffer { ty: wgpu::BufferBindingType::Uniform, has_dynamic_offset: false, min_binding_size: None }, count: None },
         wgpu::BindGroupLayoutEntry { binding: 1, visibility: wgpu::ShaderStages::FRAGMENT, ty: wgpu::BindingType::Texture { sample_type: wgpu::TextureSampleType::Depth, view_dimension: wgpu::TextureViewDimension::D2Array, multisampled: false }, count: None },
         wgpu::BindGroupLayoutEntry { binding: 2, visibility: wgpu::ShaderStages::FRAGMENT, ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Comparison), count: None },
+        wgpu::BindGroupLayoutEntry { binding: 3, visibility: wgpu::ShaderStages::FRAGMENT, ty: wgpu::BindingType::Buffer { ty: wgpu::BufferBindingType::Storage { read_only: true }, has_dynamic_offset: false, min_binding_size: None }, count: None },
     ] });
-    // spots (8 × 16 floats), n (4), the shadow matrices (8 × 16).
-    let light_buf = d.create_buffer(&wgpu::BufferDescriptor { label: Some("lights"), size: ((crate::beams::MAX_SPOTS * crate::beams::SPOT_FLOATS + 4 + crate::beams::MAX_SPOTS * 16) * 4) as u64, usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST, mapped_at_creation: false });
+    // n (4), the shadow matrices (MAX_SPOTS × 16) — and, D2a-1, the spots in their own storage buffer (MAX_LIGHTS × 16).
+    let light_buf = d.create_buffer(&wgpu::BufferDescriptor { label: Some("lights"), size: ((4 + crate::beams::MAX_SPOTS * 16) * 4) as u64, usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST, mapped_at_creation: false });
+    let spot_buf = d.create_buffer(&wgpu::BufferDescriptor { label: Some("spots"), size: (crate::beams::MAX_LIGHTS * crate::beams::SPOT_FLOATS * 4) as u64, usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST, mapped_at_creation: false });
     // E4b: the spots' shadow maps — one layer each, SHADOW_SIZE² (the editor's 1024 at "high"), and a camera per spot.
     let shadow_tex = d.create_texture(&wgpu::TextureDescriptor { label: Some("spot shadows"), size: wgpu::Extent3d { width: SHADOW_SIZE, height: SHADOW_SIZE, depth_or_array_layers: crate::beams::MAX_SPOTS as u32 },
         mip_level_count: 1, sample_count: 1, dimension: wgpu::TextureDimension::D2, format: DEPTH, usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::TEXTURE_BINDING, view_formats: &[] });
@@ -965,6 +971,7 @@ pub fn present(gpu: Arc<Gpu>, window: Arc<Window>, surface: wgpu::Surface<'stati
         wgpu::BindGroupEntry { binding: 0, resource: light_buf.as_entire_binding() },
         wgpu::BindGroupEntry { binding: 1, resource: wgpu::BindingResource::TextureView(&shadow_all) },
         wgpu::BindGroupEntry { binding: 2, resource: wgpu::BindingResource::Sampler(&shadow_cmp) },
+        wgpu::BindGroupEntry { binding: 3, resource: spot_buf.as_entire_binding() },
     ] });
     let shadow_cams: Vec<(wgpu::Buffer, wgpu::BindGroup)> = (0..crate::beams::MAX_SPOTS).map(|_| {
         let b = d.create_buffer(&wgpu::BufferDescriptor { label: Some("spot cam"), size: 96, usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST, mapped_at_creation: false });
@@ -1477,10 +1484,12 @@ pub fn present(gpu: Arc<Gpu>, window: Arc<Window>, surface: wgpu::Surface<'stati
         }
         // The heads as lights, this frame (moved with a drag, as the beams are).
         {
-            let (mut v, n) = scene.as_ref().map(|s| crate::beams::spots(moved_lights.as_deref().unwrap_or(&s.lights), &beam_states, s.look.light_gain)).unwrap_or((vec![0.0; crate::beams::MAX_SPOTS * crate::beams::SPOT_FLOATS], 0));
+            let (v, n) = scene.as_ref().map(|s| crate::beams::spots(moved_lights.as_deref().unwrap_or(&s.lights), &beam_states, s.look.light_gain)).unwrap_or((vec![0.0; crate::beams::MAX_LIGHTS * crate::beams::SPOT_FLOATS], 0));
+            // The first MAX_SPOTS (the brightest) get shadow cameras; the rest light unshadowed (D2a, until D3).
+            let n_shadowed = n.min(crate::beams::MAX_SPOTS);
             // Each spot's shadow camera: three's SpotLightShadow — fov twice the cone, square, near 0.5, far its range.
             let mut mats = vec![0f32; crate::beams::MAX_SPOTS * 16];
-            for k in 0..n {
+            for k in 0..n_shadowed {
                 let o = k * crate::beams::SPOT_FLOATS;
                 let (p, dir) = ([v[o], v[o + 1], v[o + 2]], [v[o + 4], v[o + 5], v[o + 6]]);
                 let angle = v[o + 12].clamp(-1.0, 1.0).acos();
@@ -1494,7 +1503,7 @@ pub fn present(gpu: Arc<Gpu>, window: Arc<Window>, surface: wgpu::Surface<'stati
             // shadows cost while heads move (2026-11-28 chase bench); the look is wrong with it (light through trusses).
             static SHADOWS: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
             let shadows_on = *SHADOWS.get_or_init(|| std::env::var("ARTLUX_VIEW3D_SHADOWS").map_or(true, |v| v != "0"));
-            shadow_n = if look.rendered && shadows_on { n } else { 0 };
+            shadow_n = if look.rendered && shadows_on { n_shadowed } else { 0 };
             // O2-5: the shadow maps are a function of the spots' cameras and the casters (the scene, the files loaded, a
             // drag) — drawn again only when one of those moves, not on every frame (an LED colour does not move them).
             let sk = {
@@ -1506,9 +1515,10 @@ pub fn present(gpu: Arc<Gpu>, window: Arc<Window>, surface: wgpu::Surface<'stati
                 h.finish()
             };
             if sk == shadow_key { shadow_draw = false; } else { shadow_key = sk; shadow_draw = true; }
-            v.extend_from_slice(&[n as f32, look.rendered as u32 as f32, (shadow_n > 0) as u32 as f32, 0.0]);
-            v.extend_from_slice(&mats);
-            gpu.queue.write_buffer(&light_buf, 0, &bytes(&v));
+            let mut u = vec![n as f32, look.rendered as u32 as f32, (shadow_n > 0) as u32 as f32, shadow_n as f32];
+            u.extend_from_slice(&mats);
+            gpu.queue.write_buffer(&light_buf, 0, &bytes(&u));
+            gpu.queue.write_buffer(&spot_buf, 0, &bytes(&v[..n.max(1) * crate::beams::SPOT_FLOATS]));
         }
         let n_cones = (bf.cones.len() / crate::beams::CONE_FLOATS) as u32;
         let n_beam_verts = (bf.lines.len() / crate::beams::LINE_FLOATS) as u32;
